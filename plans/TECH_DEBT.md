@@ -108,7 +108,22 @@ referenced from plans/PRs.
   replacement path (rebuild widget + swap into the parent slot + rebind events + re-parent
   children) has nothing to test against. The mask is part of the adapter contract NOW
   (D-11) and a violating diff warns loudly instead of silently misrendering.
-- **Production-grade resolution:** implement replacement-in-place when the first Phase 2
-  step 3 widget ships a reconstruct-mask prop (SEditableTextBox/SCheckBox candidates), with a
-  pointer-identity-change test proving the swap.
+- **Production-grade resolution:** implement replacement-in-place when the first widget ships a
+  reconstruct-mask prop, with a pointer-identity-change test proving the swap. (The header-sweep
+  audit removed the last v1 mask user: SScrollBox Orientation turned out runtime-settable — as of
+  the audit NO shipped widget uses the mask; it remains contract-only.)
+- **Status:** OPEN
+
+## TD-012 — Batch-2 widget surface deliberately deferred to Phase 7 (header-sweep audit)
+- **Where:** `ReactiveUISlate` adapters (audit: engine-header sweep of all 15 shipped widgets)
+- **What/why deferred:** the sweep found these RUNTIME setters not yet mapped — deferred by
+  decision, not omission: SButton sounds + click/press/touch methods + IsFocusable; SSlider
+  bar/handle colors + orientation + locked/indent; SCheckBox per-state images; SProgressBar
+  fill type/style + marquee; SScrollBox scrollbar knobs (thickness/visibility/overscroll/
+  wheel) + ScrollToEnd-style imperative APIs; STextBlock shaping/flow/highlight/strike/
+  overflow + line-height. Everyday keys WERE added in the audit commit (text justify/autoWrap,
+  button ContentPadding, slider StepSize, progress fillColor, scrollbox runtime Orientation).
+- **Production-grade resolution:** the Phase 7 batch-2 production line maps each remaining
+  setter through the prop-map schema with per-widget tests; imperative APIs (ScrollToEnd)
+  need the ref-command design (family `useImperativeHandle` pattern over host handles).
 - **Status:** OPEN

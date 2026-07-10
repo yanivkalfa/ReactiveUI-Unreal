@@ -35,7 +35,8 @@ struct REACTIVEUISLATE_API FRuiButtonProps final : public FRuiPropsBase
 {
 	RUI_PROP_EVENT(OnClicked, 0)
 	RUI_PROP(bool, bEnabled, 1)
-	RUI_PROPS_BODY(FRuiButtonProps, RUI_EQ(OnClicked) RUI_EQ(bEnabled))
+	RUI_PROP(FMargin, ContentPadding, 2)
+	RUI_PROPS_BODY(FRuiButtonProps, RUI_EQ(OnClicked) RUI_EQ(bEnabled) RUI_EQ(ContentPadding))
 };
 
 /** SOverlay (MultiSlot; also the SRuiRoot inner panel). slot.zorder orders the slots. */
@@ -79,7 +80,7 @@ struct REACTIVEUISLATE_API FRuiImageProps final : public FRuiPropsBase
 	RUI_PROPS_BODY(FRuiImageProps, RUI_EQ(Color) RUI_EQ(DesiredSize))
 };
 
-/** SScrollBox (MultiSlot). Orientation is CONSTRUCT-ONLY (reconstruct mask bit 0). */
+/** SScrollBox (MultiSlot). Orientation is runtime-settable (header-sweep verified). */
 struct REACTIVEUISLATE_API FRuiScrollBoxProps final : public FRuiPropsBase
 {
 	RUI_PROP(FName, Orientation, 0) // "vertical" (default) | "horizontal"
@@ -128,7 +129,9 @@ struct REACTIVEUISLATE_API FRuiSliderProps final : public FRuiPropsBase
 	RUI_PROP(float, MinValue, 1)
 	RUI_PROP(float, MaxValue, 2)
 	RUI_PROP_EVENT(OnValueChanged, 3)
-	RUI_PROPS_BODY(FRuiSliderProps, RUI_EQ(Value) RUI_EQ(MinValue) RUI_EQ(MaxValue) RUI_EQ(OnValueChanged))
+	RUI_PROP(float, StepSize, 4)
+	RUI_PROPS_BODY(FRuiSliderProps,
+				   RUI_EQ(Value) RUI_EQ(MinValue) RUI_EQ(MaxValue) RUI_EQ(OnValueChanged) RUI_EQ(StepSize))
 };
 
 /** SProgressBar (Leaf). */

@@ -185,6 +185,25 @@ public:
 			W.SetFont(FCoreStyle::GetDefaultFontStyle("Regular", Size));
 			return true;
 		}
+		if (Key == FName(TEXT("justify")))
+		{
+			ETextJustify::Type Justify = ETextJustify::Left;
+			if (Value != nullptr)
+			{
+				const FName Name =
+					Value->Kind == FRuiValue::EKind::Name ? Value->NameValue : FName(*Value->StringValue);
+				Justify = Name == FName(TEXT("center"))	 ? ETextJustify::Center
+						  : Name == FName(TEXT("right")) ? ETextJustify::Right
+														 : ETextJustify::Left;
+			}
+			W.SetJustification(Justify);
+			return true;
+		}
+		if (Key == FName(TEXT("autoWrap")))
+		{
+			W.SetAutoWrapText(Value != nullptr && Value->BoolValue);
+			return true;
+		}
 		return false;
 	}
 };
@@ -334,6 +353,11 @@ public:
 		if (N.HasbEnabled() && (O == nullptr || !O->HasbEnabled() || O->bEnabled != N.bEnabled))
 		{
 			W.SetEnabled(N.bEnabled);
+		}
+		if (N.HasContentPadding() &&
+			(O == nullptr || !O->HasContentPadding() || !(N.ContentPadding == O->ContentPadding)))
+		{
+			W.SetContentPadding(N.ContentPadding);
 		}
 	}
 

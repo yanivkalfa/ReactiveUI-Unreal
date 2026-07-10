@@ -186,9 +186,15 @@ public:
 		return SNew(SScrollBox).Orientation(Orientation);
 	}
 
-	virtual void ApplyDiff(SWidget&, const FRuiPropsBase*, const FRuiPropsBase&) override {}
-
-	virtual uint64 GetReconstructMask() const override { return 1ull << FRuiScrollBoxProps::Orientation_Bit; }
+	virtual void ApplyDiff(SWidget& Widget, const FRuiPropsBase* Old, const FRuiPropsBase& New) override
+	{
+		// Header-sweep correction: SetOrientation IS a runtime setter — no reconstruct mask.
+		SScrollBox& W = static_cast<SScrollBox&>(Widget);
+		const FRuiScrollBoxProps& N = static_cast<const FRuiScrollBoxProps&>(New);
+		const FRuiScrollBoxProps* O = static_cast<const FRuiScrollBoxProps*>(Old);
+		RUI_ROW(Orientation,
+				W.SetOrientation(N.Orientation == FName(TEXT("horizontal")) ? Orient_Horizontal : Orient_Vertical))
+	}
 
 	virtual void InsertChild(SWidget& Parent, const TSharedRef<SWidget>& Child, int32,
 							 const FRuiStyleDict* SlotProps) override
@@ -403,6 +409,7 @@ public:
 		{
 			W.SetMinAndMaxValues(N.HasMinValue() ? N.MinValue : 0.0f, N.HasMaxValue() ? N.MaxValue : 1.0f);
 		}
+		RUI_ROW(StepSize, W.SetStepSize(N.StepSize))
 		// Self-notifying skip (D-16): the drag round-trip lands on an equal value.
 		if (N.HasValue() && !FMath::IsNearlyEqual(W.GetValue(), N.Value))
 		{
@@ -437,6 +444,17 @@ public:
 		const FRuiProgressBarProps& N = static_cast<const FRuiProgressBarProps&>(New);
 		const FRuiProgressBarProps* O = static_cast<const FRuiProgressBarProps*>(Old);
 		RUI_ROW(Percent, W.SetPercent(N.Percent))
+	}
+
+	virtual bool ApplyStyleKey(SWidget& Widget, FName Key, const FRuiValue* Value) override
+	{
+		if (Key == FName(TEXT("fillColor")))
+		{
+			static_cast<SProgressBar&>(Widget).SetFillColorAndOpacity(
+				Value != nullptr ? FSlateColor(Value->ColorValue) : FSlateColor(FLinearColor::White));
+			return true;
+		}
+		return false;
 	}
 };
 
