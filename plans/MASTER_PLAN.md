@@ -587,7 +587,7 @@ hooks header) · 6 needs 2 · 7 needs 2+3 (the `loc()` form needs the compiler) 
 IN v1 (all must be green, verified by running):
 - [ ] Core reconciler + **all 23 hooks fully wired** (no stubs — the five late-wired hooks
       UseSafeArea/UseTween/UseTweenValue/UseAnimate/UseSfx included) passing the ported suites.
-- [ ] **25 widgets** (the 15 core widgets of Phase 2 + the 10 batch-2 widgets of Phase 7 step 8)
+- [ ] **All official runtime widgets** (owner directive 2026-07-10, matching the Godot port's full-Control coverage): 15 shipped (Phase 2) + Batch 2 (Phase 7 step 8) + Batch 3 (v1.x) — plans/WIDGET_INVENTORY.md is the authoritative per-widget tracker
       **plus** the virtualized `SListView` items adapter — each through the full component
       pipeline.
 - [ ] Style v1: setter-based hot-path keys (style tweak never reconstructs), `classes` layer.
