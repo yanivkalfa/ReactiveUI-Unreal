@@ -2,28 +2,12 @@
 
 #include "UetkxLexer.h"
 
+#include "UetkxChars.h"
+
+using namespace UetkxChars;
+
 namespace
 {
-	constexpr int32 C_NL = '\n';
-	constexpr int32 C_CR = '\r';
-	constexpr int32 C_TAB = '\t';
-	constexpr int32 C_SPACE = ' ';
-	constexpr int32 C_QUOTE = '"';
-	constexpr int32 C_APOS = '\'';
-	constexpr int32 C_HASH = '#';
-	constexpr int32 C_SLASH = '/';
-	constexpr int32 C_STAR = '*';
-	constexpr int32 C_BSLASH = '\\';
-	constexpr int32 C_LT = '<';
-	constexpr int32 C_BANG = '!';
-	constexpr int32 C_DASH = '-';
-	constexpr int32 C_AT = '@';
-	constexpr int32 C_LPAREN = '(';
-	constexpr int32 C_RPAREN = ')';
-	constexpr int32 C_LBRACE = '{';
-	constexpr int32 C_RBRACE = '}';
-	constexpr int32 C_LBRACKET = '[';
-	constexpr int32 C_RBRACKET = ']';
 
 	/** Can code `c` end a value/operand? (Then a following prefix char is NOT a prefix.) */
 	bool IsValueEnd(int32 C)
