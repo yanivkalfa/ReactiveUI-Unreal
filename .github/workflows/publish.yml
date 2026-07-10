@@ -22,13 +22,13 @@ jobs:
   deploy-docs:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Guard (docs scaffold present?)
         id: guard
         run: |
           if [ -f docs/package.json ]; then echo "armed=true" >> "$GITHUB_OUTPUT"; else
             echo "docs not present yet — skipping deploy."; echo "armed=false" >> "$GITHUB_OUTPUT"; fi
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         if: steps.guard.outputs.armed == 'true'
         with:
           node-version: 22
@@ -70,7 +70,7 @@ jobs:
       version: ${{ steps.ver.outputs.version }}
       new_tag: ${{ steps.tagcheck.outputs.new_tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Read VersionName
@@ -129,7 +129,7 @@ jobs:
   publish-vscode:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Guard (Phase 5)
         run: |
           if [ ! -f ide-extensions/vscode-uetkx/package.json ]; then
@@ -142,7 +142,7 @@ jobs:
   publish-vs2022:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Guard (Phase 5)
         run: |
           if [ ! -d ide-extensions/visual-studio/UetkxVsix ]; then
