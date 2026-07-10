@@ -27,14 +27,14 @@ C++ here.
 component ScoreCard(Title: FText, MaxScore: int32 = 100) {
 	auto [Score, SetScore] = UseState(0);
 	return (
-		<VBox style={ {"separation": 8} }>
-			<Text text={ FText::Format(INVTEXT("{0}: {1} / {2}"), Title, Score, MaxScore) } />
-			<HBox>
-				<Button text="+10" onClick={ SetScore(Score + 10) } />
-				<Button text="Reset" onClick={ SetScore(0) } />
-			</HBox>
+		<VerticalBox>
+			<TextBlock Text={ FText::Format(INVTEXT("{0}: {1} / {2}"), Title, Score, MaxScore) } />
+			<HorizontalBox>
+				<Button OnClicked={ SetScore(Score + 10) }>+10</Button>
+				<Button OnClicked={ SetScore(0) }>Reset</Button>
+			</HorizontalBox>
 			{ children }
-		</VBox>
+		</VerticalBox>
 	)
 }
 ```
@@ -44,7 +44,9 @@ Rules that matter:
 - **Hooks**: `UseState/UseEffect/UseMemo/…` (all 23; PascalCase — this is C++). Rules of hooks
   apply: top level only, stable order, never inside `@if`/loops. Changing the hook SHAPE resets
   that component's state on hot reload (deliberate; the status line reports it).
-- **Events**: React aliases (`onClick`, `onChange`, …) or `on_<DelegateName>` escape hatch.
+- **Events**: the Unreal delegate name VERBATIM (`OnClicked`, `OnTextChanged`,
+  `OnCheckStateChanged` — D-33 in MASTER_PLAN; no React aliases). Same rule as every other
+  name: element tags = Slate class minus `S`, props = the setter/property name minus `Set`.
   Handlers: setter calls / whitelisted expressions inline, or a **named function** on the
   component's logic class — `logic={UShopLogic}` (a plain attribute; may be a Blueprint class),
   handler referenced by name. Handler BODIES are compiled C++ — new bodies need a compile;
