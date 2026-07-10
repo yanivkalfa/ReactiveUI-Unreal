@@ -1,8 +1,8 @@
 // Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 //
 // ── docs-sync TEMPLATE: one hook reference page ─────────────────────────────────────────
-// Copy to docs/src/pages/Hooks/<HookName>Page.tsx, replace __TOKENS__, register the route
-// in docs/src/docs.tsx + the nav in pages.tsx + searchIndex.ts (docs-sync's new-hook row).
+// Copy to ReactiveUIUnrealDocs~/src/pages/Hooks/<HookName>Page.tsx, replace __TOKENS__, register the route
+// in ReactiveUIUnrealDocs~/src/docs.tsx + the nav in pages.tsx + searchIndex.ts (docs-sync's new-hook row).
 // Haiku-class: fill from the hook's source doc comment; a sonnet-class pass checks the
 // SEMANTIC claims (dependency behavior, cleanup timing) against the implementation.
 

@@ -527,8 +527,9 @@ ReactiveUI-Unreal/                          # repo root IS the demo host project
     grammar/uetkx.tmLanguage.json           # TextMate; C++ embedded-scope injection (source.cpp)
     vscode-uetkx/                           # VS Code extension (language id uetkx)
     visual-studio/                          # VS2022 VSIX reusing the ILanguageClient stdio host
-  docs/                                     # DELIVERABLE 3 — docs site (React+Vite, cloned family shell)
-                                            # NOTE: no trailing-~ needed — UE only scans Source/ and Content/
+  ReactiveUIUnrealDocs~/                    # DELIVERABLE 3 — docs site (React+Vite, cloned family shell)
+                                            # Family-signature name (owner decision 2026-07-10). The ~ is INERT in UE (unlike Godot,
+                                            # where it hides dirs from the importer) — kept purely for cross-repo signature.
   plans/                                    # ROADMAP.md, MASTER_PLAN.md (this), DISCORD_CHANGELOG.md,
                                             # PENDING_CHANGELOG.md, TECH_DEBT.md, archive/
   research/                                 # the two-round research corpus (committed evidence)
@@ -665,7 +666,7 @@ distribution, and always opt-in — never a mandatory VM under the shipped UI, p
      (`verify-mirror.mjs`), copyright-header lint, skills lint, clang-format check, lsp-server
      build+tests, contract-corpus TS side, docs build); **staged jobs self-guard inside the job**
      — first step checks whether the consuming directory exists yet (e.g. `ide-extensions/lsp-server`
-     before Phase 5, `docs/` content before Phase 8) and exits 0 with a "not armed yet" log line,
+     before Phase 5, `ReactiveUIUnrealDocs~/` content before Phase 8) and exits 0 with a "not armed yet" log line,
      so required checks always report from commit one with NO paths filters. Engine jobs
      (`build-and-test-5.6/5.7/5.8` on `ghcr.io/epicgames/unreal-engine:dev-slim-<ver>` Linux
      containers, needs Epic-org-linked PAT secret; a DedicatedServer-target compile leg per D-27;
@@ -681,7 +682,7 @@ distribution, and always opt-in — never a mandatory VM under the shipped UI, p
      attaches per-version zips; docs job deploys Pages; extension jobs publish marketplace(s).
      Factor the test-suite list into one reusable workflow consumed by both test.yml and
      publish.yml (Godot improvement #5 — no drift).
-  8. Docs scaffold: clone the family docs-site shell into `docs/` (routing/theme/search), landing
+  8. Docs scaffold: clone the family docs-site shell into `ReactiveUIUnrealDocs~/` (routing/theme/search), landing
      page only; wire `vite.config.ts` to read the plugin version + prop-map schema from day one
      (Godot improvement #9); port `versionManifest.ts` + the TopBar version selector with
      `SUPPORTED_VERSIONS` = the D-28 engine matrix (floor first) — feature maps fill in as
@@ -692,7 +693,7 @@ distribution, and always opt-in — never a mandatory VM under the shipped UI, p
      via `git push origin origin/dev:master`. (Commits within this phase are the established ask
      once the owner approves the plan.)
 - **Files touched:** everything in §2 except module internals; `.github/workflows/*`;
-  `.claude/skills/*`; `templates/*`; `docs/*` shell.
+  `.claude/skills/*`; `templates/*`; `ReactiveUIUnrealDocs~/*` shell.
 - **Verify:** `Build.bat ReactiveUIUnrealDemoEditor Win64 Development -Project=<abs>.uproject`
   compiles the empty plugin warning-clean; `node ide-extensions/scripts/changelog.mjs verify`
   green; skills lint (each SKILL.md has frontmatter + scar-tissue section); CI runs green on the
@@ -1054,7 +1055,7 @@ distribution, and always opt-in — never a mandatory VM under the shipped UI, p
      owner records or approves the capture — linked from README, docs landing, `discordpost`,
      and the Fab listing (Fab listings live or die on media; the AI cannot record video, so this
      is a scheduled owner dependency, not an afterthought).
-- **Files touched:** `Source/RuiDemo/**`, `Content/**` (demo maps), `docs/**`,
+- **Files touched:** `Source/RuiDemo/**`, `Content/**` (demo maps), `ReactiveUIUnrealDocs~/**`,
   `ReactiveUIEditor/**` (Inspector tab), root + plugin READMEs, `discordpost`, `plans/`.
 - **Verify:** `ReactiveUI.Demos` covers every gallery screen; docs `npm run build && npm run lint`;
   `node ide-extensions/scripts/docs-drift.mjs` (claimed counts vs registries) green; bench table

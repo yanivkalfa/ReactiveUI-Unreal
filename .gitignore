@@ -30,7 +30,7 @@ publisher-secrets.json
 
 # ── Node trees (docs site, ide-extensions) ──
 node_modules/
-docs/dist/
+ReactiveUIUnrealDocs~/dist/
 ide-extensions/lsp-server/out/
 ide-extensions/vscode-uetkx/out/
 ide-extensions/vscode-uetkx/*.vsix

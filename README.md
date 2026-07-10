@@ -47,7 +47,7 @@ with every performance claim measured before it's printed.
 | `Plugins/ReactiveUI/` | The plugin — the deliverable (self-contained: own README/CHANGELOG/LICENSE) |
 | `Source/`, `Content/` | The demo host project (`ReactiveUIUnrealDemo.uproject` at root) + automation tests |
 | `ide-extensions/` | `.uetkx` IDE tooling (shared family language server; VS Code + VS2022) |
-| `docs/` | Docs site (React + Vite, the family shell) |
+| `ReactiveUIUnrealDocs~/` | Docs site (React + Vite, the family shell) |
 | `plans/` | ROADMAP (status source of truth), MASTER_PLAN, ledgers |
 | `research/` | The two-round research corpus the plans rest on |
 | `.claude/skills/` | The house process, encoded (dev/release/testing/production-line runbooks) |
