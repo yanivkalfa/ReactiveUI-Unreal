@@ -35,6 +35,10 @@ ide-extensions/lsp-server/out/
 ide-extensions/vscode-uetkx/out/
 ide-extensions/vscode-uetkx/*.vsix
 
+# The owner's ad-hoc scratch file for pasting CI/editor error output (the field-test-editor
+# skill reads it; never committed).
+/Errors
+
 # OS noise
 Thumbs.db
 .DS_Store
