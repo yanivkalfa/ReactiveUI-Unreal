@@ -1,0 +1,340 @@
+// Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
+
+#include "RuiSlateHost.h"
+
+#include "Framework/Application/SlateApplication.h"
+#include "GenericPlatform/GenericApplication.h"
+#include "RuiCoreElements.h"
+#include "RuiSlateLog.h"
+#include "Widgets/SNullWidget.h"
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// Adapter registry
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+namespace
+{
+	FCriticalSection GAdapterLock;
+	TMap<FRuiElementTypeId, TUniquePtr<IRuiElementAdapter>> GAdapters;
+} // namespace
+
+namespace RUI::Slate
+{
+	void RegisterAdapter(FRuiElementTypeId Type, TUniquePtr<IRuiElementAdapter> Adapter)
+	{
+		checkf(Type.IsValid(), TEXT("ReactiveUI: cannot register an adapter for the invalid element type"));
+		FScopeLock Lock(&GAdapterLock);
+		GAdapters.Add(Type, MoveTemp(Adapter)); // replace on re-registration (Live Coding)
+	}
+
+	FRuiElementTypeId RegisterAdapter(FName TagName, TUniquePtr<IRuiElementAdapter> Adapter)
+	{
+		const FRuiElementTypeId Type = RUI::InternElementType(TagName);
+		RegisterAdapter(Type, MoveTemp(Adapter));
+		return Type;
+	}
+
+	IRuiElementAdapter* FindAdapter(FRuiElementTypeId Type)
+	{
+		FScopeLock Lock(&GAdapterLock);
+		const TUniquePtr<IRuiElementAdapter>* Found = GAdapters.Find(Type);
+		return Found ? Found->Get() : nullptr;
+	}
+} // namespace RUI::Slate
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// FRuiSlateHost
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+FRuiSlateHost::FRuiSlateHost() = default;
+
+FRuiSlateHost::~FRuiSlateHost()
+{
+	if (bPreTickRegistered && FSlateApplication::IsInitialized())
+	{
+		FSlateApplication::Get().OnPreTick().Remove(PreTickHandle);
+	}
+	// Queued frames die with the host (the mount surface tears reconciler + host down
+	// together; the reconciler's Tick self-guards anyway).
+	FrameQueue.Reset();
+}
+
+FRuiHostHandle FRuiSlateHost::WrapExternalPanel(const TSharedRef<SWidget>& Panel, FRuiElementTypeId PanelType)
+{
+	IRuiElementAdapter* Adapter = RUI::Slate::FindAdapter(PanelType);
+	checkf(Adapter != nullptr, TEXT("ReactiveUI: no adapter registered for the mount panel type"));
+	TSharedRef<FRuiSlateNode> Node = MakeShared<FRuiSlateNode>();
+	Node->Widget = Panel;
+	Node->Adapter = Adapter;
+	Node->Type = PanelType;
+	return Node;
+}
+
+FRuiHostHandle FRuiSlateHost::CreateInstance(FRuiElementTypeId Type, const FRuiPropsBase& Props)
+{
+	IRuiElementAdapter* Adapter = RUI::Slate::FindAdapter(Type);
+	if (Adapter == nullptr)
+	{
+		UE_LOG(LogRuiSlate, Error, TEXT("[ReactiveUI] no adapter registered for element '%s' — rendering a null slot"),
+			   *RUI::GetElementTypeName(Type).ToString());
+		TSharedRef<FRuiSlateNode> Null = MakeShared<FRuiSlateNode>();
+		Null->Widget = SNullWidget::NullWidget;
+		Null->Type = Type;
+		return Null;
+	}
+
+	TSharedRef<FRuiSlateNode> Node = MakeShared<FRuiSlateNode>();
+	Node->Adapter = Adapter;
+	Node->Type = Type;
+	TSharedRef<SWidget> Widget = Adapter->CreateWidget(Props);
+	Node->Widget = Widget;
+	Adapter->ApplyDiff(*Widget, nullptr, Props); // full apply — one code path with diffs
+	if (Adapter->HasEvents())
+	{
+		Node->Proxy = MakeShared<FRuiEventProxy>();
+		Adapter->BindEvents(*Widget, Node->Proxy.ToSharedRef());
+		Adapter->SyncEventHandlers(*Node->Proxy, Props);
+	}
+	if (Props.SlotProps.IsValid())
+	{
+		Node->SlotProps = MakeShared<FRuiStyleDict>(*Props.SlotProps);
+	}
+	return Node;
+}
+
+void FRuiSlateHost::CommitUpdate(const FRuiHostHandle& Handle, FRuiElementTypeId Type, const FRuiPropsBase* OldProps,
+								 const FRuiPropsBase& NewProps)
+{
+	FRuiSlateNode* Node = Resolve(Handle);
+	if (Node == nullptr || !Node->Widget.IsValid() || Node->Adapter == nullptr)
+	{
+		return;
+	}
+
+	// Construct-only props changing post-mount would require widget replacement. v1 keeps
+	// the mask honest and loudly rejects violations (tracked in plans/TECH_DEBT.md — the
+	// replacement path arrives with the widget batch that first needs it).
+	const uint64 Mask = Node->Adapter->GetReconstructMask();
+	if (Mask != 0 && OldProps != nullptr)
+	{
+		// A construct-only prop "changed" if either side set it and values differ — the
+		// adapter's diff rows are the authority; this is a coarse guard on the bits.
+		const uint64 TouchedBits = (OldProps->SetBits | NewProps.SetBits) & Mask;
+		if (TouchedBits != 0 && !NewProps.Equals(*OldProps))
+		{
+			UE_LOG(LogRuiSlate, Warning,
+				   TEXT("[ReactiveUI] construct-only prop diff on '%s' ignored (widget replacement lands with the ")
+					   TEXT("first widget that needs it — see plans/TECH_DEBT.md)"),
+				   *RUI::GetElementTypeName(Type).ToString());
+		}
+	}
+
+	Node->Adapter->ApplyDiff(*Node->Widget, OldProps, NewProps);
+	if (Node->Proxy.IsValid())
+	{
+		Node->Adapter->SyncEventHandlers(*Node->Proxy, NewProps);
+	}
+
+	// slot.* changes re-apply through the parent's adapter.
+	const bool bOldHasSlot = OldProps != nullptr && OldProps->SlotProps.IsValid();
+	const bool bNewHasSlot = NewProps.SlotProps.IsValid();
+	const bool bSlotChanged =
+		(bOldHasSlot != bNewHasSlot) ||
+		(bNewHasSlot && bOldHasSlot && !NewProps.SlotProps->OrderIndependentCompareEqual(*OldProps->SlotProps));
+	if (bSlotChanged)
+	{
+		Node->SlotProps =
+			bNewHasSlot ? TSharedPtr<FRuiStyleDict>(MakeShared<FRuiStyleDict>(*NewProps.SlotProps)) : nullptr;
+		if (TSharedPtr<FRuiSlateNode> Parent = Node->ParentNode.Pin())
+		{
+			if (Parent->Widget.IsValid() && Parent->Adapter != nullptr)
+			{
+				Parent->Adapter->UpdateChildSlotProps(*Parent->Widget, Node->Widget.ToSharedRef(),
+													  Node->SlotProps.Get());
+			}
+		}
+	}
+}
+
+void FRuiSlateHost::ReleaseInstance(const FRuiHostHandle& Handle, FRuiElementTypeId, const FRuiPropsBase*, bool)
+{
+	FRuiSlateNode* Node = Resolve(Handle);
+	if (Node == nullptr)
+	{
+		return;
+	}
+	// Detach if the reconciler's deletion path didn't already (defensive — Release promises
+	// the node is done).
+	if (TSharedPtr<FRuiSlateNode> Parent = Node->ParentNode.Pin())
+	{
+		if (Parent->Widget.IsValid() && Parent->Adapter != nullptr && Node->Widget.IsValid())
+		{
+			RemoveChildFromParent(*Parent, Node->Widget.ToSharedRef());
+		}
+	}
+	Node->ParentNode.Reset();
+	if (Node->Proxy.IsValid())
+	{
+		Node->Proxy->ClearAll(); // user closures must not outlive the node
+	}
+	// GO-05 pooling lands in Phase 2 step 5; v1 lets the widget die with the handle.
+	Node->Widget.Reset();
+}
+
+void FRuiSlateHost::InsertChild(const FRuiHostHandle& ParentHandle, const FRuiHostHandle& ChildHandle, int32 Index)
+{
+	FRuiSlateNode* Parent = Resolve(ParentHandle);
+	FRuiSlateNode* Child = Resolve(ChildHandle);
+	if (Parent == nullptr || Child == nullptr || !Parent->Widget.IsValid() || !Child->Widget.IsValid() ||
+		Parent->Adapter == nullptr)
+	{
+		return;
+	}
+	const TSharedRef<SWidget> ChildWidget = Child->Widget.ToSharedRef();
+	switch (Parent->Adapter->GetChildKind())
+	{
+	case ERuiChildKind::MultiSlot:
+		Parent->Adapter->InsertChild(*Parent->Widget, ChildWidget, Index, Child->SlotProps.Get());
+		break;
+	case ERuiChildKind::SingleContent:
+	{
+		TSharedPtr<SWidget> Existing = Parent->ContentChild.Pin();
+		if (Existing.IsValid() && Existing != Child->Widget && !Parent->bWarnedCapacity)
+		{
+			Parent->bWarnedCapacity = true;
+			UE_LOG(LogRuiSlate, Warning,
+				   TEXT("[ReactiveUI] '%s' takes ONE child — extra children replace the content (last wins)"),
+				   *RUI::GetElementTypeName(Parent->Type).ToString());
+		}
+		Parent->Adapter->SetContent(*Parent->Widget, Child->Widget);
+		Parent->ContentChild = Child->Widget;
+		break;
+	}
+	case ERuiChildKind::Leaf:
+		UE_LOG(LogRuiSlate, Warning, TEXT("[ReactiveUI] '%s' is a leaf — child '%s' dropped"),
+			   *RUI::GetElementTypeName(Parent->Type).ToString(), *RUI::GetElementTypeName(Child->Type).ToString());
+		return;
+	}
+	Child->ParentNode = StaticCastSharedPtr<FRuiSlateNode>(ParentHandle);
+}
+
+void FRuiSlateHost::RemoveChild(const FRuiHostHandle& ParentHandle, const FRuiHostHandle& ChildHandle)
+{
+	FRuiSlateNode* Parent = Resolve(ParentHandle);
+	FRuiSlateNode* Child = Resolve(ChildHandle);
+	if (Parent == nullptr || Child == nullptr || !Parent->Widget.IsValid() || !Child->Widget.IsValid() ||
+		Parent->Adapter == nullptr)
+	{
+		return;
+	}
+	RemoveChildFromParent(*Parent, Child->Widget.ToSharedRef());
+	Child->ParentNode.Reset();
+}
+
+void FRuiSlateHost::ReorderChildren(const FRuiHostHandle& ParentHandle, const TArray<FRuiHostHandle>& Ordered)
+{
+	FRuiSlateNode* Parent = Resolve(ParentHandle);
+	if (Parent == nullptr || !Parent->Widget.IsValid() || Parent->Adapter == nullptr ||
+		Parent->Adapter->GetChildKind() != ERuiChildKind::MultiSlot)
+	{
+		return;
+	}
+	TArray<TSharedRef<SWidget>> Widgets;
+	Widgets.Reserve(Ordered.Num());
+	TMap<SWidget*, const FRuiStyleDict*> SlotPropsByWidget;
+	SlotPropsByWidget.Reserve(Ordered.Num());
+	for (const FRuiHostHandle& H : Ordered)
+	{
+		if (FRuiSlateNode* N = Resolve(H); N != nullptr && N->Widget.IsValid())
+		{
+			TSharedRef<SWidget> W = N->Widget.ToSharedRef();
+			Widgets.Add(W);
+			SlotPropsByWidget.Add(&W.Get(), N->SlotProps.Get());
+		}
+	}
+	Parent->Adapter->ReorderChildren(*Parent->Widget, Widgets,
+									 [&SlotPropsByWidget](const TSharedRef<SWidget>& W) -> const FRuiStyleDict*
+									 { return SlotPropsByWidget.FindRef(&W.Get()); });
+}
+
+FRuiElementTypeId FRuiSlateHost::GetTextElementType() const
+{
+	return RUI::TextElementType();
+}
+
+void FRuiSlateHost::RequestFrame(TFunction<void()> Callback)
+{
+	FrameQueue.Add(MoveTemp(Callback));
+	EnsurePreTickRegistered();
+}
+
+void FRuiSlateHost::GetSafeArea(float& OutLeft, float& OutTop, float& OutRight, float& OutBottom) const
+{
+	OutLeft = OutTop = OutRight = OutBottom = 0.0f;
+	if (FSlateApplication::IsInitialized())
+	{
+		FDisplayMetrics Metrics;
+		FSlateApplication::Get().GetCachedDisplayMetrics(Metrics);
+		OutLeft = Metrics.TitleSafePaddingSize.X;
+		OutTop = Metrics.TitleSafePaddingSize.Y;
+		OutRight = Metrics.TitleSafePaddingSize.Z;
+		OutBottom = Metrics.TitleSafePaddingSize.W;
+	}
+}
+
+void FRuiSlateHost::PumpFrameQueue()
+{
+	TArray<TFunction<void()>> Batch = MoveTemp(FrameQueue);
+	FrameQueue.Reset();
+	for (TFunction<void()>& Fn : Batch)
+	{
+		Fn();
+	}
+}
+
+void FRuiSlateHost::OnSlatePreTick(float)
+{
+	if (!FrameQueue.IsEmpty())
+	{
+		PumpFrameQueue();
+	}
+}
+
+void FRuiSlateHost::EnsurePreTickRegistered()
+{
+	if (bPreTickRegistered)
+	{
+		return;
+	}
+	if (!FSlateApplication::IsInitialized())
+	{
+		if (!bWarnedNoSlateApp)
+		{
+			bWarnedNoSlateApp = true;
+			UE_LOG(LogRuiSlate, Warning,
+				   TEXT("[ReactiveUI] no Slate application — updates queue until PumpFrameQueue()/FlushSync"));
+		}
+		return;
+	}
+	PreTickHandle = FSlateApplication::Get().OnPreTick().AddRaw(this, &FRuiSlateHost::OnSlatePreTick);
+	bPreTickRegistered = true;
+}
+
+void FRuiSlateHost::RemoveChildFromParent(FRuiSlateNode& Parent, const TSharedRef<SWidget>& ChildWidget)
+{
+	switch (Parent.Adapter->GetChildKind())
+	{
+	case ERuiChildKind::MultiSlot:
+		Parent.Adapter->RemoveChild(*Parent.Widget, ChildWidget);
+		break;
+	case ERuiChildKind::SingleContent:
+		if (Parent.ContentChild.Pin() == ChildWidget)
+		{
+			Parent.Adapter->SetContent(*Parent.Widget, nullptr);
+			Parent.ContentChild.Reset();
+		}
+		break;
+	case ERuiChildKind::Leaf:
+		break;
+	}
+}

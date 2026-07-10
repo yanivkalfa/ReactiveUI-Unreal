@@ -49,3 +49,17 @@ Values are min/med of n=5 in-process reps (µs).
 | date | sha | machine | config | min µs | med µs | notes |
 |---|---|---|---|---|---|---|
 | 2026-07-10 | 286fecb | M1 | Dev editor, mock host | 54 | 55 | includes cleanups + slab release + mock-node teardown |
+
+## Bench.SlateReorder — the Phase 2 step 1 reorder-strategy spike (raw SVerticalBox, 200 STextBlocks, no reconciler)
+**Decision (recorded in TECH_DEBT.md): minimal-move ships.** It wins the common case
+(1 moved child: **3µs vs 60µs**, 20×) and loses only the pathological full reverse
+(91µs vs 61µs, 1.5×) — real UIs perturb, they don't reverse. The invalidation-boundary
+wrap variant was not measured: the two strategies don't disagree badly enough to justify it
+(the critique already downgraded that claim).
+
+| date | sha | machine | config | workload | strategy | min µs | med µs |
+|---|---|---|---|---|---|---|---|
+| 2026-07-10 | M7 | M1 | Dev editor, real Slate widgets | 1 moved end→front | minimal-move | 3 | 3 |
+| 2026-07-10 | M7 | M1 | Dev editor, real Slate widgets | 1 moved end→front | clear+rebuild | 59 | 60 |
+| 2026-07-10 | M7 | M1 | Dev editor, real Slate widgets | full reverse | minimal-move | 89 | 91 |
+| 2026-07-10 | M7 | M1 | Dev editor, real Slate widgets | full reverse | clear+rebuild | 60 | 61 |

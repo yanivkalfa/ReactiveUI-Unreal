@@ -23,8 +23,11 @@ public class RuiHostTests : ModuleRules
 			// modules they test: ReactiveUISlate, ReactiveUIUMG, ...).
 			"CoreUObject",
 			"Engine",
-			"Projects",        // IPluginManager (the Boot suite)
-			"ReactiveUICore",  // the mock-host core suites
+			"Projects",         // IPluginManager (the Boot suite)
+			"ReactiveUICore",   // the mock-host core suites
+			"ReactiveUISlate",  // the Slate host suites + reorder spike
+			"SlateCore",
+			"Slate",
 		});
 	}
 }
