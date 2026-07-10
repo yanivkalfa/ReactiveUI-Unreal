@@ -28,7 +28,7 @@ jobs:
         run: |
           if [ -f docs/package.json ]; then echo "armed=true" >> "$GITHUB_OUTPUT"; else
             echo "docs not present yet — skipping deploy."; echo "armed=false" >> "$GITHUB_OUTPUT"; fi
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         if: steps.guard.outputs.armed == 'true'
         with:
           node-version: 22

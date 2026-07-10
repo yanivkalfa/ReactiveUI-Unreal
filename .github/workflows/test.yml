@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
       - name: changelog verify (Lane B drift gate)
@@ -67,7 +67,7 @@ jobs:
           else
             echo "armed=true" >> "$GITHUB_OUTPUT"
           fi
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         if: steps.guard.outputs.armed == 'true'
         with:
           node-version: 22
@@ -94,7 +94,7 @@ jobs:
           else
             echo "armed=true" >> "$GITHUB_OUTPUT"
           fi
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         if: steps.guard.outputs.armed == 'true'
         with:
           node-version: 22
