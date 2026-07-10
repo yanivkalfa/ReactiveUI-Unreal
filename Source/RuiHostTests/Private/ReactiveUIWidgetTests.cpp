@@ -101,6 +101,17 @@ bool FRuiWidgetsLayoutTest::RunTest(const FString&)
 	BorderW->SlatePrepass(1.0f);
 	TestEqual(TEXT("SBox width override"), BoxW->GetDesiredSize().X, 240.0f);
 	TestEqual(TEXT("SBox height override"), BoxW->GetDesiredSize().Y, 120.0f);
+
+	// Regression (owner playtest): box-panel slots must be AUTO-size by default — Slate's
+	// own default is FILL, which squeezes every row (clipped titles, crushed inputs). An
+	// auto VBox's desired height must be at least the sum of its children's desired heights.
+	float ChildSum = 0.0f;
+	for (int32 i = 0; i < PanelW->GetChildren()->Num(); ++i)
+	{
+		ChildSum += PanelW->GetChildren()->GetChildAt(i)->GetDesiredSize().Y;
+	}
+	TestTrue(TEXT("auto slots: panel desired height covers all children"),
+			 PanelW->GetDesiredSize().Y >= ChildSum - 0.5f);
 	return true;
 }
 

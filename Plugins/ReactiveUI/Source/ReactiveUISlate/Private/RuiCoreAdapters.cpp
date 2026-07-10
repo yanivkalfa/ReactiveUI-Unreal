@@ -283,6 +283,19 @@ public:
 private:
 	static void ConfigureSlot(typename TBox::FScopedWidgetSlotArguments& Slot, const FRuiStyleDict* SlotProps)
 	{
+		// Slate box slots DEFAULT TO FILL (why engine code writes .AutoHeight() everywhere).
+		// The family default is content-hugging AUTO — fill only when slot.fill asks. Without
+		// this, every row squeezes proportionally: clipped titles, crushed inputs, invisible
+		// button labels (the owner's first-playtest report).
+		const float Fill = SlotFillOf(SlotProps);
+		if (Fill > 0.0f)
+		{
+			SetFill(Slot, Fill);
+		}
+		else
+		{
+			SetAuto(Slot);
+		}
 		if (SlotProps == nullptr)
 		{
 			return;
@@ -299,15 +312,12 @@ private:
 		{
 			Slot.VAlign(ParseVAlign(*V));
 		}
-		const float Fill = SlotFillOf(SlotProps);
-		if (Fill > 0.0f)
-		{
-			SetFill(Slot, Fill);
-		}
 	}
 
 	static void SetFill(SVerticalBox::FScopedWidgetSlotArguments& Slot, float Fill) { Slot.FillHeight(Fill); }
 	static void SetFill(SHorizontalBox::FScopedWidgetSlotArguments& Slot, float Fill) { Slot.FillWidth(Fill); }
+	static void SetAuto(SVerticalBox::FScopedWidgetSlotArguments& Slot) { Slot.AutoHeight(); }
+	static void SetAuto(SHorizontalBox::FScopedWidgetSlotArguments& Slot) { Slot.AutoWidth(); }
 };
 
 class FRuiVerticalBoxAdapter final : public TRuiBoxPanelAdapter<SVerticalBox>
