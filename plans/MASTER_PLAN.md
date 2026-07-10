@@ -435,7 +435,9 @@ round are **baked in** here — see also §6's DO-NOT-CLAIM list.
   is quarantined in the Slate host boundary + one `RuiEngineCompat.h` using
   `UE_VERSION_NEWER_THAN`/`UE_VERSION_OLDER_THAN` from `Misc/EngineVersionComparison.h`. Fab rule
   compliance: new products must support latest; maintain ≥1 of latest 3; one zip per engine
-  version with matching `.uplugin` `EngineVersion`.
+  version with matching `.uplugin` `EngineVersion`. OWNER CONFIRMED 2026-07-11: UE 5.6.1 is
+  the base/floor, no older-engine support ever; the 5.7/5.8 matrix verification is batched into
+  the Owner touchpoint block before Phase 9.
   **Target platforms (decided):** the code is pure C++ with no platform-specific paths — the
   `.uplugin` sets NO `PlatformAllowList`/`SupportedTargetPlatforms` restriction (so console
   builds are never blocked). CLAIMED-and-tested v1 platforms: **Win64** (primary dev + packaging)
@@ -858,8 +860,10 @@ distribution, and always opt-in — never a mandatory VM under the shipped UI, p
      `Source/RuiHostTests/ContractFixtures/` (excluded from the `RUICompile` sweep + UBT),
      `-run=RUIContractDump` commandlet with `--check` wired into CI, `.pending` convention
      documented in `grammar-contract`.
-  9. Convert the Phase 2 demo screens to `.uetkx` (compiled path); `ReactiveUI.Uetkx` +
-     `ReactiveUI.Contract` suites.
+  9. Convert the Phase 2 demo screens AND the example-gallery screens to `.uetkx` (compiled
+     path); `ReactiveUI.Uetkx` + `ReactiveUI.Contract` suites; the `ReactiveUI.Demos` battery
+     RE-TARGETS the compiled screens so CI exercises the shipped path (owner directive
+     2026-07-11: existing tests convert to the new syntax as it lands, not after).
 - **Files touched:** `ReactiveUIToolchain/**`, `ReactiveUIEditor/Private/RUI*Commandlet.cpp`,
   `RuiHostTests/**`, `ide-extensions/lsp-server/test-fixtures/uetkx-*.json`, demo `.uetkx` files
   + committed `.inl`/aggregators.
@@ -1075,6 +1079,24 @@ distribution, and always opt-in — never a mandatory VM under the shipped UI, p
   the docs (owner or a fresh session validates by literally doing it).
 - **Status:** NOT STARTED.
 
+### - [ ] Owner touchpoint block — ALL deferred field tests + accounts (owner directive 2026-07-11)
+
+Everything that needs the owner happens HERE, batched, once the library is code-complete.
+Nothing owner-facing is scheduled mid-phase; the only mid-campaign owner action is merging
+per-phase PRs and fast-forwarding master.
+
+1. **Field tests, one sitting each, AI-prepared checklist per item:**
+   - PIE gallery re-run (regression of the Phase 2 field test against the finished library).
+   - The hot-workflow demo: edit `.uetkx` in an external editor -> Unreal Editor recompiles /
+     hot-reloads live (Phases 3/4 deliverable).
+   - IDE extensions on the owner's machine: VS Code + VS2022 smoke (Phase 5 deliverable).
+   - Engine launch matrix (D-28): owner installs 5.7/5.8 via the launcher; full battery +
+     packaged-fidelity test per version. UE 5.6.1 remains the base/floor.
+2. **Accounts (lead-time items first):** Fab seller onboarding + Trader Verification (slowest —
+   start first), VS Code Marketplace publisher, Open VSX namespace. All feed Phase 9.
+
+- **Status:** NOT STARTED (intentionally last — owner 2026-07-11).
+
 ### - [ ] Phase 9 — Release & publishing
 
 - **Objective:** v1.0 out: GitHub release with per-engine zips, Fab listing live, announcement.
@@ -1113,6 +1135,15 @@ distribution, and always opt-in — never a mandatory VM under the shipped UI, p
 ## §4 — Testing & verification
 
 **Suite hierarchy** (Automation framework + Specs; names are prefix-filterable):
+
+**Family-suite parity ledger (owner directive 2026-07-11 — "copy more tests"):** the sibling
+suites not yet ported land WITH the subsystem that makes them portable, each PR citing its
+source file: `react_events` -> `ReactiveUI.Slate.Events` (Phase 6 input policy);
+`item_list`/`tree` -> the item-model suites (Phase 7, SListView/STileView/STreeView batch);
+`classes_stylesheet` beyond the v1 keys (Phase 7 style growth); `custom_draw` parity ->
+RuiCanvas cases; `host_node_pool` internals; the remaining `update_test` edge cases. When the
+`.uetkx` compiler lands (Phase 3 step 9), existing demo-driven suites CONVERT to the compiled
+syntax rather than accumulating a hand-built shadow path.
 
 | Suite | Ports / covers | Phase |
 |---|---|---|
