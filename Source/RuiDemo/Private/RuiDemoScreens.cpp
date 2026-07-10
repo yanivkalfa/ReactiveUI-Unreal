@@ -14,7 +14,7 @@ namespace
 	{
 		FRuiBorderProps P;
 		P.SetPadding(FMargin(Padding + 4.0f));
-		P.SetBorderColor(FLinearColor(0.02f, 0.02f, 0.03f, 0.85f));
+		P.SetBorderBackgroundColor(FLinearColor(0.02f, 0.02f, 0.03f, 0.85f));
 		FRuiNode Node = RUI::Slate::Border(MoveTemp(P), {MoveTemp(Inner)});
 		TSharedRef<FRuiBorderProps> Props =
 			MakeShared<FRuiBorderProps>(static_cast<const FRuiBorderProps&>(*Node.Props));
@@ -34,11 +34,12 @@ namespace
 
 	FRuiNode StyledText(const FString& S, float FontSize, FLinearColor Color = FLinearColor::White)
 	{
-		FRuiNode Node = RUI::Text(S);
-		TSharedRef<FRuiTextProps> Props = MakeShared<FRuiTextProps>(static_cast<const FRuiTextProps&>(*Node.Props));
+		FRuiNode Node = RUI::TextBlock(S);
+		TSharedRef<FRuiTextBlockProps> Props =
+			MakeShared<FRuiTextBlockProps>(static_cast<const FRuiTextBlockProps&>(*Node.Props));
 		Props->Style = MakeShared<FRuiStyleDict>();
-		Props->Style->Add(FName(TEXT("fontSize")), FRuiValue(FontSize));
-		Props->Style->Add(FName(TEXT("color")), FRuiValue(Color));
+		Props->Style->Add(FName(TEXT("Font.Size")), FRuiValue(FontSize));
+		Props->Style->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(Color));
 		Node.Props = Props;
 		return Node;
 	}
@@ -48,7 +49,7 @@ namespace
 		FRuiButtonProps P;
 		P.SetOnClicked(FRuiCallback::Create(MoveTemp(OnClick)));
 		P.SetContentPadding(FMargin(14.0f, 5.0f));
-		FRuiNode Node = RUI::Slate::Button(MoveTemp(P), {RUI::Text(Label)});
+		FRuiNode Node = RUI::Slate::Button(MoveTemp(P), {RUI::TextBlock(Label)});
 		// Right margin so button rows don't fuse together.
 		TSharedRef<FRuiButtonProps> Props =
 			MakeShared<FRuiButtonProps>(static_cast<const FRuiButtonProps&>(*Node.Props));
@@ -70,15 +71,15 @@ static FRuiNodeArray DemoCounter(FRuiContext& Ctx, const FRuiEmptyProps&, const 
 	Bar.SetPercent(FMath::Clamp(Count / 10.0f, 0.0f, 1.0f));
 
 	const int32 Current = Count;
-	return {
-		Padded(RUI::Slate::VBox(FRuiVerticalBoxProps(),
-								{StyledText(TEXT("Counter"), 16.0f, FLinearColor(0.4f, 0.8f, 1.0f)), Gap(),
-								 RUI::Text(FString::Printf(TEXT("count = %d"), Count)), Gap(),
-								 RUI::Slate::HBox(FRuiHorizontalBoxProps(),
+	return {Padded(RUI::Slate::VerticalBox(
+					   FRuiVerticalBoxProps(),
+					   {StyledText(TEXT("Counter"), 16.0f, FLinearColor(0.4f, 0.8f, 1.0f)), Gap(),
+						RUI::TextBlock(FString::Printf(TEXT("count = %d"), Count)), Gap(),
+						RUI::Slate::HorizontalBox(FRuiHorizontalBoxProps(),
 												  {LabeledButton(TEXT(" - "), [Set, Current]() { Set(Current - 1); }),
 												   LabeledButton(TEXT(" + "), [Set, Current]() { Set(Current + 1); })}),
-								 Gap(), RUI::Slate::ProgressBar(MoveTemp(Bar))}),
-			   8.0f)};
+						Gap(), RUI::Slate::ProgressBar(MoveTemp(Bar))}),
+				   8.0f)};
 }
 RUI_COMPONENT(DemoCounter)
 
@@ -97,38 +98,38 @@ static FRuiNodeArray DemoKeyedList(FRuiContext& Ctx, const FRuiEmptyProps&, cons
 	TArray<FRuiNode> Rows;
 	Rows.Add(StyledText(TEXT("Keyed list"), 16.0f, FLinearColor(1.0f, 0.8f, 0.4f)));
 	Rows.Add(Gap());
-	Rows.Add(RUI::Slate::HBox(FRuiHorizontalBoxProps(), {LabeledButton(TEXT(" add "),
-																	   [Set, SetNext, Current, Id]()
-																	   {
-																		   TArray<int32> Next = Current;
-																		   Next.Add(Id);
-																		   SetNext(Id + 1);
-																		   Set(MoveTemp(Next));
-																	   }),
-														 LabeledButton(TEXT(" remove "),
-																	   [Set, Current]()
-																	   {
-																		   if (!Current.IsEmpty())
-																		   {
-																			   TArray<int32> Next = Current;
-																			   Next.RemoveAt(0);
-																			   Set(MoveTemp(Next));
-																		   }
-																	   }),
-														 LabeledButton(TEXT(" reverse "),
-																	   [Set, Current]()
-																	   {
-																		   TArray<int32> Next = Current;
-																		   Algo::Reverse(Next);
-																		   Set(MoveTemp(Next));
-																	   })}));
+	Rows.Add(RUI::Slate::HorizontalBox(FRuiHorizontalBoxProps(), {LabeledButton(TEXT(" add "),
+																				[Set, SetNext, Current, Id]()
+																				{
+																					TArray<int32> Next = Current;
+																					Next.Add(Id);
+																					SetNext(Id + 1);
+																					Set(MoveTemp(Next));
+																				}),
+																  LabeledButton(TEXT(" remove "),
+																				[Set, Current]()
+																				{
+																					if (!Current.IsEmpty())
+																					{
+																						TArray<int32> Next = Current;
+																						Next.RemoveAt(0);
+																						Set(MoveTemp(Next));
+																					}
+																				}),
+																  LabeledButton(TEXT(" reverse "),
+																				[Set, Current]()
+																				{
+																					TArray<int32> Next = Current;
+																					Algo::Reverse(Next);
+																					Set(MoveTemp(Next));
+																				})}));
 	for (int32 Item : Current)
 	{
-		FRuiNode Row = RUI::Text(FString::Printf(TEXT("item #%d"), Item));
+		FRuiNode Row = RUI::TextBlock(FString::Printf(TEXT("item #%d"), Item));
 		Row.Key = FRuiKey(Item);
 		Rows.Add(MoveTemp(Row));
 	}
-	return {Padded(RUI::Slate::VBox(FRuiVerticalBoxProps(), MoveTemp(Rows)), 8.0f)};
+	return {Padded(RUI::Slate::VerticalBox(FRuiVerticalBoxProps(), MoveTemp(Rows)), 8.0f)};
 }
 RUI_COMPONENT(DemoKeyedList)
 
@@ -143,26 +144,28 @@ static FRuiNodeArray DemoStyledPanels(FRuiContext& Ctx, const FRuiEmptyProps&, c
 
 	FRuiCheckBoxProps Check;
 	Check.SetbIsChecked(bDim);
-	Check.SetOnCheckedChanged(FRuiCallback::Create([SetDimFn](const FRuiValue& V) { SetDimFn(V.BoolValue); }));
+	Check.SetOnCheckStateChanged(FRuiCallback::Create([SetDimFn](const FRuiValue& V) { SetDimFn(V.BoolValue); }));
 
-	FRuiEditableTextProps Edit;
+	FRuiEditableTextBoxProps Edit;
 	Edit.SetText(FText::FromString(Text));
 	Edit.SetOnTextChanged(FRuiCallback::Create([SetTextFn](const FRuiValue& V) { SetTextFn(V.TextValue.ToString()); }));
 
 	// The mirrored text dims through a style CLASS when the checkbox is on.
-	FRuiNode Mirror = RUI::Text(FString::Printf(TEXT("mirror: %s"), *Text));
-	TSharedRef<FRuiTextProps> MirrorProps = MakeShared<FRuiTextProps>(static_cast<const FRuiTextProps&>(*Mirror.Props));
+	FRuiNode Mirror = RUI::TextBlock(FString::Printf(TEXT("mirror: %s"), *Text));
+	TSharedRef<FRuiTextBlockProps> MirrorProps =
+		MakeShared<FRuiTextBlockProps>(static_cast<const FRuiTextBlockProps&>(*Mirror.Props));
 	if (bDim)
 	{
 		MirrorProps->Classes.Add(FName(TEXT("rui-demo-dim")));
 	}
 	Mirror.Props = MirrorProps;
 
-	return {Padded(RUI::Slate::VBox(FRuiVerticalBoxProps(),
-									{StyledText(TEXT("Styled panels"), 16.0f, FLinearColor(0.6f, 1.0f, 0.6f)), Gap(),
-									 RUI::Slate::CheckBox(MoveTemp(Check), {RUI::Text(TEXT("dim the mirror"))}), Gap(),
-									 RUI::Slate::EditableText(MoveTemp(Edit)), Gap(), MoveTemp(Mirror)}),
-				   8.0f)};
+	return {
+		Padded(RUI::Slate::VerticalBox(FRuiVerticalBoxProps(),
+									   {StyledText(TEXT("Styled panels"), 16.0f, FLinearColor(0.6f, 1.0f, 0.6f)), Gap(),
+										RUI::Slate::CheckBox(MoveTemp(Check), {RUI::TextBlock(TEXT("dim the mirror"))}),
+										Gap(), RUI::Slate::EditableTextBox(MoveTemp(Edit)), Gap(), MoveTemp(Mirror)}),
+			   8.0f)};
 }
 RUI_COMPONENT(DemoStyledPanels)
 
@@ -174,20 +177,20 @@ static FRuiNodeArray DemoGallery(FRuiContext& Ctx, const FRuiEmptyProps&, const 
 		[]()
 		{
 			FRuiStyleDict Dim;
-			Dim.Add(FName(TEXT("opacity")), FRuiValue(0.35f));
+			Dim.Add(FName(TEXT("RenderOpacity")), FRuiValue(0.35f));
 			RUI::Slate::RegisterStyleClass(FName(TEXT("rui-demo-dim")), MoveTemp(Dim));
 		},
 		RUI::Deps());
 
 	FRuiBoxProps Width;
-	Width.SetWidth(420.0f);
+	Width.SetWidthOverride(420.0f);
 	Width.SetHAlign(FName(TEXT("left")));
 	Width.SetVAlign(FName(TEXT("top")));
 	return {RUI::Slate::Box(
 		MoveTemp(Width),
-		{RUI::Slate::VBox(FRuiVerticalBoxProps(),
-						  {StyledText(TEXT("ReactiveUI for Unreal — Phase 2 demo"), 20.0f), RUI::FC(&DemoCounter),
-						   RUI::FC(&DemoKeyedList), RUI::FC(&DemoStyledPanels)})})};
+		{RUI::Slate::VerticalBox(FRuiVerticalBoxProps(),
+								 {StyledText(TEXT("ReactiveUI for Unreal — Phase 2 demo"), 20.0f),
+								  RUI::FC(&DemoCounter), RUI::FC(&DemoKeyedList), RUI::FC(&DemoStyledPanels)})})};
 }
 RUI_COMPONENT(DemoGallery)
 

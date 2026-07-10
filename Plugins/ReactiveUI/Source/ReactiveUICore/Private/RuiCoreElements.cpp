@@ -5,27 +5,27 @@
 
 namespace RUI
 {
-	FRuiElementTypeId TextElementType()
+	FRuiElementTypeId TextBlockElementType()
 	{
-		static FRuiElementTypeId Id = InternElementType(FName(TEXT("Text")));
+		static FRuiElementTypeId Id = InternElementType(FName(TEXT("TextBlock")));
 		return Id;
 	}
 
-	FRuiNode Text(FText InText, FRuiKey Key)
+	FRuiNode TextBlock(FText InText, FRuiKey Key)
 	{
-		TSharedRef<FRuiTextProps> Props = MakeShared<FRuiTextProps>();
+		TSharedRef<FRuiTextBlockProps> Props = MakeShared<FRuiTextBlockProps>();
 		Props->SetText(MoveTemp(InText));
 		FRuiNode Node;
 		Node.Kind = ERuiNodeKind::Host;
-		Node.ElementType = TextElementType();
+		Node.ElementType = TextBlockElementType();
 		Node.Props = Props;
 		Node.Key = Key;
 		return Node;
 	}
 
-	FRuiNode Text(const FString& InText, FRuiKey Key)
+	FRuiNode TextBlock(const FString& InText, FRuiKey Key)
 	{
-		return Text(FText::FromString(InText), Key);
+		return TextBlock(FText::FromString(InText), Key);
 	}
 
 	// ── Suspense (family polyfill: fallback until IsReady, poll-per-frame driver) ────────

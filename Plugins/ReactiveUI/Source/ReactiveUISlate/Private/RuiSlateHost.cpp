@@ -343,7 +343,7 @@ void FRuiSlateHost::ReorderChildren(const FRuiHostHandle& ParentHandle, const TA
 
 FRuiElementTypeId FRuiSlateHost::GetTextElementType() const
 {
-	return RUI::TextElementType();
+	return RUI::TextBlockElementType();
 }
 
 void FRuiSlateHost::RequestFrame(TFunction<void()> Callback)

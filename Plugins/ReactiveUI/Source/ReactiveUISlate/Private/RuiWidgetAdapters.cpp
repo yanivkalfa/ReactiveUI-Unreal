@@ -98,7 +98,7 @@ public:
 		const FRuiBorderProps& N = static_cast<const FRuiBorderProps&>(New);
 		const FRuiBorderProps* O = static_cast<const FRuiBorderProps*>(Old);
 		RUI_ROW(Padding, W.SetPadding(N.Padding))
-		RUI_ROW(BorderColor, W.SetBorderBackgroundColor(FSlateColor(N.BorderColor)))
+		RUI_ROW(BorderBackgroundColor, W.SetBorderBackgroundColor(FSlateColor(N.BorderBackgroundColor)))
 		RUI_ROW(HAlign, W.SetHAlign(HAlignOf(N.HAlign)))
 		RUI_ROW(VAlign, W.SetVAlign(VAlignOf(N.VAlign)))
 	}
@@ -128,12 +128,12 @@ public:
 		SBox& W = static_cast<SBox&>(Widget);
 		const FRuiBoxProps& N = static_cast<const FRuiBoxProps&>(New);
 		const FRuiBoxProps* O = static_cast<const FRuiBoxProps*>(Old);
-		RUI_ROW(Width, W.SetWidthOverride(FOptionalSize(N.Width)))
-		RUI_ROW(Height, W.SetHeightOverride(FOptionalSize(N.Height)))
-		RUI_ROW(MinWidth, W.SetMinDesiredWidth(FOptionalSize(N.MinWidth)))
-		RUI_ROW(MinHeight, W.SetMinDesiredHeight(FOptionalSize(N.MinHeight)))
-		RUI_ROW(MaxWidth, W.SetMaxDesiredWidth(FOptionalSize(N.MaxWidth)))
-		RUI_ROW(MaxHeight, W.SetMaxDesiredHeight(FOptionalSize(N.MaxHeight)))
+		RUI_ROW(WidthOverride, W.SetWidthOverride(FOptionalSize(N.WidthOverride)))
+		RUI_ROW(HeightOverride, W.SetHeightOverride(FOptionalSize(N.HeightOverride)))
+		RUI_ROW(MinDesiredWidth, W.SetMinDesiredWidth(FOptionalSize(N.MinDesiredWidth)))
+		RUI_ROW(MinDesiredHeight, W.SetMinDesiredHeight(FOptionalSize(N.MinDesiredHeight)))
+		RUI_ROW(MaxDesiredWidth, W.SetMaxDesiredWidth(FOptionalSize(N.MaxDesiredWidth)))
+		RUI_ROW(MaxDesiredHeight, W.SetMaxDesiredHeight(FOptionalSize(N.MaxDesiredHeight)))
 		RUI_ROW(HAlign, W.SetHAlign(HAlignOf(N.HAlign)))
 		RUI_ROW(VAlign, W.SetVAlign(VAlignOf(N.VAlign)))
 	}
@@ -163,8 +163,8 @@ public:
 		SImage& W = static_cast<SImage&>(Widget);
 		const FRuiImageProps& N = static_cast<const FRuiImageProps&>(New);
 		const FRuiImageProps* O = static_cast<const FRuiImageProps*>(Old);
-		RUI_ROW(Color, W.SetColorAndOpacity(FSlateColor(N.Color)))
-		RUI_ROW(DesiredSize, W.SetDesiredSizeOverride(N.DesiredSize))
+		RUI_ROW(ColorAndOpacity, W.SetColorAndOpacity(FSlateColor(N.ColorAndOpacity)))
+		RUI_ROW(DesiredSizeOverride, W.SetDesiredSizeOverride(N.DesiredSizeOverride))
 	}
 };
 
@@ -303,17 +303,17 @@ public:
 	{
 		return SNew(SEditableTextBox)
 			.OnTextChanged(FOnTextChanged::CreateSP(Proxy.ToSharedRef(), &FRuiEventProxy::HandleText,
-													static_cast<int32>(FRuiEditableTextProps::OnTextChanged_Bit)))
+													static_cast<int32>(FRuiEditableTextBoxProps::OnTextChanged_Bit)))
 			.OnTextCommitted(
 				FOnTextCommitted::CreateSP(Proxy.ToSharedRef(), &FRuiEventProxy::HandleTextCommit,
-										   static_cast<int32>(FRuiEditableTextProps::OnTextCommitted_Bit)));
+										   static_cast<int32>(FRuiEditableTextBoxProps::OnTextCommitted_Bit)));
 	}
 
 	virtual void ApplyDiff(SWidget& Widget, const FRuiPropsBase* Old, const FRuiPropsBase& New) override
 	{
 		SEditableTextBox& W = static_cast<SEditableTextBox&>(Widget);
-		const FRuiEditableTextProps& N = static_cast<const FRuiEditableTextProps&>(New);
-		const FRuiEditableTextProps* O = static_cast<const FRuiEditableTextProps*>(Old);
+		const FRuiEditableTextBoxProps& N = static_cast<const FRuiEditableTextBoxProps&>(New);
+		const FRuiEditableTextBoxProps* O = static_cast<const FRuiEditableTextBoxProps*>(Old);
 		// THE caret rule: compare against the WIDGET's live text, not old props — after the
 		// typing round-trip (OnTextChanged -> setState -> re-render) the values match and the
 		// skip preserves caret/selection. A programmatic state change still applies.
@@ -330,9 +330,9 @@ public:
 
 	virtual void SyncEventHandlers(FRuiEventProxy& Proxy, const FRuiPropsBase& New) override
 	{
-		const FRuiEditableTextProps& N = static_cast<const FRuiEditableTextProps&>(New);
-		Proxy.SetHandler(static_cast<int32>(FRuiEditableTextProps::OnTextChanged_Bit), N.OnTextChanged);
-		Proxy.SetHandler(static_cast<int32>(FRuiEditableTextProps::OnTextCommitted_Bit), N.OnTextCommitted);
+		const FRuiEditableTextBoxProps& N = static_cast<const FRuiEditableTextBoxProps&>(New);
+		Proxy.SetHandler(static_cast<int32>(FRuiEditableTextBoxProps::OnTextChanged_Bit), N.OnTextChanged);
+		Proxy.SetHandler(static_cast<int32>(FRuiEditableTextBoxProps::OnTextCommitted_Bit), N.OnTextCommitted);
 	}
 };
 
@@ -351,7 +351,7 @@ public:
 	{
 		return SNew(SCheckBox).OnCheckStateChanged(
 			FOnCheckStateChanged::CreateSP(Proxy.ToSharedRef(), &FRuiEventProxy::HandleChecked,
-										   static_cast<int32>(FRuiCheckBoxProps::OnCheckedChanged_Bit)));
+										   static_cast<int32>(FRuiCheckBoxProps::OnCheckStateChanged_Bit)));
 	}
 
 	virtual void ApplyDiff(SWidget& Widget, const FRuiPropsBase* Old, const FRuiPropsBase& New) override
@@ -372,7 +372,7 @@ public:
 	virtual void SyncEventHandlers(FRuiEventProxy& Proxy, const FRuiPropsBase& New) override
 	{
 		const FRuiCheckBoxProps& N = static_cast<const FRuiCheckBoxProps&>(New);
-		Proxy.SetHandler(static_cast<int32>(FRuiCheckBoxProps::OnCheckedChanged_Bit), N.OnCheckedChanged);
+		Proxy.SetHandler(static_cast<int32>(FRuiCheckBoxProps::OnCheckStateChanged_Bit), N.OnCheckStateChanged);
 	}
 
 	virtual void SetContent(SWidget& Parent, const TSharedPtr<SWidget>& Child) override
@@ -448,7 +448,7 @@ public:
 
 	virtual bool ApplyStyleKey(SWidget& Widget, FName Key, const FRuiValue* Value) override
 	{
-		if (Key == FName(TEXT("fillColor")))
+		if (Key == FName(TEXT("FillColorAndOpacity")))
 		{
 			static_cast<SProgressBar&>(Widget).SetFillColorAndOpacity(
 				Value != nullptr ? FSlateColor(Value->ColorValue) : FSlateColor(FLinearColor::White));
@@ -526,7 +526,7 @@ namespace RUI::Slate
 		{
 			return RUI::InternElementType(FName(TEXT("Spacer")));
 		}
-		FRuiElementTypeId EditableTextType()
+		FRuiElementTypeId EditableTextBoxType()
 		{
 			return RUI::InternElementType(FName(TEXT("EditableTextBox")));
 		}
@@ -542,9 +542,9 @@ namespace RUI::Slate
 		{
 			return RUI::InternElementType(FName(TEXT("ProgressBar")));
 		}
-		FRuiElementTypeId CanvasType()
+		FRuiElementTypeId RuiCanvasType()
 		{
-			return RUI::InternElementType(FName(TEXT("Canvas")));
+			return RUI::InternElementType(FName(TEXT("RuiCanvas")));
 		}
 	} // namespace
 
@@ -568,9 +568,9 @@ namespace RUI::Slate
 	{
 		return MakeHostNode2(SpacerType(), MoveTemp(Props), TArray<FRuiNode>(), Key);
 	}
-	FRuiNode EditableText(FRuiEditableTextProps Props, FRuiKey Key)
+	FRuiNode EditableTextBox(FRuiEditableTextBoxProps Props, FRuiKey Key)
 	{
-		return MakeHostNode2(EditableTextType(), MoveTemp(Props), TArray<FRuiNode>(), Key);
+		return MakeHostNode2(EditableTextBoxType(), MoveTemp(Props), TArray<FRuiNode>(), Key);
 	}
 	FRuiNode CheckBox(FRuiCheckBoxProps Props, TArray<FRuiNode> Children, FRuiKey Key)
 	{
@@ -584,9 +584,9 @@ namespace RUI::Slate
 	{
 		return MakeHostNode2(ProgressBarType(), MoveTemp(Props), TArray<FRuiNode>(), Key);
 	}
-	FRuiNode Canvas(FRuiCanvasProps Props, FRuiKey Key)
+	FRuiNode RuiCanvas(FRuiCanvasProps Props, FRuiKey Key)
 	{
-		return MakeHostNode2(CanvasType(), MoveTemp(Props), TArray<FRuiNode>(), Key);
+		return MakeHostNode2(RuiCanvasType(), MoveTemp(Props), TArray<FRuiNode>(), Key);
 	}
 
 	TSharedPtr<FRuiDrawFn> MakeDrawFn(FRuiDrawFn Fn)
@@ -603,11 +603,11 @@ namespace RUI::Slate
 			RegisterAdapter(ImageType(), MakeUnique<FRuiImageAdapter>());
 			RegisterAdapter(ScrollBoxType(), MakeUnique<FRuiScrollBoxAdapter>());
 			RegisterAdapter(SpacerType(), MakeUnique<FRuiSpacerAdapter>());
-			RegisterAdapter(EditableTextType(), MakeUnique<FRuiEditableTextAdapter>());
+			RegisterAdapter(EditableTextBoxType(), MakeUnique<FRuiEditableTextAdapter>());
 			RegisterAdapter(CheckBoxType(), MakeUnique<FRuiCheckBoxAdapter>());
 			RegisterAdapter(SliderType(), MakeUnique<FRuiSliderAdapter>());
 			RegisterAdapter(ProgressBarType(), MakeUnique<FRuiProgressBarAdapter>());
-			RegisterAdapter(CanvasType(), MakeUnique<FRuiCanvasAdapter>());
+			RegisterAdapter(RuiCanvasType(), MakeUnique<FRuiCanvasAdapter>());
 		}
 	} // namespace Detail
 } // namespace RUI::Slate

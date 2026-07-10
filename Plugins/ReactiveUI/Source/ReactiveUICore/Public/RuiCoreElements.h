@@ -14,14 +14,14 @@
 #include "RuiContext.h"
 
 /** Text element props ("Text" tag; hosts map to STextBlock / mock text). */
-struct FRuiTextProps final : public FRuiPropsBase
+struct FRuiTextBlockProps final : public FRuiPropsBase
 {
 	RUI_PROP(FText, Text, 0)
 
 	// Hand-written (FText has no operator== — identity first, then display-string compare).
 	virtual bool Equals(const FRuiPropsBase& Other) const override
 	{
-		const FRuiTextProps* Typed = static_cast<const FRuiTextProps*>(&Other);
+		const FRuiTextBlockProps* Typed = static_cast<const FRuiTextBlockProps*>(&Other);
 		if (!BaseFieldsEqual(Other))
 		{
 			return false;
@@ -33,11 +33,11 @@ struct FRuiTextProps final : public FRuiPropsBase
 namespace RUI
 {
 	/** The interned "Text" element id (stable across the process). */
-	REACTIVEUICORE_API FRuiElementTypeId TextElementType();
+	REACTIVEUICORE_API FRuiElementTypeId TextBlockElementType();
 
 	/** Text node factory (also what raw-string children auto-wrap into). */
-	REACTIVEUICORE_API FRuiNode Text(FText InText, FRuiKey Key = FRuiKey());
-	REACTIVEUICORE_API FRuiNode Text(const FString& InText, FRuiKey Key = FRuiKey());
+	REACTIVEUICORE_API FRuiNode TextBlock(FText InText, FRuiKey Key = FRuiKey());
+	REACTIVEUICORE_API FRuiNode TextBlock(const FString& InText, FRuiKey Key = FRuiKey());
 
 	/** Suspense props. */
 	struct FRuiSuspenseProps final : public FRuiPropsBase

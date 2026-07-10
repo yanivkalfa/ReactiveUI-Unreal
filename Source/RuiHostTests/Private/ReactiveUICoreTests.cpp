@@ -45,7 +45,7 @@ static FRuiNodeArray UpdateTestComp(FRuiContext& Ctx, const FRuiEmptyProps&, con
 	auto [V, SetV] = Ctx.UseState<int32>(0);
 	++CoreTestState::RenderCountA;
 	CoreTestState::SetterA = SetV;
-	return {RUI::Text(FString::Printf(TEXT("v=%d"), V))};
+	return {RUI::TextBlock(FString::Printf(TEXT("v=%d"), V))};
 }
 RUI_COMPONENT(UpdateTestComp)
 
@@ -100,7 +100,7 @@ static FRuiNodeArray EffectsComp(FRuiContext& Ctx, const FRuiEmptyProps&, const 
 			return [Cur]() { CoreTestState::Log.Add(FString::Printf(TEXT("cleanup:%d"), Cur)); };
 		},
 		RUI::Deps(Count));
-	return {RUI::Text(TEXT("x"))};
+	return {RUI::TextBlock(TEXT("x"))};
 }
 RUI_COMPONENT(EffectsComp)
 
@@ -148,7 +148,7 @@ struct FLabelProps final : public FRuiPropsBase
 static FRuiNodeArray BailChildComp(FRuiContext&, const FLabelProps& Props, const TArray<FRuiNode>&)
 {
 	++CoreTestState::RenderCountB;
-	return {RUI::Text(Props.LabelText)};
+	return {RUI::TextBlock(Props.LabelText)};
 }
 RUI_COMPONENT(BailChildComp)
 
@@ -160,7 +160,7 @@ static FRuiNodeArray BailParentComp(FRuiContext& Ctx, const FRuiEmptyProps&, con
 	FLabelProps ChildProps;
 	ChildProps.SetLabelText(TEXT("static"));
 	return {
-		RUI::Text(FString::Printf(TEXT("count %d"), S)),
+		RUI::TextBlock(FString::Printf(TEXT("count %d"), S)),
 		RUI::FC(&BailChildComp, MoveTemp(ChildProps)),
 	};
 }
@@ -188,7 +188,7 @@ bool FRuiCoreBailoutTest::RunTest(const FString&)
 static FRuiNodeArray SkipLeafComp(FRuiContext&, const FRuiEmptyProps&, const TArray<FRuiNode>&)
 {
 	++CoreTestState::RenderCountC;
-	return {RUI::Text(TEXT("leaf"))};
+	return {RUI::TextBlock(TEXT("leaf"))};
 }
 RUI_COMPONENT(SkipLeafComp)
 
@@ -205,7 +205,7 @@ static FRuiNodeArray SkipTopComp(FRuiContext& Ctx, const FRuiEmptyProps&, const 
 	auto [S, SetS] = Ctx.UseState<int32>(0);
 	CoreTestState::SetterA = SetS;
 	return {
-		RUI::Text(FString::Printf(TEXT("top %d"), S)),
+		RUI::TextBlock(FString::Printf(TEXT("top %d"), S)),
 		RUI::FC(&SkipMidComp),
 	};
 }
@@ -304,7 +304,7 @@ static FRuiNodeArray CtxConsumerComp(FRuiContext& Ctx, const FRuiEmptyProps&, co
 	auto [S, SetS] = Ctx.UseState<int32>(0); // gives the test a handle to force re-render
 	CoreTestState::SetterB = SetS;
 	CoreTestState::SeenContext = Ctx.UseContext(GThemeCtx);
-	return {RUI::Text(CoreTestState::SeenContext)};
+	return {RUI::TextBlock(CoreTestState::SeenContext)};
 }
 RUI_COMPONENT(CtxConsumerComp)
 
@@ -322,7 +322,7 @@ static FRuiNodeArray CtxGrandparentComp(FRuiContext& Ctx, const FRuiEmptyProps&,
 	auto [S, SetS] = Ctx.UseState<int32>(0);
 	CoreTestState::SetterA = SetS;
 	return {
-		RUI::Text(FString::Printf(TEXT("gp %d"), S)),
+		RUI::TextBlock(FString::Printf(TEXT("gp %d"), S)),
 		RUI::FC(&CtxProviderComp),
 	};
 }

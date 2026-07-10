@@ -233,6 +233,17 @@ round are **baked in** here — see also §6's DO-NOT-CLAIM list.
   (wired to world-cleanup delegates); PIE-end and level-travel are CI-tested against this contract
   (Phase 6 step 6).
 
+- **D-33 — Naming is 1:1 loyal to Unreal (owner decision 2026-07-11).** Element names = the Slate
+  class minus its `S` type-prefix (`SSlider` -> `Slider`, `SVerticalBox` -> `VerticalBox`,
+  `STextBlock` -> `TextBlock`) — exactly Epic's own user-facing convention (UMG palette). C++
+  factories match tags verbatim (no `VBox`/`HBox` shorthands). Props/style/slot/event names = the
+  Unreal setter/property/delegate they drive, minus `Set` (`WidthOverride`, `BorderBackgroundColor`,
+  `ColorAndOpacity`, `RenderOpacity`, `RenderTranslation`, `Justification`, `AutoWrapText`,
+  `OnCheckStateChanged`, `Slot.Padding`/`Slot.HAlign`/`Slot.Fill`/`Slot.ZOrder`); enum values = the
+  Unreal enum names; FName matching stays case-insensitive. OUR custom widgets carry the `Rui` mark
+  (`SRuiCanvas` -> tag `RuiCanvas`) so engine names are never squatted. Family congruence yields to
+  native familiarity in this repo; the `.uetkx` schema (Phase 3) inherits this vocabulary.
+
 ### Toolchain & DX (full detail: `research/round2-implementation/uetkx-toolchain.md`)
 
 - **D-18 — The `.uetkx` compiler is C++ inside an `UncookedOnly` module (`ReactiveUIToolchain`);
