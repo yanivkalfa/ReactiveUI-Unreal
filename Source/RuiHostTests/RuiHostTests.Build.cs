@@ -19,11 +19,16 @@ public class RuiHostTests : ModuleRules
 
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
-			// Phase 1 adds: "ReactiveUICore" (mock-host suites). Later phases add the modules
-			// they test (ReactiveUISlate, ReactiveUIUMG, ...) — keep deps exactly as narrow as
-			// the tests that exist.
+			// Keep deps exactly as narrow as the tests that exist (later phases add the
+			// modules they test: ReactiveUISlate, ReactiveUIUMG, ...).
 			"CoreUObject",
 			"Engine",
+			"Projects",         // IPluginManager (the Boot suite)
+			"ReactiveUICore",   // the mock-host core suites
+			"ReactiveUISlate",  // the Slate host suites + reorder spike
+			"RuiDemo",          // the Demos suite mounts the gallery
+			"SlateCore",
+			"Slate",
 		});
 	}
 }

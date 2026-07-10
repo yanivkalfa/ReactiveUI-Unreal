@@ -16,6 +16,10 @@ public class RuiDemo : ModuleRules
 			"Core",
 			"CoreUObject",
 			"Engine",
+			"ReactiveUICore",
+			"ReactiveUISlate",
+			"SlateCore",
+			"Slate",
 		});
 	}
 }

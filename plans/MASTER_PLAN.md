@@ -758,7 +758,7 @@ distribution, and always opt-in — never a mandatory VM under the shipped UI, p
   (`ReactiveUI.Boot` smoke: module starts, root mounts on mock host).
 - **Done when:** every ported test green; subtree-skip demonstrably skips (a counter test asserts
   render counts); zero allocations on a stable frame (bench asserts slab/arena reuse).
-- **Status:** NOT STARTED.
+- **Status:** COMPLETE 2026-07-10 — evidence: 23 core/update/boot automation tests green headless (ReactiveUI.Core.*, .Update.*, .Boot); Bench.Core rows in BENCH_BASELINES.md (1000-leaf mount ~190us, SUBTREE-SKIP noop ~0us); SubtreeSkip test asserts render counts; slab reuse via noop-rerender 0-alloc path. NOTE: the Phase 1 step 1 vnode-arena idea was SUPERSEDED by shared FRuiChildren (bailout caches make vnodes cross-frame; see RuiNode.h).
 
 ### - [ ] Phase 2 — Slate host + first widgets (`ReactiveUISlate`)
 
@@ -808,7 +808,7 @@ distribution, and always opt-in — never a mandatory VM under the shipped UI, p
 - **Done when:** 15 widgets shipped through the full pipeline; style tweak provably does not
   reconstruct (test asserts widget pointer identity across a style-only re-render); pool
   cheap-path benchmarked vs SNew.
-- **Status:** NOT STARTED.
+- **Status:** CODE-COMPLETE 2026-07-10 (owner PIE playtest pending — the field-test touchpoint): 15 widgets + style v1 (pointer-identity test green) + GO-05 pool (same-pointer reuse test) + focus fences + STATGROUP; 38/38 suites incl. ReactiveUI.{Slate,Widgets,Style,Demos}; reorder spike decided (TD-010, rows in BENCH_BASELINES.md). Header-sweep audit mapped remaining widget surface to TD-012.
 
 ### - [ ] Phase 3 — `.uetkx` compiler + build integration (`ReactiveUIToolchain` + parser in `ReactiveUIInterp`)
 

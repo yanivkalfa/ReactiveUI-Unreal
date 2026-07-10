@@ -85,3 +85,45 @@ referenced from plans/PRs.
 - **Production-grade resolution:** corpus sections hash-match across all three repos at a
   release-time check.
 - **Status:** OPEN (activates at Phase 3)
+
+## TD-010 — Reorder strategy: minimal-move (spike-decided) + slot-prop updates reinsert
+- **Where:** `ReactiveUISlate/Private/RuiCoreAdapters.cpp` (box panels + overlay)
+- **What/why deferred:** the Phase 2 step 1 spike (Bench.SlateReorder, rows in
+  BENCH_BASELINES.md) decided **minimal-move**: 1-moved-child costs 3µs vs 60µs for a full
+  rebuild (20×); only the pathological full reverse favors rebuild (1.5×). Two accepted
+  imperfections ride along: (a) `slot.*` prop UPDATES remove+reinsert the child at its index
+  instead of mutating the live FSlot (Slate's scoped-slot-args API makes insert-time config the
+  clean path); (b) SOverlay reorders rebuild (AddSlot takes a Z-order, not an index — overlays
+  stack a handful of layers, so rebuild is fine there).
+- **Production-grade resolution:** in-place FSlot setters via `FChildren::GetSlotAt` +
+  downcast for (a) if profiling ever shows reinsert churn on hot slot-prop animation paths; a
+  hybrid "rebuild when moves > N/2" switch only if a real workload surfaces where reverse-heavy
+  reorders dominate.
+- **Status:** OPEN (decision RECORDED — minimal-move ships; this entry tracks the two
+  accepted imperfections, not the strategy)
+
+## TD-011 — Construct-only prop changes don't replace widgets yet
+- **Where:** `FRuiSlateHost::CommitUpdate` (warns via the adapter reconstruct mask)
+- **What/why deferred:** none of the M7 pattern widgets has a construct-only prop, so the
+  replacement path (rebuild widget + swap into the parent slot + rebind events + re-parent
+  children) has nothing to test against. The mask is part of the adapter contract NOW
+  (D-11) and a violating diff warns loudly instead of silently misrendering.
+- **Production-grade resolution:** implement replacement-in-place when the first widget ships a
+  reconstruct-mask prop, with a pointer-identity-change test proving the swap. (The header-sweep
+  audit removed the last v1 mask user: SScrollBox Orientation turned out runtime-settable — as of
+  the audit NO shipped widget uses the mask; it remains contract-only.)
+- **Status:** OPEN
+
+## TD-012 — Batch-2 widget surface deliberately deferred to Phase 7 (header-sweep audit)
+- **Where:** `ReactiveUISlate` adapters (audit: engine-header sweep of all 15 shipped widgets)
+- **What/why deferred:** the sweep found these RUNTIME setters not yet mapped — deferred by
+  decision, not omission: SButton sounds + click/press/touch methods + IsFocusable; SSlider
+  bar/handle colors + orientation + locked/indent; SCheckBox per-state images; SProgressBar
+  fill type/style + marquee; SScrollBox scrollbar knobs (thickness/visibility/overscroll/
+  wheel) + ScrollToEnd-style imperative APIs; STextBlock shaping/flow/highlight/strike/
+  overflow + line-height. Everyday keys WERE added in the audit commit (text justify/autoWrap,
+  button ContentPadding, slider StepSize, progress fillColor, scrollbox runtime Orientation).
+- **Production-grade resolution:** the Phase 7 batch-2 production line maps each remaining
+  setter through the prop-map schema with per-widget tests; imperative APIs (ScrollToEnd)
+  need the ref-command design (family `useImperativeHandle` pattern over host handles).
+- **Status:** OPEN

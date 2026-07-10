@@ -17,6 +17,17 @@ public class ReactiveUISlate : ModuleRules
 		PublicDependencyModuleNames.AddRange(new string[]
 		{
 			"Core",
+			"ReactiveUICore",  // the host implements the core's IRuiHostConfig seam
+			"SlateCore",       // SWidget, FReply, slot types (public headers reference them)
+			"Slate",           // concrete widgets (STextBlock, SButton, panels), FSlateApplication
+			"InputCore",       // key/pointer types reaching through Slate delegates
+		});
+
+		PrivateDependencyModuleNames.AddRange(new string[]
+		{
+			"CoreUObject",     // Engine types below pull it in
+			"ApplicationCore", // FDisplayMetrics (UseSafeArea)
+			"Engine",          // the game-viewport mount surface (UGameViewportClient)
 		});
 	}
 }
