@@ -26,6 +26,7 @@ public class RuiHostTests : ModuleRules
 			"Projects",         // IPluginManager (the Boot suite)
 			"ReactiveUICore",   // the mock-host core suites
 			"ReactiveUISlate",  // the Slate host suites + reorder spike
+			"RuiDemo",          // the Demos suite mounts the gallery
 			"SlateCore",
 			"Slate",
 		});
