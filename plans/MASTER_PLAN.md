@@ -1,7 +1,17 @@
 # ReactiveUI-Unreal — Master Plan (AI-first)
 
-> **Status:** NOT STARTED
-> **Branch:** — (Phase 0 creates `dev`; campaigns branch `feat/<name>` off `dev`)   **PR:** —   **Phases:** 0/10 done
+> **Status:** IN PROGRESS
+> **Branch:** `feat/phase-0-bootstrap` → `dev`   **PR:** pending owner merge   **Phases:** 0/10 done (Phase 0 built, its compile Verify awaits the UE 5.6 install)
+> **STATUS UPDATE — 2026-07-10 (Phase 0 execution).** Steps 1–8 are BUILT and every engine-free
+> gate is green (changelog verify · mirror byte-check · header lint · skills lint · docs-drift ·
+> YAML lint · docs build+lint). Delivered: hygiene rails, the 8-module plugin skeleton +
+> host project (boot banner in place), the scripts rail (changelog/bump/mirror/headers/skills/
+> drift + the local publish rail), all nine skills, the plans ledgers (TECH_DEBT seeded
+> TD-001..009, PENDING/DISCORD/BENCH/archive with formats pinned), the five production-line
+> templates, the CI trio (self-guarded staged jobs; engine matrix unarmed), and the docs shell
+> (builds + lints green, UE version selector). REMAINING for Phase 0 done: the
+> Development-Editor compile Verify on the owner's machine (blocked on the UE 5.6 install) —
+> then flip the checkbox via `plan-progress`. Step 9's PR is open for the owner.
 > **STATUS UPDATE — 2026-07-10 (owner Q&A folded in).** All five §7 open questions are ANSWERED
 > (see §7 for the decisions — naming kept, no engine CI for now, UE 5.6 installs first, Fab
 > onboarding after the core milestone, demo at repo root; byte-compat confirmed HARD). The Godot
@@ -677,7 +687,8 @@ distribution, and always opt-in — never a mandatory VM under the shipped UI, p
 - **Done when:** empty plugin compiles on the owner's machine AND in whatever CI legs are armed;
   all nine skills exist; changelog verify is a required check; ROADMAP row flipped by
   `plan-progress`.
-- **Status:** NOT STARTED.
+- **Status:** IN PROGRESS — steps 1–9 built and engine-free-verified 2026-07-10 (PR open);
+  the compile Verify awaits the UE 5.6 install (§7 Q3).
 
 ### - [ ] Phase 1 — Core reconciler + hooks (`ReactiveUICore`)
 

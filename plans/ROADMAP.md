@@ -205,7 +205,7 @@ reconciler core, and anything touching a CI gate always stay on the strongest mo
 
 | # | Phase | Status | Done / Next |
 |---|---|---|---|
-| 0 | Ecosystem & repo bootstrap | NOT STARTED | Next: owner says go → scaffold (engine-free) while UE 5.6 downloads; compile check closes the phase |
+| 0 | Ecosystem & repo bootstrap | IN PROGRESS | Built + engine-free gates green (2026-07-10); owner: merge the PR + install UE 5.6 → the compile check closes the phase |
 | 1 | Core reconciler + hooks | NOT STARTED | Needs Phase 0 |
 | 2 | Slate host + first widgets | NOT STARTED | Needs Phase 1 |
 | 3 | `.uetkx` compiler + build integration | NOT STARTED | Starts after Phase 0 (parallel with 1–2); its last step needs 1–2 |
