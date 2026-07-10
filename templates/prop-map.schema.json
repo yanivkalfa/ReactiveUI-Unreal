@@ -1,0 +1,56 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ReactiveUI widget prop-map entry",
+  "description": "The SINGLE SOURCE for each wrapped Slate widget (component-pipeline station 1 writes it; the adapter implementation, the LSP markup vocabulary, and the docs elements page are all generated from / checked against it — MASTER_PLAN D-11/D-23). One JSON file per widget lives next to this schema once Phase 2 starts (templates/prop-map/<Tag>.json); scripts/docs-drift.mjs counts them.",
+  "type": "object",
+  "required": ["tag", "slateClass", "header", "childKind", "props", "events"],
+  "properties": {
+    "tag": { "type": "string", "description": "Markup tag / factory name, family-abstract (VBox, Text, Button — not the Slate name)" },
+    "slateClass": { "type": "string", "description": "The concrete Slate widget (SVerticalBox, STextBlock, ...)" },
+    "header": { "type": "string", "description": "Engine header path the research station read (ground truth — outranks web docs)" },
+    "childKind": { "enum": ["multi-slot", "single-content", "leaf"], "description": "Which child adapter shape applies (D-11)" },
+    "slotProps": {
+      "type": "array",
+      "description": "Parent-owned per-slot layout props exposed under the child's slot.* namespace (padding/halign/valign/fill/zorder)",
+      "items": { "$ref": "#/definitions/prop" }
+    },
+    "props": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/prop" }
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "delegate"],
+        "properties": {
+          "name": { "type": "string", "description": "React-style prop (onClick); on_<DelegateName> escape hatch is implicit" },
+          "delegate": { "type": "string", "description": "The Slate event (FOnClicked) and its setter if any" },
+          "reply": { "type": "boolean", "description": "true if the delegate returns FReply (proxy returns Handled() for void user callbacks; FReply overload exposed where pass-through matters)" }
+        }
+      }
+    },
+    "reconstructOn": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Prop names that are construct-only (SLATE_ARGUMENT / no setter) — changing one REPLACES the widget (focus/caret/scroll loss; documented per widget). Hot-path style keys must never appear here (D-13)."
+    },
+    "poolable": { "type": "boolean", "description": "false for stateful widgets (editable text, list views) — excluded from the widget pool" },
+    "notes": { "type": "string" }
+  },
+  "definitions": {
+    "prop": {
+      "type": "object",
+      "required": ["name", "type", "kind"],
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "type": "string", "description": "UE type (FText, FMargin, EVisibility, ...)" },
+        "kind": { "enum": ["attribute", "argument"], "description": "SLATE_ATTRIBUTE (bindable, has/gets a setter) vs SLATE_ARGUMENT (construct-only -> reconstructOn)" },
+        "setter": { "type": "string", "description": "Post-construction setter if one exists (SetText). Absent + kind=attribute means verify the header again before assuming." },
+        "styleKey": { "type": "string", "description": "The style-dict key this prop is exposed as, if styleable" },
+        "default": { "description": "Engine default (reset target for style-key removal)" },
+        "deprecated": { "type": "string", "description": "Set when deprecated (D-30) — the LSP surfaces it" }
+      }
+    }
+  }
+}

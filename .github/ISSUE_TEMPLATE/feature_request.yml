@@ -1,0 +1,30 @@
+name: Feature request
+description: Propose a widget wrapper, hook, markup capability, or tooling improvement
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to build that you currently can't (or can't cleanly)?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed shape
+      description: Markup/API sketch if you have one. If it exists in the Unity/Godot siblings, say so — family parity requests get priority.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Widgets / host config
+        - Hooks / reconciler
+        - .uetkx markup / compiler
+        - Hot reload / interpreter
+        - IDE extensions
+        - UMG / CommonUI / MVVM interop
+        - Docs / demos
+    validations:
+      required: true

@@ -1,0 +1,153 @@
+# Publish — ONE Run-workflow button publishes everything whose version changed.
+# THE OWNER presses it; the AI never triggers it (house law). Every job reads its own version
+# from its own manifest, checks whether the matching git tag exists, SKIPS if so, and
+# tags-on-success — idempotent re-runs; un-bumped artifacts simply don't release.
+# Tag scheme (MASTER_PLAN D-30): v* (plugin — ONE tag carries all per-engine zips as release
+# assets), vscode-v*, vs2022-v*.
+name: Publish
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  # Docs redeploy on every dispatch (not version-gated) — GitHub Pages serves the
+  # `documentations` branch root (owner enables Pages once; see the ROADMAP setup checklist).
+  deploy-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Guard (docs scaffold present?)
+        id: guard
+        run: |
+          if [ -f docs/package.json ]; then echo "armed=true" >> "$GITHUB_OUTPUT"; else
+            echo "docs not present yet — skipping deploy."; echo "armed=false" >> "$GITHUB_OUTPUT"; fi
+      - uses: actions/setup-node@v4
+        if: steps.guard.outputs.armed == 'true'
+        with:
+          node-version: 22
+      - name: Build
+        if: steps.guard.outputs.armed == 'true'
+        working-directory: docs
+        run: npm ci && npm run build
+      - name: Push dist/ to the documentations branch
+        if: steps.guard.outputs.armed == 'true'
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin documentations || true
+          if git show-ref --quiet refs/remotes/origin/documentations; then
+            git worktree add /tmp/docs-deploy origin/documentations
+          else
+            git worktree add --detach /tmp/docs-deploy
+            (cd /tmp/docs-deploy && git checkout --orphan documentations && git rm -rf . >/dev/null 2>&1 || true)
+          fi
+          rm -rf /tmp/docs-deploy/*
+          cp -r docs/dist/* /tmp/docs-deploy/
+          touch /tmp/docs-deploy/.nojekyll
+          cd /tmp/docs-deploy
+          git add -A
+          if git diff --cached --quiet; then echo "no docs changes"; else
+            git commit -m "docs: deploy $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            git push origin HEAD:documentations
+          fi
+
+  # The plugin release: tag v<VersionName> + GitHub Release whose body is the top `## [`
+  # section of CHANGELOG.md (keep that heading shape — the awk parses exactly it).
+  # Engine-armed runs re-verify via the reusable engine workflow and attach per-engine zips;
+  # unarmed runs (the current default — local-first, §7 Q2) still tag+release and tell the
+  # owner to attach zips from the local rail (scripts/package-plugin.ps1).
+  release-plugin:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      new_tag: ${{ steps.tagcheck.outputs.new_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Read VersionName
+        id: ver
+        run: echo "version=$(jq -r .VersionName Plugins/ReactiveUI/ReactiveUI.uplugin)" >> "$GITHUB_OUTPUT"
+      - name: Tag exists? (idempotency gate)
+        id: tagcheck
+        run: |
+          TAG="v${{ steps.ver.outputs.version }}"
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "Tag $TAG exists — plugin not bumped; skipping."
+            echo "new_tag=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "new_tag=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Extract release body (top CHANGELOG section)
+        if: steps.tagcheck.outputs.new_tag == 'true'
+        run: |
+          awk '/^## \[/{n++} n==1' CHANGELOG.md > /tmp/release-body.md
+          if [ "${{ vars.RUI_CI_ENGINE_ARMED }}" != "true" ]; then
+            printf '\n---\n_Per-engine zips: run `scripts/package-plugin.ps1` locally and attach `ReactiveUI-<ver>-UE<engine>.zip` per supported engine version (engine CI unarmed)._\n' >> /tmp/release-body.md
+          fi
+      - name: Tag + GitHub Release
+        if: steps.tagcheck.outputs.new_tag == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v${{ steps.ver.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "$TAG"
+          git push origin "$TAG"
+          gh release create "$TAG" --title "ReactiveUI for Unreal ${{ steps.ver.outputs.version }}" --notes-file /tmp/release-body.md
+
+  # Pre-release engine verification + packaged zips — armed runs only. Reuses the SAME
+  # engine workflow test.yml uses (one definition, no drift). Zip packaging on the Windows
+  # self-hosted runner attaches assets to the release created above (added when the owner
+  # stands the runner up — the job body documents the plan so arming is wiring, not design).
+  verify-engines:
+    needs: release-plugin
+    if: needs.release-plugin.outputs.new_tag == 'true' && vars.RUI_CI_ENGINE_ARMED == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        engine: ["5.6", "5.7", "5.8"]
+    uses: ./.github/workflows/engine-tests.yml
+    with:
+      engine-version: ${{ matrix.engine }}
+    secrets:
+      EPIC_GHCR_PAT: ${{ secrets.EPIC_GHCR_PAT }}
+
+  # Extension marketplace legs — implemented in Phase 5 with the extensions themselves;
+  # the guards keep this dispatchable meanwhile. Tag gates (vscode-v*, vs2022-v*) go HERE
+  # when implemented, tagging ONLY on successful marketplace upload (the sibling repo once
+  # stranded five platforms behind a single shared tag — per-leg gating is the law).
+  publish-vscode:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Guard (Phase 5)
+        run: |
+          if [ ! -f ide-extensions/vscode-uetkx/package.json ]; then
+            echo "::notice::VS Code extension not present yet (Phase 5) — nothing to publish."
+            exit 0
+          fi
+          echo "::error::Extension exists but the publish steps haven't been implemented — implement per ide-extensions/scripts/publish-extension.ps1."
+          exit 1
+
+  publish-vs2022:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Guard (Phase 5)
+        run: |
+          if [ ! -d ide-extensions/visual-studio/UetkxVsix ]; then
+            echo "::notice::VS2022 extension not present yet (Phase 5) — nothing to publish."
+            exit 0
+          fi
+          echo "::error::Extension exists but the publish steps haven't been implemented — implement per ide-extensions/scripts/publish-vsix.ps1."
+          exit 1

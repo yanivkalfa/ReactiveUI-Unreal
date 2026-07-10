@@ -1,0 +1,63 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "0.1.0-dev",
+	"FriendlyName": "ReactiveUI for Unreal",
+	"Description": "React-style reactive UI in pure C++: function components, 23 hooks, and a fiber reconciler that decides which Slate widgets exist each frame. .uetkx markup compiles to native C++ for shipping builds and hot-reloads live in PIE during development. UMG, CommonUI, and MVVM stay in place — feeding data in or hosting our output.",
+	"Category": "User Interface",
+	"CreatedBy": "Yaniv Kalfa",
+	"CreatedByURL": "https://github.com/yanivkalfa",
+	"DocsURL": "https://github.com/yanivkalfa/ReactiveUI-Unreal",
+	"MarketplaceURL": "",
+	"SupportURL": "https://github.com/yanivkalfa/ReactiveUI-Unreal/issues",
+	"EngineVersion": "5.6.0",
+	"EnabledByDefault": false,
+	"CanContainContent": true,
+	"IsBetaVersion": true,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "ReactiveUICore",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "ReactiveUISlate",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "ReactiveUIUMG",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "ReactiveUICommonUI",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "ReactiveUIMVVMBridge",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "ReactiveUIInterp",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"TargetConfigurationDenyList": [
+				"Shipping"
+			]
+		},
+		{
+			"Name": "ReactiveUIToolchain",
+			"Type": "UncookedOnly",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "ReactiveUIEditor",
+			"Type": "Editor",
+			"LoadingPhase": "Default"
+		}
+	]
+}

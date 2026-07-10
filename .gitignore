@@ -1,0 +1,44 @@
+# ── Unreal Engine generated (project root AND Plugins/*/ via unrooted patterns) ──
+Binaries/
+Intermediate/
+Saved/
+DerivedDataCache/
+Build/
+
+# Visual Studio / IDE artifacts
+.vs/
+.idea/
+*.sln
+*.suo
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.opendb
+
+# clangd compile database (generated per-machine via UnrealBuildTool -mode=GenerateClangDatabase)
+compile_commands.json
+.cache/
+
+# ── ReactiveUI machine-local outputs ──
+# Diagnostics sidecars are per-machine compiler state (MASTER_PLAN D-18); the compiler
+# fingerprint lives under Saved/ (already ignored). Generated .uetkx.inl and
+# <Module>.Uetkx.gen.cpp are COMMITTED on purpose (D-19) — do not ignore them.
+*.uetkx.diags.json
+
+# Local publish-token mirror for the manual publish rail (scripts/*.ps1) — never commit.
+publisher-secrets.json
+
+# ── Node trees (docs site, ide-extensions) ──
+node_modules/
+docs/dist/
+ide-extensions/lsp-server/out/
+ide-extensions/vscode-uetkx/out/
+ide-extensions/vscode-uetkx/*.vsix
+
+# The owner's ad-hoc scratch file for pasting CI/editor error output (the field-test-editor
+# skill reads it; never committed).
+/Errors
+
+# OS noise
+Thumbs.db
+.DS_Store

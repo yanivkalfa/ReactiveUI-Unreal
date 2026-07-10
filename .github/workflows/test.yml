@@ -1,0 +1,123 @@
+# Tests — every gate that can run without money runs on every push/PR; engine legs are
+# armed by the repo variable RUI_CI_ENGINE_ARMED (the "inert until armed" pattern).
+#
+# REQUIRED-CHECKS TRAP (deliberate, keep it): NO `paths:` filters anywhere in this file.
+# These jobs become required status checks; a paths-filtered required check never reports on
+# unrelated PRs and makes them permanently un-mergeable (the sibling repo documented this
+# failure mode in-file — house style is to write the reason down, so: this comment).
+# Staged jobs (lsp-server, docs) instead SELF-GUARD inside the job: if their directory
+# doesn't exist yet (they land in Phases 5/0.8), they log "not armed yet" and exit 0 —
+# required checks always report from commit one.
+name: Tests
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+permissions:
+  contents: read
+
+jobs:
+  gates:
+    name: engine-free gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: changelog verify (Lane B drift gate)
+        run: node ide-extensions/scripts/changelog.mjs verify
+      - name: changelog mirror byte-identity (Lane A)
+        run: node scripts/verify-mirror.mjs
+      - name: copyright headers (Fab requirement, D-01)
+        run: node scripts/check-headers.mjs
+      - name: skills lint (frontmatter + scar tissue)
+        run: node scripts/lint-skills.mjs
+      - name: docs-drift tripwire (claimed counts vs registries)
+        run: node scripts/docs-drift.mjs
+
+  clang-format:
+    name: clang-format check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install clang-format
+        run: sudo apt-get update -q && sudo apt-get install -y -q clang-format
+      - name: Check Source trees against .clang-format
+        run: |
+          set -e
+          FILES=$(find Source Plugins/ReactiveUI/Source templates -type f \( -name '*.cpp' -o -name '*.h' -o -name '*.inl' \) 2>/dev/null || true)
+          if [ -z "$FILES" ]; then echo "no C++ files yet"; exit 0; fi
+          clang-format --dry-run -Werror $FILES
+
+  lsp-server:
+    name: lsp-server (self-guarded until Phase 5)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Guard
+        id: guard
+        run: |
+          if [ ! -f ide-extensions/lsp-server/package.json ]; then
+            echo "lsp-server not armed yet (lands in Phase 5) — reporting success so required checks always report."
+            echo "armed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "armed=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        if: steps.guard.outputs.armed == 'true'
+        with:
+          node-version: 22
+      - name: Build + unit tests + e2e smoke
+        if: steps.guard.outputs.armed == 'true'
+        working-directory: ide-extensions/lsp-server
+        run: |
+          npm ci
+          npm run build
+          node --test out/test/*.test.js
+          node scripts/smoke.js
+
+  docs:
+    name: docs site (self-guarded until the scaffold lands)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Guard
+        id: guard
+        run: |
+          if [ ! -f docs/package.json ]; then
+            echo "docs not armed yet — reporting success so required checks always report."
+            echo "armed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "armed=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        if: steps.guard.outputs.armed == 'true'
+        with:
+          node-version: 22
+      - name: Build + lint
+        if: steps.guard.outputs.armed == 'true'
+        working-directory: docs
+        run: |
+          npm ci
+          npm run build
+          npm run lint
+
+  # Engine legs — cost money/minutes and need the Epic-org-gated container registry, so they
+  # are armed by the repo variable RUI_CI_ENGINE_ARMED (owner-created; see CLAUDE.md's secrets
+  # inventory). Skipped jobs satisfy branch protection, so arming later needs no re-wiring.
+  engine:
+    name: engine matrix
+    if: vars.RUI_CI_ENGINE_ARMED == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        engine: ["5.6", "5.7", "5.8"]
+    uses: ./.github/workflows/engine-tests.yml
+    with:
+      engine-version: ${{ matrix.engine }}
+    secrets:
+      EPIC_GHCR_PAT: ${{ secrets.EPIC_GHCR_PAT }}

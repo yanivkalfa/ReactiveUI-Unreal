@@ -1,0 +1,28 @@
+# EditorConfig — the style rail for humans, IDEs, AND the lesser-model production lines
+# (MASTER_PLAN §8: template-driven codegen needs enforcement, not convention).
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Epic C++ Coding Standard: tabs, width 4. Applies to generated .inl too.
+[*.{cpp,h,inl,cs}]
+indent_style = tab
+indent_size = 4
+tab_width = 4
+
+# Web/tooling trees follow the family's 2-space convention.
+[*.{ts,tsx,js,mjs,cjs,json,yml,yaml,html,css}]
+indent_style = space
+indent_size = 2
+
+# Markdown: trailing double-space is meaningful (hard line break).
+[*.md]
+trim_trailing_whitespace = false
+
+# Windows batch files must be CRLF (see .gitattributes).
+[*.bat]
+end_of_line = crlf
