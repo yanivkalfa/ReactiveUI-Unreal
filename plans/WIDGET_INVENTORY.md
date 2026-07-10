@@ -9,6 +9,8 @@ scope the same way the Godot port never wrapped editor chrome.
 This file is the authoritative tracking artifact: **every S-class from the sweep appears in
 exactly one table.** A widget with no row here is a sweep bug, not a scope decision.
 
+**Naming rule (D-33):** element tag = Slate class minus the `S` type-prefix; OUR widgets keep the `Rui` mark. Factories match tags verbatim.
+
 Statuses: `SHIPPED` (adapter + tests on dev) · `BATCH-2` (Phase 7 step 8 production line —
 the everyday game set) · `BATCH-3` (v1.x long tail — wrapped after Batch 2, before "all
 official" is declared done) · `INFRA` (base class / internal part — not a user widget, nothing
@@ -20,11 +22,11 @@ to wrap) · `SPECIAL` (covered by a dedicated mechanism, not a plain adapter).
 
 | Widget | Element tag | Notes |
 |---|---|---|
-| STextBlock | `Text` | + style keys color/fontSize/justify/autoWrap |
+| STextBlock | `TextBlock` | + style keys ColorAndOpacity/Font.Size/Justification/AutoWrapText |
 | SButton | `Button` | event proxy exemplar; ContentPadding |
 | SBorder | `Border` | padding/color/align |
 | SBox | `Box` | size overrides + align |
-| SVerticalBox | `VerticalBox` | slot.* props (SBoxPanel child) |
+| SVerticalBox | `VerticalBox` | Slot.* props (SBoxPanel child) |
 | SHorizontalBox | `HorizontalBox` | slot.* props (SBoxPanel child) |
 | SOverlay | `Overlay` | also the SRuiRoot panel; slot.zorder |
 | SScrollBox | `ScrollBox` | runtime Orientation (audit fix) |
@@ -34,7 +36,7 @@ to wrap) · `SPECIAL` (covered by a dedicated mechanism, not a plain adapter).
 | SCheckBox | `CheckBox` | |
 | SSlider | `Slider` | + StepSize |
 | SProgressBar | `ProgressBar` | + fillColor style key |
-| SRuiCanvas *(ours)* | `Canvas` | the draw_fn paint trampoline (D-12) |
+| SRuiCanvas *(ours)* | `RuiCanvas` | the draw_fn paint trampoline (D-12); `Canvas` reserved for SCanvas |
 
 ## Batch 2 (Phase 7 step 8) — the everyday game set
 
