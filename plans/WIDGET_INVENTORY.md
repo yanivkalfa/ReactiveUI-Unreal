@@ -1,0 +1,116 @@
+# Slate widget inventory — every runtime widget, accounted for
+
+**Owner directive (2026-07-10): the coverage target is ALL official user-facing widgets in the
+engine's RUNTIME Slate modules** (`Runtime/Slate` + `Runtime/SlateCore`, UE 5.6 header sweep,
+119 headers) — matching the Godot port, whose ~60 `V.*` factories cover essentially every
+official Control. Editor-module widgets (graph panels, detail rows, dock chrome) are out of
+scope the same way the Godot port never wrapped editor chrome.
+
+This file is the authoritative tracking artifact: **every S-class from the sweep appears in
+exactly one table.** A widget with no row here is a sweep bug, not a scope decision.
+
+**Naming rule (D-33):** element tag = Slate class minus the `S` type-prefix; OUR widgets keep the `Rui` mark. Factories match tags verbatim.
+
+Statuses: `SHIPPED` (adapter + tests on dev) · `BATCH-2` (Phase 7 step 8 production line —
+the everyday game set) · `BATCH-3` (v1.x long tail — wrapped after Batch 2, before "all
+official" is declared done) · `INFRA` (base class / internal part — not a user widget, nothing
+to wrap) · `SPECIAL` (covered by a dedicated mechanism, not a plain adapter).
+
+---
+
+## Shipped (Phase 2) — 15
+
+| Widget | Element tag | Notes |
+|---|---|---|
+| STextBlock | `TextBlock` | + style keys ColorAndOpacity/Font.Size/Justification/AutoWrapText |
+| SButton | `Button` | event proxy exemplar; ContentPadding |
+| SBorder | `Border` | padding/color/align |
+| SBox | `Box` | size overrides + align |
+| SVerticalBox | `VerticalBox` | Slot.* props (SBoxPanel child) |
+| SHorizontalBox | `HorizontalBox` | slot.* props (SBoxPanel child) |
+| SOverlay | `Overlay` | also the SRuiRoot panel; slot.zorder |
+| SScrollBox | `ScrollBox` | runtime Orientation (audit fix) |
+| SSpacer | `Spacer` | |
+| SImage | `Image` | v1 tint+size; brush content = D-17 asset work |
+| SEditableTextBox | `EditableTextBox` | controlled input, caret rule (D-16) |
+| SCheckBox | `CheckBox` | |
+| SSlider | `Slider` | + StepSize |
+| SProgressBar | `ProgressBar` | + fillColor style key |
+| SRuiCanvas *(ours)* | `RuiCanvas` | the draw_fn paint trampoline (D-12); `Canvas` reserved for SCanvas |
+
+## Batch 2 (Phase 7 step 8) — the everyday game set
+
+| Widget | Notes |
+|---|---|
+| SComboBox / SComboButton | templated items → item-model treatment shares SListView design |
+| SSpinBox / SNumericEntryBox | numeric inputs (templated — adapter per common instantiation) |
+| SSearchBox / SSuggestionTextBox | text-input family |
+| SMultiLineEditableTextBox / SMultiLineEditableText | multi-line controlled input (same caret rule) |
+| SRichTextBlock | rich text (+ decorator story later) |
+| SSegmentedControl | templated |
+| SWrapBox / SUniformWrapPanel | wrap layout |
+| SGridPanel / SUniformGridPanel | grid layout (slot.row/slot.column props) |
+| SScaleBox / SSafeZone / SDPIScaler | scale/safe-area containers |
+| SWidgetSwitcher | index-switched panel |
+| SSeparator | trivial leaf |
+| SExpandableArea | header+body container |
+| SThrobber / SSpinningImage | busy indicators |
+| SListView / STileView / STreeView | **the big one** — the family's item-model treatment (declarative `items` → widget-generating delegates), NOT a plain adapter |
+| SHeaderRow | column headers for the item views |
+
+## Batch 3 (v1.x long tail — target: all official)
+
+| Widget | Notes |
+|---|---|
+| SCanvas / SConstraintCanvas | absolute-position panels (slot.offset/anchors) |
+| SSplitter | resizable panes (slot.fraction) |
+| SEditableText / SEditableLabel / SInlineEditableTextBlock | raw/label text-edit variants |
+| SHyperlink / SRichTextHyperlink | link widgets |
+| SColorBlock / SColorWheel / SColorSpectrum / SColorGradingWheel | color pickers |
+| SSimpleGradient / SComplexGradient | gradient leaves |
+| SVectorInputBox / SRotatorInputBox | struct input rows |
+| SNumericDropDown | numeric preset dropdown |
+| SBreadcrumbTrail | templated trail |
+| SInputKeySelector | key binding capture |
+| SVolumeControl | slider+mute composite |
+| SVirtualJoystick / SVirtualKeyboardEntry | touch controls |
+| SBackgroundBlur | blur container |
+| SMenuAnchor | popup anchoring (pairs with the menu/popup story) |
+| SNotificationList | toast notifications |
+| SToolTip | via a `tooltip` prop on every element (cross-cutting, not a tag) |
+| SLayeredImage | multi-layer image |
+| STextScroller | marquee-style scroller |
+| SEnableBox / SLinkedBox / SScissorRectBox / SResponsiveGridPanel / SRadialBox | niche containers |
+| SExpandableButton | niche composite |
+| SInvalidationPanel | perf wrapper — expose as an opt-in container |
+| SWindowTitleBarArea | custom title bars (pairs with the SWindow surface) |
+
+## Special — covered by a dedicated mechanism
+
+| Widget | How it's covered |
+|---|---|
+| SWindow | `FRuiRoot::CreateInWindow` mount surface (shipped); portals target windows in Phase 7 |
+| SViewport | the game viewport mount surface (`CreateInViewport`, shipped) |
+| SPopup / SMenuOwner / SSubMenuHandler / STextEntryPopup / STextComboPopup / STextComboBox / SEditableComboBox | the menu/popup/combo story rides the SMenuAnchor design (Batch 2/3 with SComboBox) |
+| SErrorText / SErrorHint / SPopUpErrorText | form-validation story (with the input widgets) |
+| SDockTab | editor tab mount surface — ships with Phase 8's Inspector (editor module) |
+| SUserWidget | UMG's bridge class — the ReactiveUIUMG interop module (Phase 6) |
+
+## Infrastructure / internal — nothing to wrap
+
+`SWidget`, `SPanel`, `SCompoundWidget`, `SLeafWidget` (base classes) · `SBoxPanel` (base of
+V/H box) · `STableViewBase`, `STableRow`, `SExpanderArrow`, `SHeader` (item-view internals —
+consumed by the item-model design) · `SScrollBar`, `SScrollBarTrack`, `SScrollBorder`
+(scroll internals, reached through scroll-box props) · `SNullWidget`, `SMissingWidget`,
+`SWeakWidget`, `SVirtualWindow`, `SLayerManager`, `STooltipPresenter`, `SFxWidget`
+(deprecated in-engine) · non-widget helpers from the sweep: `SlateEditableTextLayout`,
+`SlateTextBlockLayout`, `SlateEditableTextTypes`, `SlateControlledConstruction`,
+`SlateWidgetTracker`, `SlateAccessible*` (accessibility plumbing).
+
+---
+
+**Process:** each Batch-2/3 widget ships through the component pipeline (prop-map entry →
+typed props struct → adapter → contract case → per-widget test → docs row). When a batch
+lands, move its rows into "Shipped" with the tag names. Re-run the header sweep against every
+new engine version and diff this file — new engine widgets must land a row here in the same
+PR that bumps the supported engine version.
