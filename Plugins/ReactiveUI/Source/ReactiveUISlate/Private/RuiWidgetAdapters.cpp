@@ -11,6 +11,7 @@
 #include "RuiEventProxy.h"
 #include "RuiSlateElements.h"
 #include "RuiSlateLog.h"
+#include "Styling/CoreStyle.h"
 #include "SRuiCanvas.h"
 
 #include "Widgets/Images/SImage.h"
@@ -101,6 +102,7 @@ public:
 		RUI_ROW(BorderBackgroundColor, W.SetBorderBackgroundColor(FSlateColor(N.BorderBackgroundColor)))
 		RUI_ROW(HAlign, W.SetHAlign(HAlignOf(N.HAlign)))
 		RUI_ROW(VAlign, W.SetVAlign(VAlignOf(N.VAlign)))
+		RUI_ROW(BorderImage, W.SetBorderImage(FCoreStyle::Get().GetBrush(N.BorderImage)))
 	}
 
 	virtual void SetContent(SWidget& Parent, const TSharedPtr<SWidget>& Child) override

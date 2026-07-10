@@ -287,6 +287,7 @@ static FRuiNodeArray StressTestComp(FRuiContext& Ctx, const FRuiEmptyProps&, con
 	for (const FStressBox& Box : Boxes->Current)
 	{
 		FRuiBorderProps Fill;
+		Fill.SetBorderImage(FName(TEXT("WhiteBrush"))); // solid fill, tinted below
 		Fill.SetBorderBackgroundColor(Box.Color);
 		FRuiBoxProps SizeBox;
 		SizeBox.SetWidthOverride(Box.Size);

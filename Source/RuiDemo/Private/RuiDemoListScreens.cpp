@@ -239,29 +239,35 @@ static FRuiNodeArray TicTacToeComp(FRuiContext& Ctx, const FRuiEmptyProps&, cons
 				FRuiBoxProps CellBox;
 				CellBox.SetWidthOverride(44.0f);
 				CellBox.SetHeightOverride(44.0f);
+				FRuiButtonProps CellButton;
+				CellButton.SetContentPadding(FMargin(0.0f)); // the mark centers itself in 44x44
+				CellButton.SetOnClicked(FRuiCallback::Create(
+					[SetGridFn, SetTurnFn, SetWinnerFn, CheckWinner, GridNow, TurnNow, WinnerNow, Index]()
+					{
+						if (!WinnerNow.IsEmpty() || !GridNow[Index].IsEmpty())
+						{
+							return;
+						}
+						TArray<FString> Next = GridNow;
+						Next[Index] = TurnNow;
+						SetGridFn(Next);
+						const FString Win = CheckWinner(Next);
+						if (!Win.IsEmpty())
+						{
+							SetWinnerFn(Win);
+						}
+						else
+						{
+							SetTurnFn(TurnNow == TEXT("X") ? FString(TEXT("O")) : FString(TEXT("X")));
+						}
+					}));
+				// Big explicit mark (16pt gold) — a default 9pt label inside a padded 44px
+				// button was borderline invisible on the owner's first playtest.
 				FRuiNode Cell = RUI::Slate::Box(
 					MoveTemp(CellBox),
-					{LabeledButton(
-						GridNow[Index].IsEmpty() ? TEXT(" ") : *GridNow[Index],
-						[SetGridFn, SetTurnFn, SetWinnerFn, CheckWinner, GridNow, TurnNow, WinnerNow, Index]()
-						{
-							if (!WinnerNow.IsEmpty() || !GridNow[Index].IsEmpty())
-							{
-								return;
-							}
-							TArray<FString> Next = GridNow;
-							Next[Index] = TurnNow;
-							SetGridFn(Next);
-							const FString Win = CheckWinner(Next);
-							if (!Win.IsEmpty())
-							{
-								SetWinnerFn(Win);
-							}
-							else
-							{
-								SetTurnFn(TurnNow == TEXT("X") ? FString(TEXT("O")) : FString(TEXT("X")));
-							}
-						})});
+					{RUI::Slate::Button(MoveTemp(CellButton),
+										{StyledText(GridNow[Index].IsEmpty() ? TEXT(" ") : *GridNow[Index], 16.0f,
+													FLinearColor(1.0f, 0.85f, 0.4f))})});
 				Cell.Key = FRuiKey(Index);
 				Cells.Add(MoveTemp(Cell));
 			}

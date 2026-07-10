@@ -60,6 +60,7 @@ static FRuiNodeArray GalleryShellComp(FRuiContext& Ctx, const FRuiEmptyProps&, c
 
 	FRuiBorderProps MenuCard;
 	MenuCard.SetPadding(FMargin(8.0f));
+	MenuCard.SetBorderImage(FName(TEXT("WhiteBrush")));
 	MenuCard.SetBorderBackgroundColor(FLinearColor(0.02f, 0.02f, 0.03f, 0.85f));
 
 	FRuiBoxProps MenuWidth;

@@ -16,6 +16,7 @@ namespace RuiDemo
 	{
 		FRuiBorderProps P;
 		P.SetPadding(FMargin(Padding + 4.0f));
+		P.SetBorderImage(FName(TEXT("WhiteBrush"))); // solid fill (the engine default brush is a thin frame)
 		P.SetBorderBackgroundColor(FLinearColor(0.02f, 0.02f, 0.03f, 0.85f));
 		FRuiNode Node = RUI::Slate::Border(MoveTemp(P), {MoveTemp(Inner)});
 		TSharedRef<FRuiBorderProps> Props =

@@ -105,6 +105,7 @@ static FRuiNodeArray ContextConsumerComp(FRuiContext& Ctx, const FRuiDemoLabelPr
 
 	FRuiBorderProps Panel;
 	Panel.SetPadding(FMargin(10.0f));
+	Panel.SetBorderImage(FName(TEXT("WhiteBrush")));
 	Panel.SetBorderBackgroundColor(Theme);
 	FRuiNode Node = RUI::Slate::Border(
 		MoveTemp(Panel),

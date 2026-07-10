@@ -52,22 +52,25 @@ namespace DemoTest
 		return false;
 	}
 
-	/** First SButton whose label CONTAINS Needle. */
-	static SButton* FindButton(SWidget& RootWidget, const FString& Needle)
+	/** First SButton whose label contains (or exactly equals) Needle. */
+	static SButton* FindButton(SWidget& RootWidget, const FString& Needle, bool bExact = false)
 	{
 		if (RootWidget.GetType() == FName(TEXT("SButton")))
 		{
 			FChildren* Kids = RootWidget.GetChildren();
-			if (Kids->Num() > 0 && Kids->GetChildAt(0)->GetType() == FName(TEXT("STextBlock")) &&
-				StaticCastSharedRef<STextBlock>(Kids->GetChildAt(0))->GetText().ToString().Contains(Needle))
+			if (Kids->Num() > 0 && Kids->GetChildAt(0)->GetType() == FName(TEXT("STextBlock")))
 			{
-				return static_cast<SButton*>(&RootWidget);
+				const FString Label = StaticCastSharedRef<STextBlock>(Kids->GetChildAt(0))->GetText().ToString();
+				if (bExact ? Label == Needle : Label.Contains(Needle))
+				{
+					return static_cast<SButton*>(&RootWidget);
+				}
 			}
 		}
 		FChildren* Children = RootWidget.GetChildren();
 		for (int32 i = 0; i < Children->Num(); ++i)
 		{
-			if (SButton* Found = FindButton(Children->GetChildAt(i).Get(), Needle))
+			if (SButton* Found = FindButton(Children->GetChildAt(i).Get(), Needle, bExact))
 			{
 				return Found;
 			}
@@ -129,6 +132,17 @@ bool FRuiDemosTest::RunTest(const FString&)
 				Start->SimulateClick();
 				Root->FlushSync();
 				TestTrue(TEXT("game board appeared"), DemoTest::ContainsText(RootWidget, TEXT("Player turn: X")));
+
+				// A move must MARK the board (owner playtest regression: marks not visible).
+				SButton* EmptyCell = DemoTest::FindButton(RootWidget, TEXT(" "), /*bExact*/ true);
+				if (TestNotNull(TEXT("found an empty cell"), EmptyCell))
+				{
+					EmptyCell->SimulateClick();
+					Root->FlushSync();
+					TestTrue(TEXT("the X mark rendered on the board"),
+							 DemoTest::ContainsText(RootWidget, TEXT("X")) &&
+								 DemoTest::ContainsText(RootWidget, TEXT("Player turn: O")));
+				}
 			}
 		}
 		Root->Unmount();
