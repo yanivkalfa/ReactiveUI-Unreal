@@ -86,13 +86,15 @@ FRuiHostHandle FRuiSlateHost::CreateInstance(FRuiElementTypeId Type, const FRuiP
 	TSharedRef<FRuiSlateNode> Node = MakeShared<FRuiSlateNode>();
 	Node->Adapter = Adapter;
 	Node->Type = Type;
-	TSharedRef<SWidget> Widget = Adapter->CreateWidget(Props);
-	Node->Widget = Widget;
-	Adapter->ApplyDiff(*Widget, nullptr, Props); // full apply — one code path with diffs
 	if (Adapter->HasEvents())
 	{
-		Node->Proxy = MakeShared<FRuiEventProxy>();
-		Adapter->BindEvents(*Widget, Node->Proxy.ToSharedRef());
+		Node->Proxy = MakeShared<FRuiEventProxy>(); // before CreateWidget: SLATE_EVENT args bind there
+	}
+	TSharedRef<SWidget> Widget = Adapter->CreateWidget(Props, Node->Proxy);
+	Node->Widget = Widget;
+	Adapter->ApplyDiff(*Widget, nullptr, Props); // full apply — one code path with diffs
+	if (Node->Proxy.IsValid())
+	{
 		Adapter->SyncEventHandlers(*Node->Proxy, Props);
 	}
 	if (Props.SlotProps.IsValid())

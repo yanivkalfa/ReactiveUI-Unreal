@@ -41,8 +41,11 @@ public:
 
 	virtual ERuiChildKind GetChildKind() const = 0;
 
-	/** SNew with construct-only args. The host follows with ApplyDiff(W, nullptr, Props). */
-	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase& Props) = 0;
+	/** SNew with construct-only args, and bind every event delegate ONCE — to the proxy via
+	 *  CreateSP + slot-index payload (many Slate events are construct-time SLATE_EVENT args,
+	 *  which is why the proxy arrives here; it is non-null iff HasEvents()). The host follows
+	 *  with ApplyDiff(W, nullptr, Props). */
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase& Props, const TSharedPtr<FRuiEventProxy>& Proxy) = 0;
 
 	/** Memberwise compare-and-set. Old == nullptr means "apply everything set" (fresh widget
 	 *  or pool reuse without stashed props). */
@@ -53,9 +56,6 @@ public:
 
 	/** True when the adapter binds any events — the host mints a proxy only when needed. */
 	virtual bool HasEvents() const { return false; }
-
-	/** Bind every event delegate once to the proxy (CreateSP + slot-index payload). */
-	virtual void BindEvents(SWidget& Widget, const TSharedRef<FRuiEventProxy>& Proxy) {}
 
 	/** Swap the proxy's inner callbacks from the new props (every commit; cheap). */
 	virtual void SyncEventHandlers(FRuiEventProxy& Proxy, const FRuiPropsBase& New) {}

@@ -145,7 +145,10 @@ class FRuiTextAdapter final : public IRuiElementAdapter
 public:
 	virtual ERuiChildKind GetChildKind() const override { return ERuiChildKind::Leaf; }
 
-	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase&) override { return SNew(STextBlock); }
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase&, const TSharedPtr<FRuiEventProxy>&) override
+	{
+		return SNew(STextBlock);
+	}
 
 	virtual void ApplyDiff(SWidget& Widget, const FRuiPropsBase* Old, const FRuiPropsBase& New) override
 	{
@@ -269,13 +272,19 @@ private:
 class FRuiVerticalBoxAdapter final : public TRuiBoxPanelAdapter<SVerticalBox>
 {
 public:
-	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase&) override { return SNew(SVerticalBox); }
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase&, const TSharedPtr<FRuiEventProxy>&) override
+	{
+		return SNew(SVerticalBox);
+	}
 };
 
 class FRuiHorizontalBoxAdapter final : public TRuiBoxPanelAdapter<SHorizontalBox>
 {
 public:
-	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase&) override { return SNew(SHorizontalBox); }
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase&, const TSharedPtr<FRuiEventProxy>&) override
+	{
+		return SNew(SHorizontalBox);
+	}
 };
 
 // ─────────────────────────────────────────────────────────────────────────────────────────
@@ -287,7 +296,13 @@ class FRuiButtonAdapter final : public IRuiElementAdapter
 public:
 	virtual ERuiChildKind GetChildKind() const override { return ERuiChildKind::SingleContent; }
 
-	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase&) override { return SNew(SButton); }
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase&, const TSharedPtr<FRuiEventProxy>& Proxy) override
+	{
+		TSharedRef<SButton> W = SNew(SButton);
+		W->SetOnClicked(FOnClicked::CreateSP(Proxy.ToSharedRef(), &FRuiEventProxy::HandleReply,
+											 static_cast<int32>(FRuiButtonProps::OnClicked_Bit)));
+		return W;
+	}
 
 	virtual void ApplyDiff(SWidget& Widget, const FRuiPropsBase* Old, const FRuiPropsBase& New) override
 	{
@@ -301,12 +316,6 @@ public:
 	}
 
 	virtual bool HasEvents() const override { return true; }
-
-	virtual void BindEvents(SWidget& Widget, const TSharedRef<FRuiEventProxy>& Proxy) override
-	{
-		static_cast<SButton&>(Widget).SetOnClicked(FOnClicked::CreateSP(
-			Proxy, &FRuiEventProxy::HandleReply, static_cast<int32>(FRuiButtonProps::OnClicked_Bit)));
-	}
 
 	virtual void SyncEventHandlers(FRuiEventProxy& Proxy, const FRuiPropsBase& New) override
 	{
@@ -329,7 +338,10 @@ class FRuiOverlayAdapter final : public IRuiElementAdapter
 public:
 	virtual ERuiChildKind GetChildKind() const override { return ERuiChildKind::MultiSlot; }
 
-	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase&) override { return SNew(SOverlay); }
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase&, const TSharedPtr<FRuiEventProxy>&) override
+	{
+		return SNew(SOverlay);
+	}
 
 	virtual void ApplyDiff(SWidget&, const FRuiPropsBase*, const FRuiPropsBase&) override {}
 
@@ -470,6 +482,11 @@ namespace RUI::Slate
 		return MakeHostNode(OverlayType(), MoveTemp(Props), MoveTemp(Children), Key);
 	}
 
+	namespace Detail
+	{
+		void RegisterBatch2Adapters(); // RuiWidgetAdapters.cpp
+	}
+
 	void RegisterBuiltinAdapters()
 	{
 		RegisterAdapter(RUI::TextElementType(), MakeUnique<FRuiTextAdapter>());
@@ -477,5 +494,6 @@ namespace RUI::Slate
 		RegisterAdapter(HorizontalBoxType(), MakeUnique<FRuiHorizontalBoxAdapter>());
 		RegisterAdapter(ButtonType(), MakeUnique<FRuiButtonAdapter>());
 		RegisterAdapter(OverlayType(), MakeUnique<FRuiOverlayAdapter>());
+		Detail::RegisterBatch2Adapters();
 	}
 } // namespace RUI::Slate
