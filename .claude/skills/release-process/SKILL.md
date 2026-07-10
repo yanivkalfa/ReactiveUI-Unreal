@@ -6,7 +6,7 @@ description: The ReactiveUI-Unreal release runbook — draining the pending chan
 # Release process (ReactiveUI-Unreal)
 
 Everything a release needs, in order. Deliverables version independently — check what actually
-changed with `git diff origin/main --stat` against `Plugins/ReactiveUI/` and `ide-extensions/`
+changed with `git diff origin/master --stat` against `Plugins/ReactiveUI/` and `ide-extensions/`
 before deciding what bumps.
 
 ## 0. Drain the pending ledger
@@ -74,7 +74,7 @@ procedure); a drift is a release blocker until reconciled or `.pending`-pinned.
 1. Commit release prep (bumps + changelogs together):
    `release: reactive_ui_unreal X.Y.Z[, extensions A.B.C] -- changelogs + version bumps`.
 2. PR into `dev`; wait for green (changelog-sync + mirror are required checks); owner merges.
-3. Fast-forward: `git fetch origin && git push origin origin/dev:main`.
+3. Fast-forward: `git fetch origin && git push origin origin/dev:master`.
 
 ## 6. Publish
 
