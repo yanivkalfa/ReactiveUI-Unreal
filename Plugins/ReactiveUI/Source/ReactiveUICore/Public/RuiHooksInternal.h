@@ -105,7 +105,9 @@ namespace RUI
 // Hook cells
 // ─────────────────────────────────────────────────────────────────────────────────────────
 
-/** Hook kinds — doubles as the hook-order validation signature alphabet (hooks.gd _record). */
+/** Hook kinds — doubles as the hook-order validation signature alphabet (hooks.gd _record).
+ *  Effect/LayoutEffect don't consume state slots (own cursors) but ARE order-relevant, so
+ *  they log too. */
 enum class ERuiHookKind : uint8
 {
 	State,
@@ -121,7 +123,11 @@ enum class ERuiHookKind : uint8
 	TweenValue,
 	Animate,
 	Sfx,
+	Effect,
+	LayoutEffect,
 };
+
+REACTIVEUICORE_API const TCHAR* RuiHookKindName(ERuiHookKind Kind);
 
 /** Type-erased hook slot. Destructors double as teardown (a signal cell's dtor
  *  unsubscribes) — the C++ answer to _dispose_fiber_state's explicit unsub pass. */

@@ -39,8 +39,11 @@ public:
 
 	// --- tree mutation -----------------------------------------------------------------
 
-	/** Append/insert Child under Parent at Index (Parent null = the root container).
-	 *  Hosts with single-content containers enforce/warn capacity themselves (warn_capacity). */
+	/** Append/insert Child under Parent (Parent null = the root container). Index < 0 =
+	 *  APPEND — the reconciler's placement path always appends and relies on
+	 *  ReorderChildren on structural frames for exact order (the family model); precise
+	 *  indices arrive only from hosts' own internal uses. Single-content containers
+	 *  enforce/warn capacity themselves (warn_capacity). */
 	virtual void InsertChild(const FRuiHostHandle& Parent, const FRuiHostHandle& Child, int32 Index) = 0;
 
 	/** Remove Child from Parent (Parent null = root container). Never destroys — Release does. */

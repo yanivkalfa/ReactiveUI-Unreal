@@ -53,9 +53,11 @@ public:
 
 	bool bIsRendering = false;
 
-	/** Cached render output — reused verbatim on bailout (why vnodes are cross-frame; see
-	 *  FRuiNode's lifetime note). */
-	FRuiNodeArray LastOutput;
+	/** Cached render output — reused verbatim on bailout, as the SAME shared list (pointer
+	 *  identity is what lets grandchildren bail via children_same; a fresh copy per bailed
+	 *  render would silently defeat descendant bailouts). Why vnodes are cross-frame; see
+	 *  FRuiNode's lifetime note. */
+	FRuiChildren LastOutput;
 
 	// --- dev diagnostics (rui.HookValidation) ---
 	TArray<ERuiHookKind> HookLog;        // this render (transient)
@@ -72,7 +74,7 @@ public:
 		Effects.Empty();
 		LayoutEffects.Empty();
 		ContextDeps.Empty();
-		LastOutput.Empty();
+		LastOutput.Reset();
 		OnStateUpdated = nullptr;
 		Fiber = nullptr;
 	}

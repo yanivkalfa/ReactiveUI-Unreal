@@ -13,6 +13,12 @@
 #include "RuiHooksInternal.h"
 #include "RuiComponentState.h"
 #include "RuiFiber.h"
+#include "RuiContextHandle.h"
+#include "RuiCoreMisc.h"
+#include "RuiContext.h"
+#include "RuiReconciler.h"
+#include "RuiSignal.h"
+#include "RuiCoreElements.h"
 
 // Instantiate the templates a header-only consumer would (template errors surface at
 // instantiation, not parse).
