@@ -5,7 +5,9 @@
 #include "Framework/Application/SlateApplication.h"
 #include "GenericPlatform/GenericApplication.h"
 #include "RuiCoreElements.h"
+#include "RuiCoreMisc.h"
 #include "RuiSlateLog.h"
+#include "RuiStyle.h"
 #include "Widgets/SNullWidget.h"
 
 // ─────────────────────────────────────────────────────────────────────────────────────────
@@ -86,17 +88,39 @@ FRuiHostHandle FRuiSlateHost::CreateInstance(FRuiElementTypeId Type, const FRuiP
 	TSharedRef<FRuiSlateNode> Node = MakeShared<FRuiSlateNode>();
 	Node->Adapter = Adapter;
 	Node->Type = Type;
-	if (Adapter->HasEvents())
+
+	// GO-05 pool hit: reuse the detached widget, diff against its stashed last props.
+	const FRuiPropsBase* DiffBase = nullptr;
+	TSharedPtr<const FRuiPropsBase> StashedProps; // keeps DiffBase alive through ApplyDiff
+	TSharedPtr<FRuiStyleDict> StashedStyle;
+	if (TArray<FPoolEntry>* Bucket = Pool.Find(Type); Bucket != nullptr && !Bucket->IsEmpty())
 	{
-		Node->Proxy = MakeShared<FRuiEventProxy>(); // before CreateWidget: SLATE_EVENT args bind there
+		FPoolEntry Entry = Bucket->Pop(EAllowShrinking::No);
+		Node->Widget = Entry.Widget;
+		StashedProps = Entry.LastProps;
+		StashedStyle = Entry.AppliedStyle;
+		DiffBase = StashedProps.Get();
 	}
-	TSharedRef<SWidget> Widget = Adapter->CreateWidget(Props, Node->Proxy);
-	Node->Widget = Widget;
-	Adapter->ApplyDiff(*Widget, nullptr, Props); // full apply — one code path with diffs
+	else
+	{
+		if (Adapter->HasEvents())
+		{
+			Node->Proxy = MakeShared<FRuiEventProxy>(); // before CreateWidget: SLATE_EVENT args bind there
+		}
+		Node->Widget = Adapter->CreateWidget(Props, Node->Proxy);
+	}
+
+	Adapter->ApplyDiff(*Node->Widget, DiffBase, Props); // full apply / diff-on-reuse — one code path
 	if (Node->Proxy.IsValid())
 	{
 		Adapter->SyncEventHandlers(*Node->Proxy, Props);
 	}
+	TSharedPtr<FRuiStyleDict> Effective = RUI::Slate::BuildEffectiveStyle(Props.Classes, Props.Style);
+	if (Effective.IsValid() || StashedStyle.IsValid())
+	{
+		RUI::Slate::ApplyStyleDiff(*Node->Widget, Adapter, StashedStyle.Get(), Effective.Get());
+	}
+	Node->AppliedStyle = Effective;
 	if (Props.SlotProps.IsValid())
 	{
 		Node->SlotProps = MakeShared<FRuiStyleDict>(*Props.SlotProps);
@@ -137,6 +161,18 @@ void FRuiSlateHost::CommitUpdate(const FRuiHostHandle& Handle, FRuiElementTypeId
 		Node->Adapter->SyncEventHandlers(*Node->Proxy, NewProps);
 	}
 
+	// Style layer (D-13): diff the EFFECTIVE dict against what this node last applied —
+	// removed keys reset, and a style-only tweak never touches the widget's structure.
+	TSharedPtr<FRuiStyleDict> Effective = RUI::Slate::BuildEffectiveStyle(NewProps.Classes, NewProps.Style);
+	const bool bStyleSame = (!Effective.IsValid() && !Node->AppliedStyle.IsValid()) ||
+							(Effective.IsValid() && Node->AppliedStyle.IsValid() &&
+							 Effective->OrderIndependentCompareEqual(*Node->AppliedStyle));
+	if (!bStyleSame)
+	{
+		RUI::Slate::ApplyStyleDiff(*Node->Widget, Node->Adapter, Node->AppliedStyle.Get(), Effective.Get());
+		Node->AppliedStyle = Effective;
+	}
+
 	// slot.* changes re-apply through the parent's adapter.
 	const bool bOldHasSlot = OldProps != nullptr && OldProps->SlotProps.IsValid();
 	const bool bNewHasSlot = NewProps.SlotProps.IsValid();
@@ -158,7 +194,8 @@ void FRuiSlateHost::CommitUpdate(const FRuiHostHandle& Handle, FRuiElementTypeId
 	}
 }
 
-void FRuiSlateHost::ReleaseInstance(const FRuiHostHandle& Handle, FRuiElementTypeId, const FRuiPropsBase*, bool)
+void FRuiSlateHost::ReleaseInstance(const FRuiHostHandle& Handle, FRuiElementTypeId Type,
+									const TSharedPtr<const FRuiPropsBase>& LastProps, bool bWasChildless)
 {
 	FRuiSlateNode* Node = Resolve(Handle);
 	if (Node == nullptr)
@@ -179,8 +216,53 @@ void FRuiSlateHost::ReleaseInstance(const FRuiHostHandle& Handle, FRuiElementTyp
 	{
 		Node->Proxy->ClearAll(); // user closures must not outlive the node
 	}
-	// GO-05 pooling lands in Phase 2 step 5; v1 lets the widget die with the handle.
+
+	// GO-05: stash detached event-less childless leaves for diff-on-reuse.
+	if (FRuiConfig::IsHostNodePoolEnabled() && bWasChildless && Node->Widget.IsValid() && Node->Adapter != nullptr &&
+		Node->Adapter->IsPoolable())
+	{
+		TArray<FPoolEntry>& Bucket = Pool.FindOrAdd(Type);
+		if (Bucket.Num() < PoolCapPerType)
+		{
+			FPoolEntry& Entry = Bucket.AddDefaulted_GetRef();
+			Entry.Widget = Node->Widget;
+			Entry.LastProps = LastProps;
+			Entry.AppliedStyle = Node->AppliedStyle;
+		}
+	}
 	Node->Widget.Reset();
+}
+
+void FRuiSlateHost::OnBeforeCommit()
+{
+	FocusedBeforeCommit.Reset();
+	if (FSlateApplication::IsInitialized())
+	{
+		// Capture the focused widget (cursor user); restore after mutations if the commit's
+		// detach/attach churn stole it but the widget survived (critique gap 6).
+		FocusedBeforeCommit = FSlateApplication::Get().GetUserFocusedWidget(FSlateApplication::CursorUserIndex);
+	}
+}
+
+void FRuiSlateHost::OnAfterCommit()
+{
+	TSharedPtr<SWidget> Focused = FocusedBeforeCommit.Pin();
+	FocusedBeforeCommit.Reset();
+	if (!Focused.IsValid() || !FSlateApplication::IsInitialized())
+	{
+		return;
+	}
+	FSlateApplication& App = FSlateApplication::Get();
+	if (App.GetUserFocusedWidget(FSlateApplication::CursorUserIndex) != Focused)
+	{
+		App.SetUserFocus(FSlateApplication::CursorUserIndex, Focused, EFocusCause::SetDirectly);
+	}
+}
+
+int32 FRuiSlateHost::NumPooled(FRuiElementTypeId Type) const
+{
+	const TArray<FPoolEntry>* Bucket = Pool.Find(Type);
+	return Bucket != nullptr ? Bucket->Num() : 0;
 }
 
 void FRuiSlateHost::InsertChild(const FRuiHostHandle& ParentHandle, const FRuiHostHandle& ChildHandle, int32 Index)

@@ -17,6 +17,7 @@
 #include "RuiSlateElements.h"
 
 #include "RuiSlateLog.h"
+#include "Styling/CoreStyle.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SNullWidget.h"
@@ -164,6 +165,27 @@ public:
 				W.SetText(N.Text);
 			}
 		}
+	}
+
+	// Widget-specific style keys (D-13): color + fontSize map to setters; null = reset.
+	virtual bool ApplyStyleKey(SWidget& Widget, FName Key, const FRuiValue* Value) override
+	{
+		STextBlock& W = static_cast<STextBlock&>(Widget);
+		if (Key == FName(TEXT("color")))
+		{
+			W.SetColorAndOpacity(Value != nullptr ? FSlateColor(Value->ColorValue) : FSlateColor::UseForeground());
+			return true;
+		}
+		if (Key == FName(TEXT("fontSize")))
+		{
+			const int32 Size = Value != nullptr
+								   ? (Value->Kind == FRuiValue::EKind::Int ? static_cast<int32>(Value->IntValue)
+																		   : static_cast<int32>(Value->FloatValue))
+								   : 9; // reset: the default core-style size
+			W.SetFont(FCoreStyle::GetDefaultFontStyle("Regular", Size));
+			return true;
+		}
+		return false;
 	}
 };
 

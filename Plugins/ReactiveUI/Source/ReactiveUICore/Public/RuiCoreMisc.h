@@ -6,6 +6,18 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Stats/Stats.h"
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// STATGROUP_ReactiveUI (D-14) — `stat ReactiveUI` shows per-frame reconciler activity.
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+DECLARE_STATS_GROUP(TEXT("ReactiveUI"), STATGROUP_ReactiveUI, STATCAT_Advanced);
+DECLARE_DWORD_COUNTER_STAT_EXTERN(TEXT("Renders"), STAT_RuiRenders, STATGROUP_ReactiveUI, REACTIVEUICORE_API);
+DECLARE_DWORD_COUNTER_STAT_EXTERN(TEXT("Commits"), STAT_RuiCommits, STATGROUP_ReactiveUI, REACTIVEUICORE_API);
+DECLARE_DWORD_COUNTER_STAT_EXTERN(TEXT("Placements"), STAT_RuiPlacements, STATGROUP_ReactiveUI, REACTIVEUICORE_API);
+DECLARE_DWORD_COUNTER_STAT_EXTERN(TEXT("Updates"), STAT_RuiUpdates, STATGROUP_ReactiveUI, REACTIVEUICORE_API);
+DECLARE_DWORD_COUNTER_STAT_EXTERN(TEXT("Deletions"), STAT_RuiDeletions, STATGROUP_ReactiveUI, REACTIVEUICORE_API);
 
 // ─────────────────────────────────────────────────────────────────────────────────────────
 // Config (rui.* CVars — dotted PascalCase per D-14; defaults mirror config.gd)
@@ -52,6 +64,7 @@ struct REACTIVEUICORE_API FRuiDiagnostics
 	static void Reset();
 	static void OnRender()
 	{
+		INC_DWORD_STAT(STAT_RuiRenders);
 		if (bEnabled)
 		{
 			++Renders;
@@ -59,6 +72,7 @@ struct REACTIVEUICORE_API FRuiDiagnostics
 	}
 	static void OnCommit()
 	{
+		INC_DWORD_STAT(STAT_RuiCommits);
 		if (bEnabled)
 		{
 			++Commits;
@@ -66,6 +80,7 @@ struct REACTIVEUICORE_API FRuiDiagnostics
 	}
 	static void OnPlacement()
 	{
+		INC_DWORD_STAT(STAT_RuiPlacements);
 		if (bEnabled)
 		{
 			++Placements;
@@ -73,6 +88,7 @@ struct REACTIVEUICORE_API FRuiDiagnostics
 	}
 	static void OnUpdate()
 	{
+		INC_DWORD_STAT(STAT_RuiUpdates);
 		if (bEnabled)
 		{
 			++Updates;
@@ -80,6 +96,7 @@ struct REACTIVEUICORE_API FRuiDiagnostics
 	}
 	static void OnDeletion()
 	{
+		INC_DWORD_STAT(STAT_RuiDeletions);
 		if (bEnabled)
 		{
 			++Deletions;

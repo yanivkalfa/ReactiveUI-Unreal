@@ -1026,6 +1026,7 @@ void FRuiReconciler::CommitRoot()
 {
 	bIsCommitting = true;
 	FRuiDiagnostics::OnCommit();
+	Host.OnBeforeCommit(); // focus capture fence (host mutations start here)
 
 	for (FRuiFiber* D : Deletions)
 	{
@@ -1070,6 +1071,7 @@ void FRuiReconciler::CommitRoot()
 		EnforceChildOrder(Hp);
 	}
 	ReorderSet.Reset();
+	Host.OnAfterCommit(); // focus restore fence (host mutations end here)
 
 	RootCurrent = WipRoot;
 	WipRoot = nullptr;			  // non-null WipRoot now always means "abandoned pass" (BeginRender reclaims)
@@ -1311,7 +1313,7 @@ void FRuiReconciler::ReleaseHostNodes(FRuiFiber* Fiber)
 	if (Fiber->Node.IsValid() && !Fiber->IsRoot())
 	{
 		const bool bChildless = (Fiber->Child == nullptr);
-		Host.ReleaseInstance(Fiber->Node, Fiber->ElementType, Fiber->Props.Get(), bChildless);
+		Host.ReleaseInstance(Fiber->Node, Fiber->ElementType, Fiber->Props, bChildless);
 		return; // the host released/pooled the whole subtree root; children released with it
 	}
 	for (FRuiFiber* C = Fiber->Child; C != nullptr; C = C->Sibling)

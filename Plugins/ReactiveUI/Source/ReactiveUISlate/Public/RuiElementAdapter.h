@@ -60,6 +60,14 @@ public:
 	/** Swap the proxy's inner callbacks from the new props (every commit; cheap). */
 	virtual void SyncEventHandlers(FRuiEventProxy& Proxy, const FRuiPropsBase& New) {}
 
+	/** Widget-specific style keys (D-13; e.g. Text "color"/"fontSize"). Value == nullptr
+	 *  means RESET to the widget default. Return true when the key was handled. */
+	virtual bool ApplyStyleKey(SWidget& Widget, FName Key, const FRuiValue* Value) { return false; }
+
+	/** Pool eligibility (GO-05): default = event-less leaves only (bound delegates can't
+	 *  re-target a new node's proxy, and panels carry structure). */
+	virtual bool IsPoolable() const { return GetChildKind() == ERuiChildKind::Leaf && !HasEvents(); }
+
 	// ── children (MultiSlot) ──────────────────────────────────────────────────────────────
 
 	/** Insert Child at Index (Index < 0 = append), applying the child's slot.* props. */

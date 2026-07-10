@@ -33,9 +33,10 @@ public:
 
 	/** Destroy or pool the node (host's choice — GO-05 pooling lives host-side; the
 	 *  reconciler only promises the node is detached and done). bWasChildless lets the host
-	 *  apply the family's pool-only-childless-leaves rule without re-walking. */
-	virtual void ReleaseInstance(const FRuiHostHandle& Node, FRuiElementTypeId Type, const FRuiPropsBase* LastProps,
-								 bool bWasChildless) = 0;
+	 *  apply the family's pool-only-childless-leaves rule without re-walking. LastProps is
+	 *  SHARED so a pool can stash it and diff-on-reuse (GO-05). */
+	virtual void ReleaseInstance(const FRuiHostHandle& Node, FRuiElementTypeId Type,
+								 const TSharedPtr<const FRuiPropsBase>& LastProps, bool bWasChildless) = 0;
 
 	// --- tree mutation -----------------------------------------------------------------
 
@@ -68,6 +69,13 @@ public:
 
 	/** The host's text element type (STextBlock / mock text). Invalid id = host has none. */
 	virtual FRuiElementTypeId GetTextElementType() const = 0;
+
+	// --- commit fences ---------------------------------------------------------------------
+
+	/** Called immediately before/after a commit's host mutations — the focus capture/restore
+	 *  seam (a reorder's detach/attach steals Slate focus; the host gives it back). */
+	virtual void OnBeforeCommit() {}
+	virtual void OnAfterCommit() {}
 
 	// --- scheduling ----------------------------------------------------------------------
 

@@ -60,7 +60,8 @@ public:
 		++N->UpdateCount;
 	}
 
-	virtual void ReleaseInstance(const FRuiHostHandle& Node, FRuiElementTypeId, const FRuiPropsBase*, bool) override
+	virtual void ReleaseInstance(const FRuiHostHandle& Node, FRuiElementTypeId, const TSharedPtr<const FRuiPropsBase>&,
+								 bool) override
 	{
 		FMockNode* N = Cast(Node);
 		N->bReleased = true;

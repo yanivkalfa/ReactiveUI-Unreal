@@ -28,6 +28,9 @@ struct REACTIVEUISLATE_API FRuiSlateNode
 	/** Latest committed slot.* props (owned copy — parents re-apply on reorder/updates). */
 	TSharedPtr<FRuiStyleDict> SlotProps;
 
+	/** The EFFECTIVE style dict last applied (classes merged + inline) — the diff base. */
+	TSharedPtr<FRuiStyleDict> AppliedStyle;
+
 	/** The parent NODE while attached (child ops + slot-prop updates go via its adapter). */
 	TWeakPtr<FRuiSlateNode> ParentNode;
 
@@ -55,8 +58,10 @@ public:
 	virtual FRuiHostHandle CreateInstance(FRuiElementTypeId Type, const FRuiPropsBase& Props) override;
 	virtual void CommitUpdate(const FRuiHostHandle& Node, FRuiElementTypeId Type, const FRuiPropsBase* OldProps,
 							  const FRuiPropsBase& NewProps) override;
-	virtual void ReleaseInstance(const FRuiHostHandle& Node, FRuiElementTypeId Type, const FRuiPropsBase* LastProps,
-								 bool bWasChildless) override;
+	virtual void ReleaseInstance(const FRuiHostHandle& Node, FRuiElementTypeId Type,
+								 const TSharedPtr<const FRuiPropsBase>& LastProps, bool bWasChildless) override;
+	virtual void OnBeforeCommit() override;
+	virtual void OnAfterCommit() override;
 	virtual void InsertChild(const FRuiHostHandle& Parent, const FRuiHostHandle& Child, int32 Index) override;
 	virtual void RemoveChild(const FRuiHostHandle& Parent, const FRuiHostHandle& Child) override;
 	virtual void ReorderChildren(const FRuiHostHandle& Parent, const TArray<FRuiHostHandle>& Ordered) override;
@@ -68,6 +73,8 @@ public:
 	 *  callbacks queued while draining run on the NEXT drain). */
 	void PumpFrameQueue();
 
+	int32 NumPooled(FRuiElementTypeId Type) const;
+
 private:
 	void OnSlatePreTick(float DeltaTime);
 	void EnsurePreTickRegistered();
@@ -77,4 +84,18 @@ private:
 	FDelegateHandle PreTickHandle;
 	bool bPreTickRegistered = false;
 	bool bWarnedNoSlateApp = false;
+
+	/** GO-05 node pool: detached event-less leaves, stashed with their last props + applied
+	 *  style, diffed on reuse. Per-type cap; drained with the host. */
+	struct FPoolEntry
+	{
+		TSharedPtr<SWidget> Widget;
+		TSharedPtr<const FRuiPropsBase> LastProps;
+		TSharedPtr<FRuiStyleDict> AppliedStyle;
+	};
+	TMap<FRuiElementTypeId, TArray<FPoolEntry>> Pool;
+	static constexpr int32 PoolCapPerType = 256;
+
+	/** Focus capture between the commit fences (per-commit; cleared after restore). */
+	TWeakPtr<SWidget> FocusedBeforeCommit;
 };

@@ -4,6 +4,12 @@
 #include "HAL/IConsoleManager.h"
 #include "Misc/App.h"
 
+DEFINE_STAT(STAT_RuiRenders);
+DEFINE_STAT(STAT_RuiCommits);
+DEFINE_STAT(STAT_RuiPlacements);
+DEFINE_STAT(STAT_RuiUpdates);
+DEFINE_STAT(STAT_RuiDeletions);
+
 // ── CVars (rui.*, dotted PascalCase — D-14) ──────────────────────────────────────────────
 
 static TAutoConsoleVariable<bool>
