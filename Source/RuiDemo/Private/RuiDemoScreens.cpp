@@ -9,11 +9,27 @@
 
 namespace
 {
+	/** Section card: dark translucent backdrop + inner padding + a gap above (slot.*). */
 	FRuiNode Padded(FRuiNode Inner, float Padding)
 	{
 		FRuiBorderProps P;
-		P.SetPadding(FMargin(Padding));
-		return RUI::Slate::Border(MoveTemp(P), {MoveTemp(Inner)});
+		P.SetPadding(FMargin(Padding + 4.0f));
+		P.SetBorderColor(FLinearColor(0.02f, 0.02f, 0.03f, 0.85f));
+		FRuiNode Node = RUI::Slate::Border(MoveTemp(P), {MoveTemp(Inner)});
+		TSharedRef<FRuiBorderProps> Props =
+			MakeShared<FRuiBorderProps>(static_cast<const FRuiBorderProps&>(*Node.Props));
+		Props->SlotProps = MakeShared<FRuiStyleDict>();
+		Props->SlotProps->Add(FName(TEXT("slot.padding")), FRuiValue(TEXT("0,10,0,0")));
+		Node.Props = Props;
+		return Node;
+	}
+
+	/** Breathing room between rows inside a section. */
+	FRuiNode Gap(float Height = 6.0f)
+	{
+		FRuiSpacerProps P;
+		P.SetSize(FVector2D(1.0f, Height));
+		return RUI::Slate::Spacer(MoveTemp(P));
 	}
 
 	FRuiNode StyledText(const FString& S, float FontSize, FLinearColor Color = FLinearColor::White)
@@ -31,7 +47,15 @@ namespace
 	{
 		FRuiButtonProps P;
 		P.SetOnClicked(FRuiCallback::Create(MoveTemp(OnClick)));
-		return RUI::Slate::Button(MoveTemp(P), {RUI::Text(Label)});
+		P.SetContentPadding(FMargin(14.0f, 5.0f));
+		FRuiNode Node = RUI::Slate::Button(MoveTemp(P), {RUI::Text(Label)});
+		// Right margin so button rows don't fuse together.
+		TSharedRef<FRuiButtonProps> Props =
+			MakeShared<FRuiButtonProps>(static_cast<const FRuiButtonProps&>(*Node.Props));
+		Props->SlotProps = MakeShared<FRuiStyleDict>();
+		Props->SlotProps->Add(FName(TEXT("slot.padding")), FRuiValue(TEXT("0,0,6,0")));
+		Node.Props = Props;
+		return Node;
 	}
 } // namespace
 
@@ -48,12 +72,12 @@ static FRuiNodeArray DemoCounter(FRuiContext& Ctx, const FRuiEmptyProps&, const 
 	const int32 Current = Count;
 	return {
 		Padded(RUI::Slate::VBox(FRuiVerticalBoxProps(),
-								{StyledText(TEXT("Counter"), 16.0f, FLinearColor(0.4f, 0.8f, 1.0f)),
-								 RUI::Text(FString::Printf(TEXT("count = %d"), Count)),
+								{StyledText(TEXT("Counter"), 16.0f, FLinearColor(0.4f, 0.8f, 1.0f)), Gap(),
+								 RUI::Text(FString::Printf(TEXT("count = %d"), Count)), Gap(),
 								 RUI::Slate::HBox(FRuiHorizontalBoxProps(),
 												  {LabeledButton(TEXT(" - "), [Set, Current]() { Set(Current - 1); }),
 												   LabeledButton(TEXT(" + "), [Set, Current]() { Set(Current + 1); })}),
-								 RUI::Slate::ProgressBar(MoveTemp(Bar))}),
+								 Gap(), RUI::Slate::ProgressBar(MoveTemp(Bar))}),
 			   8.0f)};
 }
 RUI_COMPONENT(DemoCounter)
@@ -72,6 +96,7 @@ static FRuiNodeArray DemoKeyedList(FRuiContext& Ctx, const FRuiEmptyProps&, cons
 
 	TArray<FRuiNode> Rows;
 	Rows.Add(StyledText(TEXT("Keyed list"), 16.0f, FLinearColor(1.0f, 0.8f, 0.4f)));
+	Rows.Add(Gap());
 	Rows.Add(RUI::Slate::HBox(FRuiHorizontalBoxProps(), {LabeledButton(TEXT(" add "),
 																	   [Set, SetNext, Current, Id]()
 																	   {
@@ -134,9 +159,9 @@ static FRuiNodeArray DemoStyledPanels(FRuiContext& Ctx, const FRuiEmptyProps&, c
 	Mirror.Props = MirrorProps;
 
 	return {Padded(RUI::Slate::VBox(FRuiVerticalBoxProps(),
-									{StyledText(TEXT("Styled panels"), 16.0f, FLinearColor(0.6f, 1.0f, 0.6f)),
-									 RUI::Slate::CheckBox(MoveTemp(Check), {RUI::Text(TEXT("dim the mirror"))}),
-									 RUI::Slate::EditableText(MoveTemp(Edit)), MoveTemp(Mirror)}),
+									{StyledText(TEXT("Styled panels"), 16.0f, FLinearColor(0.6f, 1.0f, 0.6f)), Gap(),
+									 RUI::Slate::CheckBox(MoveTemp(Check), {RUI::Text(TEXT("dim the mirror"))}), Gap(),
+									 RUI::Slate::EditableText(MoveTemp(Edit)), Gap(), MoveTemp(Mirror)}),
 				   8.0f)};
 }
 RUI_COMPONENT(DemoStyledPanels)
