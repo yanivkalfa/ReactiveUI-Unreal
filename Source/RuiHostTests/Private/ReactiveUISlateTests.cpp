@@ -64,9 +64,9 @@ static FRuiNodeArray SlateMountComp(FRuiContext& Ctx, const FRuiEmptyProps&, con
 	TArray<FRuiNode> Rows;
 	for (int32 i = 0; i < Count; ++i)
 	{
-		Rows.Add(RUI::Text(FString::Printf(TEXT("row %d"), i)));
+		Rows.Add(RUI::TextBlock(FString::Printf(TEXT("row %d"), i)));
 	}
-	return {RUI::Slate::VBox(FRuiVerticalBoxProps(), MoveTemp(Rows))};
+	return {RUI::Slate::VerticalBox(FRuiVerticalBoxProps(), MoveTemp(Rows))};
 }
 RUI_COMPONENT(SlateMountComp)
 
@@ -104,7 +104,7 @@ static FRuiNodeArray SlateIdentityComp(FRuiContext& Ctx, const FRuiEmptyProps&, 
 {
 	auto [Value, SetValue] = Ctx.UseState<int32>(0);
 	SlateTest::IntSetter = SetValue;
-	return {RUI::Slate::VBox(FRuiVerticalBoxProps(), {RUI::Text(FString::Printf(TEXT("v=%d"), Value))})};
+	return {RUI::Slate::VerticalBox(FRuiVerticalBoxProps(), {RUI::TextBlock(FString::Printf(TEXT("v=%d"), Value))})};
 }
 RUI_COMPONENT(SlateIdentityComp)
 
@@ -142,10 +142,10 @@ static FRuiNodeArray SlateReorderComp(FRuiContext& Ctx, const FRuiEmptyProps&, c
 	TArray<FRuiNode> Rows;
 	for (int32 Id : Order)
 	{
-		Rows.Add(RUI::Text(FString::Printf(TEXT("item %d"), Id)));
+		Rows.Add(RUI::TextBlock(FString::Printf(TEXT("item %d"), Id)));
 		Rows.Last().Key = FRuiKey(Id);
 	}
-	return {RUI::Slate::VBox(FRuiVerticalBoxProps(), MoveTemp(Rows))};
+	return {RUI::Slate::VerticalBox(FRuiVerticalBoxProps(), MoveTemp(Rows))};
 }
 RUI_COMPONENT(SlateReorderComp)
 
@@ -187,7 +187,7 @@ static FRuiNodeArray SlateButtonComp(FRuiContext& Ctx, const FRuiEmptyProps&, co
 			SlateTest::LastClickTag = FString::Printf(TEXT("gen%d"), CapturedGen);
 		}));
 	Props.SetbEnabled(Gen % 2 == 0);
-	return {RUI::Slate::Button(MoveTemp(Props), {RUI::Text(TEXT("press"))})};
+	return {RUI::Slate::Button(MoveTemp(Props), {RUI::TextBlock(TEXT("press"))})};
 }
 RUI_COMPONENT(SlateButtonComp)
 
@@ -227,13 +227,14 @@ static FRuiNodeArray SlateSlotPropsComp(FRuiContext& Ctx, const FRuiEmptyProps&,
 {
 	auto [Pad, SetPad] = Ctx.UseState<int32>(4);
 	SlateTest::IntSetter = SetPad;
-	FRuiNode Text = RUI::Text(TEXT("padded"));
-	TSharedRef<FRuiTextProps> Props = MakeShared<FRuiTextProps>(static_cast<const FRuiTextProps&>(*Text.Props));
+	FRuiNode Text = RUI::TextBlock(TEXT("padded"));
+	TSharedRef<FRuiTextBlockProps> Props =
+		MakeShared<FRuiTextBlockProps>(static_cast<const FRuiTextBlockProps&>(*Text.Props));
 	Props->SlotProps = MakeShared<FRuiStyleDict>();
 	Props->SlotProps->Add(FName(TEXT("slot.padding")), FRuiValue(static_cast<float>(Pad)));
 	Props->SlotProps->Add(FName(TEXT("slot.halign")), FRuiValue(TEXT("center")));
 	Text.Props = Props;
-	return {RUI::Slate::VBox(FRuiVerticalBoxProps(), {MoveTemp(Text)})};
+	return {RUI::Slate::VerticalBox(FRuiVerticalBoxProps(), {MoveTemp(Text)})};
 }
 RUI_COMPONENT(SlateSlotPropsComp)
 

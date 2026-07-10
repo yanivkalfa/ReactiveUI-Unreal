@@ -16,7 +16,7 @@
 static FRuiNodeArray BootComp(FRuiContext& Ctx, const FRuiEmptyProps&, const TArray<FRuiNode>&)
 {
 	auto [V, SetV] = Ctx.UseState<int32>(42);
-	return {RUI::Text(FString::Printf(TEXT("boot %d"), V))};
+	return {RUI::TextBlock(FString::Printf(TEXT("boot %d"), V))};
 }
 RUI_COMPONENT(BootComp)
 

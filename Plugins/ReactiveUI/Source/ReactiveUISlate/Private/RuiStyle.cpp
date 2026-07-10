@@ -30,29 +30,34 @@ namespace
 		{
 			return EVisibility::HitTestInvisible;
 		}
+		if (Name == FName(TEXT("selfHitTestInvisible")))
+		{
+			return EVisibility::SelfHitTestInvisible;
+		}
 		return EVisibility::Visible;
 	}
 
 	void ApplyRenderTransform(SWidget& W, const FRuiStyleDict* Dict)
 	{
-		// translation/scale/angle compose into ONE render transform; absent -> identity.
+		// RenderTranslation/RenderScale/RenderTransformAngle compose into ONE transform;
+		// absent -> identity (the UMG UWidget setter names, D-33).
 		FVector2D Translation = FVector2D::ZeroVector;
 		float Scale = 1.0f;
 		float AngleDeg = 0.0f;
 		bool bAny = false;
 		if (Dict != nullptr)
 		{
-			if (const FRuiValue* T = Dict->Find(FName(TEXT("translation"))))
+			if (const FRuiValue* T = Dict->Find(FName(TEXT("RenderTranslation"))))
 			{
 				Translation = T->Vector2Value;
 				bAny = true;
 			}
-			if (const FRuiValue* S = Dict->Find(FName(TEXT("scale"))))
+			if (const FRuiValue* S = Dict->Find(FName(TEXT("RenderScale"))))
 			{
 				Scale = AsFloat(*S);
 				bAny = true;
 			}
-			if (const FRuiValue* A = Dict->Find(FName(TEXT("angle"))))
+			if (const FRuiValue* A = Dict->Find(FName(TEXT("RenderTransformAngle"))))
 			{
 				AngleDeg = AsFloat(*A);
 				bAny = true;
@@ -71,13 +76,14 @@ namespace
 
 	bool IsTransformKey(FName Key)
 	{
-		return Key == FName(TEXT("translation")) || Key == FName(TEXT("scale")) || Key == FName(TEXT("angle"));
+		return Key == FName(TEXT("RenderTranslation")) || Key == FName(TEXT("RenderScale")) ||
+			   Key == FName(TEXT("RenderTransformAngle"));
 	}
 
 	/** Apply one generic key (Value null = RESET to default). Returns false when unknown. */
 	bool ApplyGenericKey(SWidget& W, FName Key, const FRuiValue* Value)
 	{
-		if (Key == FName(TEXT("opacity")))
+		if (Key == FName(TEXT("RenderOpacity")))
 		{
 			W.SetRenderOpacity(Value != nullptr ? AsFloat(*Value) : 1.0f);
 			return true;
@@ -90,6 +96,11 @@ namespace
 		if (Key == FName(TEXT("enabled")))
 		{
 			W.SetEnabled(Value == nullptr || Value->BoolValue);
+			return true;
+		}
+		if (Key == FName(TEXT("RenderTransformPivot")))
+		{
+			W.SetRenderTransformPivot(Value != nullptr ? Value->Vector2Value : FVector2D::ZeroVector);
 			return true;
 		}
 		return false; // transform keys handled together; everything else is adapter/unknown

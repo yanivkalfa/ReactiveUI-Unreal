@@ -6,10 +6,13 @@
 // the family contract). Two layers ship in v1: inline `style` dicts and the `classes`
 // merge layer (classes apply in order, inline style wins). The stylesheet layer is TD-002.
 //
-// Generic keys (any SWidget): opacity, visibility (visible|collapsed|hidden|hitTestInvisible),
-// enabled, translation (Vector2), scale (Float), angle (Float, degrees).
-// Widget-specific keys route through IRuiElementAdapter::ApplyStyleKey (e.g. Text "color",
-// "fontSize") — same registry semantics, adapter-owned setters.
+// Key names are 1:1 with the Unreal setter/property they drive (D-33). Generic keys (any
+// SWidget): RenderOpacity, Visibility (Visible|Collapsed|Hidden|HitTestInvisible|
+// SelfHitTestInvisible), Enabled, RenderTranslation (Vector2), RenderScale (Float),
+// RenderTransformAngle (Float, degrees), RenderTransformPivot (Vector2). Widget-specific
+// keys route through IRuiElementAdapter::ApplyStyleKey (e.g. TextBlock "ColorAndOpacity",
+// "Font.Size", "Justification", "AutoWrapText") — same semantics, adapter-owned setters.
+// FName matching is case-insensitive; docs use the Unreal casing.
 
 #pragma once
 

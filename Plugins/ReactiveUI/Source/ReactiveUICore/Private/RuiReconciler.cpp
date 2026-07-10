@@ -5,7 +5,7 @@
 // divergences: (1) SUBTREE-SKIP bailout consumes bSubtreeHasUpdates (React
 // bailoutOnAlreadyFinishedWork — the WIP adopts the CURRENT child chain wholesale, exactly
 // React's no-clone fast path); (2) no raw-string child normalization (C++ arrays are
-// homogeneous — RUI::Text is explicit; the family's flatten becomes a no-op); (3) refs
+// homogeneous — RUI::TextBlock is explicit; the family's flatten becomes a no-op); (3) refs
 // follow the React lifecycle (attach on placement, detach on deletion — D-08.4), not
 // call-every-commit; (4) minimal-move reordering is HOST-side (the Phase 2 spike decides
 // the Slate strategy) — the core marks structural frames and calls ReorderChildren, same
@@ -1500,7 +1500,7 @@ bool FRuiReconciler::PropsEqual(const FRuiFiber* Fiber) const
 const TArray<FRuiNode>& FRuiReconciler::NormalizedChildren(const FRuiChildren& Children) const
 {
 	// The family flattened nested arrays and auto-wrapped raw strings; C++ child lists are
-	// flat + homogeneous by construction (RUI::Text is explicit), so this is a passthrough.
+	// flat + homogeneous by construction (RUI::TextBlock is explicit), so this is a passthrough.
 	return Children.IsValid() ? *Children : EmptyChildren;
 }
 

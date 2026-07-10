@@ -50,29 +50,30 @@ static FRuiNodeArray WidgetsLayoutComp(FRuiContext& Ctx, const FRuiEmptyProps&, 
 
 	FRuiBorderProps BorderProps;
 	BorderProps.SetPadding(FMargin(8.0f));
-	BorderProps.SetBorderColor(FLinearColor::Red);
+	BorderProps.SetBorderBackgroundColor(FLinearColor::Red);
 	BorderProps.SetHAlign(FName(TEXT("center")));
 
 	FRuiBoxProps BoxProps;
-	BoxProps.SetWidth(240.0f);
-	BoxProps.SetHeight(120.0f);
+	BoxProps.SetWidthOverride(240.0f);
+	BoxProps.SetHeightOverride(120.0f);
 
 	FRuiSpacerProps SpacerProps;
 	SpacerProps.SetSize(FVector2D(10.0f, 20.0f));
 
 	FRuiImageProps ImageProps;
-	ImageProps.SetColor(FLinearColor::Green);
-	ImageProps.SetDesiredSize(FVector2D(32.0f, 32.0f));
+	ImageProps.SetColorAndOpacity(FLinearColor::Green);
+	ImageProps.SetDesiredSizeOverride(FVector2D(32.0f, 32.0f));
 
 	FRuiProgressBarProps BarProps;
 	BarProps.SetPercent(Pct / 100.0f);
 
 	return {RUI::Slate::Border(
 		MoveTemp(BorderProps),
-		{RUI::Slate::Box(MoveTemp(BoxProps),
-						 {RUI::Slate::VBox(FRuiVerticalBoxProps(), {RUI::Slate::Spacer(MoveTemp(SpacerProps)),
-																	RUI::Slate::Image(MoveTemp(ImageProps)),
-																	RUI::Slate::ProgressBar(MoveTemp(BarProps))})})})};
+		{RUI::Slate::Box(
+			MoveTemp(BoxProps),
+			{RUI::Slate::VerticalBox(FRuiVerticalBoxProps(), {RUI::Slate::Spacer(MoveTemp(SpacerProps)),
+															  RUI::Slate::Image(MoveTemp(ImageProps)),
+															  RUI::Slate::ProgressBar(MoveTemp(BarProps))})})})};
 }
 RUI_COMPONENT(WidgetsLayoutComp)
 
@@ -104,7 +105,7 @@ bool FRuiWidgetsLayoutTest::RunTest(const FString&)
 
 	// Regression (owner playtest): box-panel slots must be AUTO-size by default — Slate's
 	// own default is FILL, which squeezes every row (clipped titles, crushed inputs). An
-	// auto VBox's desired height must be at least the sum of its children's desired heights.
+	// auto VerticalBox's desired height must be at least the sum of its children's desired heights.
 	float ChildSum = 0.0f;
 	for (int32 i = 0; i < PanelW->GetChildren()->Num(); ++i)
 	{
@@ -123,7 +124,7 @@ static FRuiNodeArray WidgetsEditComp(FRuiContext& Ctx, const FRuiEmptyProps&, co
 	WidgetTest::IntSetter = SetGen;
 	TSharedPtr<FString> Log = WidgetTest::Events;
 
-	FRuiEditableTextProps Props;
+	FRuiEditableTextBoxProps Props;
 	Props.SetText(FText::FromString(Gen == 0 ? TEXT("alpha") : TEXT("beta")));
 	Props.SetHintText(FText::FromString(TEXT("type here")));
 	Props.SetOnTextChanged(
@@ -131,7 +132,7 @@ static FRuiNodeArray WidgetsEditComp(FRuiContext& Ctx, const FRuiEmptyProps&, co
 	Props.SetOnTextCommitted(FRuiCallback::Create([Log](const FRuiValue& V)
 												  { *Log += TEXT("commit:") + V.TextValue.ToString() + TEXT(";"); }));
 	Props.Ref = [](const FRuiHostHandle& H) { WidgetTest::CapturedNode = H; };
-	return {RUI::Slate::EditableText(MoveTemp(Props))};
+	return {RUI::Slate::EditableTextBox(MoveTemp(Props))};
 }
 RUI_COMPONENT(WidgetsEditComp)
 
@@ -168,9 +169,10 @@ bool FRuiWidgetsEditableTest::RunTest(const FString&)
 	{
 		return false;
 	}
-	Node->Proxy->HandleText(FText::FromString(TEXT("x")), static_cast<int32>(FRuiEditableTextProps::OnTextChanged_Bit));
+	Node->Proxy->HandleText(FText::FromString(TEXT("x")),
+							static_cast<int32>(FRuiEditableTextBoxProps::OnTextChanged_Bit));
 	Node->Proxy->HandleTextCommit(FText::FromString(TEXT("y")), ETextCommit::OnEnter,
-								  static_cast<int32>(FRuiEditableTextProps::OnTextCommitted_Bit));
+								  static_cast<int32>(FRuiEditableTextBoxProps::OnTextCommitted_Bit));
 	TestEqual(TEXT("both handlers fired"), *WidgetTest::Events, FString(TEXT("chg:x;commit:y;")));
 	return true;
 }
@@ -185,7 +187,7 @@ static FRuiNodeArray WidgetsInputComp(FRuiContext& Ctx, const FRuiEmptyProps&, c
 
 	FRuiCheckBoxProps Check;
 	Check.SetbIsChecked(State != 0);
-	Check.SetOnCheckedChanged(
+	Check.SetOnCheckStateChanged(
 		FRuiCallback::Create([Log](const FRuiValue& V) { *Log += V.BoolValue ? TEXT("on;") : TEXT("off;"); }));
 
 	FRuiSliderProps Slide;
@@ -193,8 +195,9 @@ static FRuiNodeArray WidgetsInputComp(FRuiContext& Ctx, const FRuiEmptyProps&, c
 	Slide.SetOnValueChanged(
 		FRuiCallback::Create([Log](const FRuiValue& V) { *Log += FString::Printf(TEXT("v%.2f;"), V.FloatValue); }));
 
-	return {RUI::Slate::VBox(FRuiVerticalBoxProps(), {RUI::Slate::CheckBox(MoveTemp(Check), {RUI::Text(TEXT("opt"))}),
-													  RUI::Slate::Slider(MoveTemp(Slide))})};
+	return {RUI::Slate::VerticalBox(
+		FRuiVerticalBoxProps(),
+		{RUI::Slate::CheckBox(MoveTemp(Check), {RUI::TextBlock(TEXT("opt"))}), RUI::Slate::Slider(MoveTemp(Slide))})};
 }
 RUI_COMPONENT(WidgetsInputComp)
 
@@ -246,10 +249,11 @@ static FRuiNodeArray WidgetsScrollCanvasComp(FRuiContext& Ctx, const FRuiEmptyPr
 	TArray<FRuiNode> Items;
 	for (int32 i = 0; i < 5; ++i)
 	{
-		Items.Add(RUI::Text(FString::Printf(TEXT("item %d"), i)));
+		Items.Add(RUI::TextBlock(FString::Printf(TEXT("item %d"), i)));
 	}
-	return {RUI::Slate::VBox(FRuiVerticalBoxProps(), {RUI::Slate::ScrollBox(MoveTemp(ScrollProps), MoveTemp(Items)),
-													  RUI::Slate::Canvas(MoveTemp(CanvasProps))})};
+	return {
+		RUI::Slate::VerticalBox(FRuiVerticalBoxProps(), {RUI::Slate::ScrollBox(MoveTemp(ScrollProps), MoveTemp(Items)),
+														 RUI::Slate::RuiCanvas(MoveTemp(CanvasProps))})};
 }
 RUI_COMPONENT(WidgetsScrollCanvasComp)
 

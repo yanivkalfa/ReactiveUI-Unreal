@@ -52,7 +52,7 @@ static FRuiNodeArray ReducerMemoComp(FRuiContext& Ctx, const FRuiEmptyProps&, co
 			return V * 2;
 		},
 		RUI::Deps(V));
-	return {RUI::Text(FString::Printf(TEXT("%d/%d"), V, Doubled))};
+	return {RUI::TextBlock(FString::Printf(TEXT("%d/%d"), V, Doubled))};
 }
 RUI_COMPONENT(ReducerMemoComp)
 
@@ -79,7 +79,7 @@ static FRuiNodeArray LayoutOrderComp(FRuiContext& Ctx, const FRuiEmptyProps&, co
 {
 	Ctx.UseLayoutEffect([]() { CoreTest2::Order.Add(TEXT("layout")); }, RUI::Deps());
 	Ctx.UseEffect([]() { CoreTest2::Order.Add(TEXT("passive")); }, RUI::Deps());
-	return {RUI::Text(TEXT("x"))};
+	return {RUI::TextBlock(TEXT("x"))};
 }
 RUI_COMPONENT(LayoutOrderComp)
 
@@ -115,7 +115,7 @@ static FRuiNodeArray EqualityComp(FRuiContext& Ctx, const FRuiEmptyProps&, const
 			SetArr(TArray<int32>{1, 2, 3, 4});
 		}
 	};
-	return {RUI::Text(FString::FromInt(Arr.Num()))};
+	return {RUI::TextBlock(FString::FromInt(Arr.Num()))};
 }
 RUI_COMPONENT(EqualityComp)
 
@@ -149,7 +149,7 @@ static FRuiNodeArray SignalComp(FRuiContext& Ctx, const FRuiEmptyProps&, const T
 {
 	++CoreTest2::Renders;
 	CoreTest2::SeenInt = RUI::UseSignal<int32>(Ctx, GSigInt.ToSharedRef());
-	return {RUI::Text(FString::FromInt(CoreTest2::SeenInt))};
+	return {RUI::TextBlock(FString::FromInt(CoreTest2::SeenInt))};
 }
 RUI_COMPONENT(SignalComp)
 
@@ -185,7 +185,7 @@ static FRuiNodeArray SignalKeyCompA(FRuiContext& Ctx, const FRuiEmptyProps&, con
 {
 	++CoreTest2::Renders;
 	CoreTest2::SeenInt = RUI::UseSignalKey<int32>(Ctx, FName(TEXT("counter")), 10);
-	return {RUI::Text(FString::FromInt(CoreTest2::SeenInt))};
+	return {RUI::TextBlock(FString::FromInt(CoreTest2::SeenInt))};
 }
 RUI_COMPONENT(SignalKeyCompA)
 
@@ -221,7 +221,7 @@ static FRuiNodeArray SignalRebindComp(FRuiContext& Ctx, const FRuiEmptyProps&, c
 	const FString K = Key;
 	CoreTest2::SeenInt = RUI::UseSignal<TMap<FString, int32>, int32>(
 		Ctx, GSigMap.ToSharedRef(), [K](const TMap<FString, int32>& M) { return M.FindRef(K); });
-	return {RUI::Text(FString::FromInt(CoreTest2::SeenInt))};
+	return {RUI::TextBlock(FString::FromInt(CoreTest2::SeenInt))};
 }
 RUI_COMPONENT(SignalRebindComp)
 
@@ -256,7 +256,7 @@ struct FLabelPropsFwd final : public FRuiPropsBase
 static FRuiNodeArray MemoEqChildComp(FRuiContext&, const FLabelPropsFwd&, const TArray<FRuiNode>&)
 {
 	++CoreTest2::Renders;
-	return {RUI::Text(TEXT("x"))};
+	return {RUI::TextBlock(TEXT("x"))};
 }
 RUI_COMPONENT(MemoEqChildComp)
 
@@ -292,8 +292,8 @@ static TSharedPtr<bool> GReadyFlag;
 static FRuiNodeArray SuspenseHostComp(FRuiContext&, const FRuiEmptyProps&, const TArray<FRuiNode>&)
 {
 	TSharedPtr<bool> Flag = GReadyFlag;
-	return {RUI::Suspense([Flag]() { return Flag.IsValid() && *Flag; }, RUI::Text(TEXT("loading")),
-						  {RUI::Text(TEXT("loaded"))})};
+	return {RUI::Suspense([Flag]() { return Flag.IsValid() && *Flag; }, RUI::TextBlock(TEXT("loading")),
+						  {RUI::TextBlock(TEXT("loaded"))})};
 }
 RUI_COMPONENT(SuspenseHostComp)
 
@@ -327,7 +327,7 @@ static FRuiNodeArray FailingComp(FRuiContext&, const FRuiEmptyProps&, const TArr
 		RUI_RENDER_FAIL(TEXT("boom"));
 		return {};
 	}
-	return {RUI::Text(TEXT("fine"))};
+	return {RUI::TextBlock(TEXT("fine"))};
 }
 RUI_COMPONENT(FailingComp)
 
@@ -335,7 +335,7 @@ static FRuiNodeArray BoundaryHostComp(FRuiContext& Ctx, const FRuiEmptyProps&, c
 {
 	auto [ResetKey, SetResetKey] = Ctx.UseState<int32>(0);
 	CoreTest2::IntSetter = SetResetKey;
-	return {RUI::ErrorBoundary(RUI::Text(TEXT("fallback")), {RUI::FC(&FailingComp)}, FRuiKey(ResetKey),
+	return {RUI::ErrorBoundary(RUI::TextBlock(TEXT("fallback")), {RUI::FC(&FailingComp)}, FRuiKey(ResetKey),
 							   [](const FString& Reason)
 							   {
 								   if (GCaught.IsValid())
@@ -375,12 +375,12 @@ bool FRuiCoreErrorBoundaryTest::RunTest(const FString&)
 
 static FRuiNodeArray FragmentComp(FRuiContext&, const FRuiEmptyProps&, const TArray<FRuiNode>&)
 {
-	return {
-		RuiTest::Box(RuiTest::BoxProps(TEXT("list")), {
-														  RUI::Text(TEXT("a")),
-														  RUI::Fragment({RUI::Text(TEXT("b")), RUI::Text(TEXT("c"))}),
-														  RUI::Text(TEXT("d")),
-													  })};
+	return {RuiTest::Box(RuiTest::BoxProps(TEXT("list")),
+						 {
+							 RUI::TextBlock(TEXT("a")),
+							 RUI::Fragment({RUI::TextBlock(TEXT("b")), RUI::TextBlock(TEXT("c"))}),
+							 RUI::TextBlock(TEXT("d")),
+						 })};
 }
 RUI_COMPONENT(FragmentComp)
 
@@ -513,7 +513,7 @@ static FRuiNodeArray RefComp(FRuiContext& Ctx, const FRuiEmptyProps&, const TArr
 		};
 		return {RuiTest::Box(MoveTemp(P))};
 	}
-	return {RUI::Text(TEXT("gone"))};
+	return {RUI::TextBlock(TEXT("gone"))};
 }
 RUI_COMPONENT(RefComp)
 
@@ -543,7 +543,7 @@ static FRuiNodeArray DeferredComp(FRuiContext& Ctx, const FRuiEmptyProps&, const
 	const int32 Deferred = Ctx.UseDeferredValue<int32>(Now);
 	CoreTest2::SeenInt = Deferred;
 	CoreTest2::Seen = FString::Printf(TEXT("%d/%d"), Now, Deferred);
-	return {RUI::Text(CoreTest2::Seen)};
+	return {RUI::TextBlock(CoreTest2::Seen)};
 }
 RUI_COMPONENT(DeferredComp)
 
@@ -571,7 +571,7 @@ static FRuiNodeArray SafeAreaComp(FRuiContext& Ctx, const FRuiEmptyProps&, const
 {
 	FRuiSafeArea SA = Ctx.UseSafeArea();
 	CoreTest2::Seen = FString::Printf(TEXT("%.0f,%.0f,%.0f,%.0f"), SA.Left, SA.Top, SA.Right, SA.Bottom);
-	return {RUI::Text(CoreTest2::Seen)};
+	return {RUI::TextBlock(CoreTest2::Seen)};
 }
 RUI_COMPONENT(SafeAreaComp)
 
@@ -592,7 +592,7 @@ static FRuiNodeArray DiagComp(FRuiContext& Ctx, const FRuiEmptyProps&, const TAr
 {
 	auto [V, SetV] = Ctx.UseState<int32>(0);
 	CoreTest2::IntSetter = SetV;
-	return {RUI::Text(FString::FromInt(V))};
+	return {RUI::TextBlock(FString::FromInt(V))};
 }
 RUI_COMPONENT(DiagComp)
 

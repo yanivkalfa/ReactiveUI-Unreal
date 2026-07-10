@@ -29,8 +29,9 @@ namespace StyleTest
 
 	static FRuiNode StyledText(const FString& S, TSharedPtr<FRuiStyleDict> Style, TArray<FName> Classes = {})
 	{
-		FRuiNode Node = RUI::Text(S);
-		TSharedRef<FRuiTextProps> Props = MakeShared<FRuiTextProps>(static_cast<const FRuiTextProps&>(*Node.Props));
+		FRuiNode Node = RUI::TextBlock(S);
+		TSharedRef<FRuiTextBlockProps> Props =
+			MakeShared<FRuiTextBlockProps>(static_cast<const FRuiTextBlockProps&>(*Node.Props));
 		Props->Style = MoveTemp(Style);
 		Props->Classes = MoveTemp(Classes);
 		Node.Props = Props;
@@ -48,14 +49,14 @@ static FRuiNodeArray StyleModesComp(FRuiContext& Ctx, const FRuiEmptyProps&, con
 	if (Mode < 2)
 	{
 		Style = MakeShared<FRuiStyleDict>();
-		Style->Add(FName(TEXT("opacity")), FRuiValue(Mode == 0 ? 0.4f : 0.8f));
+		Style->Add(FName(TEXT("RenderOpacity")), FRuiValue(Mode == 0 ? 0.4f : 0.8f));
 		if (Mode == 0)
 		{
 			Style->Add(FName(TEXT("visibility")), FRuiValue(FName(TEXT("hidden"))));
-			Style->Add(FName(TEXT("translation")), FRuiValue(FVector2D(5.0f, 7.0f)));
+			Style->Add(FName(TEXT("RenderTranslation")), FRuiValue(FVector2D(5.0f, 7.0f)));
 		}
 	}
-	return {RUI::Slate::VBox(FRuiVerticalBoxProps(), {StyleTest::StyledText(TEXT("styled"), MoveTemp(Style))})};
+	return {RUI::Slate::VerticalBox(FRuiVerticalBoxProps(), {StyleTest::StyledText(TEXT("styled"), MoveTemp(Style))})};
 }
 RUI_COMPONENT(StyleModesComp)
 
@@ -101,10 +102,10 @@ static FRuiNodeArray StyleClassesComp(FRuiContext& Ctx, const FRuiEmptyProps&, c
 	if (Mode == 1)
 	{
 		Inline = MakeShared<FRuiStyleDict>();
-		Inline->Add(FName(TEXT("opacity")), FRuiValue(0.9f)); // inline beats the class
+		Inline->Add(FName(TEXT("RenderOpacity")), FRuiValue(0.9f)); // inline beats the class
 	}
-	return {RUI::Slate::VBox(FRuiVerticalBoxProps(),
-							 {StyleTest::StyledText(TEXT("classy"), Inline, {FName(TEXT("rui-test-dim"))})})};
+	return {RUI::Slate::VerticalBox(FRuiVerticalBoxProps(),
+									{StyleTest::StyledText(TEXT("classy"), Inline, {FName(TEXT("rui-test-dim"))})})};
 }
 RUI_COMPONENT(StyleClassesComp)
 
@@ -112,7 +113,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRuiStyleClassesTest, "ReactiveUI.Style.Classes
 bool FRuiStyleClassesTest::RunTest(const FString&)
 {
 	FRuiStyleDict Dim;
-	Dim.Add(FName(TEXT("opacity")), FRuiValue(0.25f));
+	Dim.Add(FName(TEXT("RenderOpacity")), FRuiValue(0.25f));
 	RUI::Slate::RegisterStyleClass(FName(TEXT("rui-test-dim")), MoveTemp(Dim));
 
 	TSharedRef<FRuiRoot> Root = FRuiRoot::Create(RUI::FC(&StyleClassesComp));
@@ -139,11 +140,11 @@ static FRuiNodeArray StylePoolComp(FRuiContext& Ctx, const FRuiEmptyProps&, cons
 	TArray<FRuiNode> Rows;
 	for (int32 i = 0; i < Count; ++i)
 	{
-		FRuiNode Row = RUI::Text(FString::Printf(TEXT("row %d"), i));
+		FRuiNode Row = RUI::TextBlock(FString::Printf(TEXT("row %d"), i));
 		Row.Key = FRuiKey(i);
 		Rows.Add(MoveTemp(Row));
 	}
-	return {RUI::Slate::VBox(FRuiVerticalBoxProps(), MoveTemp(Rows))};
+	return {RUI::Slate::VerticalBox(FRuiVerticalBoxProps(), MoveTemp(Rows))};
 }
 RUI_COMPONENT(StylePoolComp)
 
@@ -166,13 +167,13 @@ bool FRuiStylePoolTest::RunTest(const FString&)
 	StyleTest::IntSetter(1);
 	Root->FlushSync();
 	TestEqual(TEXT("one row left"), Panel->GetChildren()->Num(), 1);
-	TestEqual(TEXT("two texts pooled"), Root->GetHost().NumPooled(RUI::TextElementType()), 2);
+	TestEqual(TEXT("two texts pooled"), Root->GetHost().NumPooled(RUI::TextBlockElementType()), 2);
 
 	AddInfo(TEXT("[pool] regrow reuses the SAME widgets (diff-on-reuse)"));
 	StyleTest::IntSetter(3);
 	Root->FlushSync();
 	TestEqual(TEXT("three rows again"), Panel->GetChildren()->Num(), 3);
-	TestEqual(TEXT("pool drained"), Root->GetHost().NumPooled(RUI::TextElementType()), 0);
+	TestEqual(TEXT("pool drained"), Root->GetHost().NumPooled(RUI::TextBlockElementType()), 0);
 	int32 Reused = 0;
 	for (int32 i = 0; i < 3; ++i)
 	{

@@ -28,7 +28,7 @@ struct FMockNode
 
 	FString TextOf() const
 	{
-		const FRuiTextProps* T = PropsAs<FRuiTextProps>();
+		const FRuiTextBlockProps* T = PropsAs<FRuiTextBlockProps>();
 		return T ? T->Text.ToString() : FString();
 	}
 };
@@ -125,7 +125,7 @@ public:
 		P->Children = MoveTemp(NewOrder);
 	}
 
-	virtual FRuiElementTypeId GetTextElementType() const override { return RUI::TextElementType(); }
+	virtual FRuiElementTypeId GetTextElementType() const override { return RUI::TextBlockElementType(); }
 
 	virtual void RequestFrame(TFunction<void()> Callback) override { FrameQueue.Add(MoveTemp(Callback)); }
 

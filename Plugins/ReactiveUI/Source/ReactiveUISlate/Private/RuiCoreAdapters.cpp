@@ -138,7 +138,7 @@ namespace
 } // namespace
 
 // ─────────────────────────────────────────────────────────────────────────────────────────
-// Text (STextBlock) — renders core FRuiTextProps (the GetTextElementType contract)
+// Text (STextBlock) — renders core FRuiTextBlockProps (the GetTextElementType contract)
 // ─────────────────────────────────────────────────────────────────────────────────────────
 
 class FRuiTextAdapter final : public IRuiElementAdapter
@@ -154,8 +154,8 @@ public:
 	virtual void ApplyDiff(SWidget& Widget, const FRuiPropsBase* Old, const FRuiPropsBase& New) override
 	{
 		STextBlock& W = static_cast<STextBlock&>(Widget);
-		const FRuiTextProps& N = static_cast<const FRuiTextProps&>(New);
-		const FRuiTextProps* O = static_cast<const FRuiTextProps*>(Old);
+		const FRuiTextBlockProps& N = static_cast<const FRuiTextBlockProps&>(New);
+		const FRuiTextBlockProps* O = static_cast<const FRuiTextBlockProps*>(Old);
 		if (N.HasText())
 		{
 			const bool bSame = O != nullptr && O->HasText() &&
@@ -171,12 +171,12 @@ public:
 	virtual bool ApplyStyleKey(SWidget& Widget, FName Key, const FRuiValue* Value) override
 	{
 		STextBlock& W = static_cast<STextBlock&>(Widget);
-		if (Key == FName(TEXT("color")))
+		if (Key == FName(TEXT("ColorAndOpacity")))
 		{
 			W.SetColorAndOpacity(Value != nullptr ? FSlateColor(Value->ColorValue) : FSlateColor::UseForeground());
 			return true;
 		}
-		if (Key == FName(TEXT("fontSize")))
+		if (Key == FName(TEXT("Font.Size")))
 		{
 			const int32 Size = Value != nullptr
 								   ? (Value->Kind == FRuiValue::EKind::Int ? static_cast<int32>(Value->IntValue)
@@ -185,7 +185,7 @@ public:
 			W.SetFont(FCoreStyle::GetDefaultFontStyle("Regular", Size));
 			return true;
 		}
-		if (Key == FName(TEXT("justify")))
+		if (Key == FName(TEXT("Justification")))
 		{
 			ETextJustify::Type Justify = ETextJustify::Left;
 			if (Value != nullptr)
@@ -199,7 +199,7 @@ public:
 			W.SetJustification(Justify);
 			return true;
 		}
-		if (Key == FName(TEXT("autoWrap")))
+		if (Key == FName(TEXT("AutoWrapText")))
 		{
 			W.SetAutoWrapText(Value != nullptr && Value->BoolValue);
 			return true;
@@ -521,11 +521,11 @@ namespace RUI::Slate
 		}
 	} // namespace
 
-	FRuiNode VBox(FRuiVerticalBoxProps Props, TArray<FRuiNode> Children, FRuiKey Key)
+	FRuiNode VerticalBox(FRuiVerticalBoxProps Props, TArray<FRuiNode> Children, FRuiKey Key)
 	{
 		return MakeHostNode(VerticalBoxType(), MoveTemp(Props), MoveTemp(Children), Key);
 	}
-	FRuiNode HBox(FRuiHorizontalBoxProps Props, TArray<FRuiNode> Children, FRuiKey Key)
+	FRuiNode HorizontalBox(FRuiHorizontalBoxProps Props, TArray<FRuiNode> Children, FRuiKey Key)
 	{
 		return MakeHostNode(HorizontalBoxType(), MoveTemp(Props), MoveTemp(Children), Key);
 	}
@@ -545,7 +545,7 @@ namespace RUI::Slate
 
 	void RegisterBuiltinAdapters()
 	{
-		RegisterAdapter(RUI::TextElementType(), MakeUnique<FRuiTextAdapter>());
+		RegisterAdapter(RUI::TextBlockElementType(), MakeUnique<FRuiTextAdapter>());
 		RegisterAdapter(VerticalBoxType(), MakeUnique<FRuiVerticalBoxAdapter>());
 		RegisterAdapter(HorizontalBoxType(), MakeUnique<FRuiHorizontalBoxAdapter>());
 		RegisterAdapter(ButtonType(), MakeUnique<FRuiButtonAdapter>());
