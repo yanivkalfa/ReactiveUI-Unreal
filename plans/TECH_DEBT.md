@@ -126,4 +126,19 @@ referenced from plans/PRs.
 - **Production-grade resolution:** the Phase 7 batch-2 production line maps each remaining
   setter through the prop-map schema with per-widget tests; imperative APIs (ScrollToEnd)
   need the ref-command design (family `useImperativeHandle` pattern over host handles).
+  SCOPE EXPANDED (owner, 2026-07-10): coverage target is ALL official runtime widgets —
+  plans/WIDGET_INVENTORY.md is the authoritative tracker (every S-class classified).
+- **Status:** OPEN
+
+## TD-013 — Typed authoring API for style dicts + slot.* props
+- **Where:** `ReactiveUISlate` (would live next to RuiStyle.h)
+- **What/why deferred:** style/slot STORAGE is `TMap<FName, FRuiValue>` by design (markup,
+  classes merging, and the LSP speak open key sets) — but the C++ AUTHORING surface should be
+  compile-time-safe too (owner: "everything strongly typed"). Markup users get compile-time
+  key validation from the `.uetkx` compiler/LSP schema in Phase 3; C++ users currently write
+  raw FName keys (typos = one-time runtime warning).
+- **Production-grade resolution:** fluent typed builders producing the dicts —
+  `RUI::Style().Opacity(0.5f).Color(...).FontSize(16)` and
+  `RUI::Slot().Padding(8).HAlign(EH::Center).Fill(1.f)` — one method per registered key,
+  generated from the same schema the markup compiler validates against (single source).
 - **Status:** OPEN
