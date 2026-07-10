@@ -1,8 +1,8 @@
 // Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 //
-// The Phase 2 demo gallery (hand-written C++ builder API — markup arrives with Phase 3):
-// a hooks-driven counter, a dynamic keyed list, and styled panels. Mounted in PIE by
-// ARuiDemoGameMode; mounted headless by ReactiveUI.Demos (the demos_test.gd analogue).
+// The demo gallery (family pattern: one game, many example screens): a menu shell plus the
+// screens ported from the Unity sibling's Samples. Mounted in PIE by ARuiDemoGameMode;
+// every entry is also mounted headlessly by ReactiveUI.Demos (the demos_test.gd analogue).
 
 #pragma once
 
@@ -11,6 +11,15 @@
 
 namespace RuiDemo
 {
-	/** The gallery root vnode (mount with FRuiRoot::CreateInViewport / ::Create). */
+	struct FRuiDemoEntry
+	{
+		FString Name;
+		FRuiNode (*Make)();
+	};
+
+	/** Every gallery screen (stable order; the shell and the Demos suite both iterate it). */
+	RUIDEMO_API const TArray<FRuiDemoEntry>& GetGalleryEntries();
+
+	/** The gallery root vnode (menu + selected screen). */
 	RUIDEMO_API FRuiNode GalleryRoot();
 } // namespace RuiDemo
