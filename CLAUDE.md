@@ -101,8 +101,8 @@ MASTER_PLAN §1; module table: D-27.
 
 - The loop: **research → develop → test → bughunt → fix → commit → repeat** (`dev-process`
   skill). Production-grade only; never weaken a gate; never re-try the same theory twice.
-- **1 branch, 1 PR** per campaign: `feat/<name>` → `dev` (PR; owner merges); `main` is
-  release-only, fast-forwarded via `git push origin origin/dev:main`.
+- **1 branch, 1 PR** per campaign: `feat/<name>` → `dev` (PR; owner merges); `master` is
+  release-only, fast-forwarded via `git push origin origin/dev:master`.
 - **Never auto-commit** beyond what the task established; no `Co-Authored-By`; the owner presses
   the Publish button and performs Fab uploads/Discord posts.
 - Phase done ⇒ run the `plan-progress` skill (checkbox + evidence → ROADMAP row →

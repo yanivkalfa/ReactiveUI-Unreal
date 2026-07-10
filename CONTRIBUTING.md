@@ -6,7 +6,7 @@ at the right phase of [plans/MASTER_PLAN.md](plans/MASTER_PLAN.md) and save you 
 
 ## Ground rules
 
-- **Branch model:** PRs target `dev` (never `main` — `main` is release-only and fast-forwarded
+- **Branch model:** PRs target `dev` (never `master` — `master` is release-only and fast-forwarded
   from `dev`). One branch, one PR per topic; the PR title becomes the squash title.
 - **The loop:** research → develop → test → bughunt → fix → commit. Root cause only — no
   bandaids, no special-casing on top of shared machinery.

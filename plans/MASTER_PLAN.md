@@ -2,7 +2,7 @@
 
 > **Status:** IN PROGRESS
 > **Branch:** `chore/post-merge-tidy` → `dev`   **PR:** pending owner merge   **Phases:** 1/10 done
-> **STATUS UPDATE — 2026-07-10 (Phase 0 COMPLETE).** PR #4 merged (`657f279`), `main`
+> **STATUS UPDATE — 2026-07-10 (Phase 0 COMPLETE).** PR #4 merged (`657f279`), `master`
 > fast-forwarded. The compile gate ran on the owner's fresh UE 5.6 install: **Development
 > Editor build succeeded, 45/45 actions, 51 s** — all 8 plugin modules + both host modules
 > compiled and linked, UHT clean under -WarningsAsErrors (MSVC 14.44, accepted with UE's
@@ -453,9 +453,12 @@ round are **baked in** here — see also §6's DO-NOT-CLAIM list.
   supported engine version** accompanies every code-plugin submission (CI builds these from the
   demo host project); (3) **per-file copyright lines** (D-01); (4) **no trademark-adjacent
   naming** in the listing title (§7 Q1). Revenue expectations per §6.
-- **D-30 — Versioning & branches.** Default branch is `main` (this repo's existing default);
-  integration branch `dev`; campaigns are 1-branch-1-PR `feat/<name>` → `dev`; `main` is
-  release-only, fast-forwarded via `git push origin origin/dev:main`. Patch-by-default versioning;
+- **D-30 — Versioning & branches.** Default branch is `master` (~~originally `main`, the
+  repo-creation default~~ — **renamed 2026-07-10 by the owner for family consistency**: one
+  muscle memory, identical release commands across all sibling repos; a rename, deliberately
+  NOT a two-name mirror, which would be a drift trap);
+  integration branch `dev`; campaigns are 1-branch-1-PR `feat/<name>` → `dev`; `master` is
+  release-only, fast-forwarded via `git push origin origin/dev:master`. Patch-by-default versioning;
   perf-only changes to shipped bytes still bump. Version sources: plugin →
   `ReactiveUI.uplugin` `"VersionName"` (+ integer `"Version"` monotonic); VS Code ext →
   `ide-extensions/vscode-uetkx/package.json`; **lsp-server is a VENDORED copy in this repo**
@@ -683,10 +686,10 @@ distribution, and always opt-in — never a mandatory VM under the shipped UI, p
      (Godot improvement #9); port `versionManifest.ts` + the TopBar version selector with
      `SUPPORTED_VERSIONS` = the D-28 engine matrix (floor first) — feature maps fill in as
      version-gated features appear.
-  9. Branch flow (must itself obey §8's law): create `dev` from `main` and push it — the
+  9. Branch flow (must itself obey §8's law): create `dev` from `master` and push it — the
      sanctioned one-time bootstrap push; branch `feat/phase-0-bootstrap` off `dev`; all Phase 0
-     commits land there; PR `feat/phase-0-bootstrap` → `dev`; owner merges; fast-forward `main`
-     via `git push origin origin/dev:main`. (Commits within this phase are the established ask
+     commits land there; PR `feat/phase-0-bootstrap` → `dev`; owner merges; fast-forward `master`
+     via `git push origin origin/dev:master`. (Commits within this phase are the established ask
      once the owner approves the plan.)
 - **Files touched:** everything in §2 except module internals; `.github/workflows/*`;
   `.claude/skills/*`; `templates/*`; `docs/*` shell.
@@ -700,7 +703,7 @@ distribution, and always opt-in — never a mandatory VM under the shipped UI, p
 - **Status:** COMPLETE 2026-07-10 — evidence: Development Editor build on UE 5.6 succeeded
   (45/45 actions, 51 s; MSVC 14.44 advisory noted); engine-free gates green (changelog verify ·
   mirror · headers · skills · docs-drift · YAML · docs build+lint · clang-format after its
-  first-run catch); PR #4 merged `657f279`; `main` fast-forwarded. Deferred to the owner's
+  first-run catch); PR #4 merged `657f279`; `master` fast-forwarded. Deferred to the owner's
   one-time checklist (not blocking): re-adding the ruleset with THIS repo's check names so
   the gates become REQUIRED checks (the imported Godot-named ruleset was deleted).
 
@@ -1074,7 +1077,7 @@ distribution, and always opt-in — never a mandatory VM under the shipped UI, p
      per submission, D-29); packaged-fidelity test: install each zip into a FRESH project,
      enable, expect the startup banner + demo map renders (the `field-test-editor` skill's
      store-zip rule).
-  4. PR → dev → owner merges → fast-forward `main` → owner presses Publish → GitHub releases +
+  4. PR → dev → owner merges → fast-forward `master` → owner presses Publish → GitHub releases +
      extension marketplaces publish.
   5. Fab: owner performs seller onboarding (once; Trader Verification has lead time — §7 Q4) +
      manual listing/upload per version following the `release-process` checklist **including the
@@ -1258,7 +1261,7 @@ standing user rule**; a campaign's per-milestone commits become established once
 approves the campaign), `git push` to the feature branch.
 
 **NEVER (user-only):** merge PRs; trigger publish.yml or any release workflow; push to `dev`/
-`main` directly except the sanctioned post-merge fast-forward; edit the live tree while the
+`master` directly except the sanctioned post-merge fast-forward; edit the live tree while the
 owner's editor is open, or kill their editor (UE locks DLLs anyway); weaken/skip/disable any
 lint/test/CI gate; add Co-Authored-By; post to Discord/Fab (prepare text only); force-push shared
 history.
@@ -1309,7 +1312,7 @@ exist)" section; each encodes its STOP conditions. Full specs in
 
 1. **`dev-process`** (port) — the loop (`research → develop → test → bughunt → fix → commit →
    repeat`), the laws (root cause only; production-grade only; never weaken gates; 1-branch-1-PR
-   feat→dev; main is fast-forward release-only; no Co-Authored-By; user merges; **never commit
+   feat→dev; master is fast-forward release-only; no Co-Authored-By; user merges; **never commit
    engine-derived source or Epic-owned content to the MIT repo** — D-32d), PLUS the UE
    deltas: the compile-step gate ladder (compiles Development Editor + packaged → suites green →
    **boot check** `Automation RunTests ReactiveUI.Boot` because unit suites don't run
@@ -1320,7 +1323,7 @@ exist)" section; each encodes its STOP conditions. Full specs in
    the Unity + Godot repos — D-22e); BuildPlugin per engine version (CI, or the
    `scripts/package-plugin.ps1` local rail when engine CI is unarmed — token resolution via
    `publisher-secrets.json`); packaged-fidelity fresh-project test; commit-message shape;
-   PR→dev→ff-main; user presses Publish; **manual Fab checklist rendered from
+   PR→dev→ff-master; user presses Publish; **manual Fab checklist rendered from
    `templates/fab-listing.template.md`** incl. the D-29 compliance items (no API); Discord
    ≤2000 chars.
 3. **`plan-progress`** ⭐ (the owner's "mark phase complete" ask) — deterministic text-edit

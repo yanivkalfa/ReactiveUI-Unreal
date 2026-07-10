@@ -39,8 +39,8 @@ description: The house development methodology for ReactiveUI-Unreal — the res
 ## Branch / PR model
 
 Campaigns are **1 branch, 1 PR**: `feat/<name>` off `dev` → PR into `dev` (PR title = squash
-title; owner merges) → `main` is a **fast-forward** of dev (`git push origin origin/dev:main`) —
-`main` is release-only. Git authorship belongs to the owner: no `Co-Authored-By`, no
+title; owner merges) → `master` is a **fast-forward** of dev (`git push origin origin/dev:master`) —
+`master` is release-only. Git authorship belongs to the owner: no `Co-Authored-By`, no
 commits/pushes beyond what the task established, never auto-commit.
 
 ## Changelogs — every artifact you touched gets one, before release
@@ -66,7 +66,7 @@ ship.
 2. Gate ladder green, incl. the boot check; regression coverage exists.
 3. Changelog entry in every touched artifact + version bump staged.
 4. Docs updated when behavior/UX changed (`docs-sync`).
-5. Committed on the feature branch with a clear message; PR into `dev`; owner merges; `main`
+5. Committed on the feature branch with a clear message; PR into `dev`; owner merges; `master`
    fast-forwarded.
 
 ## Scar tissue (why these steps exist)
