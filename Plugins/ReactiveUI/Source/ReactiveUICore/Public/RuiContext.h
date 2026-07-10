@@ -31,7 +31,8 @@ struct FRuiSafeArea
 class REACTIVEUICORE_API FRuiContext
 {
 public:
-	FRuiContext(const TSharedRef<FRuiComponentState>& InState, FRuiFiber& InFiber, FRuiReconciler& InReconciler, IRuiHostConfig& InHost)
+	FRuiContext(const TSharedRef<FRuiComponentState>& InState, FRuiFiber& InFiber, FRuiReconciler& InReconciler,
+				IRuiHostConfig& InHost)
 		: StateShared(InState), State(InState.Get()), Fiber(InFiber), Reconciler(InReconciler), Host(InHost)
 	{
 	}
@@ -43,8 +44,7 @@ public:
 	// ── state ────────────────────────────────────────────────────────────────────────
 
 	/** auto [Value, SetValue] = Ctx.UseState(0); — setter identity stable; equal-set bails. */
-	template <typename T>
-	TTuple<T, TRuiSetter<T>> UseState(T Initial = T())
+	template <typename T> TTuple<T, TRuiSetter<T>> UseState(T Initial = T())
 	{
 		Record(ERuiHookKind::State);
 		const int32 i = State.HookIndex++;
@@ -90,8 +90,7 @@ public:
 	}
 
 	/** Stable box; mutating Current never re-renders. */
-	template <typename T>
-	TSharedRef<TRuiRef<T>> UseRef(T Initial = T())
+	template <typename T> TSharedRef<TRuiRef<T>> UseRef(T Initial = T())
 	{
 		Record(ERuiHookKind::Ref);
 		const int32 i = State.HookIndex++;
@@ -103,8 +102,7 @@ public:
 	}
 
 	/** Recompute only when deps change (shallow — RUI::Deps semantics). */
-	template <typename T>
-	const T& UseMemo(TFunction<T()> Factory, FRuiDeps Deps)
+	template <typename T> const T& UseMemo(TFunction<T()> Factory, FRuiDeps Deps)
 	{
 		Record(ERuiHookKind::Memo);
 		const int32 i = State.HookIndex++;
@@ -136,8 +134,7 @@ public:
 	}
 
 	/** = UseMemo (family alias). */
-	template <typename T>
-	const T& UseImperativeHandle(TFunction<T()> Factory, FRuiDeps Deps)
+	template <typename T> const T& UseImperativeHandle(TFunction<T()> Factory, FRuiDeps Deps)
 	{
 		return UseMemo<T>(MoveTemp(Factory), MoveTemp(Deps));
 	}
@@ -148,15 +145,13 @@ public:
 	 *  = when changed; RUI::Deps() = mount-only; RUI::EveryCommit() = every commit.
 	 *  Accepts a lambda returning either void or an FRuiEffectCleanup (if-constexpr dispatch
 	 *  — twin TFunction overloads are ambiguous for lambdas). */
-	template <typename TFn>
-	void UseEffect(TFn&& Effect, FRuiDeps Deps)
+	template <typename TFn> void UseEffect(TFn&& Effect, FRuiDeps Deps)
 	{
 		UseEffectImpl(WrapEffect(Forward<TFn>(Effect)), MoveTemp(Deps));
 	}
 
 	/** Layout: synchronously during commit (pre-paint), cleanup-then-setup per fiber. */
-	template <typename TFn>
-	void UseLayoutEffect(TFn&& Effect, FRuiDeps Deps)
+	template <typename TFn> void UseLayoutEffect(TFn&& Effect, FRuiDeps Deps)
 	{
 		UseLayoutEffectImpl(WrapEffect(Forward<TFn>(Effect)), MoveTemp(Deps));
 	}
@@ -191,8 +186,7 @@ public:
 
 	/** Nearest provided value (O(1) via the handle's render stack — D-08.3), or the
 	 *  handle's default. Consumes NO hook slot; records the read for change re-rendering. */
-	template <typename T>
-	const T& UseContext(const TRuiContext<T>& Handle)
+	template <typename T> const T& UseContext(const TRuiContext<T>& Handle)
 	{
 		Fiber.bReadsContext = true;
 		const TArray<const T*>& Stack = Handle.GetCore().RenderStack;
@@ -213,8 +207,7 @@ public:
 	/** Provide `Value` under `Handle` to this component's subtree (hook-style provider —
 	 *  family API, no wrapper element). On change, marks consuming descendants dirty so
 	 *  they re-render through bailouts (eager propagation). */
-	template <typename T>
-	void ProvideContext(const TRuiContext<T>& Handle, T Value)
+	template <typename T> void ProvideContext(const TRuiContext<T>& Handle, T Value)
 	{
 		if (!Fiber.ProvidedContext.IsValid())
 		{
@@ -245,8 +238,7 @@ public:
 
 	/** Returns the PREVIOUS value on the render where `Value` changes, then commits the
 	 *  target on a deferred next-frame tick (one extra re-render). */
-	template <typename T>
-	T UseDeferredValue(T Value, FRuiDeps Deps = FRuiDeps())
+	template <typename T> T UseDeferredValue(T Value, FRuiDeps Deps = FRuiDeps())
 	{
 		Record(ERuiHookKind::Deferred);
 		const int32 i = State.HookIndex++;
@@ -291,26 +283,28 @@ public:
 		{
 			State.Hooks.Emplace(MakeUnique<FRuiTransitionCell>());
 		}
-		return MakeTuple(false, TFunction<void(TFunction<void()>)>([](TFunction<void()> Action)
-		{
-			if (Action)
-			{
-				Action();
-			}
-		}));
+		return MakeTuple(false, TFunction<void(TFunction<void()>)>(
+									[](TFunction<void()> Action)
+									{
+										if (Action)
+										{
+											Action();
+										}
+									}));
 	}
 
 	// ── stable callbacks (identity never changes; body refreshed every render) ─────────
 
 	FRuiCallback UseStableCallback(TFunction<void()> Fn)
 	{
-		return UseStableAction(TFunction<void(const FRuiValue&)>([Inner = MoveTemp(Fn)](const FRuiValue&)
-		{
-			if (Inner)
+		return UseStableAction(TFunction<void(const FRuiValue&)>(
+			[Inner = MoveTemp(Fn)](const FRuiValue&)
 			{
-				Inner();
-			}
-		}));
+				if (Inner)
+				{
+					Inner();
+				}
+			}));
 	}
 	FRuiCallback UseStableFunc(TFunction<void()> Fn) { return UseStableCallback(MoveTemp(Fn)); }
 
@@ -357,12 +351,18 @@ public:
 	// ── phase-owned stubs (fully wired before the ship gate; owners per MASTER_PLAN) ──
 
 	/** UseTween/UseAnimate: adapter setter-table drive lands in Phase 7 step 5. */
-	template <typename... TArgs>
-	void UseTween(TArgs&&...) { StubSlot(ERuiHookKind::Tween, TEXT("UseTween"), TEXT("Phase 7 step 5")); }
-	template <typename... TArgs>
-	void UseAnimate(TArgs&&...) { StubSlot(ERuiHookKind::Animate, TEXT("UseAnimate"), TEXT("Phase 7 step 5")); }
-	template <typename... TArgs>
-	void UseTweenValue(TArgs&&...) { StubSlot(ERuiHookKind::TweenValue, TEXT("UseTweenValue"), TEXT("Phase 7 step 5")); }
+	template <typename... TArgs> void UseTween(TArgs&&...)
+	{
+		StubSlot(ERuiHookKind::Tween, TEXT("UseTween"), TEXT("Phase 7 step 5"));
+	}
+	template <typename... TArgs> void UseAnimate(TArgs&&...)
+	{
+		StubSlot(ERuiHookKind::Animate, TEXT("UseAnimate"), TEXT("Phase 7 step 5"));
+	}
+	template <typename... TArgs> void UseTweenValue(TArgs&&...)
+	{
+		StubSlot(ERuiHookKind::TweenValue, TEXT("UseTweenValue"), TEXT("Phase 7 step 5"));
+	}
 
 	/** UseSfx: world-context glue lands in Phase 7 step 5 (ReactiveUIUMG). */
 	FRuiCallback UseSfx(FName /*Bus*/ = NAME_None)
@@ -374,8 +374,7 @@ public:
 	// ── signals (UseSignal/UseSignalKey live in RuiSignal.h as templates over this) ───
 
 	/** \internal — signal hook plumbing (see RuiSignal.h). */
-	template <typename TCell, typename... TCellArgs>
-	TCell* AcquireCell(ERuiHookKind Kind, TCellArgs&&... Args)
+	template <typename TCell, typename... TCellArgs> TCell* AcquireCell(ERuiHookKind Kind, TCellArgs&&... Args)
 	{
 		Record(Kind);
 		const int32 i = State.HookIndex++;
@@ -399,16 +398,16 @@ public:
 
 private:
 	/** Normalize an effect lambda (void- or cleanup-returning) into the canonical factory. */
-	template <typename TFn>
-	static TFunction<FRuiEffectCleanup()> WrapEffect(TFn&& Effect)
+	template <typename TFn> static TFunction<FRuiEffectCleanup()> WrapEffect(TFn&& Effect)
 	{
 		if constexpr (std::is_void_v<std::invoke_result_t<TFn>>)
 		{
-			return TFunction<FRuiEffectCleanup()>([Fn = Forward<TFn>(Effect)]() -> FRuiEffectCleanup
-			{
-				Fn();
-				return FRuiEffectCleanup();
-			});
+			return TFunction<FRuiEffectCleanup()>(
+				[Fn = Forward<TFn>(Effect)]() -> FRuiEffectCleanup
+				{
+					Fn();
+					return FRuiEffectCleanup();
+				});
 		}
 		else
 		{
@@ -422,30 +421,29 @@ private:
 	void ReconcilerOnProvidedChanged(const void* Key);
 	void StubSlot(ERuiHookKind Kind, const TCHAR* HookName, const TCHAR* Owner);
 
-	template <typename T>
-	void ScheduleDeferredCommit(int32 SlotIndex)
+	template <typename T> void ScheduleDeferredCommit(int32 SlotIndex)
 	{
 		TWeakPtr<FRuiComponentState> Weak = StateWeak();
-		Host.RequestFrame([Weak, SlotIndex]()
-		{
-			TSharedPtr<FRuiComponentState> S = Weak.Pin();
-			if (!S.IsValid() || SlotIndex >= S->Hooks.Num())
+		Host.RequestFrame(
+			[Weak, SlotIndex]()
 			{
-				return;
-			}
-			TRuiDeferredCell<T>* Cell = static_cast<TRuiDeferredCell<T>*>(S->Hooks[SlotIndex].Get());
-			Cell->bPending = false;
-			if (!(Cell->Value == Cell->Target))
-			{
-				Cell->Value = Cell->Target;
-				S->NotifyStateUpdated();
-			}
-		});
+				TSharedPtr<FRuiComponentState> S = Weak.Pin();
+				if (!S.IsValid() || SlotIndex >= S->Hooks.Num())
+				{
+					return;
+				}
+				TRuiDeferredCell<T>* Cell = static_cast<TRuiDeferredCell<T>*>(S->Hooks[SlotIndex].Get());
+				Cell->bPending = false;
+				if (!(Cell->Value == Cell->Target))
+				{
+					Cell->Value = Cell->Target;
+					S->NotifyStateUpdated();
+				}
+			});
 	}
 
 	/** Resolve a context on the COMMITTED tree (bailout re-checks; propagation is untyped). */
-	template <typename T>
-	static const T* ResolveTyped(const TRuiContext<T>& Handle, const FRuiFiber* From);
+	template <typename T> static const T* ResolveTyped(const TRuiContext<T>& Handle, const FRuiFiber* From);
 
 	TSharedRef<FRuiComponentState> StateShared;
 	FRuiComponentState& State;
@@ -456,8 +454,7 @@ private:
 
 // ── template definitions needing FRuiFiber/complete types ────────────────────────────────
 
-template <typename T>
-const T* FRuiContext::ResolveTyped(const TRuiContext<T>& Handle, const FRuiFiber* From)
+template <typename T> const T* FRuiContext::ResolveTyped(const TRuiContext<T>& Handle, const FRuiFiber* From)
 {
 	for (const FRuiFiber* F = From; F != nullptr; F = F->Parent)
 	{

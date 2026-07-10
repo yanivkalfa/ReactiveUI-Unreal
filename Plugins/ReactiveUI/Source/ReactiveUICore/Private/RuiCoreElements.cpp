@@ -30,8 +30,7 @@ namespace RUI
 
 	// ── Suspense (family polyfill: fallback until IsReady, poll-per-frame driver) ────────
 
-	FRuiNodeArray SuspenseComponent(FRuiContext& Ctx, const FRuiSuspenseProps& Props,
-	                                const TArray<FRuiNode>& Children)
+	FRuiNodeArray SuspenseComponent(FRuiContext& Ctx, const FRuiSuspenseProps& Props, const TArray<FRuiNode>& Children)
 	{
 		auto [bReady, SetReady] = Ctx.UseState<bool>(false);
 
@@ -78,7 +77,7 @@ namespace RUI
 		}
 		if (Props.Fallback.IsValid())
 		{
-			return FRuiNodeArray{ *Props.Fallback };
+			return FRuiNodeArray{*Props.Fallback};
 		}
 		return FRuiNodeArray();
 	}
@@ -90,7 +89,7 @@ namespace RUI
 		Props.Fallback = MakeShared<FRuiNode>(MoveTemp(Fallback));
 		return FC(&SuspenseComponent, MoveTemp(Props), MoveTemp(Children), Key);
 	}
-}
+} // namespace RUI
 
 // Direct registration (the RUI_COMPONENT macro can't token-paste a qualified name).
 static const FName GRuiSuspenseComponentId =

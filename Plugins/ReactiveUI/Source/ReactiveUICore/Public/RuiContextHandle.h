@@ -34,14 +34,10 @@ public:
 	virtual TSharedPtr<IRuiProvidedValue> Duplicate() const = 0;
 };
 
-template <typename T>
-class TRuiContextCore
+template <typename T> class TRuiContextCore
 {
 public:
-	explicit TRuiContextCore(T InDefault, FName InName)
-		: Default(MoveTemp(InDefault)), DebugName(InName)
-	{
-	}
+	explicit TRuiContextCore(T InDefault, FName InName) : Default(MoveTemp(InDefault)), DebugName(InName) {}
 
 	T Default;
 	FName DebugName;
@@ -57,8 +53,7 @@ public:
  *   Ctx.ProvideContext(ThemeCtx, Theme);          // in the provider component
  *   const FMyTheme& Theme = Ctx.UseContext(ThemeCtx);  // in consumers
  */
-template <typename T>
-class TRuiContext
+template <typename T> class TRuiContext
 {
 public:
 	explicit TRuiContext(T InDefault = T(), FName InName = NAME_None)
@@ -78,14 +73,10 @@ private:
 };
 
 /** The typed provided-value holder (created by ProvideContext). */
-template <typename T>
-class TRuiProvidedValue final : public IRuiProvidedValue
+template <typename T> class TRuiProvidedValue final : public IRuiProvidedValue
 {
 public:
-	TRuiProvidedValue(const TRuiContext<T>& InHandle, T InValue)
-		: Handle(InHandle), Value(MoveTemp(InValue))
-	{
-	}
+	TRuiProvidedValue(const TRuiContext<T>& InHandle, T InValue) : Handle(InHandle), Value(MoveTemp(InValue)) {}
 
 	T Value;
 

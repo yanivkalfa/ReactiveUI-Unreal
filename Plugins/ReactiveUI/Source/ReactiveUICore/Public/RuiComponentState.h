@@ -43,8 +43,8 @@ public:
 	 *  hook slot). Each entry re-checks "did my context change?" against the live tree. */
 	struct FContextDep
 	{
-		const void* Key = nullptr;                       // context handle identity
-		TFunction<bool(const FRuiFiber*)> HasChanged;    // resolve + compare captured value
+		const void* Key = nullptr;					  // context handle identity
+		TFunction<bool(const FRuiFiber*)> HasChanged; // resolve + compare captured value
 	};
 	TArray<FContextDep> ContextDeps;
 
@@ -60,10 +60,10 @@ public:
 	FRuiChildren LastOutput;
 
 	// --- dev diagnostics (rui.HookValidation) ---
-	TArray<ERuiHookKind> HookLog;        // this render (transient)
+	TArray<ERuiHookKind> HookLog;		 // this render (transient)
 	TArray<ERuiHookKind> HookSignatures; // primed first render
 	bool bHookOrderPrimed = false;
-	TSet<FName> DiagWarned;              // warn-once keys
+	TSet<FName> DiagWarned; // warn-once keys
 
 	/** Deliberate full teardown (unmount / HMR hook-shape reset). Cell destructors release
 	 *  external subscriptions (signal cells unsubscribe in ~cell); effects' cleanups must
@@ -91,8 +91,7 @@ public:
 
 // ── TRuiSetter implementation (needs FRuiComponentState) ─────────────────────────────────
 
-template <typename T>
-void TRuiSetter<T>::operator()(T NewValue) const
+template <typename T> void TRuiSetter<T>::operator()(T NewValue) const
 {
 	TSharedPtr<FRuiComponentState> S = State.Pin();
 	if (!S.IsValid() || Slot >= S->Hooks.Num()) // torn down — ignore late calls [audit C3]
@@ -108,8 +107,7 @@ void TRuiSetter<T>::operator()(T NewValue) const
 	S->NotifyStateUpdated();
 }
 
-template <typename T>
-void TRuiSetter<T>::operator()(TFunction<T(const T&)> Updater) const
+template <typename T> void TRuiSetter<T>::operator()(TFunction<T(const T&)> Updater) const
 {
 	TSharedPtr<FRuiComponentState> S = State.Pin();
 	if (!S.IsValid() || Slot >= S->Hooks.Num())

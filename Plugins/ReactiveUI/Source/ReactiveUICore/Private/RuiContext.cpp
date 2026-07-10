@@ -9,21 +9,36 @@ const TCHAR* RuiHookKindName(ERuiHookKind Kind)
 {
 	switch (Kind)
 	{
-	case ERuiHookKind::State: return TEXT("state");
-	case ERuiHookKind::Reducer: return TEXT("reducer");
-	case ERuiHookKind::Ref: return TEXT("ref");
-	case ERuiHookKind::Memo: return TEXT("memo");
-	case ERuiHookKind::Deferred: return TEXT("deferred");
-	case ERuiHookKind::Transition: return TEXT("transition");
-	case ERuiHookKind::Stable: return TEXT("stable");
-	case ERuiHookKind::SafeArea: return TEXT("safe_area");
-	case ERuiHookKind::Signal: return TEXT("signal");
-	case ERuiHookKind::Tween: return TEXT("tween");
-	case ERuiHookKind::TweenValue: return TEXT("tween_value");
-	case ERuiHookKind::Animate: return TEXT("animate");
-	case ERuiHookKind::Sfx: return TEXT("sfx");
-	case ERuiHookKind::Effect: return TEXT("effect");
-	case ERuiHookKind::LayoutEffect: return TEXT("layout_effect");
+	case ERuiHookKind::State:
+		return TEXT("state");
+	case ERuiHookKind::Reducer:
+		return TEXT("reducer");
+	case ERuiHookKind::Ref:
+		return TEXT("ref");
+	case ERuiHookKind::Memo:
+		return TEXT("memo");
+	case ERuiHookKind::Deferred:
+		return TEXT("deferred");
+	case ERuiHookKind::Transition:
+		return TEXT("transition");
+	case ERuiHookKind::Stable:
+		return TEXT("stable");
+	case ERuiHookKind::SafeArea:
+		return TEXT("safe_area");
+	case ERuiHookKind::Signal:
+		return TEXT("signal");
+	case ERuiHookKind::Tween:
+		return TEXT("tween");
+	case ERuiHookKind::TweenValue:
+		return TEXT("tween_value");
+	case ERuiHookKind::Animate:
+		return TEXT("animate");
+	case ERuiHookKind::Sfx:
+		return TEXT("sfx");
+	case ERuiHookKind::Effect:
+		return TEXT("effect");
+	case ERuiHookKind::LayoutEffect:
+		return TEXT("layout_effect");
 	}
 	return TEXT("?");
 }
@@ -74,8 +89,9 @@ void FRuiContext::StubSlot(ERuiHookKind Kind, const TCHAR* HookName, const TCHAR
 	if (!Cell->bWarned)
 	{
 		Cell->bWarned = true;
-		WarnOnce(FName(HookName), FString::Printf(
-			TEXT("[ReactiveUI] %s is a Phase-owned stub (fully wired in %s; the v1 ship gate forbids stubs). It consumes its hook slot but does nothing yet."),
-			HookName, Owner));
+		WarnOnce(FName(HookName),
+				 FString::Printf(TEXT("[ReactiveUI] %s is a Phase-owned stub (fully wired in %s; the v1 ship gate "
+									  "forbids stubs). It consumes its hook slot but does nothing yet."),
+								 HookName, Owner));
 	}
 }

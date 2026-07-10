@@ -18,7 +18,12 @@
  */
 struct FRuiKey
 {
-	enum class EKind : uint8 { None, Int, Name };
+	enum class EKind : uint8
+	{
+		None,
+		Int,
+		Name
+	};
 
 	EKind Kind = EKind::None;
 	int64 IntValue = 0;
@@ -41,9 +46,12 @@ struct FRuiKey
 		}
 		switch (Kind)
 		{
-		case EKind::None: return true;
-		case EKind::Int: return IntValue == Other.IntValue;
-		case EKind::Name: return NameValue == Other.NameValue;
+		case EKind::None:
+			return true;
+		case EKind::Int:
+			return IntValue == Other.IntValue;
+		case EKind::Name:
+			return NameValue == Other.NameValue;
 		}
 		return false;
 	}
@@ -53,9 +61,12 @@ struct FRuiKey
 	{
 		switch (K.Kind)
 		{
-		case EKind::None: return 0;
-		case EKind::Int: return HashCombine(1u, GetTypeHash(K.IntValue));
-		case EKind::Name: return HashCombine(2u, GetTypeHash(K.NameValue));
+		case EKind::None:
+			return 0;
+		case EKind::Int:
+			return HashCombine(1u, GetTypeHash(K.IntValue));
+		case EKind::Name:
+			return HashCombine(2u, GetTypeHash(K.NameValue));
 		}
 		return 0;
 	}
@@ -68,7 +79,19 @@ struct FRuiKey
  */
 struct FRuiValue
 {
-	enum class EKind : uint8 { Null, Bool, Int, Float, String, Name, Text, Vector2, Color, Opaque };
+	enum class EKind : uint8
+	{
+		Null,
+		Bool,
+		Int,
+		Float,
+		String,
+		Name,
+		Text,
+		Vector2,
+		Color,
+		Opaque
+	};
 
 	EKind Kind = EKind::Null;
 	bool BoolValue = false;
@@ -105,16 +128,26 @@ struct FRuiValue
 		}
 		switch (Kind)
 		{
-		case EKind::Null: return true;
-		case EKind::Bool: return BoolValue == Other.BoolValue;
-		case EKind::Int: return IntValue == Other.IntValue;
-		case EKind::Float: return FloatValue == Other.FloatValue;
-		case EKind::String: return StringValue == Other.StringValue;
-		case EKind::Name: return NameValue == Other.NameValue;
-		case EKind::Text: return TextValue.IdenticalTo(Other.TextValue) || TextValue.ToString() == Other.TextValue.ToString();
-		case EKind::Vector2: return Vector2Value == Other.Vector2Value;
-		case EKind::Color: return ColorValue == Other.ColorValue;
-		case EKind::Opaque: return OpaqueValue == Other.OpaqueValue;
+		case EKind::Null:
+			return true;
+		case EKind::Bool:
+			return BoolValue == Other.BoolValue;
+		case EKind::Int:
+			return IntValue == Other.IntValue;
+		case EKind::Float:
+			return FloatValue == Other.FloatValue;
+		case EKind::String:
+			return StringValue == Other.StringValue;
+		case EKind::Name:
+			return NameValue == Other.NameValue;
+		case EKind::Text:
+			return TextValue.IdenticalTo(Other.TextValue) || TextValue.ToString() == Other.TextValue.ToString();
+		case EKind::Vector2:
+			return Vector2Value == Other.Vector2Value;
+		case EKind::Color:
+			return ColorValue == Other.ColorValue;
+		case EKind::Opaque:
+			return OpaqueValue == Other.OpaqueValue;
 		}
 		return false;
 	}

@@ -28,14 +28,14 @@ public:
 
 	/** Diff-apply in commit (React-19 commitUpdate — no prepareUpdate payloads). OldProps may
 	 *  be null on pool reuse with no stashed props. */
-	virtual void CommitUpdate(const FRuiHostHandle& Node, FRuiElementTypeId Type,
-	                          const FRuiPropsBase* OldProps, const FRuiPropsBase& NewProps) = 0;
+	virtual void CommitUpdate(const FRuiHostHandle& Node, FRuiElementTypeId Type, const FRuiPropsBase* OldProps,
+							  const FRuiPropsBase& NewProps) = 0;
 
 	/** Destroy or pool the node (host's choice — GO-05 pooling lives host-side; the
 	 *  reconciler only promises the node is detached and done). bWasChildless lets the host
 	 *  apply the family's pool-only-childless-leaves rule without re-walking. */
-	virtual void ReleaseInstance(const FRuiHostHandle& Node, FRuiElementTypeId Type,
-	                             const FRuiPropsBase* LastProps, bool bWasChildless) = 0;
+	virtual void ReleaseInstance(const FRuiHostHandle& Node, FRuiElementTypeId Type, const FRuiPropsBase* LastProps,
+								 bool bWasChildless) = 0;
 
 	// --- tree mutation -----------------------------------------------------------------
 

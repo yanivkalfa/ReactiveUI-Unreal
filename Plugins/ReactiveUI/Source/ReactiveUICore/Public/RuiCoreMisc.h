@@ -43,18 +43,48 @@ struct REACTIVEUICORE_API FRuiDiagnostics
 	static void Emit(const FString& Msg);
 	static void ClearMessages();
 
-	static int32 Renders;    // component render-fn invocations (excludes bailouts)
+	static int32 Renders; // component render-fn invocations (excludes bailouts)
 	static int32 Commits;
 	static int32 Placements;
 	static int32 Updates;
 	static int32 Deletions;
 
 	static void Reset();
-	static void OnRender() { if (bEnabled) { ++Renders; } }
-	static void OnCommit() { if (bEnabled) { ++Commits; } }
-	static void OnPlacement() { if (bEnabled) { ++Placements; } }
-	static void OnUpdate() { if (bEnabled) { ++Updates; } }
-	static void OnDeletion() { if (bEnabled) { ++Deletions; } }
+	static void OnRender()
+	{
+		if (bEnabled)
+		{
+			++Renders;
+		}
+	}
+	static void OnCommit()
+	{
+		if (bEnabled)
+		{
+			++Commits;
+		}
+	}
+	static void OnPlacement()
+	{
+		if (bEnabled)
+		{
+			++Placements;
+		}
+	}
+	static void OnUpdate()
+	{
+		if (bEnabled)
+		{
+			++Updates;
+		}
+	}
+	static void OnDeletion()
+	{
+		if (bEnabled)
+		{
+			++Deletions;
+		}
+	}
 };
 
 // ─────────────────────────────────────────────────────────────────────────────────────────
@@ -75,7 +105,7 @@ namespace RUI
 	/** True while a component render is on the stack (debug in-render assert support). */
 	REACTIVEUICORE_API bool IsRendering();
 	REACTIVEUICORE_API void SetRendering(bool bInRendering);
-}
+} // namespace RUI
 
-#define RUI_RENDER_FAIL(Fmt, ...) \
+#define RUI_RENDER_FAIL(Fmt, ...)                                                                                      \
 	RUI::FailRender(FString::Printf(TEXT("%s(%d): ") Fmt, TEXT(__FILE__), __LINE__, ##__VA_ARGS__))

@@ -26,4 +26,4 @@ namespace RUI
 		}
 		return false;
 	}
-}
+} // namespace RUI

@@ -58,9 +58,9 @@ namespace RUI
 
 	/** The Suspense component function (registered; use via RUI::Suspense below). */
 	REACTIVEUICORE_API FRuiNodeArray SuspenseComponent(FRuiContext& Ctx, const FRuiSuspenseProps& Props,
-	                                                   const TArray<FRuiNode>& Children);
+													   const TArray<FRuiNode>& Children);
 
 	/** Declarative boundary: fallback until IsReady() flips true, then the children. */
-	REACTIVEUICORE_API FRuiNode Suspense(TFunction<bool()> IsReady, FRuiNode Fallback,
-	                                     TArray<FRuiNode> Children, FRuiKey Key = FRuiKey());
-}
+	REACTIVEUICORE_API FRuiNode Suspense(TFunction<bool()> IsReady, FRuiNode Fallback, TArray<FRuiNode> Children,
+										 FRuiKey Key = FRuiKey());
+} // namespace RUI

@@ -107,29 +107,48 @@ protected:
 // (events deliberately absent from the rows — see FRuiPropsBase::Equals doc).
 // ─────────────────────────────────────────────────────────────────────────────────────────
 
-#define RUI_PROP(Type, Name, Bit) \
-	Type Name{}; \
-	static constexpr uint32 Name##_Bit = (Bit); \
-	void Set##Name(Type InValue) { Name = MoveTemp(InValue); SetBits |= (1ull << Name##_Bit); } \
-	bool Has##Name() const { return Has(Name##_Bit); }
+#define RUI_PROP(Type, Name, Bit)                                                                                      \
+	Type Name{};                                                                                                       \
+	static constexpr uint32 Name##_Bit = (Bit);                                                                        \
+	void Set##Name(Type InValue)                                                                                       \
+	{                                                                                                                  \
+		Name = MoveTemp(InValue);                                                                                      \
+		SetBits |= (1ull << Name##_Bit);                                                                               \
+	}                                                                                                                  \
+	bool Has##Name() const                                                                                             \
+	{                                                                                                                  \
+		return Has(Name##_Bit);                                                                                        \
+	}
 
-#define RUI_PROP_EVENT(Name, Bit) \
-	FRuiCallback Name; \
-	static constexpr uint32 Name##_Bit = (Bit); \
-	void Set##Name(FRuiCallback InValue) { Name = MoveTemp(InValue); SetBits |= (1ull << Name##_Bit); } \
-	bool Has##Name() const { return Has(Name##_Bit); }
+#define RUI_PROP_EVENT(Name, Bit)                                                                                      \
+	FRuiCallback Name;                                                                                                 \
+	static constexpr uint32 Name##_Bit = (Bit);                                                                        \
+	void Set##Name(FRuiCallback InValue)                                                                               \
+	{                                                                                                                  \
+		Name = MoveTemp(InValue);                                                                                      \
+		SetBits |= (1ull << Name##_Bit);                                                                               \
+	}                                                                                                                  \
+	bool Has##Name() const                                                                                             \
+	{                                                                                                                  \
+		return Has(Name##_Bit);                                                                                        \
+	}
 
 /** One comparison row inside RUI_PROPS_BODY. */
-#define RUI_EQ(Name) \
-	if (!(Name == Typed->Name)) { return false; }
+#define RUI_EQ(Name)                                                                                                   \
+	if (!(Name == Typed->Name))                                                                                        \
+	{                                                                                                                  \
+		return false;                                                                                                  \
+	}
 
-#define RUI_PROPS_BODY(StructType, EqRows) \
-	virtual bool Equals(const FRuiPropsBase& Other) const override \
-	{ \
-		const StructType* Typed = static_cast<const StructType*>(&Other); \
-		if (!BaseFieldsEqual(Other)) { return false; } \
-		EqRows \
-		return true; \
+#define RUI_PROPS_BODY(StructType, EqRows)                                                                             \
+	virtual bool Equals(const FRuiPropsBase& Other) const override                                                     \
+	{                                                                                                                  \
+		const StructType* Typed = static_cast<const StructType*>(&Other);                                              \
+		if (!BaseFieldsEqual(Other))                                                                                   \
+		{                                                                                                              \
+			return false;                                                                                              \
+		}                                                                                                              \
+		EqRows return true;                                                                                            \
 	}
 
 /** Empty props for components/elements with none. */

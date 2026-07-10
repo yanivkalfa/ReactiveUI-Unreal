@@ -36,7 +36,7 @@ namespace
 			return Instance;
 		}
 	};
-}
+} // namespace
 
 namespace RUI
 {
@@ -65,13 +65,13 @@ namespace RUI
 		FScopeLock Guard(&Reg.Lock);
 		if (const uint16* Found = Reg.TagToId.Find(Tag))
 		{
-			return FRuiElementTypeId{ *Found };
+			return FRuiElementTypeId{*Found};
 		}
 		checkf(Reg.IdToTag.Num() < MAX_uint16 - 1, TEXT("element type registry overflow"));
 		Reg.IdToTag.Add(Tag);
 		const uint16 NewId = static_cast<uint16>(Reg.IdToTag.Num()); // ids start at 1; 0 = invalid
 		Reg.TagToId.Add(Tag, NewId);
-		return FRuiElementTypeId{ NewId };
+		return FRuiElementTypeId{NewId};
 	}
 
 	FRuiElementTypeId FindElementType(FName Tag)
@@ -80,7 +80,7 @@ namespace RUI
 		FScopeLock Guard(&Reg.Lock);
 		if (const uint16* Found = Reg.TagToId.Find(Tag))
 		{
-			return FRuiElementTypeId{ *Found };
+			return FRuiElementTypeId{*Found};
 		}
 		return FRuiElementTypeId{};
 	}
@@ -134,7 +134,7 @@ namespace RUI
 	}
 
 	FRuiNode ErrorBoundary(FRuiNode Fallback, TArray<FRuiNode> Children, FRuiKey ResetKey,
-	                       TFunction<void(const FString&)> OnError, FRuiKey Key)
+						   TFunction<void(const FString&)> OnError, FRuiKey Key)
 	{
 		FRuiNode Node;
 		Node.Kind = ERuiNodeKind::ErrorBoundary;
@@ -145,4 +145,4 @@ namespace RUI
 		Node.Key = Key;
 		return Node;
 	}
-}
+} // namespace RUI

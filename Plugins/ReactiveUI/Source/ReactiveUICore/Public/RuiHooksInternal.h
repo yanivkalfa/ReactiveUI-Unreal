@@ -23,7 +23,7 @@ struct FRuiDep
 {
 	bool bIdentity = false;
 	const void* Ptr = nullptr; // identity kind
-	FRuiValue Value;           // value kind
+	FRuiValue Value;		   // value kind
 
 	bool operator==(const FRuiDep& Other) const
 	{
@@ -43,14 +43,19 @@ namespace RUI
 {
 	namespace Private
 	{
-		template <typename T> struct TIsSharedPtrLike : std::false_type {};
-		template <typename T, ESPMode M> struct TIsSharedPtrLike<TSharedPtr<T, M>> : std::true_type {};
-		template <typename T, ESPMode M> struct TIsSharedPtrLike<TSharedRef<T, M>> : std::true_type {};
+		template <typename T> struct TIsSharedPtrLike : std::false_type
+		{
+		};
+		template <typename T, ESPMode M> struct TIsSharedPtrLike<TSharedPtr<T, M>> : std::true_type
+		{
+		};
+		template <typename T, ESPMode M> struct TIsSharedPtrLike<TSharedRef<T, M>> : std::true_type
+		{
+		};
 
 		/** Single template + if-constexpr dispatch: overload sets recursing into each other
 		 *  trip C++ two-phase lookup (an overload can't see ones declared after it). */
-		template <typename... TArgs>
-		void AddDep(TArray<FRuiDep>& Out, const TArgs&... Args)
+		template <typename... TArgs> void AddDep(TArray<FRuiDep>& Out, const TArgs&... Args)
 		{
 			(
 				[&Out](const auto& Head)
@@ -79,14 +84,12 @@ namespace RUI
 					}
 					Out.Add(D);
 				}(Args),
-				...
-			);
+				...);
 		}
-	}
+	} // namespace Private
 
 	/** Build a deps array: RUI::Deps(Count, Name, SomeSharedPtr). Empty call = mount-only. */
-	template <typename... TArgs>
-	FRuiDeps Deps(const TArgs&... Args)
+	template <typename... TArgs> FRuiDeps Deps(const TArgs&... Args)
 	{
 		TArray<FRuiDep> Out;
 		Out.Reserve(sizeof...(Args));
@@ -95,11 +98,14 @@ namespace RUI
 	}
 
 	/** No-deps sentinel: the effect runs every commit (family deps == null). */
-	inline FRuiDeps EveryCommit() { return FRuiDeps(); }
+	inline FRuiDeps EveryCommit()
+	{
+		return FRuiDeps();
+	}
 
 	/** Shallow deps comparison (family _deps_changed): unset on either side => changed. */
 	REACTIVEUICORE_API bool DepsChanged(const FRuiDeps& Prev, const FRuiDeps& Next);
-}
+} // namespace RUI
 
 // ─────────────────────────────────────────────────────────────────────────────────────────
 // Hook cells
@@ -137,16 +143,14 @@ struct IRuiHookCell
 	virtual ERuiHookKind GetKind() const = 0;
 };
 
-template <typename T>
-struct TRuiStateCell final : IRuiHookCell
+template <typename T> struct TRuiStateCell final : IRuiHookCell
 {
 	T Value;
 	explicit TRuiStateCell(T InValue) : Value(MoveTemp(InValue)) {}
 	virtual ERuiHookKind GetKind() const override { return ERuiHookKind::State; }
 };
 
-template <typename T, typename TAction>
-struct TRuiReducerCell final : IRuiHookCell
+template <typename T, typename TAction> struct TRuiReducerCell final : IRuiHookCell
 {
 	T Value;
 	TFunction<T(const T&, const TAction&)> Reducer; // refreshed every render (family parity)
@@ -155,30 +159,26 @@ struct TRuiReducerCell final : IRuiHookCell
 };
 
 /** UseRef box — stable across renders; mutating Current never re-renders. */
-template <typename T>
-struct TRuiRef
+template <typename T> struct TRuiRef
 {
 	T Current{};
 };
 
-template <typename T>
-struct TRuiRefCell final : IRuiHookCell
+template <typename T> struct TRuiRefCell final : IRuiHookCell
 {
 	TSharedRef<TRuiRef<T>> Box;
 	explicit TRuiRefCell(T Initial) : Box(MakeShared<TRuiRef<T>>()) { Box->Current = MoveTemp(Initial); }
 	virtual ERuiHookKind GetKind() const override { return ERuiHookKind::Ref; }
 };
 
-template <typename T>
-struct TRuiMemoCell final : IRuiHookCell
+template <typename T> struct TRuiMemoCell final : IRuiHookCell
 {
 	T Value;
 	FRuiDeps LastDeps;
 	virtual ERuiHookKind GetKind() const override { return ERuiHookKind::Memo; }
 };
 
-template <typename T>
-struct TRuiDeferredCell final : IRuiHookCell
+template <typename T> struct TRuiDeferredCell final : IRuiHookCell
 {
 	T Value{};
 	T Target{};
@@ -219,8 +219,8 @@ using FRuiEffectCleanup = TFunction<void()>;
 struct FRuiEffect
 {
 	TFunction<FRuiEffectCleanup()> Factory;
-	FRuiDeps Deps;      // this render's deps
-	FRuiDeps LastDeps;  // deps at last run (unset = never ran)
+	FRuiDeps Deps;	   // this render's deps
+	FRuiDeps LastDeps; // deps at last run (unset = never ran)
 	FRuiEffectCleanup Cleanup;
 	bool bEverRan = false;
 };
@@ -235,20 +235,16 @@ struct FRuiEffect
  * the (state, slot) pair, so passing setters as props stays memo-friendly.
  * Implementation lives with FRuiComponentState (needs its definition).
  */
-template <typename T>
-class TRuiSetter
+template <typename T> class TRuiSetter
 {
 public:
 	TRuiSetter() = default;
 	TRuiSetter(TWeakPtr<FRuiComponentState> InState, int32 InSlot) : State(MoveTemp(InState)), Slot(InSlot) {}
 
-	void operator()(T NewValue) const;                       // set value
-	void operator()(TFunction<T(const T&)> Updater) const;   // functional update
+	void operator()(T NewValue) const;					   // set value
+	void operator()(TFunction<T(const T&)> Updater) const; // functional update
 
-	bool operator==(const TRuiSetter& Other) const
-	{
-		return Slot == Other.Slot && State == Other.State;
-	}
+	bool operator==(const TRuiSetter& Other) const { return Slot == Other.Slot && State == Other.State; }
 
 private:
 	TWeakPtr<FRuiComponentState> State;

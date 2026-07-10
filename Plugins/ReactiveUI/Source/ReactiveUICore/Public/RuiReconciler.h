@@ -109,9 +109,12 @@ private:
 
 	// --- error latch (D-10) ---
 	void HandleRenderFailure(FRuiFiber* FailedFiber, const FString& Reason);
+	void AdoptPendingEbActivation(FRuiFiber* BoundaryFiber);
 
 	// --- tree lifecycle ---
 	void ReleaseFiberTree(FRuiFiber* Fiber);
+	/** Reclaim the fresh WIP fibers of an abandoned pass (restart / aborted mount). */
+	void ReleaseAbandonedChildren(FRuiFiber* Parent);
 
 	// --- helpers ---
 	static FRuiFiber* OldFirst(FRuiFiber* Fiber) { return Fiber ? Fiber->Child : nullptr; }
@@ -145,6 +148,17 @@ private:
 	/** Providers pushed this pass (parallel stack so ascend/skip paths pop exactly what
 	 *  descend pushed, even across restarts). */
 	TArray<FRuiFiber*> ProviderStack;
+
+	/** A mount-pass render failure records its boundary activation by key-path — the WIP
+	 *  fiber that carried it is abandoned with the pass and has no committed twin, so the
+	 *  activation must survive OUTSIDE the fiber tree until the restart pass re-adopts it
+	 *  (deterministic positional keys make the path stable across identical passes). */
+	struct FPendingEbActivation
+	{
+		TArray<FRuiKey> Path; // boundary-up-to-root key path
+		FString Reason;
+	};
+	TArray<FPendingEbActivation> PendingEbActivations;
 
 	bool bIsCommitting = false;
 	TArray<FRuiFiber*> DeferredUpdates;

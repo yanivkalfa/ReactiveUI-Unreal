@@ -18,8 +18,7 @@ public:
 	virtual ~FRuiSignalBase() = default;
 };
 
-template <typename T>
-class TRuiSignal final : public FRuiSignalBase
+template <typename T> class TRuiSignal final : public FRuiSignalBase
 {
 public:
 	explicit TRuiSignal(T Initial = T()) : Value(MoveTemp(Initial)) {}
@@ -81,8 +80,7 @@ namespace RUI
 	/** Drop all keyed signals (subscribers NOT notified) — full session reset. */
 	REACTIVEUICORE_API void ClearSignals();
 
-	template <typename T>
-	TSharedRef<TRuiSignal<T>> GetOrCreateSignal(FName Key, T Initial = T())
+	template <typename T> TSharedRef<TRuiSignal<T>> GetOrCreateSignal(FName Key, T Initial = T())
 	{
 		TSharedPtr<FRuiSignalBase>* Slot = FindOrAddSignalSlot(Key);
 		if (!Slot->IsValid())
@@ -91,15 +89,14 @@ namespace RUI
 		}
 		return StaticCastSharedRef<TRuiSignal<T>>(Slot->ToSharedRef());
 	}
-}
+} // namespace RUI
 
 // ─────────────────────────────────────────────────────────────────────────────────────────
 // The signal hooks. Cell holds the SNAPSHOT + the live unsubscribe (dtor releases it —
 // teardown-by-destructor, the C++ half of _dispose_fiber_state).
 // ─────────────────────────────────────────────────────────────────────────────────────────
 
-template <typename TSelected>
-struct TRuiSignalCell final : IRuiHookCell
+template <typename TSelected> struct TRuiSignalCell final : IRuiHookCell
 {
 	TSelected Value{};
 	TFunction<void()> Unsub;
@@ -119,8 +116,7 @@ namespace RUI
 {
 	/** UseSignal with selector: re-renders when the SELECTED slice changes. */
 	template <typename T, typename TSelected>
-	TSelected UseSignal(FRuiContext& Ctx, const TSharedRef<TRuiSignal<T>>& Sig,
-	                    TFunction<TSelected(const T&)> Selector)
+	TSelected UseSignal(FRuiContext& Ctx, const TSharedRef<TRuiSignal<T>>& Sig, TFunction<TSelected(const T&)> Selector)
 	{
 		TRuiSignalCell<TSelected>* Cell = Ctx.template AcquireCell<TRuiSignalCell<TSelected>>(ERuiHookKind::Signal);
 		const bool bFirst = (Cell->BoundSignal == nullptr);
@@ -166,21 +162,23 @@ namespace RUI
 				C->BoundSignal = &SigCopy.Get();
 				C->Unsub = SigCopy->Subscribe(ReadAndMaybeNotify);
 				ReadAndMaybeNotify(); // tear-window re-check: value may have moved between render and effect
-				return FRuiEffectCleanup([Weak, SlotIndex]()
-				{
-					TSharedPtr<FRuiComponentState> S2 = Weak.Pin();
-					if (!S2.IsValid() || SlotIndex >= S2->Hooks.Num())
+				return FRuiEffectCleanup(
+					[Weak, SlotIndex]()
 					{
-						return;
-					}
-					TRuiSignalCell<TSelected>* C2 = static_cast<TRuiSignalCell<TSelected>*>(S2->Hooks[SlotIndex].Get());
-					if (C2->Unsub)
-					{
-						C2->Unsub();
-						C2->Unsub = nullptr;
-						C2->BoundSignal = nullptr;
-					}
-				});
+						TSharedPtr<FRuiComponentState> S2 = Weak.Pin();
+						if (!S2.IsValid() || SlotIndex >= S2->Hooks.Num())
+						{
+							return;
+						}
+						TRuiSignalCell<TSelected>* C2 =
+							static_cast<TRuiSignalCell<TSelected>*>(S2->Hooks[SlotIndex].Get());
+						if (C2->Unsub)
+						{
+							C2->Unsub();
+							C2->Unsub = nullptr;
+							C2->BoundSignal = nullptr;
+						}
+					});
 			},
 			RUI::Deps(&SigCopy.Get()));
 		(void)bFirst;
@@ -188,16 +186,14 @@ namespace RUI
 	}
 
 	/** UseSignal without selector: the whole value. */
-	template <typename T>
-	T UseSignal(FRuiContext& Ctx, const TSharedRef<TRuiSignal<T>>& Sig)
+	template <typename T> T UseSignal(FRuiContext& Ctx, const TSharedRef<TRuiSignal<T>>& Sig)
 	{
 		return UseSignal<T, T>(Ctx, Sig, [](const T& V) { return V; });
 	}
 
 	/** Process-wide keyed signal (created lazily; shared by every reader of the key). */
-	template <typename T>
-	T UseSignalKey(FRuiContext& Ctx, FName Key, T Initial = T())
+	template <typename T> T UseSignalKey(FRuiContext& Ctx, FName Key, T Initial = T())
 	{
 		return UseSignal<T>(Ctx, GetOrCreateSignal<T>(Key, MoveTemp(Initial)));
 	}
-}
+} // namespace RUI

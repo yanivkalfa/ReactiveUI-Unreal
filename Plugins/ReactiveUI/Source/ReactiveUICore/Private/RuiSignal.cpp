@@ -9,7 +9,7 @@ namespace
 		static TMap<FName, TSharedPtr<FRuiSignalBase>> Registry;
 		return Registry;
 	}
-}
+} // namespace
 
 namespace RUI
 {
@@ -36,4 +36,4 @@ namespace RUI
 	{
 		SignalRegistry().Empty();
 	}
-}
+} // namespace RUI

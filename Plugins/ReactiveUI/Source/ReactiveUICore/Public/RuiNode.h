@@ -84,7 +84,7 @@ namespace RUI
 {
 	/** Build a shared child list (the factories' common path). */
 	REACTIVEUICORE_API FRuiChildren MakeChildren(TArray<FRuiNode> InChildren);
-}
+} // namespace RUI
 
 // ─────────────────────────────────────────────────────────────────────────────────────────
 // Component registry (D-05): stable FName identity surviving Live Coding.
@@ -100,7 +100,7 @@ namespace RUI
 	/** The registered id for a fn pointer (NAME_None if unregistered — lambda components:
 	 *  documented always-re-render semantics via a per-call unique id). */
 	REACTIVEUICORE_API FName FindComponentId(void* FnPtr);
-}
+} // namespace RUI
 
 /**
  * Declare a component's stable identity next to its definition:
@@ -111,7 +111,7 @@ namespace RUI
  * The .uetkx codegen emits the same macro; hand-written and generated components are
  * indistinguishable to the reconciler.
  */
-#define RUI_COMPONENT(FnName) \
+#define RUI_COMPONENT(FnName)                                                                                          \
 	static const FName FnName##_RuiId = RUI::RegisterComponentId((void*)&FnName, FName(TEXT(#FnName)));
 
 // ─────────────────────────────────────────────────────────────────────────────────────────
@@ -127,8 +127,8 @@ namespace RUI
 
 	/** Function component node from a typed free function (identity = registered FName). */
 	template <typename TProps>
-	FRuiNode FC(TRuiComponentFn<TProps> Fn,
-	            TProps InProps = TProps(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey InKey = FRuiKey())
+	FRuiNode FC(TRuiComponentFn<TProps> Fn, TProps InProps = TProps(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(),
+				FRuiKey InKey = FRuiKey())
 	{
 		static_assert(std::is_base_of_v<FRuiPropsBase, TProps>, "component props must derive FRuiPropsBase");
 		FRuiNode Node;
@@ -165,7 +165,7 @@ namespace RUI
 	 * ResetKey changes. Not a markup tag (family convention): an escape-hatch call.
 	 */
 	REACTIVEUICORE_API FRuiNode ErrorBoundary(FRuiNode Fallback, TArray<FRuiNode> Children,
-	                                          FRuiKey ResetKey = FRuiKey(),
-	                                          TFunction<void(const FString&)> OnError = nullptr,
-	                                          FRuiKey Key = FRuiKey());
-}
+											  FRuiKey ResetKey = FRuiKey(),
+											  TFunction<void(const FString&)> OnError = nullptr,
+											  FRuiKey Key = FRuiKey());
+} // namespace RUI

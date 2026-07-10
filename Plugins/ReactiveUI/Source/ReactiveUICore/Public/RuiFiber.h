@@ -52,14 +52,14 @@ struct REACTIVEUICORE_API FRuiFiber
 	// --- identity ---
 	ERuiFiberTag Tag = ERuiFiberTag::Host;
 	FRuiKey Key;
-	FRuiElementTypeId ElementType;              // HOST
-	FName ComponentId;                          // FUNCTION (registry identity, D-05)
-	TSharedPtr<FRuiComponentInvoke> Invoke;     // FUNCTION
+	FRuiElementTypeId ElementType;			// HOST
+	FName ComponentId;						// FUNCTION (registry identity, D-05)
+	TSharedPtr<FRuiComponentInvoke> Invoke; // FUNCTION
 
 	// --- props ---
-	TSharedPtr<const FRuiPropsBase> Props;        // committed (null = never rendered)
+	TSharedPtr<const FRuiPropsBase> Props; // committed (null = never rendered)
 	TSharedPtr<const FRuiPropsBase> PendingProps;
-	FRuiChildren InputChildren;                   // child vnodes to reconcile (shared list)
+	FRuiChildren InputChildren; // child vnodes to reconcile (shared list)
 
 	// --- host ---
 	FRuiHostHandle Node;
@@ -78,9 +78,9 @@ struct REACTIVEUICORE_API FRuiFiber
 	// --- reconciliation / double buffer ---
 	FRuiFiber* Alternate = nullptr;
 	uint8 EffectTag = RuiEffect_None;
-	FRuiFiber* NextEffect = nullptr;            // singly-linked post-order effect list
-	bool bHasDeletions = false;                 // this fiber recorded deletions this pass
-	bool bMatchedPass = false;                  // full-keyed mark-and-sweep (GO-08)
+	FRuiFiber* NextEffect = nullptr; // singly-linked post-order effect list
+	bool bHasDeletions = false;		 // this fiber recorded deletions this pass
+	bool bMatchedPass = false;		 // full-keyed mark-and-sweep (GO-08)
 
 	// --- context ---
 	/** Values THIS fiber provides (keyed by context-handle identity). Type-erased holder +
@@ -105,11 +105,16 @@ struct REACTIVEUICORE_API FRuiFiber
 	{
 		switch (VNode.Kind)
 		{
-		case ERuiNodeKind::Host: return Tag == ERuiFiberTag::Host && ElementType == VNode.ElementType;
-		case ERuiNodeKind::Function: return Tag == ERuiFiberTag::Function && ComponentId == VNode.ComponentId;
-		case ERuiNodeKind::Fragment: return Tag == ERuiFiberTag::Fragment;
-		case ERuiNodeKind::Portal: return Tag == ERuiFiberTag::Portal;
-		case ERuiNodeKind::ErrorBoundary: return Tag == ERuiFiberTag::ErrorBoundary;
+		case ERuiNodeKind::Host:
+			return Tag == ERuiFiberTag::Host && ElementType == VNode.ElementType;
+		case ERuiNodeKind::Function:
+			return Tag == ERuiFiberTag::Function && ComponentId == VNode.ComponentId;
+		case ERuiNodeKind::Fragment:
+			return Tag == ERuiFiberTag::Fragment;
+		case ERuiNodeKind::Portal:
+			return Tag == ERuiFiberTag::Portal;
+		case ERuiNodeKind::ErrorBoundary:
+			return Tag == ERuiFiberTag::ErrorBoundary;
 		}
 		return false;
 	}
@@ -118,11 +123,16 @@ struct REACTIVEUICORE_API FRuiFiber
 	{
 		switch (VNode.Kind)
 		{
-		case ERuiNodeKind::Host: return ERuiFiberTag::Host;
-		case ERuiNodeKind::Function: return ERuiFiberTag::Function;
-		case ERuiNodeKind::Fragment: return ERuiFiberTag::Fragment;
-		case ERuiNodeKind::Portal: return ERuiFiberTag::Portal;
-		case ERuiNodeKind::ErrorBoundary: return ERuiFiberTag::ErrorBoundary;
+		case ERuiNodeKind::Host:
+			return ERuiFiberTag::Host;
+		case ERuiNodeKind::Function:
+			return ERuiFiberTag::Function;
+		case ERuiNodeKind::Fragment:
+			return ERuiFiberTag::Fragment;
+		case ERuiNodeKind::Portal:
+			return ERuiFiberTag::Portal;
+		case ERuiNodeKind::ErrorBoundary:
+			return ERuiFiberTag::ErrorBoundary;
 		}
 		return ERuiFiberTag::Host;
 	}

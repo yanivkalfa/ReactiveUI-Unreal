@@ -25,4 +25,4 @@ namespace RUI
 
 	/** Number of interned types (docs-drift/test introspection). */
 	REACTIVEUICORE_API int32 NumElementTypes();
-}
+} // namespace RUI

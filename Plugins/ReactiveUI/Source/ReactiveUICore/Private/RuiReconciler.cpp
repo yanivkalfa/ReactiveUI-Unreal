@@ -20,8 +20,7 @@ DEFINE_LOG_CATEGORY_STATIC(LogRuiReconciler, Log, All);
 const TArray<FRuiNode> FRuiReconciler::EmptyChildren;
 
 FRuiReconciler::FRuiReconciler(IRuiHostConfig& InHost, FRuiHostHandle InRootContainer)
-	: Host(InHost)
-	, RootContainer(MoveTemp(InRootContainer))
+	: Host(InHost), RootContainer(MoveTemp(InRootContainer))
 {
 	FRuiFiber* Root = Slab.Acquire();
 	Root->Tag = ERuiFiberTag::Root;
@@ -53,19 +52,46 @@ void FRuiReconciler::Render(FRuiNode RootNode)
 	RootVNode = MoveTemp(RootNode);
 	RootCurrent->bHasPendingUpdate = true;
 	bWorkActive = true;
+	bRestart = false;
 	BeginRender();
-	while (NextUnit != nullptr)
+	int32 MountRestarts = 0;
+	for (;;)
 	{
-		NextUnit = PerformUnit(NextUnit);
+		while (NextUnit != nullptr && !bRestart)
+		{
+			NextUnit = PerformUnit(NextUnit);
+		}
+		if (!bRestart)
+		{
+			break;
+		}
+		// The pass was poisoned mid-mount (a render failure activated a boundary, or a
+		// setState fired during render). Godot commits the poisoned pass and re-ticks; we
+		// restart from the root NOW instead — mount promises a coherent first frame, and a
+		// boundary fallback must never lose to a half-built tree (React's render-phase-
+		// update semantics; documented divergence).
+		if (++MountRestarts > MaxRestarts)
+		{
+			UE_LOG(LogRuiReconciler, Error,
+				   TEXT("[ReactiveUI] Too many re-renders during mount (setState during render?). Aborting mount."));
+			bRestart = false;
+			bWorkActive = false;
+			NextUnit = nullptr;
+			return; // abandoned WIP is reclaimed by the next BeginRender / Unmount
+		}
+		bRestart = false;
+		BeginRender();
 	}
 	bWorkActive = false;
-	bRestart = false;
 	CommitRoot();
 }
 
 void FRuiReconciler::ScheduleUpdateOnFiber(FRuiFiber* Fiber)
 {
-	checkf(IsInGameThread(), TEXT("ReactiveUI: state updates must run on the game thread (D-15; use RUI::PostToGameThread from async code)"));
+	checkf(
+		IsInGameThread(),
+		TEXT(
+			"ReactiveUI: state updates must run on the game thread (D-15; use RUI::PostToGameThread from async code)"));
 	if (RootCurrent == nullptr)
 	{
 		return; // torn down — ignore late setState/effect callbacks [audit]
@@ -134,7 +160,7 @@ void FRuiReconciler::Tick()
 			if (RestartCount > MaxRestarts)
 			{
 				UE_LOG(LogRuiReconciler, Error,
-					TEXT("[ReactiveUI] Too many re-renders (setState during render?). Aborting pass."));
+					   TEXT("[ReactiveUI] Too many re-renders (setState during render?). Aborting pass."));
 				bWorkActive = false;
 				bRestart = false;
 				RestartCount = 0;
@@ -189,6 +215,14 @@ void FRuiReconciler::Tick()
 
 void FRuiReconciler::BeginRender()
 {
+	// Reclaim an abandoned pass first (restart / aborted mount): its fresh WIP fibers would
+	// otherwise leak in the slab, and shared component states could keep pointing at them.
+	// (WipRoot is nulled on commit, so non-null here always means "abandoned".)
+	if (WipRoot != nullptr)
+	{
+		ReleaseAbandonedChildren(WipRoot);
+	}
+
 	FirstEffect = nullptr;
 	LastEffect = nullptr;
 	Deletions.Reset();
@@ -216,7 +250,7 @@ void FRuiReconciler::BeginRender()
 	Wip->EffectTag = RuiEffect_None;
 	Wip->NextEffect = nullptr;
 	Wip->bHasDeletions = false;
-	Wip->InputChildren = MakeShared<const TArray<FRuiNode>>(TArray<FRuiNode>{ RootVNode.GetValue() });
+	Wip->InputChildren = MakeShared<const TArray<FRuiNode>>(TArray<FRuiNode>{RootVNode.GetValue()});
 	Wip->bHasPendingUpdate = RootCurrent->bHasPendingUpdate;
 	Wip->bSubtreeHasUpdates = RootCurrent->bSubtreeHasUpdates;
 	WipRoot = Wip;
@@ -345,7 +379,7 @@ void FRuiReconciler::RenderComponent(FRuiFiber* Fiber)
 
 		FRuiContext Ctx(State.ToSharedRef(), *Fiber, *this, Host);
 		FRuiNodeArray Result = (*Fiber->Invoke)(Ctx, Fiber->PendingProps.Get(),
-			Fiber->InputChildren.IsValid() ? *Fiber->InputChildren : EmptyChildren);
+												Fiber->InputChildren.IsValid() ? *Fiber->InputChildren : EmptyChildren);
 
 		// _end
 		RUI::SetRendering(false);
@@ -367,7 +401,8 @@ void FRuiReconciler::RenderComponent(FRuiFiber* Fiber)
 					if (Prev[i] != Now[i])
 					{
 						const FString Msg = FString::Printf(
-							TEXT("[Hooks][order] %s: hook #%d changed '%s' -> '%s' across renders — hooks must run in the same order every render."),
+							TEXT("[Hooks][order] %s: hook #%d changed '%s' -> '%s' across renders — hooks must run in "
+								 "the same order every render."),
 							*Fiber->ComponentId.ToString(), i, RuiHookKindName(Prev[i]), RuiHookKindName(Now[i]));
 						FRuiDiagnostics::Emit(Msg);
 						UE_LOG(LogRuiReconciler, Error, TEXT("%s"), *Msg);
@@ -376,9 +411,9 @@ void FRuiReconciler::RenderComponent(FRuiFiber* Fiber)
 				}
 				if (Prev.Num() != Now.Num())
 				{
-					const FString Msg = FString::Printf(
-						TEXT("[Hooks][order] %s: hook count changed %d -> %d across renders — a hook is being called conditionally."),
-						*Fiber->ComponentId.ToString(), Prev.Num(), Now.Num());
+					const FString Msg = FString::Printf(TEXT("[Hooks][order] %s: hook count changed %d -> %d across "
+															 "renders — a hook is being called conditionally."),
+														*Fiber->ComponentId.ToString(), Prev.Num(), Now.Num());
 					FRuiDiagnostics::Emit(Msg);
 					UE_LOG(LogRuiReconciler, Error, TEXT("%s"), *Msg);
 				}
@@ -414,10 +449,18 @@ void FRuiReconciler::RenderComponent(FRuiFiber* Fiber)
 
 FRuiFiber* FRuiReconciler::BeginErrorBoundary(FRuiFiber* Fiber)
 {
+	// A mount-pass failure recorded its activation by key-path (the WIP fiber that carried
+	// it was abandoned with that pass) — re-adopt it before deciding what to render.
+	if (!PendingEbActivations.IsEmpty())
+	{
+		AdoptPendingEbActivation(Fiber);
+	}
 	// Structural boundary (family): renders the fallback while active; ResetKey change
 	// clears. The latch (HandleRenderFailure) is what activates it without exceptions.
+	// A missing alternate is a MOUNT, not a reset — there is nothing to clear, and a
+	// just-adopted mount-pass activation must survive.
 	FRuiFiber* Alt = Fiber->Alternate;
-	const bool bResetRequested = (Alt == nullptr) || !(Alt->EbResetKey == Fiber->EbResetKey);
+	const bool bResetRequested = (Alt != nullptr) && !(Alt->EbResetKey == Fiber->EbResetKey);
 	if (bResetRequested)
 	{
 		Fiber->bEbActive = false;
@@ -428,7 +471,7 @@ FRuiFiber* FRuiReconciler::BeginErrorBoundary(FRuiFiber* Fiber)
 	{
 		if (Fiber->EbFallback.IsValid())
 		{
-			Children = MakeShared<const TArray<FRuiNode>>(TArray<FRuiNode>{ *Fiber->EbFallback });
+			Children = MakeShared<const TArray<FRuiNode>>(TArray<FRuiNode>{*Fiber->EbFallback});
 		}
 	}
 	else
@@ -445,29 +488,65 @@ FRuiFiber* FRuiReconciler::BeginErrorBoundary(FRuiFiber* Fiber)
 void FRuiReconciler::HandleRenderFailure(FRuiFiber* FailedFiber, const FString& Reason)
 {
 	// Find the nearest boundary above the failed component (WIP chain — pre-commit, safe).
+	// An ALREADY-ACTIVE boundary can't capture again this pass (its fallback is what just
+	// failed) — skip upward, or the failure loops forever (React's captured-boundary rule).
 	for (FRuiFiber* F = FailedFiber; F != nullptr; F = F->Parent)
 	{
-		if (F->Tag == ERuiFiberTag::ErrorBoundary)
+		if (F->Tag == ERuiFiberTag::ErrorBoundary && !F->bEbActive)
 		{
 			F->bEbActive = true;
 			F->EbLastError = Reason;
-			if (F->Alternate) // keep the committed side active too (restart re-reads it)
+			if (F->Alternate != nullptr)
 			{
+				// The committed twin carries the activation into the restart pass.
 				F->Alternate->bEbActive = true;
 				F->Alternate->EbLastError = Reason;
+			}
+			else
+			{
+				// Mount-pass boundary: the WIP fiber is abandoned with this pass and has no
+				// committed twin, so record the activation by key-path for the restart pass
+				// to re-adopt (BeginErrorBoundary). If an ancestor renders differently and
+				// the path misses, the child just fails again and re-records — self-healing,
+				// bounded by the restart guard.
+				FPendingEbActivation& Pending = PendingEbActivations.AddDefaulted_GetRef();
+				Pending.Reason = Reason;
+				for (const FRuiFiber* P = F; P != nullptr && P->Tag != ERuiFiberTag::Root; P = P->Parent)
+				{
+					Pending.Path.Add(FiberKey(P));
+				}
 			}
 			if (F->EbOnError)
 			{
 				F->EbOnError(Reason);
 			}
-			// Restart from the root: the boundary now renders its fallback; the partial
-			// WIP below it is discarded by the rebuild (double-buffer keeps current safe).
+			// Restart from the root: the boundary renders its fallback next pass; the
+			// poisoned WIP is abandoned (never committed) and reclaimed by BeginRender.
 			bRestart = true;
 			UE_LOG(LogRuiReconciler, Error, TEXT("[ReactiveUI] render failed: %s (caught by error boundary)"), *Reason);
 			return;
 		}
 	}
 	UE_LOG(LogRuiReconciler, Error, TEXT("[ReactiveUI] render failed with no error boundary above: %s"), *Reason);
+}
+
+void FRuiReconciler::AdoptPendingEbActivation(FRuiFiber* BoundaryFiber)
+{
+	TArray<FRuiKey> Path;
+	for (const FRuiFiber* P = BoundaryFiber; P != nullptr && P->Tag != ERuiFiberTag::Root; P = P->Parent)
+	{
+		Path.Add(FiberKey(P));
+	}
+	for (int32 i = 0; i < PendingEbActivations.Num(); ++i)
+	{
+		if (PendingEbActivations[i].Path == Path)
+		{
+			BoundaryFiber->bEbActive = true;
+			BoundaryFiber->EbLastError = PendingEbActivations[i].Reason;
+			PendingEbActivations.RemoveAt(i);
+			return;
+		}
+	}
 }
 
 void FRuiReconciler::PushProvidedContext(FRuiFiber* Fiber)
@@ -499,7 +578,8 @@ void FRuiReconciler::PopProvidedContext(FRuiFiber* Fiber)
 // Child reconciliation
 // ─────────────────────────────────────────────────────────────────────────────────────────
 
-FRuiFiber* FRuiReconciler::ReconcileFiber(FRuiFiber* ParentFiber, FRuiFiber* OldFiber, const FRuiNode& VNode, int32 Index)
+FRuiFiber* FRuiReconciler::ReconcileFiber(FRuiFiber* ParentFiber, FRuiFiber* OldFiber, const FRuiNode& VNode,
+										  int32 Index)
 {
 	const bool bReuse = (OldFiber != nullptr) && OldFiber->Matches(VNode);
 	FRuiFiber* Fiber;
@@ -617,13 +697,15 @@ FRuiFiber* FRuiReconciler::ReconcileFiber(FRuiFiber* ParentFiber, FRuiFiber* Old
 	return Fiber;
 }
 
-bool FRuiReconciler::ReconcileChildren(FRuiFiber* ParentFiber, FRuiFiber* OldFirstFiber, const FRuiChildren& ChildVNodes)
+bool FRuiReconciler::ReconcileChildren(FRuiFiber* ParentFiber, FRuiFiber* OldFirstFiber,
+									   const FRuiChildren& ChildVNodes)
 {
 	const TArray<FRuiNode>& VNodes = NormalizedChildren(ChildVNodes);
 
 	// FAST-LIST PATH (+ GO-09 reuse_by_slot; see TryFastLeafList).
 	const bool bReuseBySlot = ParentFiber->PendingProps.IsValid() && ParentFiber->PendingProps->bReuseBySlot;
-	if (OldFirstFiber != nullptr && !VNodes.IsEmpty() && TryFastLeafList(ParentFiber, OldFirstFiber, VNodes, bReuseBySlot))
+	if (OldFirstFiber != nullptr && !VNodes.IsEmpty() &&
+		TryFastLeafList(ParentFiber, OldFirstFiber, VNodes, bReuseBySlot))
 	{
 		return true;
 	}
@@ -652,8 +734,14 @@ bool FRuiReconciler::ReconcileChildren(FRuiFiber* ParentFiber, FRuiFiber* OldFir
 			for (int32 i = 0; i < VNodes.Num(); ++i)
 			{
 				FRuiFiber* Cf = ReconcileFiber(ParentFiber, Ocs, VNodes[i], i);
-				if (Prev == nullptr) { ParentFiber->Child = Cf; }
-				else { Prev->Sibling = Cf; }
+				if (Prev == nullptr)
+				{
+					ParentFiber->Child = Cf;
+				}
+				else
+				{
+					Prev->Sibling = Cf;
+				}
 				Prev = Cf;
 				Ocs = Ocs->Sibling;
 			}
@@ -692,8 +780,14 @@ bool FRuiReconciler::ReconcileChildren(FRuiFiber* ParentFiber, FRuiFiber* OldFir
 				bStructural = true; // new placement
 			}
 			FRuiFiber* Cf = ReconcileFiber(ParentFiber, OldMatch, Vn, i);
-			if (Prev == nullptr) { ParentFiber->Child = Cf; }
-			else { Prev->Sibling = Cf; }
+			if (Prev == nullptr)
+			{
+				ParentFiber->Child = Cf;
+			}
+			else
+			{
+				Prev->Sibling = Cf;
+			}
 			Prev = Cf;
 		}
 		FRuiFiber* Ocd = OldFirstFiber;
@@ -720,8 +814,14 @@ bool FRuiReconciler::ReconcileChildren(FRuiFiber* ParentFiber, FRuiFiber* OldFir
 				bStructural = true;
 			}
 			FRuiFiber* Cf = ReconcileFiber(ParentFiber, OldMatch, VNodes[i], i);
-			if (Prev == nullptr) { ParentFiber->Child = Cf; }
-			else { Prev->Sibling = Cf; }
+			if (Prev == nullptr)
+			{
+				ParentFiber->Child = Cf;
+			}
+			else
+			{
+				Prev->Sibling = Cf;
+			}
 			Prev = Cf;
 			if (Oci != nullptr)
 			{
@@ -743,7 +843,8 @@ bool FRuiReconciler::ReconcileChildren(FRuiFiber* ParentFiber, FRuiFiber* OldFir
 	return false;
 }
 
-bool FRuiReconciler::TryFastLeafList(FRuiFiber* ParentFiber, FRuiFiber* OldFirstFiber, const TArray<FRuiNode>& VNodes, bool bIgnoreKeys)
+bool FRuiReconciler::TryFastLeafList(FRuiFiber* ParentFiber, FRuiFiber* OldFirstFiber, const TArray<FRuiNode>& VNodes,
+									 bool bIgnoreKeys)
 {
 	const int32 N = VNodes.Num();
 	// 1. Eligibility scan (read-only).
@@ -755,8 +856,8 @@ bool FRuiReconciler::TryFastLeafList(FRuiFiber* ParentFiber, FRuiFiber* OldFirst
 			return false;
 		}
 		const FRuiNode& Vn = VNodes[i];
-		if (Vn.Kind != ERuiNodeKind::Host || Oc->Tag != ERuiFiberTag::Host || !(Oc->ElementType == Vn.ElementType)
-			|| (!bIgnoreKeys && !(Oc->Key == Vn.Key)))
+		if (Vn.Kind != ERuiNodeKind::Host || Oc->Tag != ERuiFiberTag::Host || !(Oc->ElementType == Vn.ElementType) ||
+			(!bIgnoreKeys && !(Oc->Key == Vn.Key)))
 		{
 			return false;
 		}
@@ -787,8 +888,7 @@ bool FRuiReconciler::TryFastLeafList(FRuiFiber* ParentFiber, FRuiFiber* OldFirst
 		Oc->InputChildren = Vn.Children;
 		const TSharedPtr<const FRuiPropsBase>& Np = Vn.Props;
 		Oc->PendingProps = Np;
-		const bool bChanged = (Np != Oc->Props)
-			&& !(Np.IsValid() && Oc->Props.IsValid() && Np->Equals(*Oc->Props));
+		const bool bChanged = (Np != Oc->Props) && !(Np.IsValid() && Oc->Props.IsValid() && Np->Equals(*Oc->Props));
 		if (bChanged)
 		{
 			Oc->EffectTag = RuiEffect_Update;
@@ -937,11 +1037,26 @@ void FRuiReconciler::CommitRoot()
 	while (F != nullptr)
 	{
 		const uint8 Tag = F->EffectTag;
-		if (Tag & RuiEffect_Placement) { CommitPlacement(F); }
-		if (Tag & RuiEffect_Update) { CommitUpdate(F); }
-		if (Tag & RuiEffect_PortalRetarget) { CommitPortalRetarget(F); }
-		if (Tag & RuiEffect_Layout) { CommitLayoutEffects(F); }
-		if (Tag & RuiEffect_Passive) { PendingPassive.Add(F); }
+		if (Tag & RuiEffect_Placement)
+		{
+			CommitPlacement(F);
+		}
+		if (Tag & RuiEffect_Update)
+		{
+			CommitUpdate(F);
+		}
+		if (Tag & RuiEffect_PortalRetarget)
+		{
+			CommitPortalRetarget(F);
+		}
+		if (Tag & RuiEffect_Layout)
+		{
+			CommitLayoutEffects(F);
+		}
+		if (Tag & RuiEffect_Passive)
+		{
+			PendingPassive.Add(F);
+		}
 		FRuiFiber* Nxt = F->NextEffect;
 		F->EffectTag = RuiEffect_None;
 		F->NextEffect = nullptr;
@@ -957,6 +1072,8 @@ void FRuiReconciler::CommitRoot()
 	ReorderSet.Reset();
 
 	RootCurrent = WipRoot;
+	WipRoot = nullptr;			  // non-null WipRoot now always means "abandoned pass" (BeginRender reclaims)
+	PendingEbActivations.Reset(); // activations that never found their boundary are stale now
 	bIsCommitting = false;
 
 	FlushPassive();
@@ -1077,7 +1194,10 @@ void FRuiReconciler::FlushPassive()
 	// Two passes across all collected fibers: every cleanup first, then every setup.
 	for (FRuiFiber* Fiber : PendingPassive)
 	{
-		if (!Fiber->State.IsValid()) { continue; }
+		if (!Fiber->State.IsValid())
+		{
+			continue;
+		}
 		for (FRuiEffect& E : Fiber->State->Effects)
 		{
 			if ((!E.bEverRan || RUI::DepsChanged(E.LastDeps, E.Deps)) && E.Cleanup)
@@ -1089,7 +1209,10 @@ void FRuiReconciler::FlushPassive()
 	}
 	for (FRuiFiber* Fiber : PendingPassive)
 	{
-		if (!Fiber->State.IsValid()) { continue; }
+		if (!Fiber->State.IsValid())
+		{
+			continue;
+		}
 		for (FRuiEffect& E : Fiber->State->Effects)
 		{
 			if (!E.bEverRan || RUI::DepsChanged(E.LastDeps, E.Deps))
@@ -1109,7 +1232,7 @@ void FRuiReconciler::RunCleanups(FRuiFiber* Fiber)
 	{
 		return;
 	}
-	for (TArray<FRuiEffect>* Arr : { &Fiber->State->Effects, &Fiber->State->LayoutEffects })
+	for (TArray<FRuiEffect>* Arr : {&Fiber->State->Effects, &Fiber->State->LayoutEffects})
 	{
 		for (FRuiEffect& E : *Arr)
 		{
@@ -1299,7 +1422,7 @@ void FRuiReconciler::OnProvidedValueChanged(FRuiFiber& ProviderFiber, const void
 			return bAny;
 		}
 	};
-	FWalker Walker{ Key };
+	FWalker Walker{Key};
 	Walker.Walk(Alt->Child);
 }
 
@@ -1405,6 +1528,51 @@ void FRuiReconciler::ReleaseFiberTree(FRuiFiber* Fiber)
 	}
 }
 
+void FRuiReconciler::ReleaseAbandonedChildren(FRuiFiber* Parent)
+{
+	FRuiFiber* Child = Parent->Child;
+	Parent->Child = nullptr;
+	// COMMITTED-CHAIN adoption: this WIP fiber shares the committed twin's child chain
+	// (same objects, not copies) — via SUBTREE-SKIP (children still parented to the twin)
+	// or via the fast-leaf-list, which additionally REPARENTED the committed leaves onto
+	// the WIP fiber. Keep the chain, and repair Parent back to the committed twin so the
+	// committed tree stays self-consistent (ScheduleUpdateOnFiber walks Parent between
+	// passes — it must never climb into a reclaimed WIP chain).
+	if (Child != nullptr && Parent->Alternate != nullptr && Parent->Alternate->Child == Child)
+	{
+		for (FRuiFiber* C = Child; C != nullptr; C = C->Sibling)
+		{
+			if (C->Parent == Parent)
+			{
+				C->Parent = Parent->Alternate;
+			}
+		}
+		return;
+	}
+	while (Child != nullptr)
+	{
+		FRuiFiber* Next = Child->Sibling;
+		if (Child->Parent != Parent)
+		{
+			break; // defense-in-depth: any other shared-chain flavor is not ours to free
+		}
+		ReleaseAbandonedChildren(Child);
+		if (Child->Alternate != nullptr)
+		{
+			// Sever the pairing from the committed side; it re-pairs fresh next pass.
+			Child->Alternate->Alternate = nullptr;
+		}
+		if (Child->State.IsValid() && Child->State->Fiber == Child)
+		{
+			// A shared state must never keep pointing at a released fiber (setters would
+			// misdirect ScheduleUpdateOnFiber) — repoint at the committed twin, if any.
+			Child->State->Fiber = Child->Alternate;
+		}
+		Slab.Release(Child);
+		Child = Next;
+	}
+}
+
 void FRuiReconciler::Unmount()
 {
 	if (RootCurrent == nullptr)
@@ -1412,6 +1580,11 @@ void FRuiReconciler::Unmount()
 		return;
 	}
 	bTickPending = false;
+	if (WipRoot != nullptr)
+	{
+		ReleaseAbandonedChildren(WipRoot); // an abandoned pass dies with the root
+	}
+	PendingEbActivations.Reset();
 	for (FRuiFiber* C = RootCurrent->Child; C != nullptr; C = C->Sibling)
 	{
 		NullRefsRecursive(C);

@@ -38,7 +38,10 @@ namespace RuiCoreChecks
 		TRuiRefCell<float> Ref(0.0f);
 		TRuiMemoCell<FString> Memo;
 		TRuiDeferredCell<int32> Deferred;
-		(void)State; (void)Ref; (void)Memo; (void)Deferred;
+		(void)State;
+		(void)Ref;
+		(void)Memo;
+		(void)Deferred;
 
 		FRuiFiberSlab Slab;
 		FRuiFiber* F = Slab.Acquire();
@@ -47,4 +50,4 @@ namespace RuiCoreChecks
 
 	// Never called; exists so the linker keeps the instantiations honest without running.
 	void* Sink = (void*)&CompileCheck;
-}
+} // namespace RuiCoreChecks
