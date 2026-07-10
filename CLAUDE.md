@@ -123,8 +123,11 @@ MASTER_PLAN §1; module table: D-27.
 
 ## Environment facts (owner machine — fill/verify at first engine use)
 
-- Engine: **UE 5.6 install pending** (Epic Games Launcher; latest 5.6 patch; skip debug
-  symbols). Discover via `Get-ChildItem "C:\Program Files\Epic Games\UE_5.*"`; record the exact
-  path HERE and in the `test-run` skill when it lands.
-- VS2022 with "Game development with C++" workload: present (verify MSVC toolchain ≥ 14.38).
+- Engine: **`C:\Program Files\Epic Games\UE_5.6`** (Launcher install; verified 2026-07-10 —
+  the empty-plugin Development Editor build succeeded, 45/45 actions, 51 s).
+- VS2022 Community with the C++ workload; MSVC toolchain **14.44.35223** — UE 5.6 warns it
+  "is not a preferred version (prefers 14.38)" but accepts it. If strict toolchain matching is
+  ever needed (e.g. chasing a compiler-specific bug), install the 14.38 toolset via the VS
+  Installer's Individual Components.
+- clang-format 19.1.5 at `C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\Llvm\x64\bin\clang-format.exe`.
 - Always redirect engine console output to a file — piping block-buffers and hides everything.

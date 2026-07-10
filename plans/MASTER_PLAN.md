@@ -1,7 +1,17 @@
 # ReactiveUI-Unreal — Master Plan (AI-first)
 
 > **Status:** IN PROGRESS
-> **Branch:** `feat/phase-0-bootstrap` → `dev`   **PR:** pending owner merge   **Phases:** 0/10 done (Phase 0 built, its compile Verify awaits the UE 5.6 install)
+> **Branch:** `chore/post-merge-tidy` → `dev`   **PR:** pending owner merge   **Phases:** 1/10 done
+> **STATUS UPDATE — 2026-07-10 (Phase 0 COMPLETE).** PR #4 merged (`657f279`), `main`
+> fast-forwarded. The compile gate ran on the owner's fresh UE 5.6 install: **Development
+> Editor build succeeded, 45/45 actions, 51 s** — all 8 plugin modules + both host modules
+> compiled and linked, UHT clean under -WarningsAsErrors (MSVC 14.44, accepted with UE's
+> "prefers 14.38" advisory — recorded in env facts). One Done-when clause is deferred to the
+> owner's setup checklist: the "changelog verify as a REQUIRED check" designation — the
+> imported ruleset was deleted (it carried the Godot repo's check names) and will be re-added
+> with this repo's real check names (ROADMAP §5). Post-merge tidy: dependabot's action-pin
+> bumps applied across all three workflows; docs deps minor-bumped (build+lint green); majors
+> deliberately deferred family-wide via a dependabot ignore rule. **Phase 1 is next.**
 > **STATUS UPDATE — 2026-07-10 (Phase 0 execution).** Steps 1–8 are BUILT and every engine-free
 > gate is green (changelog verify · mirror byte-check · header lint · skills lint · docs-drift ·
 > YAML lint · docs build+lint). Delivered: hygiene rails, the 8-module plugin skeleton +
@@ -586,7 +596,7 @@ scripting adapters (UnrealSharp/AngelScript integration — or, owner's stated w
 adapter someday: if so, plugin-level like UnrealSharp, NEVER an engine fork, which would kill Fab
 distribution, and always opt-in — never a mandatory VM under the shipped UI, per §6).
 
-### - [ ] Phase 0 — Ecosystem & repo bootstrap ("step 0": the production project before the product)
+### - [x] Phase 0 — Ecosystem & repo bootstrap ("step 0": the production project before the product) — DONE 2026-07-10 (UE 5.6 editor build 45/45 green; all engine-free gates green; PR #4 `657f279`)
 
 - **Objective:** a repo where every later phase has rails: compiling empty plugin, CI, changelog
   machinery, skills, templates, docs scaffold — such that from the first feature commit onward,
@@ -687,8 +697,12 @@ distribution, and always opt-in — never a mandatory VM under the shipped UI, p
 - **Done when:** empty plugin compiles on the owner's machine AND in whatever CI legs are armed;
   all nine skills exist; changelog verify is a required check; ROADMAP row flipped by
   `plan-progress`.
-- **Status:** IN PROGRESS — steps 1–9 built and engine-free-verified 2026-07-10 (PR open);
-  the compile Verify awaits the UE 5.6 install (§7 Q3).
+- **Status:** COMPLETE 2026-07-10 — evidence: Development Editor build on UE 5.6 succeeded
+  (45/45 actions, 51 s; MSVC 14.44 advisory noted); engine-free gates green (changelog verify ·
+  mirror · headers · skills · docs-drift · YAML · docs build+lint · clang-format after its
+  first-run catch); PR #4 merged `657f279`; `main` fast-forwarded. Deferred to the owner's
+  one-time checklist (not blocking): re-adding the ruleset with THIS repo's check names so
+  the gates become REQUIRED checks (the imported Godot-named ruleset was deleted).
 
 ### - [ ] Phase 1 — Core reconciler + hooks (`ReactiveUICore`)
 

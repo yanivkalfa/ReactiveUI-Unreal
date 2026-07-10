@@ -5,11 +5,10 @@ description: The exact incantations to build and run this repo's test suites hea
 
 # Test run — the canonical commands, in order
 
-Environment facts first (verify, don't assume): engine discovered via
-`Get-ChildItem "C:\Program Files\Epic Games\UE_5.*"` — **UE 5.6 install pending on the owner's
-machine as of Phase 0; record the exact path here when it lands.** `<abs>` below = this repo's
-absolute path. ALWAYS redirect engine output to a file — piping block-buffers and hides
-everything (family scar).
+Environment facts first (verify, don't assume): `<Engine>` =
+**`C:\Program Files\Epic Games\UE_5.6`** (verified 2026-07-10; MSVC 14.44 — UE warns
+"not preferred (14.38)" but accepts). `<abs>` below = this repo's absolute path. ALWAYS
+redirect engine output to a file — piping block-buffers and hides everything (family scar).
 
 ```bat
 :: 0. Build (compile step — Development Editor)

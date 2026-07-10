@@ -1,9 +1,10 @@
 # ReactiveUI-Unreal — Overview & Roadmap
 
-> **Status:** NOT STARTED — plans written and twice-audited 2026-07-10; all owner questions
-> answered same day (master plan §7); the Godot sibling's 0.8.7 release is confirmed shipped, so
-> this is the next active front. Phase 0 starts on the owner's word — its scaffolding needs no
-> Unreal install; only the final compile check waits on UE 5.6.
+> **Status:** IN PROGRESS — **Phase 0 COMPLETE 2026-07-10** (PR #4 merged; the empty plugin
+> builds green on the owner's UE 5.6; every engine-free CI gate is live). Phase 1 (the core
+> reconciler + all 23 hooks) is next. One owner setup item still open: re-add the branch
+> ruleset with THIS repo's check names (the imported one carried the Godot repo's and was
+> deleted).
 > **This document:** the plain-English picture of what we are building and where we stand.
 > It is the **living status source of truth**: every time a phase in the master plan finishes,
 > the matching row in the table at the bottom of this file is updated (see the `plan-progress` skill).
@@ -205,8 +206,8 @@ reconciler core, and anything touching a CI gate always stay on the strongest mo
 
 | # | Phase | Status | Done / Next |
 |---|---|---|---|
-| 0 | Ecosystem & repo bootstrap | IN PROGRESS | Built + engine-free gates green (2026-07-10); owner: merge the PR + install UE 5.6 → the compile check closes the phase |
-| 1 | Core reconciler + hooks | NOT STARTED | Needs Phase 0 |
+| 0 | Ecosystem & repo bootstrap | COMPLETE 2026-07-10 | PR #4 merged; UE 5.6 editor build 45/45 green; all engine-free gates live (owner: re-add the ruleset with this repo's check names) |
+| 1 | Core reconciler + hooks | NOT STARTED | **Next up** — starts on the owner's word |
 | 2 | Slate host + first widgets | NOT STARTED | Needs Phase 1 |
 | 3 | `.uetkx` compiler + build integration | NOT STARTED | Starts after Phase 0 (parallel with 1–2); its last step needs 1–2 |
 | 4 | Interpreter + hot reload | NOT STARTED | Needs Phases 2 + 3 |
