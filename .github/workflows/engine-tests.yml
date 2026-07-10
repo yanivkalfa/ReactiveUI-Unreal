@@ -1,0 +1,63 @@
+# Reusable engine build+test workflow — THE single definition of the engine gate sequence,
+# called by test.yml (per-PR) and publish.yml (pre-release re-verification). Factored so the
+# two can never drift (the sibling repo's publish.yml re-listed the suite inline and drifted —
+# godot-ecosystem "IMPROVE FOR UNREAL" #5).
+#
+# Engine access: ghcr.io/epicgames/unreal-engine images are Epic-org-gated (owner links GitHub
+# to Epic and creates EPIC_GHCR_PAT) and MUST NOT be cached/republished publicly (UE EULA).
+name: engine-tests (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      engine-version:
+        description: "UE version tag for the container (e.g. 5.6)"
+        required: true
+        type: string
+    secrets:
+      EPIC_GHCR_PAT:
+        required: true
+
+jobs:
+  build-and-test:
+    name: UE ${{ inputs.engine-version }}
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/epicgames/unreal-engine:dev-slim-${{ inputs.engine-version }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.EPIC_GHCR_PAT }}
+    env:
+      ENGINE_ROOT: /home/ue4/UnrealEngine
+    steps:
+      - uses: actions/checkout@v4
+
+      # 1. The empty-plugin/editor compile IS Phase 0's engine gate. Development Editor first.
+      - name: Build Development Editor (Linux)
+        run: |
+          "$ENGINE_ROOT/Engine/Build/BatchFiles/Linux/Build.sh" ReactiveUIUnrealDemoEditor Linux Development \
+            -Project="$GITHUB_WORKSPACE/ReactiveUIUnrealDemo.uproject"
+
+      # 2. Dedicated-server compile leg — D-27's server policy is CI-verified, not assumed
+      #    (modules stay present on Server targets; behavior is gated at runtime instead).
+      - name: Build DedicatedServer (Linux)
+        run: |
+          "$ENGINE_ROOT/Engine/Build/BatchFiles/Linux/Build.sh" ReactiveUIUnrealDemoServer Linux Development \
+            -Project="$GITHUB_WORKSPACE/ReactiveUIUnrealDemo.uproject"
+
+      # 3. Markup drift gate — activates in Phase 3 when the RUICompile commandlet exists.
+      #    (Kept as a documented placeholder so the sequence is complete in ONE place.)
+      # - name: Markup drift gate
+      #   run: |
+      #     "$ENGINE_ROOT/Engine/Binaries/Linux/UnrealEditor-Cmd" "$GITHUB_WORKSPACE/ReactiveUIUnrealDemo.uproject" \
+      #       -run=RUICompile -check -unattended -nopause -nullrhi
+
+      # 4. Automation suites — activates in Phase 1 with the first ReactiveUI.* specs.
+      #    Pass/fail parses report/index.json, NOT the exit code (test-run skill scar).
+      # - name: Automation suites (headless)
+      #   run: |
+      #     "$ENGINE_ROOT/Engine/Binaries/Linux/UnrealEditor-Cmd" "$GITHUB_WORKSPACE/ReactiveUIUnrealDemo.uproject" \
+      #       -ExecCmds="Automation RunTests ReactiveUI; Quit" \
+      #       -unattended -nopause -nosplash -nullrhi -stdout -FullStdOutLogOutput \
+      #       -ReportExportPath="$GITHUB_WORKSPACE/test-report"
+      #     node -e "const r=require('./test-report/index.json'); if(r.failed>0){console.error(r.failed+' failed');process.exit(1)}"
