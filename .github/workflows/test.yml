@@ -88,7 +88,7 @@ jobs:
       - name: Guard
         id: guard
         run: |
-          if [ ! -f docs/package.json ]; then
+          if [ ! -f "ReactiveUIUnrealDocs~/package.json" ]; then
             echo "docs not armed yet — reporting success so required checks always report."
             echo "armed=false" >> "$GITHUB_OUTPUT"
           else
@@ -100,7 +100,7 @@ jobs:
           node-version: 22
       - name: Build + lint
         if: steps.guard.outputs.armed == 'true'
-        working-directory: docs
+        working-directory: ReactiveUIUnrealDocs~
         run: |
           npm ci
           npm run build

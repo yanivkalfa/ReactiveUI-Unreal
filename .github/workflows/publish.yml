@@ -26,7 +26,7 @@ jobs:
       - name: Guard (docs scaffold present?)
         id: guard
         run: |
-          if [ -f docs/package.json ]; then echo "armed=true" >> "$GITHUB_OUTPUT"; else
+          if [ -f "ReactiveUIUnrealDocs~/package.json" ]; then echo "armed=true" >> "$GITHUB_OUTPUT"; else
             echo "docs not present yet — skipping deploy."; echo "armed=false" >> "$GITHUB_OUTPUT"; fi
       - uses: actions/setup-node@v6
         if: steps.guard.outputs.armed == 'true'
@@ -34,7 +34,7 @@ jobs:
           node-version: 22
       - name: Build
         if: steps.guard.outputs.armed == 'true'
-        working-directory: docs
+        working-directory: ReactiveUIUnrealDocs~
         run: npm ci && npm run build
       - name: Push dist/ to the documentations branch
         if: steps.guard.outputs.armed == 'true'
@@ -50,7 +50,7 @@ jobs:
             (cd /tmp/docs-deploy && git checkout --orphan documentations && git rm -rf . >/dev/null 2>&1 || true)
           fi
           rm -rf /tmp/docs-deploy/*
-          cp -r docs/dist/* /tmp/docs-deploy/
+          cp -r "ReactiveUIUnrealDocs~/dist"/* /tmp/docs-deploy/
           touch /tmp/docs-deploy/.nojekyll
           cd /tmp/docs-deploy
           git add -A
@@ -79,7 +79,16 @@ jobs:
       - name: Tag exists? (idempotency gate)
         id: tagcheck
         run: |
-          TAG="v${{ steps.ver.outputs.version }}"
+          VER="${{ steps.ver.outputs.version }}"
+          TAG="v$VER"
+          # Pre-release guard: -dev (or any -suffix) VersionNames never tag/release — pressing
+          # Publish mid-development must be a no-op for the plugin, not a "0.1.0-dev release".
+          case "$VER" in
+            *-*)
+              echo "::notice::VersionName $VER is a pre-release suffix — plugin release skipped."
+              echo "new_tag=false" >> "$GITHUB_OUTPUT"
+              exit 0;;
+          esac
           if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
             echo "Tag $TAG exists — plugin not bumped; skipping."
             echo "new_tag=false" >> "$GITHUB_OUTPUT"

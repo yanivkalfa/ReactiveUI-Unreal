@@ -26,7 +26,7 @@ Full research corpus in `research/` (two rounds + audit ledgers).
 | VS Code extension (Phase 5) | `ide-extensions/vscode-uetkx/` | `package.json` | `vscode-v*` |
 | VS2022 extension (Phase 5) | `ide-extensions/visual-studio/` | `source.extension.vsixmanifest` | `vs2022-v*` |
 | lsp-server (Phase 5) | `ide-extensions/lsp-server/` | vendored; version-locked to vscode-uetkx (no own tag) | — |
-| Docs site | `docs/` | not version-gated | — |
+| Docs site | `ReactiveUIUnrealDocs~/` | not version-gated | — |
 
 The demo host project (`ReactiveUIUnrealDemo.uproject` at repo root, modules under `Source/`)
 is **not shipped** — it hosts the automation tests, the demo gallery, and the per-engine example
@@ -63,7 +63,7 @@ Suite filters are prefix-matched: `ReactiveUI.Boot` (the boot check — unit sui
 `.Uetkx`, `.Contract`, `.Hmr`, `.Umg`, `.Mvvm`, `.CommonUI`; `ReactiveUI.Bench` is NOT pass/fail
 (numbers go to `plans/BENCH_BASELINES.md` with machine/config context).
 
-Docs site: `cd docs && npm ci && npm run dev` (or `npm run build && npm run lint`).
+Docs site: `cd "ReactiveUIUnrealDocs~" && npm ci && npm run dev` (or `npm run build && npm run lint`).
 
 ## Architecture (one paragraph + pointers)
 
@@ -131,3 +131,7 @@ MASTER_PLAN §1; module table: D-27.
   Installer's Individual Components.
 - clang-format 19.1.5 at `C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\Llvm\x64\bin\clang-format.exe`.
 - Always redirect engine console output to a file — piping block-buffers and hides everything.
+- The editor WRITES to `Config/` on close: first boot normalized `DefaultInput.ini` (committed
+  once, stable after) and tried to add an AndroidFileServer section **with a generated
+  SecurityToken** — that plugin is disabled in the `.uproject` so generated tokens never enter
+  the repo. If a boot dirties `Config/` again, inspect before committing; never commit tokens.
