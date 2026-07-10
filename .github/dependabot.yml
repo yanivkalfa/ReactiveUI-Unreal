@@ -1,0 +1,16 @@
+# Keeps the two npm trees and the Actions pins fresh. NOTE: ide-extensions/lsp-server and
+# ide-extensions/vscode-uetkx get their own npm entries when Phase 5 creates them — add the
+# directories here in the same PR (dependabot warns on directories that don't exist).
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /docs
+    schedule:
+      interval: weekly
+    groups:
+      docs-deps:
+        patterns: ["*"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

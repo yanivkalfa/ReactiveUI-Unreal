@@ -1,0 +1,25 @@
+# Approximates the Epic C++ Coding Standard (Allman braces, tabs, PascalCase left to
+# humans/review — clang-format can't check naming). Applies to Source/** and templates/**;
+# CI runs `clang-format --dry-run -Werror` on exactly those trees (engine-free job).
+# Generated .uetkx.inl files are emitted pre-formatted to this style by the codegen.
+---
+Language: Cpp
+Standard: c++20
+BasedOnStyle: LLVM
+ColumnLimit: 120
+IndentWidth: 4
+TabWidth: 4
+UseTab: Always
+BreakBeforeBraces: Allman
+AllowShortFunctionsOnASingleLine: InlineOnly
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+PointerAlignment: Left
+AccessModifierOffset: -4
+NamespaceIndentation: All
+IndentCaseLabels: false
+SpaceBeforeParens: ControlStatements
+# UE include order is semantic (module's own header first, then CoreMinimal groups) —
+# never let the formatter reorder it.
+SortIncludes: Never
+...

@@ -1,0 +1,38 @@
+# Line endings are pinned to LF for everything text. Two of this repo's CI gates compare
+# BYTES (`RUICompile -check` on committed generated code; scripts/verify-mirror.mjs on the
+# changelog mirror) — CRLF normalization drift between Windows dev machines and Linux CI
+# would false-fail both. The codegen emitter also always writes LF (MASTER_PLAN D-19).
+* text=auto eol=lf
+
+# Load-bearing explicit pins (the byte-compared surfaces; kept explicit even though the
+# global rule covers them, so a future edit to the global line can't silently unpin them):
+*.uetkx        text eol=lf
+*.uetkx.inl    text eol=lf
+*.Uetkx.gen.cpp text eol=lf
+CHANGELOG.md   text eol=lf
+*.json         text eol=lf
+
+# Windows batch files are the one CRLF exception (cmd.exe misparses LF-only .bat).
+*.bat          text eol=crlf
+
+# Binary assets — never normalize.
+*.png    binary
+*.ico    binary
+*.jpg    binary
+*.uasset binary
+*.umap   binary
+*.mp4    binary
+
+# ── git-archive export ALLOWLIST ─────────────────────────────────────────────
+# Deny everything, then re-include only what a source export should contain.
+# (Godot-repo lesson: a denylist shipped .claude/ and internal files to users the
+# first time someone added a top-level file and forgot the list. An allowlist means
+# new top-level files can never silently leak.) Note: Fab packaging does NOT use
+# git archive — it uses RunUAT BuildPlugin + Config/FilterPlugin.ini; this covers
+# GitHub "Download ZIP"-style source exports.
+/** export-ignore
+/Plugins/ReactiveUI/** -export-ignore
+/LICENSE -export-ignore
+/README.md -export-ignore
+/CHANGELOG.md -export-ignore
+/THIRD_PARTY_NOTICES.md -export-ignore
