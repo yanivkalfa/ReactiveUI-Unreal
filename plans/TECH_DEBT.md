@@ -47,10 +47,10 @@ referenced from plans/PRs.
   registration hook, with demos.
 - **Status:** OPEN
 
-## TD-005 — Rider LSP plugin (grammar-only in v1)
-- **Where:** `ide-extensions/` (v1 ships the TextMate bundle + sidecar diagnostics visibility)
-- **What/why deferred:** JetBrains-LSP-API plugin is a separate deliverable (D-23); grammar
-  gets Rider users syntax highlighting day one.
+## TD-005 — Rider support (skipped ENTIRELY for v1 — owner 2026-07-11)
+- **Where:** `ide-extensions/` (nothing ships for Rider in v1 — no TextMate bundle, no plugin)
+- **What/why deferred:** owner scope cut 2026-07-11 (was: grammar-only day-one tier); the
+  JetBrains-LSP-API plugin was always a separate deliverable (D-23).
 - **Production-grade resolution:** thin Rider plugin hosting the same stdio server.
 - **Status:** OPEN
 

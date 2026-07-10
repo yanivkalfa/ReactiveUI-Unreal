@@ -356,8 +356,8 @@ round are **baked in** here — see also §6's DO-NOT-CLAIM list.
   exporter commandlet (`-run=RUIExportSchema`) for UMG wrappers/USTRUCT/UENUM/delegate signatures,
   with pre-generated engine-builtin schemas shipped per engine version. This design **removes**
   the per-platform-vsix pain (no napi addon for Unreal). Editor coverage: VS Code + VS2022 in v1;
-  **Rider gets the TextMate grammar + sidecar-driven diagnostics day one** (Rider honors TextMate
-  bundles and is where much of the UE audience lives); a thin JetBrains-LSP-API Rider plugin is
+  **Rider: SKIPPED for v1 entirely (owner 2026-07-11)** — no TextMate bundle, no plugin work;
+  a thin JetBrains-LSP-API Rider plugin is
   DEFERRED (tracked in TECH_DEBT). Embedded-C++ reflow: when a `.clang-format` is found by
   walk-up, embedded blocks are formatted through clang-format (the `embeddedReflow` analogue),
   else left verbatim.
@@ -596,7 +596,7 @@ IN v1 (all must be green, verified by running):
 - [ ] `.uetkx`: compiles to committed C++ (drift-gated in CI) AND interprets live —
       save mid-PIE, sub-second update, hook-signature state rule working and reported.
 - [ ] IDE tooling: **VS Code AND VS2022** extensions (shared server), markup intelligence
-      offline, embedded-C++ via clangd with graceful degradation; Rider TextMate grammar.
+      offline, embedded-C++ via clangd with graceful degradation. (Rider: skipped for v1 — owner 2026-07-11.)
 - [ ] Interop (the thesis — v1 ships it or the tagline is false): `URuiHostWidget`, `RUI::Umg`,
       `UseField`/`UseViewModel`, `URuiActivatableScreen` on a CommonUI stack — each with a demo.
 - [ ] Production gaps closed: virtualization, localization, brush/asset GC, focus restore,
@@ -606,7 +606,7 @@ IN v1 (all must be green, verified by running):
 OUT of v1 (deliberate, tracked in `plans/TECH_DEBT.md` from Phase 0 — not "demand-gated where
 marked" hand-waving; THIS is the list): the router subsystem (17 family router hooks + both
 router suites), the stylesheet third style layer, exit-animation protocol (designed in Phase 7,
-shipped v1.x), drag-and-drop + keyboard-shortcut APIs, the Rider LSP plugin (grammar-only in v1),
+shipped v1.x), drag-and-drop + keyboard-shortcut APIs, Rider support (ALL of it — skipped v1, owner 2026-07-11),
 the in-Unreal-editor `.uetkx` tab (and its cheaper cousin, a read-only live-preview panel — the
 realistic someday-step toward designer-ish workflows), Phase-4-style on-device remote reload,
 scripting adapters (UnrealSharp/AngelScript integration — or, owner's stated worst case, our own
@@ -937,7 +937,8 @@ distribution, and always opt-in — never a mandatory VM under the shipped UI, p
   5. `grammar/uetkx.tmLanguage.json` (embedded `source.cpp` injection); VS Code extension
      (`vscode-uetkx`): language id, client, sidecar watcher; VS2022: reuse the ILanguageClient
      stdio host (no napi addon → single cross-platform VSIX — verify and celebrate in the
-     changelog); **Rider day-one tier:** ship the TextMate grammar as a Rider-consumable bundle +
+     changelog); **Rider: skipped for v1 (owner 2026-07-11)** — no grammar bundle, no plugin;
+     formerly planned day-one tier was the TextMate grammar +
      document sidecar-diagnostics visibility (the JetBrains-LSP-API plugin is OUT of v1, tracked
      in TECH_DEBT).
   6. e2e smoke (`scripts/smoke.js` analogue): stdio handshake + markup completion + a clangd
