@@ -23,9 +23,9 @@ export default function __HOOK__Page() {
       <CodeBlock language="uetkx">{`component Example() {
 	__USAGE_SNIPPET__
 	return (
-		<VBox>
+		<VerticalBox>
 			...
-		</VBox>
+		</VerticalBox>
 	)
 }`}</CodeBlock>
 

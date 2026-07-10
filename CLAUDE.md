@@ -79,7 +79,11 @@ MASTER_PLAN §1; module table: D-27.
 ## Conventions (enforce; don't re-litigate)
 
 - **Naming:** `FRui*`/`SRui*`/`URui*`/`IRui*`/`TRui*`; factories in namespace `RUI::`
-  (`RUI::VBox()`, `RUI::FC`, `RUI::Umg`). Markup extension `.uetkx`.
+  (`RUI::Slate::VerticalBox()`, `RUI::FC`, `RUI::Umg`). Markup extension `.uetkx`.
+- **Element/prop/style/event naming is 1:1 loyal to Unreal (D-33, MASTER_PLAN):** tag = Slate
+  class minus `S` (`VerticalBox`, `TextBlock`, `Slider`); props/style keys/events = the Unreal
+  setter/property/delegate name (`WidthOverride`, `RenderOpacity`, `OnCheckStateChanged`); our
+  custom widgets carry the `Rui` mark (`RuiCanvas`). No shorthands, no React aliases.
 - **Copyright header (Fab requirement, CI-linted):** first line of every `.h/.cpp/.inl/.cs/.mjs`
   under `Source/`, `Plugins/`, `templates/`, `scripts/`, `ide-extensions/` (own code, not
   node_modules):

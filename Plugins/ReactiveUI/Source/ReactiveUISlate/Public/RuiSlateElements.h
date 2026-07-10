@@ -45,14 +45,19 @@ struct REACTIVEUISLATE_API FRuiOverlayProps final : public FRuiPropsBase
 	RUI_PROPS_BODY(FRuiOverlayProps, )
 };
 
-/** SBorder (SingleContent). Alignment values: fill|left|center|right / fill|top|center|bottom. */
+/** SBorder (SingleContent). Alignment values: fill|left|center|right / fill|top|center|bottom.
+ *  BorderImage takes an FCoreStyle brush NAME (v1 — e.g. "WhiteBrush" for a solid fill
+ *  tinted by BorderBackgroundColor; the engine default is a thin frame-type brush). Asset
+ *  brushes (textures/materials) are the D-17 work. */
 struct REACTIVEUISLATE_API FRuiBorderProps final : public FRuiPropsBase
 {
 	RUI_PROP(FMargin, Padding, 0)
 	RUI_PROP(FLinearColor, BorderBackgroundColor, 1)
 	RUI_PROP(FName, HAlign, 2)
 	RUI_PROP(FName, VAlign, 3)
-	RUI_PROPS_BODY(FRuiBorderProps, RUI_EQ(Padding) RUI_EQ(BorderBackgroundColor) RUI_EQ(HAlign) RUI_EQ(VAlign))
+	RUI_PROP(FName, BorderImage, 4)
+	RUI_PROPS_BODY(FRuiBorderProps,
+				   RUI_EQ(Padding) RUI_EQ(BorderBackgroundColor) RUI_EQ(HAlign) RUI_EQ(VAlign) RUI_EQ(BorderImage))
 };
 
 /** SBox (SingleContent): size overrides + content alignment. Overrides are settable, not
