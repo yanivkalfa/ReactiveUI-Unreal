@@ -10,6 +10,13 @@ updates:
     groups:
       docs-deps:
         patterns: ["*"]
+    ignore:
+      # Majors are DELIBERATELY deferred: the docs site is a clone of the family shell
+      # (ReactiveUI-Godot docs) and staying on the same majors keeps cross-repo shell syncs
+      # cheap. Major migrations (MUI, eslint, TypeScript, ...) happen family-wide, on purpose,
+      # not via weekly bot PRs. Minor/patch keep flowing.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:

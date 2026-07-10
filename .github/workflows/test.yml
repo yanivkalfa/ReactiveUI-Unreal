@@ -24,8 +24,8 @@ jobs:
     name: engine-free gates
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
       - name: changelog verify (Lane B drift gate)
@@ -43,7 +43,7 @@ jobs:
     name: clang-format check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install clang-format
         run: sudo apt-get update -q && sudo apt-get install -y -q clang-format
       - name: Check Source trees against .clang-format
@@ -57,7 +57,7 @@ jobs:
     name: lsp-server (self-guarded until Phase 5)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Guard
         id: guard
         run: |
@@ -67,7 +67,7 @@ jobs:
           else
             echo "armed=true" >> "$GITHUB_OUTPUT"
           fi
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         if: steps.guard.outputs.armed == 'true'
         with:
           node-version: 22
@@ -84,7 +84,7 @@ jobs:
     name: docs site (self-guarded until the scaffold lands)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Guard
         id: guard
         run: |
@@ -94,7 +94,7 @@ jobs:
           else
             echo "armed=true" >> "$GITHUB_OUTPUT"
           fi
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         if: steps.guard.outputs.armed == 'true'
         with:
           node-version: 22

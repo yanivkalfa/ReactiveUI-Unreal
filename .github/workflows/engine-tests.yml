@@ -30,7 +30,7 @@ jobs:
     env:
       ENGINE_ROOT: /home/ue4/UnrealEngine
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # 1. The empty-plugin/editor compile IS Phase 0's engine gate. Development Editor first.
       - name: Build Development Editor (Linux)

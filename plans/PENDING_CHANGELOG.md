@@ -10,4 +10,5 @@ around.
 
 ---
 
-_(empty — nothing merged since the last release)_
+- [lane A] [plugin] Phase 0: repository ecosystem + 8-module plugin skeleton (compiles on UE 5.6; CI gates, skills, templates, docs shell) (PR #4 / 657f279)
+- [lane A] [plugin] chore: action pins v7/v6 across workflows, docs deps minor-bumped, dependabot major-ignore policy for the docs shell (chore/post-merge-tidy)
