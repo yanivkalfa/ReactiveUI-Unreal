@@ -28,6 +28,7 @@ public class RuiHostTests : ModuleRules
 			"ReactiveUISlate",  // the Slate host suites + reorder spike
 			"RuiDemo",          // the Demos suite mounts the gallery
 			"ReactiveUIInterp", // the .uetkx scanner/parser suites
+			"ReactiveUIToolchain", // the codegen suites
 			"Json",             // contract-corpus loading
 			"SlateCore",
 			"Slate",
