@@ -11,7 +11,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRui__TAG__Test, "ReactiveUI.Widgets.__TAG__",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+								 EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 
 bool FRui__TAG__Test::RunTest(const FString& Parameters)
 {

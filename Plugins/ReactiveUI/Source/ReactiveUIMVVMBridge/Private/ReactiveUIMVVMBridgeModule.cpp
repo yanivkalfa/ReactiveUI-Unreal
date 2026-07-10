@@ -13,9 +13,7 @@ public:
 		UE_LOG(LogRuiMVVMBridge, Verbose, TEXT("ReactiveUIMVVMBridge module started"));
 	}
 
-	virtual void ShutdownModule() override
-	{
-	}
+	virtual void ShutdownModule() override {}
 };
 
 IMPLEMENT_MODULE(FReactiveUIMVVMBridgeModule, ReactiveUIMVVMBridge)

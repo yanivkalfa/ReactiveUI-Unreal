@@ -19,9 +19,9 @@
 // ── props struct (one RUI_PROP row per prop-map "props" entry) ──────────────────────────
 struct FRui__TAG__Props : public FRuiPropsBase
 {
-	RUI_PROP(FText, __PROP1__, 0)          // kind=attribute, setter=Set__PROP1__
-	RUI_PROP(bool, __PROP2__, 1)           // ...
-	RUI_PROP(FRuiCallback, __EVENT1__, 2)  // event slot — diffed by proxy swap, never compared
+	RUI_PROP(FText, __PROP1__, 0)		  // kind=attribute, setter=Set__PROP1__
+	RUI_PROP(bool, __PROP2__, 1)		  // ...
+	RUI_PROP(FRuiCallback, __EVENT1__, 2) // event slot — diffed by proxy swap, never compared
 	// SetBits semantics: bit set = this render specified the field. Removed PLAIN props are
 	// ignored (family semantic); removed style/event/ref bits ARE cleaned up.
 };
@@ -31,7 +31,7 @@ namespace RUI
 {
 	FRuiNodeBuilder<FRui__TAG__Props> __TAG__();
 	// One fluent setter per prop: RUI::__TAG__().__PROP1__(...).__EVENT1__(...)
-}
+} // namespace RUI
 
 // ── adapter (registered into the element registry at module startup) ─────────────────────
 class FRui__TAG__Adapter final : public IRuiElementAdapter
@@ -50,7 +50,8 @@ public:
 		return W;
 	}
 
-	virtual void ApplyDiff(const TSharedRef<SWidget>& Widget, const FRuiPropsBase& Old, const FRuiPropsBase& New) override
+	virtual void ApplyDiff(const TSharedRef<SWidget>& Widget, const FRuiPropsBase& Old,
+						   const FRuiPropsBase& New) override
 	{
 		auto& W = static_cast<S__SLATE_CLASS__&>(Widget.Get());
 		const auto& O = static_cast<const FRui__TAG__Props&>(Old);

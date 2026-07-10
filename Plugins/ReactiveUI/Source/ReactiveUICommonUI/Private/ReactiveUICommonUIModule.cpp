@@ -13,9 +13,7 @@ public:
 		UE_LOG(LogRuiCommonUI, Verbose, TEXT("ReactiveUICommonUI module started"));
 	}
 
-	virtual void ShutdownModule() override
-	{
-	}
+	virtual void ShutdownModule() override {}
 };
 
 IMPLEMENT_MODULE(FReactiveUICommonUIModule, ReactiveUICommonUI)

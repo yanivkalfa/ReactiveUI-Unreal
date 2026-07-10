@@ -23,9 +23,7 @@ public:
 		UE_LOG(LogRuiCore, Display, TEXT("ReactiveUI %s loaded (ReactiveUICore)"), *VersionName);
 	}
 
-	virtual void ShutdownModule() override
-	{
-	}
+	virtual void ShutdownModule() override {}
 };
 
 IMPLEMENT_MODULE(FReactiveUICoreModule, ReactiveUICore)

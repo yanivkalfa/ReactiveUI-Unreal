@@ -13,9 +13,7 @@ public:
 		UE_LOG(LogRuiToolchain, Verbose, TEXT("ReactiveUIToolchain module started"));
 	}
 
-	virtual void ShutdownModule() override
-	{
-	}
+	virtual void ShutdownModule() override {}
 };
 
 IMPLEMENT_MODULE(FReactiveUIToolchainModule, ReactiveUIToolchain)

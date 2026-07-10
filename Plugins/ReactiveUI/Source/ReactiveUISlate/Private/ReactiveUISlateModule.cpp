@@ -8,14 +8,9 @@ DEFINE_LOG_CATEGORY_STATIC(LogRuiSlate, Log, All);
 class FReactiveUISlateModule : public IModuleInterface
 {
 public:
-	virtual void StartupModule() override
-	{
-		UE_LOG(LogRuiSlate, Verbose, TEXT("ReactiveUISlate module started"));
-	}
+	virtual void StartupModule() override { UE_LOG(LogRuiSlate, Verbose, TEXT("ReactiveUISlate module started")); }
 
-	virtual void ShutdownModule() override
-	{
-	}
+	virtual void ShutdownModule() override {}
 };
 
 IMPLEMENT_MODULE(FReactiveUISlateModule, ReactiveUISlate)
