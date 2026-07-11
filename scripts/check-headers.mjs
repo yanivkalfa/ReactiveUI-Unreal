@@ -25,7 +25,9 @@ const EXTS_HASH = new Set(['.ps1']);
 // `server` = the vscode-uetkx/UetkxVsix bundled-language-server output (compiled JS copied in
 // at package time — build output, same rationale as `out/`; git-ignored, but the scan walks
 // the filesystem so a locally-built bundle must not trip the gate either).
-const EXCLUDE_DIRS = new Set(['node_modules', 'out', 'dist', 'server', 'Binaries', 'Intermediate', 'Saved', '.git']);
+// `bin`/`obj` = MSBuild output (the UetkxVsix build generates .cs stubs under obj/) — same
+// walks-the-filesystem rationale.
+const EXCLUDE_DIRS = new Set(['node_modules', 'out', 'dist', 'server', 'bin', 'obj', 'Binaries', 'Intermediate', 'Saved', '.git']);
 const NEEDLE = /Copyright \(c\) .*Yaniv Kalfa/;
 
 const failures = [];

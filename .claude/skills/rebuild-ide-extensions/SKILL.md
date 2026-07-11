@@ -39,6 +39,8 @@ completion, hover, diagnostics, formatting.
 - **Client breakpoints** (`src/extension.ts`) bind directly in the F5 session.
 - **Server breakpoints**: with the host up, run **"Attach to UETKX Language Server"** —
   the client starts the server with `--inspect=6010` in debug mode.
+- **Server logs**: in the dev host, Output tab → dropdown → **"UETKX Language Server"**
+  (the server's stdout/stderr; an unhandled exception there = broken bundle, not markup).
 - Opening `ide-extensions/vscode-uetkx` as its own workspace also works (it keeps a nested
   `.vscode/`), but root-F5 is the supported flow.
 
@@ -57,18 +59,18 @@ plain `tsc` output, not an esbuild bundle; do not apply the Unity sibling's
 
 ## VS2022 — experimental instance
 
-Requires VS2022 + the **"Visual Studio extension development"** workload. `UetkxVsix\server\`
-is a **static copy**, never auto-synced:
+Requires VS2022 + the **"Visual Studio extension development"** workload. One command does
+the whole chain (npm builds → mirror the server bundle into `UetkxVsix\server` → msbuild):
 
 ```powershell
-cmd /d /c "cd /d ide-extensions\lsp-server && npm run build"
-cmd /d /c "cd /d ide-extensions\vscode-uetkx && npm run build"
-Remove-Item ide-extensions/visual-studio/UetkxVsix/server -Recurse -Force -ErrorAction SilentlyContinue
-Copy-Item ide-extensions/vscode-uetkx/server ide-extensions/visual-studio/UetkxVsix/server -Recurse
+cd ide-extensions\visual-studio
+.\build-local.ps1           # build only;  -Debug launches the Exp instance;  -Install = main hive
 ```
 
-Then open `ide-extensions/visual-studio/UetkxVsix/UetkxVsix.csproj` in VS2022 and **F5** —
-the experimental instance launches with the VSIX installed. The client prefers a bundled
+Or in-IDE: run at least step 1 of the script once (the server mirror), then open
+`ide-extensions/visual-studio/UetkxVsix/UetkxVsix.csproj` in VS2022 and **F5** — the csproj
+commits `StartAction/StartProgram/StartArguments` (devenv `/rootsuffix Exp`), so F5 deploys
+to the experimental hive and launches it, Unity-sibling style. The client prefers a bundled
 `server\node.exe` and falls back to `node` on PATH; for a dev box, PATH is fine.
 
 ## Out of scope — marketplace releases
@@ -93,5 +95,11 @@ at F5-ready local artifacts. Local `.vsix` packaging for sideloading is
 - **VS Code never hot-swaps a running server** — after a rebuild with the dev host still
   open, run "Developer: Reload Window" *in the dev host* (or stop and F5 again); the old
   node process keeps serving otherwise.
-- **VS2022 "sees an old server"** — the static mirror step above was skipped. Same failure
-  shape as the Unity sibling's VSIX, same fix: re-copy, rebuild, relaunch.
+- **VS2022 "sees an old server"** — the static mirror into `UetkxVsix\server` was skipped.
+  Same failure shape as the Unity sibling's VSIX, same fix: re-run build-local.ps1.
+- **Red Debug Console noise ≠ our extension failing** — before `--disable-extensions` was in
+  the launch args, installed extensions (GitLens' ConfigCat telemetry) spammed red stderr in
+  the dev host and read as extension errors (owner-reported, 2026-07-11). Our extension's
+  real signal lives in Output → "UETKX Language Server".
+- **VSIX sometimes not regenerated on incremental build** — build-local.ps1 deletes `obj\`
+  and uses `/t:Rebuild` deliberately (Unity-sibling scar); don't "optimize" that away.

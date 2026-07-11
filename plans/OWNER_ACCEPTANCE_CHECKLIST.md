@@ -62,11 +62,12 @@ Setup: editor open, PIE running, `Source/RuiDemo/Screens/SimpleCounter.uetkx` op
 
 ## E. VS2022 extension (~15 min, needs the VSSDK workload)
 
-- [ ] Open `ide-extensions/visual-studio/UetkxVsix/UetkxVsix.csproj` in VS2022 (17.x) with the
-      "Visual Studio extension development" workload; restore + build.
-- [ ] Copy the built lsp-server bundle into `UetkxVsix/server/` (the vscode sibling's
-      `scripts/bundle-server.mjs` output layout) — optionally a `node.exe` beside it.
-- [ ] F5 (experimental instance) → open a `.uetkx`: colors + completions + diagnostics work.
+- [ ] `cd ide-extensions/visual-studio && .\build-local.ps1` — builds the server bundle,
+      mirrors it into `UetkxVsix/server/`, and builds the VSIX in one go.
+- [ ] Open `ide-extensions/visual-studio/UetkxVsix/UetkxVsix.csproj` in VS2022 (17.x, VSSDK
+      workload) and press **F5** (StartAction is committed → experimental instance), or
+      `.\build-local.ps1 -Debug`.
+- [ ] In the experimental instance, open a `.uetkx`: colors + completions + diagnostics work.
 
 ## F. Interop spot checks (~10 min)
 

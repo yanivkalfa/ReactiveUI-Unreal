@@ -14,6 +14,11 @@
 			"type": "extensionHost",
 			"request": "launch",
 			"args": [
+				// --disable-extensions = clean host: only the dev extension loads (dev-path
+				// extensions always load; built-ins like the cpp grammar too). Without it,
+				// installed extensions (GitLens etc.) spam the Debug Console with red stderr
+				// noise that reads like OUR extension failing (owner-reported, 2026-07-11).
+				"--disable-extensions",
 				"--extensionDevelopmentPath=${workspaceFolder}/ide-extensions/vscode-uetkx",
 				"${workspaceFolder}"
 			],
