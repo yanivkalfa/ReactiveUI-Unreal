@@ -125,9 +125,11 @@ namespace RUI
 	/** A live definition override for a ComponentId: the reconciler invokes this INSTEAD of
 	 *  the fiber's compiled Invoke. Each Set bumps the generation; bResetState additionally
 	 *  disposes hook state the first time each fiber renders under the new generation (hook
-	 *  shape changed). Clear returns the component to its compiled definition. */
+	 *  shape changed). bMigrateState (TD-019) makes that reset MIGRATE exported state rather than
+	 *  zero it — used for the compiled→interp representation swap where the shape is unchanged.
+	 *  Clear returns the component to its compiled definition. */
 	REACTIVEUICORE_API void SetComponentOverride(FName ComponentId, TSharedPtr<FRuiComponentInvoke> Invoke,
-												 bool bResetState);
+												 bool bResetState, bool bMigrateState = false);
 	REACTIVEUICORE_API void ClearComponentOverride(FName ComponentId);
 
 	struct FRuiComponentOverride
@@ -135,6 +137,7 @@ namespace RUI
 		TSharedPtr<FRuiComponentInvoke> Invoke;
 		uint32 Generation = 0;
 		bool bResetState = false;
+		bool bMigrateState = false; // TD-019: reset by MIGRATING exported state, not hard-zeroing it
 	};
 	/** Snapshot lookup (copy — the registry may be swapped between renders). Unset = empty
 	 *  Invoke. */

@@ -71,6 +71,7 @@ FRuiHmrStatus FRuiHmr::ApplySource(const FString& Source, const FString& Basenam
 		}
 
 		bool bReset = false;
+		bool bMigrate = false;
 		{
 			FScopeLock Guard(&Session.Lock);
 			if (const uint32* PrevInterp = Session.InterpSigs.Find(ComponentId))
@@ -79,26 +80,29 @@ FRuiHmrStatus FRuiHmr::ApplySource(const FString& Source, const FString& Basenam
 			}
 			else
 			{
-				// first swap this session: compiled cells are typed, interp cells are
-				// FRuiValue — representation change forces a reset either way; report the
-				// truthful reason.
+				// first swap this session: compiled cells are typed, interp cells are FRuiValue.
 				bReset = true;
 				const uint32 CompiledSig = RUI::FindHookSignature(ComponentId);
 				if (CompiledSig != 0 && CompiledSig != NewSig)
 				{
+					// hook shape changed — a genuine reset (family rule), no migration.
 					Status.Notes.Add(FString::Printf(TEXT("%s: state reset: hook shape changed"), *Decl.Name));
 				}
 				else
 				{
+					// same shape (or compiled sig unknown): TD-019 MIGRATES the typed cells into
+					// the interpreter's FRuiValue cells — numeric/string/bool/text state survives
+					// the first swap; only container/opaque slots re-init.
+					bMigrate = true;
 					Status.Notes.Add(
-						FString::Printf(TEXT("%s: state reset: first interp swap (representation)"), *Decl.Name));
+						FString::Printf(TEXT("%s: state migrated: first interp swap (representation)"), *Decl.Name));
 				}
 			}
 			Session.InterpSigs.Add(ComponentId, NewSig);
 		}
-		if (bReset)
+		if (bReset && !bMigrate)
 		{
-			++Status.Reset;
+			++Status.Reset; // a migrating swap preserves user state — it is a reload, not a reset
 		}
 
 		if (!RUI::HasNamedFactory(ComponentId))
@@ -108,7 +112,7 @@ FRuiHmrStatus FRuiHmr::ApplySource(const FString& Source, const FString& Basenam
 			RUI::RegisterNamedFactory(ComponentId, [LinkDef]() { return LinkDef->MakeNode(); });
 			++Status.Linked;
 		}
-		RUI::SetComponentOverride(ComponentId, Def->MakeInvoke(), bReset);
+		RUI::SetComponentOverride(ComponentId, Def->MakeInvoke(), bReset, bMigrate);
 		++Status.Reloaded;
 	}
 

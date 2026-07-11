@@ -141,6 +141,12 @@ struct IRuiHookCell
 {
 	virtual ~IRuiHookCell() = default;
 	virtual ERuiHookKind GetKind() const = 0;
+
+	/** Export this cell's value as an FRuiValue when the payload type round-trips through the
+	 *  variant (TD-019). Only STATE cells whose T is FRuiValue-constructible answer true; the
+	 *  compiled→interp HMR swap uses this to MIGRATE typed state into the interpreter's
+	 *  FRuiValue cells instead of hard-resetting it. false = not migratable (re-init from Init). */
+	virtual bool ExportRuiValue(FRuiValue& Out) const { return false; }
 };
 
 template <typename T> struct TRuiStateCell final : IRuiHookCell
@@ -148,6 +154,21 @@ template <typename T> struct TRuiStateCell final : IRuiHookCell
 	T Value;
 	explicit TRuiStateCell(T InValue) : Value(MoveTemp(InValue)) {}
 	virtual ERuiHookKind GetKind() const override { return ERuiHookKind::State; }
+
+	virtual bool ExportRuiValue(FRuiValue& Out) const override
+	{
+		// Numeric / bool / string / text / vector2 / color state round-trips; container or
+		// opaque state (e.g. TArray<FString>) does not construct an FRuiValue → stays reset.
+		if constexpr (std::is_constructible_v<FRuiValue, const T&>)
+		{
+			Out = FRuiValue(Value);
+			return true;
+		}
+		else
+		{
+			return false;
+		}
+	}
 };
 
 template <typename T, typename TAction> struct TRuiReducerCell final : IRuiHookCell

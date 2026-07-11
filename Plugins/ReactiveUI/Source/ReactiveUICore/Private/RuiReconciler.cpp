@@ -428,7 +428,23 @@ void FRuiReconciler::RenderComponent(FRuiFiber* Fiber)
 			{
 				if (Override.bResetState && State->Hooks.Num() > 0)
 				{
-					State->HmrResetHooks(); // hook shape changed: deliberate reset (family rule)
+					if (Override.bMigrateState)
+					{
+						// TD-019: same-shape representation swap — snapshot exportable state by hook
+						// slot BEFORE the reset so this render's UseState re-seeds from it. Non-
+						// migratable slots (effects/refs/container state) leave a Null and re-init.
+						State->MigratedState.Reset();
+						State->MigratedState.SetNum(State->Hooks.Num());
+						for (int32 h = 0; h < State->Hooks.Num(); ++h)
+						{
+							FRuiValue Exported;
+							if (State->Hooks[h].IsValid() && State->Hooks[h]->ExportRuiValue(Exported))
+							{
+								State->MigratedState[h] = MoveTemp(Exported);
+							}
+						}
+					}
+					State->HmrResetHooks(); // reset (family rule); MigratedState survives for re-seed
 				}
 				State->HmrGeneration = Override.Generation;
 			}
@@ -500,6 +516,7 @@ void FRuiReconciler::RenderComponent(FRuiFiber* Fiber)
 	{
 		Result = RunOnce(); // double-invoke, first result discarded (impure-render flusher)
 	}
+	State->MigratedState.Reset(); // TD-019: one-shot — consumed by this render's UseState calls
 
 	// Cooperative error latch (D-10): a failed render unwinds to the nearest boundary.
 	if (TOptional<FString> Failure = RUI::ConsumeRenderFailure())

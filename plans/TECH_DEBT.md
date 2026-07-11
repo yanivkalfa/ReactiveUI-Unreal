@@ -223,7 +223,15 @@ referenced from plans/PRs.
   via `if constexpr (std::is_constructible_v<FRuiValue, T>)`) + an interp-aware UseState
   path that migrates an exporting cell's value into the fresh FRuiValue cell when the hook
   signature matches. Numeric/string/bool/text state would then survive the FIRST save too.
-- **Status:** OPEN
+- **Status:** RESOLVED 2026-07-12 — `IRuiHookCell::ExportRuiValue(FRuiValue&)` (default false;
+  `TRuiStateCell<T>` overrides via `if constexpr (std::is_constructible_v<FRuiValue, const T&>)`);
+  `SetComponentOverride` + `FRuiComponentOverride` gain `bMigrateState`; the reconciler snapshots
+  exportable cells into `FRuiComponentState::MigratedState` (by hook slot) before the reset and
+  `UseState<FRuiValue>` re-seeds from it; `RuiHmr` sets `bMigrate` on the same-shape first swap and
+  no longer counts it a reset (note reads `state migrated`). Numeric/string/bool/text state now
+  survives the first compiled→interp save; only container/opaque slots or a shape change reset.
+  Test: `ReactiveUI.Hmr` "numeric state SURVIVED the first swap (TD-019)" (compiled counter → 5,
+  first interp swap, still 5). battery green.
 
 ## TD-020 — Embedded-C++ intelligence (clangd proxy over a virtual document)
 - **Where:** `ide-extensions/lsp-server` (virtualDoc/sourceMap/clangdProxy modules)

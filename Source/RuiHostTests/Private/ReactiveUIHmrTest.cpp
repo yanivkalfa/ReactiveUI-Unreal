@@ -7,10 +7,14 @@
 // isolation (old UI keeps rendering), and the interp↔schema vocabulary parity.
 
 #include "Misc/AutomationTest.h"
+#include "RuiContext.h"
+#include "RuiCoreElements.h"
 #include "RuiHmr.h"
 #include "RuiNode.h"
 #include "RuiRoot.h"
+#include "RuiSlateElements.h"
 #include "UetkxCodegen.h"
+#include "UetkxFileScan.h"
 #include "UetkxInterpElements.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonReader.h"
@@ -57,6 +61,23 @@ namespace HmrTest
 		return nullptr;
 	}
 } // namespace HmrTest
+
+// TD-019: a genuinely COMPILED component (real TRuiStateCell<int32>) whose ComponentId is
+// "MigrateDemo" — the interpreter can override it, so we can prove numeric state MIGRATES across
+// the first compiled→interp swap instead of resetting. RUI_COMPONENT registers the id as the fn
+// name, so the fn MUST be named MigrateDemo to match the interp `component MigrateDemo`.
+static FRuiNodeArray MigrateDemo(FRuiContext& Ctx, const FRuiEmptyProps&, const TArray<FRuiNode>&)
+{
+	auto [Count, SetCount] = Ctx.UseState<int32>(0);
+	TFunction<void(int32)> Set = SetCount;
+	const int32 Now = Count;
+	FRuiButtonProps P;
+	P.SetOnClicked(FRuiCallback::Create([Set, Now]() { Set(Now + 1); }));
+	return {RUI::Slate::VerticalBox(FRuiVerticalBoxProps(),
+									{RUI::TextBlock(FText::FromString(FString::Printf(TEXT("Count: %d"), Count))),
+									 RUI::Slate::Button(MoveTemp(P), {RUI::TextBlock(FString(TEXT("+")))})})};
+}
+RUI_COMPONENT(MigrateDemo)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRuiHmrTest, "ReactiveUI.Hmr",
 								 EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
@@ -186,6 +207,56 @@ bool FRuiHmrTest::RunTest(const FString&)
 		TestTrue(
 			TEXT("rebuild note lists the importers"),
 			Status.Notes.ContainsByPredicate([](const FString& N) { return N.Contains(TEXT("ScreenA, ScreenB")); }));
+	}
+
+	// ── TD-019: numeric state MIGRATES across the first compiled→interp swap ──────────────────
+	// The prior behavior reset compiled state on the first save (representation change). Now a
+	// same-shape swap migrates numeric/string/bool/text state, so the counter SURVIVES.
+	{
+		FRuiHmr::ResetSession();
+		// Register the compiled component + its hook signature so the swap sees a matching shape.
+		RUI::RegisterNamedFactory(FName(TEXT("MigrateDemo")), []() { return RUI::FC(&MigrateDemo); });
+		RUI::RegisterHookSignature(FName(TEXT("MigrateDemo")),
+								   FUetkxFileScan::HookSignature({FString(TEXT("UseState"))}));
+
+		TSharedRef<FRuiRoot> Root2 = FRuiRoot::Create(RUI::Named(FName(TEXT("MigrateDemo"))));
+		Root2->FlushSync();
+		SWidget& W = Root2->GetWidget().Get();
+		TestTrue(TEXT("compiled starts at 0"), HmrTest::ContainsText(W, TEXT("Count: 0")));
+
+		// Advance the COMPILED typed cell to 5 through real clicks.
+		if (SButton* Plus = HmrTest::FindFirstButton(W))
+		{
+			for (int32 k = 0; k < 5; ++k)
+			{
+				Plus->SimulateClick();
+				Root2->FlushSync();
+			}
+		}
+		TestTrue(TEXT("compiled advanced to 5"), HmrTest::ContainsText(W, TEXT("Count: 5")));
+
+		// First interp swap, SAME hook shape → migrate (not reset).
+		const FString InterpSrc =
+			TEXT("component MigrateDemo {\n"
+				 "\tauto [Count, SetCount] = UseState<int32>(0);\n"
+				 "\tTFunction<void(int32)> Set = SetCount;\n"
+				 "\tconst int32 Now = Count;\n"
+				 "\treturn (\n"
+				 "\t\t<VerticalBox>\n"
+				 "\t\t\t<TextBlock Text={ FText::FromString(FString::Printf(TEXT(\"Count: %d\"), Count)) } />\n"
+				 "\t\t\t<Button OnClicked={ Set(Now + 1) }>+</Button>\n"
+				 "\t\t</VerticalBox>\n"
+				 "\t);\n"
+				 "}\n");
+		const FRuiHmrStatus Status = FRuiHmr::ApplySource(InterpSrc, TEXT("MigrateDemo"));
+		TestTrue(TEXT("migrate swap applies clean"), Status.Ok());
+		TestEqual(TEXT("first swap migrates, does NOT count a reset"), Status.Reset, 0);
+		TestTrue(TEXT("swap note reports state migrated"),
+				 Status.Notes.ContainsByPredicate([](const FString& N) { return N.Contains(TEXT("state migrated")); }));
+		Root2->FlushSync();
+		TestTrue(TEXT("numeric state SURVIVED the first swap (TD-019)"), HmrTest::ContainsText(W, TEXT("Count: 5")));
+
+		RUI::ClearComponentOverride(FName(TEXT("MigrateDemo")));
 	}
 
 	FRuiHmr::ResetSession();
