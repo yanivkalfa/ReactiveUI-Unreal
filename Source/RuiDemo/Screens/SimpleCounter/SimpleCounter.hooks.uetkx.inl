@@ -8,10 +8,12 @@ inline TTuple<int32, TFunction<void()>> UseCounter(FRuiContext& Ctx, int32 Start
 #else
 inline TTuple<int32, TFunction<void()>> UseCounter(FRuiContext& Ctx, int32 Start)
 {
+#line 2 "Source/RuiDemo/Screens/SimpleCounter/SimpleCounter.hooks.uetkx"
 	auto [Count, SetCount] = Ctx.UseState<int32>(Start);
 		const int32 Current = Count;
 		TFunction<void()> Increment = [SetCount, Current]() { SetCount(Current + 1); };
 		return MakeTuple(Count, Increment);
+#line 17 "SimpleCounter.hooks.uetkx.inl"
 }
 
 #endif

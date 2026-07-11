@@ -350,6 +350,18 @@ compiler fingerprint) — all fold into ONE CodegenVersion bump + one golden re-
 
 ### M7 — `#line` project-relative + VS spike **[REPIN]**
 
+> **M7.1 SPIKE VERDICT (recorded 2026-07-11):** path = **PROJECT-RELATIVE, forward slashes**
+> (`#line 4 "Source/RuiDemo/Screens/SimpleCounter/SimpleCounter.uetkx"`), fixtures/tests use the
+> stable `<Basename>.uetkx`. Verified structurally + by compilation: RUICompile -full emits the
+> directives, the line mapping is correct (SimpleCounter's setup starts at source line 4 → `#line
+> 4`), and the RuiDemo + RuiHostTests aggregator TUs COMPILE with the directives + `#line @@R@@`
+> restore fixups. The **interactive VS breakpoint-bind + stepping confirmation** could NOT be run in
+> this headless environment (no live VS debugger); it is the one remaining human check — project-
+> relative was chosen because VS resolves `#line` paths via the `.sln` directory. Emit scope: the
+> top-level verbatim regions (component setup, hook bodies, module bodies). Mid-line attr/event
+> exprs AND directive (`@if`/`@for`/`@while`) headers are the accepted granularity limit (no per-
+> line `#line`; column drift accepted) — recorded under TD-023.
+
 - M7.1 SPIKE (before goldens): hand-edit one committed .inl with
   `#line N "Source/RuiDemo/Screens/HelloWorld/HelloWorld.uetkx"` inside setup; build; set a VS
   breakpoint in the .uetkx; confirm bind + stepping. Also test .inl-dir-relative form. Winner =

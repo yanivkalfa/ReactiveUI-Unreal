@@ -19,6 +19,7 @@ inline FRuiNode CustomDraw(FCustomDrawUetkxProps InProps = FCustomDrawUetkxProps
 #else
 static FRuiNodeArray CustomDraw_UetkxImpl(FRuiContext& Ctx, const FCustomDrawUetkxProps& Props, const TArray<FRuiNode>& children)
 {
+#line 4 "Source/RuiDemo/Screens/CustomDraw/CustomDraw.uetkx"
 	auto [Sides, SetSides] = Ctx.UseState<int32>(3);
 		auto [bBlue, SetBlue] = Ctx.UseState<bool>(true);
 		auto [RedrawTick, SetRedrawTick] = Ctx.UseState<int32>(0);
@@ -45,6 +46,7 @@ static FRuiNodeArray CustomDraw_UetkxImpl(FRuiContext& Ctx, const FCustomDrawUet
 		// 3: STABLE fn + RedrawKey bump forces the repaint instead.
 		const TSharedPtr<FRuiDrawFn>& ScatterFn =
 			Ctx.UseMemo<TSharedPtr<FRuiDrawFn>>([]() { return RUI::Slate::MakeDrawFn(&RuiDemo::DrawScatter); }, RUI::Deps());
+#line 50 "CustomDraw.uetkx.inl"
 	return { [&]() -> FRuiNode {
 		FRuiBorderProps P;
 		P.SetPadding(FMargin(12));

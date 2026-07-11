@@ -60,6 +60,12 @@ public:
 		return C == '_' || (C >= 'a' && C <= 'z') || (C >= 'A' && C <= 'Z') || (C >= '0' && C <= '9');
 	}
 
+	/** Code-point offsets of each line head (index 0 = line 1). LineOf maps an offset to its 1-based
+	 *  source line — the basis for the `#line` directives that make VS breakpoints in a .uetkx bind
+	 *  to the generated `.inl` (M7). */
+	static TArray<int32> BuildLineStarts(const TArray<int32>& Src);
+	static int32 LineOf(const TArray<int32>& LineStarts, int32 Offset);
+
 private:
 	static int32 SkipString(const TArray<int32>& Src, int32 QuoteIndex);
 	static int32 SkipRawString(const TArray<int32>& Src, int32 RIndex);

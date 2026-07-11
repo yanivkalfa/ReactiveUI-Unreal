@@ -18,6 +18,7 @@ inline FRuiNode TicTacToe(FTicTacToeUetkxProps InProps = FTicTacToeUetkxProps(),
 #else
 static FRuiNodeArray TicTacToe_UetkxImpl(FRuiContext& Ctx, const FTicTacToeUetkxProps& Props, const TArray<FRuiNode>& children)
 {
+#line 2 "Source/RuiDemo/Screens/TicTacToe/TicTacToe.uetkx"
 	auto EmptyGrid = []() {
 			TArray<FString> G;
 			G.SetNum(9);
@@ -84,6 +85,7 @@ static FRuiNodeArray TicTacToe_UetkxImpl(FRuiContext& Ctx, const FTicTacToeUetkx
 				SetTurnFn(TurnNow == TEXT("X") ? FString(TEXT("O")) : FString(TEXT("X")));
 			}
 		};
+#line 89 "TicTacToe.uetkx.inl"
 	return { [&]() -> FRuiNode {
 		FRuiBorderProps P;
 		P.SetPadding(FMargin(12));

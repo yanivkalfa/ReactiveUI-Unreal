@@ -608,3 +608,40 @@ bool FUetkxLexer::KeywordAt(const TArray<int32>& Src, int32 Index, const TCHAR* 
 	}
 	return true;
 }
+
+TArray<int32> FUetkxLexer::BuildLineStarts(const TArray<int32>& Src)
+{
+	TArray<int32> Starts;
+	Starts.Add(0); // line 1 starts at offset 0
+	for (int32 i = 0; i < Src.Num(); ++i)
+	{
+		if (Src[i] == '\n')
+		{
+			Starts.Add(i + 1);
+		}
+	}
+	return Starts;
+}
+
+int32 FUetkxLexer::LineOf(const TArray<int32>& LineStarts, int32 Offset)
+{
+	if (LineStarts.Num() == 0)
+	{
+		return 1;
+	}
+	// 1-based line = the last start that is <= Offset (binary search).
+	int32 Lo = 0, Hi = LineStarts.Num() - 1;
+	while (Lo < Hi)
+	{
+		const int32 Mid = (Lo + Hi + 1) / 2;
+		if (LineStarts[Mid] <= Offset)
+		{
+			Lo = Mid;
+		}
+		else
+		{
+			Hi = Mid - 1;
+		}
+	}
+	return Lo + 1;
+}

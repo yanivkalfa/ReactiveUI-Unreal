@@ -18,8 +18,10 @@ inline FRuiNode SimpleTextField(FSimpleTextFieldUetkxProps InProps = FSimpleText
 #else
 static FRuiNodeArray SimpleTextField_UetkxImpl(FRuiContext& Ctx, const FSimpleTextFieldUetkxProps& Props, const TArray<FRuiNode>& children)
 {
+#line 2 "Source/RuiDemo/Screens/SimpleTextField/SimpleTextField.uetkx"
 	auto [Text, SetText] = Ctx.UseState<FString>(FString());
 		TFunction<void(FString)> Set = SetText;
+#line 25 "SimpleTextField.uetkx.inl"
 	return { [&]() -> FRuiNode {
 		FRuiBorderProps P;
 		P.SetPadding(FMargin(12));

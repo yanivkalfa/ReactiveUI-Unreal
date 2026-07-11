@@ -18,6 +18,7 @@ inline FRuiNode KeyedDiff(FKeyedDiffUetkxProps InProps = FKeyedDiffUetkxProps(),
 #else
 static FRuiNodeArray KeyedDiff_UetkxImpl(FRuiContext& Ctx, const FKeyedDiffUetkxProps& Props, const TArray<FRuiNode>& children)
 {
+#line 2 "Source/RuiDemo/Screens/KeyedDiff/KeyedDiff.uetkx"
 	static const TCHAR* Seed[] = {TEXT("Alpha"), TEXT("Bravo"), TEXT("Charlie"), TEXT("Delta"),
 									  TEXT("Echo"), TEXT("Foxtrot"), TEXT("Golf")};
 		auto SeedItems = []() {
@@ -88,6 +89,7 @@ static FRuiNodeArray KeyedDiff_UetkxImpl(FRuiContext& Ctx, const FKeyedDiffUetkx
 				Apply(MoveTemp(Next));
 			}
 		};
+#line 93 "KeyedDiff.uetkx.inl"
 	return { [&]() -> FRuiNode {
 		FRuiBorderProps P;
 		P.SetPadding(FMargin(12));

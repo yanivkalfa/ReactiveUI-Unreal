@@ -18,9 +18,11 @@ inline FRuiNode SimpleUseEffect(FSimpleUseEffectUetkxProps InProps = FSimpleUseE
 #else
 static FRuiNodeArray SimpleUseEffect_UetkxImpl(FRuiContext& Ctx, const FSimpleUseEffectUetkxProps& Props, const TArray<FRuiNode>& children)
 {
+#line 2 "Source/RuiDemo/Screens/SimpleUseEffect/SimpleUseEffect.uetkx"
 	auto [Message, SetMessage] = Ctx.UseState<FString>(FString(TEXT("Waiting...")));
 		TFunction<void(FString)> Set = SetMessage;
 		Ctx.UseEffect([Set]() { Set(FString(TEXT("Effect ran!"))); }, RUI::Deps());
+#line 26 "SimpleUseEffect.uetkx.inl"
 	return { [&]() -> FRuiNode {
 		FRuiBorderProps P;
 		P.SetPadding(FMargin(12));

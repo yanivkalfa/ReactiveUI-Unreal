@@ -19,6 +19,7 @@ inline FRuiNode StressTest(FStressTestUetkxProps InProps = FStressTestUetkxProps
 #else
 static FRuiNodeArray StressTest_UetkxImpl(FRuiContext& Ctx, const FStressTestUetkxProps& Props, const TArray<FRuiNode>& children)
 {
+#line 4 "Source/RuiDemo/Screens/StressTest/StressTest.uetkx"
 	auto [CountText, SetCountText] = Ctx.UseState<FString>(FString(TEXT("300")));
 		auto [DurationText, SetDurationText] = Ctx.UseState<FString>(FString(TEXT("10")));
 		auto [bRunning, SetRunning] = Ctx.UseState<bool>(false);
@@ -144,6 +145,7 @@ static FRuiNodeArray StressTest_UetkxImpl(FRuiContext& Ctx, const FStressTestUet
 				SetRunningFn(true);
 			}
 		};
+#line 149 "StressTest.uetkx.inl"
 	return { [&]() -> FRuiNode {
 		FRuiBorderProps P;
 		P.SetPadding(FMargin(12));

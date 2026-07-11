@@ -19,7 +19,9 @@ inline FRuiNode SignalPanel(FSignalPanelUetkxProps InProps = FSignalPanelUetkxPr
 #else
 static FRuiNodeArray SignalPanel_UetkxImpl(FRuiContext& Ctx, const FSignalPanelUetkxProps& Props, const TArray<FRuiNode>& children)
 {
+#line 4 "Source/RuiDemo/Screens/SignalCounter/components/SignalPanel/SignalPanel.uetkx"
 	const int32 Count = RUI::UseSignalKey<int32>(Ctx, RuiDemo::GDemoCounterSignal, 0);
+#line 25 "SignalPanel.uetkx.inl"
 	return { RUI::TextBlock((FText::FromString(FString::Printf(TEXT("Count: %d"), Count))), FRuiKey()) };
 }
 static const FName GSignalPanelUetkxId = RUI::RegisterComponentId((void*)&SignalPanel_UetkxImpl, FName(TEXT("SignalPanel")));

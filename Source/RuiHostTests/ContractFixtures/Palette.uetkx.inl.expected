@@ -5,7 +5,9 @@
 #if defined(RUI_UETKX_DECL_PHASE)
 namespace Palette
 {
+#line 2 "Palette.uetkx"
 	inline const int32 Primary = 1;
+#line 11 "Palette.uetkx.inl"
 } // namespace Palette
 
 namespace RuiPriv_Palette

@@ -22,7 +22,9 @@ inline FRuiNode DemoContextPanel(FDemoContextPanelUetkxProps InProps = FDemoCont
 static FRuiNodeArray DemoContextPanel_UetkxImpl(FRuiContext& Ctx, const FDemoContextPanelUetkxProps& Props, const TArray<FRuiNode>& children)
 {
 	const auto& Label = Props.Label;
+#line 4 "Source/RuiDemo/Screens/ContextDemo/components/DemoContextPanel/DemoContextPanel.uetkx"
 	const FLinearColor Theme = Ctx.UseContext(RuiDemo::GDemoThemeCtx);
+#line 28 "DemoContextPanel.uetkx.inl"
 	return { [&]() -> FRuiNode {
 		FRuiBorderProps P;
 		P.SetPadding(FMargin(10));

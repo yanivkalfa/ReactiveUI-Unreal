@@ -19,7 +19,9 @@ inline FRuiNode SignalCounter(FSignalCounterUetkxProps InProps = FSignalCounterU
 #else
 static FRuiNodeArray SignalCounter_UetkxImpl(FRuiContext& Ctx, const FSignalCounterUetkxProps& Props, const TArray<FRuiNode>& children)
 {
+#line 6 "Source/RuiDemo/Screens/SignalCounter/SignalCounter.uetkx"
 	TSharedRef<TRuiSignal<int32>> Signal = RUI::GetOrCreateSignal<int32>(RuiDemo::GDemoCounterSignal, 0);
+#line 25 "SignalCounter.uetkx.inl"
 	return { [&]() -> FRuiNode {
 		FRuiBorderProps P;
 		P.SetPadding(FMargin(12));

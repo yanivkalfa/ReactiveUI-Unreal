@@ -5,9 +5,11 @@
 #if defined(RUI_UETKX_DECL_PHASE)
 namespace ContextDemoStyle
 {
+#line 2 "Source/RuiDemo/Screens/ContextDemo/ContextDemo.style.uetkx"
 	inline const FLinearColor CoolTheme{0.23f, 0.65f, 0.95f, 1.0f};
 		inline const FLinearColor WarmTheme{0.95f, 0.4f, 0.35f, 1.0f};
 		inline const FLinearColor PanelBackground{0.02f, 0.02f, 0.03f, 0.85f};
+#line 13 "ContextDemo.style.uetkx.inl"
 } // namespace ContextDemoStyle
 
 #else

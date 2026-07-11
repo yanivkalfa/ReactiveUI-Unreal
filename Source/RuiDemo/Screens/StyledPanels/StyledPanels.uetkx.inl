@@ -18,11 +18,13 @@ inline FRuiNode StyledPanels(FStyledPanelsUetkxProps InProps = FStyledPanelsUetk
 #else
 static FRuiNodeArray StyledPanels_UetkxImpl(FRuiContext& Ctx, const FStyledPanelsUetkxProps& Props, const TArray<FRuiNode>& children)
 {
+#line 2 "Source/RuiDemo/Screens/StyledPanels/StyledPanels.uetkx"
 	auto [bDim, SetDim] = Ctx.UseState<bool>(false);
 		auto [Text, SetText] = Ctx.UseState<FString>(FString(TEXT("type here")));
 		TFunction<void(bool)> SetDimFn = SetDim;
 		TFunction<void(FString)> SetTextFn = SetText;
 		const bool bDimNow = bDim;
+#line 28 "StyledPanels.uetkx.inl"
 	return { [&]() -> FRuiNode {
 		FRuiBorderProps P;
 		P.SetPadding(FMargin(12));

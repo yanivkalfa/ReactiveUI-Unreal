@@ -18,6 +18,7 @@ inline FRuiNode Showcase(FShowcaseUetkxProps InProps = FShowcaseUetkxProps(), TA
 #else
 static FRuiNodeArray Showcase_UetkxImpl(FRuiContext& Ctx, const FShowcaseUetkxProps& Props, const TArray<FRuiNode>& children)
 {
+#line 4 "Showcase.uetkx"
 	auto [Mode, SetMode] = Ctx.UseState<int32>(0);
 		TFunction<void(int32)> Set = SetMode;
 		const int32 ModeNow = Mode;
@@ -26,6 +27,7 @@ static FRuiNodeArray Showcase_UetkxImpl(FRuiContext& Ctx, const FShowcaseUetkxPr
 		{
 			++Total;
 		}
+#line 31 "Showcase.uetkx.inl"
 	return { [&]() -> FRuiNode {
 		FRuiVerticalBoxProps P;
 		P.Classes.Add(FName(TEXT("card")));

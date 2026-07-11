@@ -21,9 +21,11 @@ inline FRuiNode Counter(FCounterUetkxProps InProps = FCounterUetkxProps(), TArra
 static FRuiNodeArray Counter_UetkxImpl(FRuiContext& Ctx, const FCounterUetkxProps& Props, const TArray<FRuiNode>& children)
 {
 	const auto& StartAt = Props.StartAt;
+#line 2 "Counter.uetkx"
 	auto [Count, SetCount] = Ctx.UseState(StartAt);
 		TFunction<void(int32)> Set = SetCount;
 		const int32 Now = Count;
+#line 29 "Counter.uetkx.inl"
 	return { [&]() -> FRuiNode {
 		FRuiVerticalBoxProps P;
 		TArray<FRuiNode> Ch;

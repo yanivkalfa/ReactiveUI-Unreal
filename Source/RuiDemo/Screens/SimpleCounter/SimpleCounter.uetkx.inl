@@ -18,8 +18,10 @@ inline FRuiNode SimpleCounter(FSimpleCounterUetkxProps InProps = FSimpleCounterU
 #else
 static FRuiNodeArray SimpleCounter_UetkxImpl(FRuiContext& Ctx, const FSimpleCounterUetkxProps& Props, const TArray<FRuiNode>& children)
 {
+#line 4 "Source/RuiDemo/Screens/SimpleCounter/SimpleCounter.uetkx"
 	auto [Count, Increment] = UseCounter(Ctx, 0);
 		TFunction<void()> Inc = Increment;
+#line 25 "SimpleCounter.uetkx.inl"
 	return { [&]() -> FRuiNode {
 		FRuiBorderProps P;
 		P.SetPadding(FMargin(12));

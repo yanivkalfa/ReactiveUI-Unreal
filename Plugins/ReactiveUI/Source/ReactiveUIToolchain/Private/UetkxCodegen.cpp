@@ -314,6 +314,41 @@ namespace
 		return TEXT("RuiPriv_") + S;
 	}
 
+	/** Line-mapping context for the `#line` directives (M7): the file's line-start table, the
+	 *  project-relative .uetkx path a breakpoint binds to, and the .inl's own name for the restore
+	 *  directive. Disabled (no directives) when no ProjectRelPath was supplied. */
+	struct FLineCtx
+	{
+		TArray<int32> LineStarts;
+		FString ProjRel;
+		FString InlName;
+		bool bEnabled = false;
+	};
+
+	/** Wrap a verbatim user-code region (component setup / hook body / module body) in `#line`
+	 *  directives so a VS breakpoint in the .uetkx binds to it. The region is spliced with its line
+	 *  count preserved (re-indent `\n`->`\n\t` adds no lines), so the mapping stays line-for-line.
+	 *  The restore directive uses a @@R@@ placeholder fixed up once the whole .inl is assembled.
+	 *  Column drift (the extra indent) + single-line attr/event exprs are accepted limits (M7). */
+	FString WithLine(const FString& RegionText, int32 SrcLine, const FLineCtx& Ctx)
+	{
+		if (!Ctx.bEnabled || RegionText.IsEmpty())
+		{
+			return RegionText;
+		}
+		return FString::Printf(TEXT("#line %d \"%s\"\n"), FMath::Max(1, SrcLine), *Ctx.ProjRel) + RegionText +
+			   FString::Printf(TEXT("#line @@R@@ \"%s\"\n"), *Ctx.InlName);
+	}
+
+	/** The 1-based source line of a verbatim region's first NON-whitespace char (the trim skips
+	 *  leading blank lines, so the `#line` must point past them). Region = the raw slice; RegionAt =
+	 *  its code-point offset in the file. */
+	int32 SrcLineOfRegion(const FString& Region, int32 RegionAt, const FLineCtx& Ctx)
+	{
+		const int32 LeadWs = Region.Len() - Region.TrimStart().Len();
+		return FUetkxLexer::LineOf(Ctx.LineStarts, RegionAt + LeadWs);
+	}
+
 	/** A declaration split into the aggregator's two phases (M6). The DECL phase (complete props
 	 *  structs + defaulted wrapper decls + hook fwd-decls + module bodies) is `#include`d for EVERY
 	 *  file before ANY body — so cross-file component references (incl. CYCLES) are all forward-
@@ -344,7 +379,8 @@ namespace
 	/** A `hook` declaration → an inline free function taking FRuiContext& first (built-in hook
 	 *  calls in the body Ctx.-prefixed, nested user hooks Ctx-injected). DECL phase = the forward
 	 *  declaration; BODY phase = the definition. A non-exported hook wraps in the detail namespace. */
-	FEmittedDecl EmitHookInl(const FUetkxHookDecl& Hook, const FString& PrivNs, const TMap<FString, FString>& Qualified)
+	FEmittedDecl EmitHookInl(const FUetkxHookDecl& Hook, const FString& PrivNs, const TMap<FString, FString>& Qualified,
+							 const FLineCtx& Line)
 	{
 		const FString Ret = Hook.Ret.IsEmpty() ? FString(TEXT("void")) : Hook.Ret;
 		const FString Sig = FString::Printf(TEXT("inline %s %s(FRuiContext& Ctx%s%s)"), *Ret, *Hook.Name,
@@ -355,7 +391,8 @@ namespace
 		const FString Body = PrefixHookCalls(Hook.Body.TrimStartAndEnd(), Qualified);
 		if (!Body.IsEmpty())
 		{
-			Def += TEXT("\t") + Body.Replace(TEXT("\n"), TEXT("\n\t")) + TEXT("\n");
+			Def += WithLine(TEXT("\t") + Body.Replace(TEXT("\n"), TEXT("\n\t")) + TEXT("\n"),
+							SrcLineOfRegion(Hook.Body, Hook.BodyAt, Line), Line);
 		}
 		Def += TEXT("}\n");
 		E.BodyPhase = Def;
@@ -369,13 +406,14 @@ namespace
 	/** A `module` declaration → a namespace holding its verbatim C++ body, emitted ENTIRELY in the
 	 *  DECL phase (before any struct that might default from its constants). A non-exported module
 	 *  nests inside the per-file detail namespace so same-named private modules never collide. */
-	FEmittedDecl EmitModuleInl(const FUetkxModuleDecl& Module, const FString& PrivNs)
+	FEmittedDecl EmitModuleInl(const FUetkxModuleDecl& Module, const FString& PrivNs, const FLineCtx& Line)
 	{
 		FString Out = FString::Printf(TEXT("namespace %s\n{\n"), *Module.Name);
 		const FString Body = Module.Body.TrimStartAndEnd();
 		if (!Body.IsEmpty())
 		{
-			Out += TEXT("\t") + Body.Replace(TEXT("\n"), TEXT("\n\t")) + TEXT("\n");
+			Out += WithLine(TEXT("\t") + Body.Replace(TEXT("\n"), TEXT("\n\t")) + TEXT("\n"),
+							SrcLineOfRegion(Module.Body, Module.BodyAt, Line), Line);
 		}
 		Out += FString::Printf(TEXT("} // namespace %s\n"), *Module.Name);
 		FEmittedDecl E;
@@ -392,8 +430,10 @@ namespace
 	{
 	public:
 		FEmitter(const FString& InBasename, const FUetkxComponentDecl& InDecl, TArray<FUetkxDiag>& InDiags,
-				 TSet<FString>& InUses, TMap<FString, int32>& InUseAts, const TMap<FString, FString>& InQualified)
-			: Basename(InBasename), Decl(InDecl), Diags(InDiags), Uses(InUses), UseAts(InUseAts), Qualified(InQualified)
+				 TSet<FString>& InUses, TMap<FString, int32>& InUseAts, const TMap<FString, FString>& InQualified,
+				 const FLineCtx& InLine)
+			: Basename(InBasename), Decl(InDecl), Diags(InDiags), Uses(InUses), UseAts(InUseAts),
+			  Qualified(InQualified), Line(InLine)
 		{
 		}
 
@@ -480,6 +520,7 @@ namespace
 		TSet<FString>& Uses;					 // component tags this component references (aggregator topo order)
 		TMap<FString, int32>& UseAts;			 // tag -> first reference offset (strict-import diagnostics, M4)
 		const TMap<FString, FString>& Qualified; // private same-file decl name -> RuiPriv_<Basename>::name
+		const FLineCtx& Line;					 // #line directive context (M7)
 		int32 TextKeyCounter = 0;
 		bool bError = false;
 	};
@@ -949,7 +990,8 @@ namespace
 		const FString Setup = Decl.Setup.TrimStartAndEnd();
 		if (!Setup.IsEmpty())
 		{
-			Impl += TEXT("\t") + PrefixHooks(Setup).Replace(TEXT("\n"), TEXT("\n\t")) + TEXT("\n");
+			Impl += WithLine(TEXT("\t") + PrefixHooks(Setup).Replace(TEXT("\n"), TEXT("\n\t")) + TEXT("\n"),
+							 SrcLineOfRegion(Decl.Setup, Decl.SetupAt, Line), Line);
 		}
 		Impl += FString::Printf(TEXT("\treturn { %s };\n}\n"), *EmitNodeExpr(*Decl.Root, Decl.BodyAt));
 		Impl += FString::Printf(TEXT("static const FName G%sUetkxId = RUI::RegisterComponentId((void*)&%s_UetkxImpl, "
@@ -982,8 +1024,6 @@ namespace
 FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FString& Basename,
 												 const FString& ProjectRelPath, const IUetkxImportResolver* Resolver)
 {
-	(void)ProjectRelPath; // #line mapping (M7)
-
 	FUetkxCompileOutput Out;
 	FUetkxFileScanResult Scan = FUetkxFileScan::Scan(Source, Basename);
 	Out.Diags = Scan.Diags;
@@ -1028,6 +1068,14 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 		}
 	}
 
+	// #line mapping (M7): breakpoints in the .uetkx bind to the generated body. ProjRel is the
+	// machine-stable path (M3); fixtures/tests fall back to `<Basename>.uetkx`.
+	FLineCtx Line;
+	Line.LineStarts = FUetkxLexer::BuildLineStarts(FUetkxLexer::ToCodePoints(Source));
+	Line.ProjRel = ProjectRelPath.IsEmpty() ? Basename + TEXT(".uetkx") : ProjectRelPath;
+	Line.InlName = Basename + TEXT(".uetkx.inl");
+	Line.bEnabled = true;
+
 	// De-binarized emit (mixed-decl v1) split into the two aggregator phases (M6). Modules emit into
 	// the DECL phase FIRST (member defaults may reference them). Components + hooks emit in SOURCE
 	// order into both phases. The whole .inl is wrapped `#if defined(RUI_UETKX_DECL_PHASE) … #else …
@@ -1042,7 +1090,7 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 		case EUetkxDeclKind::Component:
 		{
 			const FUetkxComponentDecl& Decl = Scan.Components[Entry.Value];
-			FEmitter Emitter(Basename, Decl, Out.Diags, Uses, UseAts, Qualified);
+			FEmitter Emitter(Basename, Decl, Out.Diags, Uses, UseAts, Qualified, Line);
 			const FEmittedDecl E = Emitter.Emit();
 			if (Emitter.HasError())
 			{
@@ -1059,14 +1107,14 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 		}
 		case EUetkxDeclKind::Hook:
 		{
-			const FEmittedDecl E = EmitHookInl(Scan.Hooks[Entry.Value], PrivNs, Qualified);
+			const FEmittedDecl E = EmitHookInl(Scan.Hooks[Entry.Value], PrivNs, Qualified, Line);
 			OtherDecls += E.DeclPhase + TEXT("\n");
 			Bodies += E.BodyPhase + TEXT("\n");
 			Out.ComponentNames.Add(Scan.Hooks[Entry.Value].Name);
 			break;
 		}
 		case EUetkxDeclKind::Module:
-			ModuleDecls += EmitModuleInl(Scan.Modules[Entry.Value], PrivNs).DeclPhase + TEXT("\n");
+			ModuleDecls += EmitModuleInl(Scan.Modules[Entry.Value], PrivNs, Line).DeclPhase + TEXT("\n");
 			Out.ComponentNames.Add(Scan.Modules[Entry.Value].Name);
 			break;
 		}
@@ -1076,6 +1124,23 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 	Inl += TEXT("#else\n");
 	Inl += Bodies;
 	Inl += TEXT("#endif\n");
+
+	// Fix up the `#line` restore placeholders (@@R@@) now the whole .inl is assembled: a restore
+	// directive on .inl line L points the NEXT line back to the .inl at L+1 (so generated code after
+	// a user region maps to the .inl, not the .uetkx).
+	if (Inl.Contains(TEXT("@@R@@")))
+	{
+		TArray<FString> Lines;
+		Inl.ParseIntoArray(Lines, TEXT("\n"), false);
+		for (int32 i = 0; i < Lines.Num(); ++i)
+		{
+			if (Lines[i].Contains(TEXT("@@R@@")))
+			{
+				Lines[i] = Lines[i].Replace(TEXT("@@R@@"), *FString::FromInt(i + 2));
+			}
+		}
+		Inl = FString::Join(Lines, TEXT("\n"));
+	}
 	// Import resolution + STRICT usage diagnostics (M4). Runs only when a resolver is supplied
 	// (driver / fixture harness); tests without one get syntax-only compilation. Resolution
 	// happens AFTER emit so the component-tag reference set (UseAts) is available; a resolution
