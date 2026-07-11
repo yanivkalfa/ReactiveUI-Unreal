@@ -89,6 +89,12 @@ private:
 class REACTIVEUITOOLCHAIN_API FUetkxResolve
 {
 public:
+	/** FNV-1a export hash of a preamble scan: over its declarations' sorted `name|kind|exported`
+	 *  lines. The importer records this per resolved dep (dep_hashes) and re-stales when it changes
+	 *  (M8) — the ONE formula both the resolver and CompileSource use so a dep's stored hash always
+	 *  matches what an importer recorded. */
+	static uint32 ExportHash(const FUetkxPreambleScan& Scan);
+
 	/** Import resolution + strict usage diagnostics for one compiled file. Uses/UseAts = the
 	 *  component tags the markup references (from the emitter, name -> first offset). Appends
 	 *  2300-2308 to Diags and fills DepHashes (dep label -> its export hash) for the M8 graph. */

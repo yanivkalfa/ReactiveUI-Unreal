@@ -43,11 +43,21 @@ namespace
 	}
 
 	FString SerializeSidecar(uint32 SrcHash, const TArray<FUetkxDiag>& Diags, const TArray<FString>& ComponentNames,
-							 const FString& InlName, const TArray<FString>& Uses, bool bSupportFile)
+							 const FString& InlName, const TArray<FString>& Uses, bool bSupportFile, uint32 ExportHash,
+							 const TMap<FString, uint32>& DepHashes)
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
-		Root->SetNumberField(TEXT("v"), 2);
+		Root->SetNumberField(TEXT("v"), 3);
 		Root->SetNumberField(TEXT("src_hash"), static_cast<double>(SrcHash));
+		// v3 staleness graph (M8): this file's export shape hash + the export hash of every resolved
+		// dependency at compile time. An importer re-stales when a dep's export_hash moves (A5d).
+		Root->SetNumberField(TEXT("export_hash"), static_cast<double>(ExportHash));
+		TSharedRef<FJsonObject> Deps = MakeShared<FJsonObject>();
+		for (const TPair<FString, uint32>& Dep : DepHashes)
+		{
+			Deps->SetNumberField(Dep.Key, static_cast<double>(Dep.Value));
+		}
+		Root->SetObjectField(TEXT("dep_hashes"), Deps);
 		// Optional (schema-v2-compatible) ordering fields: which components this file's markup
 		// REFERENCES + whether it is a hook/module support file. BuildAggregators reads these
 		// to order #includes (direct component calls need callee-before-caller in the TU).
@@ -113,6 +123,49 @@ namespace
 			}
 		}
 		return true;
+	}
+
+	uint32 ReadSidecarExportHash(const FString& SidecarPath)
+	{
+		FString Json;
+		TSharedPtr<FJsonObject> Root;
+		if (!FFileHelper::LoadFileToString(Json, *SidecarPath) ||
+			!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Json), Root) || !Root.IsValid())
+		{
+			return 0;
+		}
+		double H = 0.0;
+		Root->TryGetNumberField(TEXT("export_hash"), H);
+		return static_cast<uint32>(H);
+	}
+
+	/** True when any dependency this file recorded (dep_hashes) now has a DIFFERENT export_hash in
+	 *  its own sidecar — the reverse-edge staleness + verdict-poisoning signal (M8/A5d). Labels are
+	 *  project-relative paths; a missing dep sidecar reads as export_hash 0. */
+	bool DepsChanged(const FString& SidecarPath)
+	{
+		FString Json;
+		TSharedPtr<FJsonObject> Root;
+		if (!FFileHelper::LoadFileToString(Json, *SidecarPath) ||
+			!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Json), Root) || !Root.IsValid())
+		{
+			return false;
+		}
+		const TSharedPtr<FJsonObject>* Deps = nullptr;
+		if (!Root->TryGetObjectField(TEXT("dep_hashes"), Deps))
+		{
+			return false; // v2 sidecar (pre-M8) — no dep graph recorded
+		}
+		for (const TPair<FString, TSharedPtr<FJsonValue>>& Dep : (*Deps)->Values)
+		{
+			const FString DepUetkx = FPaths::Combine(FPaths::ProjectDir(), Dep.Key);
+			const uint32 Current = ReadSidecarExportHash(FUetkxDriver::SidecarPathFor(DepUetkx));
+			if (Current != static_cast<uint32>(Dep.Value->AsNumber()))
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/** The component names a sidecar recorded (its refs keys) — how a SKIPPED file still
@@ -215,6 +268,9 @@ bool FUetkxDriver::IsStale(const FString& UetkxPath)
 	// "This exact content already compiled and reported broken" — the busy-loop guard.
 	// It only excuses a MISSING output: an on-disk .inl older than its source is always
 	// stale (a failed recompile deletes it; stale generated code must never build).
+	// Verdict-poisoning fix (A5d): a standing error verdict is INVALID once a dependency's export
+	// shape moved — e.g. A errored importing {X} from ./B before B exported X; B now exports X, so
+	// A must recompile even though A's own source is byte-identical.
 	auto MatchesErrorVerdict = [&]()
 	{
 		uint32 SidecarHash = 0;
@@ -223,9 +279,18 @@ bool FUetkxDriver::IsStale(const FString& UetkxPath)
 		{
 			return false;
 		}
+		if (DepsChanged(SidecarPathFor(UetkxPath)))
+		{
+			return false;
+		}
 		FString Source;
 		return FFileHelper::LoadFileToString(Source, *UetkxPath) && SrcHash(Source) == SidecarHash;
 	};
+	// Reverse-edge staleness (M8): a dependency's export_hash moved → recompile, regardless of mtime.
+	if (DepsChanged(SidecarPathFor(UetkxPath)))
+	{
+		return true;
+	}
 	const FDateTime InlTime = FM.GetTimeStamp(*InlPathFor(UetkxPath));
 	if (InlTime == FDateTime::MinValue())
 	{
@@ -307,7 +372,7 @@ FUetkxFileResult FUetkxDriver::CompileFile(const FString& UetkxPath, bool bForce
 	}
 	WriteIfChanged(SidecarPathFor(UetkxPath),
 				   SerializeSidecar(Hash, Out.Diags, Compiled.ComponentNames, FPaths::GetCleanFilename(Out.InlPath),
-									Compiled.Uses, Compiled.bSupportFile));
+									Compiled.Uses, Compiled.bSupportFile, Compiled.ExportHash, Compiled.DepHashes));
 	return Out;
 }
 

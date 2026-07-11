@@ -945,6 +945,7 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 	FUetkxCompileOutput Out;
 	FUetkxFileScanResult Scan = FUetkxFileScan::Scan(Source, Basename);
 	Out.Diags = Scan.Diags;
+	Out.ExportHash = FUetkxResolve::ExportHash(FUetkxFileScan::ScanPreamble(Source)); // reverse-staleness key (M8)
 	if (Scan.HasError())
 	{
 		return Out;

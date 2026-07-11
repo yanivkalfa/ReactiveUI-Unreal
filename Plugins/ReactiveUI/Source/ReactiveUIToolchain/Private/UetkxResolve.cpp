@@ -33,25 +33,6 @@ namespace
 		return K == EUetkxDeclKind::Component ? TEXT("component") : K == EUetkxDeclKind::Hook ? TEXT("hook") : TEXT("module");
 	}
 
-	uint32 ExportHashOfScan(const FUetkxPreambleScan& Scan)
-	{
-		TArray<FString> Lines;
-		for (const FUetkxPreambleDecl& D : Scan.Decls)
-		{
-			Lines.Add(FString::Printf(TEXT("%s|%s|%d"), *D.Name, KindWord(D.Kind), D.bExported ? 1 : 0));
-		}
-		Lines.Sort();
-		uint32 H = 2166136261u;
-		for (const FString& L : Lines)
-		{
-			for (int32 i = 0; i < L.Len(); ++i)
-			{
-				H = (H ^ static_cast<uint32>(L[i])) * 16777619u;
-			}
-			H = (H ^ static_cast<uint32>('\n')) * 16777619u;
-		}
-		return H;
-	}
 
 	bool IsIdentStart(int32 C)
 	{
@@ -138,6 +119,26 @@ namespace
 	}
 } // namespace
 
+uint32 FUetkxResolve::ExportHash(const FUetkxPreambleScan& Scan)
+{
+	TArray<FString> Lines;
+	for (const FUetkxPreambleDecl& D : Scan.Decls)
+	{
+		Lines.Add(FString::Printf(TEXT("%s|%s|%d"), *D.Name, KindWord(D.Kind), D.bExported ? 1 : 0));
+	}
+	Lines.Sort();
+	uint32 H = 2166136261u;
+	for (const FString& L : Lines)
+	{
+		for (int32 i = 0; i < L.Len(); ++i)
+		{
+			H = (H ^ static_cast<uint32>(L[i])) * 16777619u;
+		}
+		H = (H ^ static_cast<uint32>('\n')) * 16777619u;
+	}
+	return H;
+}
+
 // ── FUetkxFsResolver ────────────────────────────────────────────────────────────────────────
 
 FUetkxFsResolver::FUetkxFsResolver(const FString& InBaseDir, const TArray<FString>& InSearchRoots, bool bInFixtureMode)
@@ -201,7 +202,7 @@ const FUetkxPreambleScan* FUetkxFsResolver::CachedScan(const FString& Key) const
 	FCacheEntry Entry;
 	Entry.Mtime = Mtime;
 	Entry.Scan = FUetkxFileScan::ScanPreamble(Source);
-	Entry.Hash = ExportHashOfScan(Entry.Scan);
+	Entry.Hash = FUetkxResolve::ExportHash(Entry.Scan);
 	FCacheEntry& Ref = Cache.Add(Key, MoveTemp(Entry));
 	return &Ref.Scan;
 }
@@ -246,7 +247,7 @@ uint32 FUetkxFsResolver::ExportHashOf(const FString& Key) const
 		}
 	}
 	const FUetkxPreambleScan* Scan = CachedScan(Key);
-	return Scan ? ExportHashOfScan(*Scan) : 0;
+	return Scan ? FUetkxResolve::ExportHash(*Scan) : 0;
 }
 
 FString FUetkxFsResolver::LabelForKey(const FString& Key) const
