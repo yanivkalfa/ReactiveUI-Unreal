@@ -136,6 +136,41 @@ const settle = (ms = 300) => new Promise((r) => setTimeout(r, ms));
   fs.unlinkSync(scFsPath + ".diags.json");
   console.log("compiler sidecar OK (surfaced on hash match, suppressed when stale)");
 
+  // import intelligence: a real on-disk workspace (.uproject root + exporter B + importer A) —
+  // name completion inside `import { | }`, go-to-definition on the name, and a live 2301 diag.
+  const ws = fs.mkdtempSync(path.join(os.tmpdir(), "uetkx-smoke-ws-"));
+  fs.writeFileSync(path.join(ws, "Demo.uproject"), "{}");
+  const bPath = path.join(ws, "B.uetkx");
+  fs.writeFileSync(bPath, "export component Badge { return ( <Spacer /> ); }\ncomponent Hidden { return ( <Spacer /> ); }\n");
+  const aPath = path.join(ws, "A.uetkx");
+  const toUri = (p) => "file:///" + p.replace(/\\/g, "/");
+  const aText = 'import { Badge } from "./B"\ncomponent App {\n\treturn ( <Badge /> );\n}\n';
+  fs.writeFileSync(aPath, aText);
+  const aUri = toUri(aPath);
+  notify("textDocument/didOpen", { textDocument: { uri: aUri, languageId: "uetkx", version: 1, text: aText } });
+
+  // name completion at `import { Badge| }` (line 0, just after "Badge" at char 15)
+  const impRes = await request("textDocument/completion", { textDocument: { uri: aUri }, position: { line: 0, character: 14 } });
+  const impItems = Array.isArray(impRes.result) ? impRes.result : (impRes.result && impRes.result.items) || [];
+  if (!impItems.some((i) => i.label === "Badge")) fail("import-name completion missing exported Badge: " + JSON.stringify(impItems.map((i) => i.label)));
+  if (impItems.some((i) => i.label === "Hidden")) fail("import-name completion must not offer non-exported Hidden");
+  console.log(`import name completion OK (offers exported Badge, hides Hidden)`);
+
+  // go-to-definition on `Badge` in the import (line 0, char 10) → B.uetkx
+  const defRes = await request("textDocument/definition", { textDocument: { uri: aUri }, position: { line: 0, character: 10 } });
+  const def = Array.isArray(defRes.result) ? defRes.result[0] : defRes.result;
+  if (!def || !def.uri.endsWith("B.uetkx")) fail("go-to-def did not land in B.uetkx: " + JSON.stringify(defRes.result));
+  console.log("go-to-definition OK (import name → exporter file)");
+
+  // live resolution diagnostic: importing a NON-exported name flags UETKX2301
+  const aBadText = 'import { Hidden } from "./B"\ncomponent App {\n\treturn ( <Hidden /> );\n}\n';
+  notify("textDocument/didChange", { textDocument: { uri: aUri, version: 2 }, contentChanges: [{ text: aBadText }] });
+  await settle();
+  if (!(diagnostics[aUri] || []).some((d) => String(d.code) === "UETKX2301"))
+    fail("live 2301 (not-exported) missing: " + JSON.stringify(diagnostics[aUri]));
+  console.log("live import diagnostic OK (2301 not-exported)");
+  fs.rmSync(ws, { recursive: true, force: true });
+
   await request("shutdown", null);
   notify("exit", null);
   clearTimeout(timeout);

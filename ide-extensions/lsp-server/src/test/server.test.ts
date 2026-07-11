@@ -13,6 +13,14 @@ import { srcHash } from "../cppScanner";
 import { shippedSchema } from "../uetkxSchema";
 import { scanFile, hasError, hookSignature } from "../uetkxFileScan";
 import { loadUetkxConfig, loadFormatterConfig, rootAnchorFor } from "../uetkxSchema";
+import {
+  findExporter,
+  getDecls,
+  importCursorAt,
+  resolveDiagnostics,
+  resolveSpecifier,
+  suggestSpecifier,
+} from "../uetkxWorkspace";
 
 test("cursor classification", () => {
   const doc = 'component A {\n\treturn (\n\t\t<VerticalBox>\n\t\t\t<But\n\t\t\t<Button ContentP\n\t\t</VerticalBox>\n\t);\n}\n';
@@ -86,4 +94,100 @@ test("file scan parity spot checks", () => {
   assert.strictEqual(hasError(scan), false);
   assert.deepStrictEqual(scan.components[0].hookCalls, ["UseState"]);
   assert.notStrictEqual(hookSignature(["UseState"]), hookSignature(["UseState", "UseEffect"]));
+});
+
+// ── import intelligence (uetkxWorkspace: mirror of FUetkxFsResolver + FUetkxResolve::Apply) ──
+
+/** A throwaway workspace: a `.uproject` root, an exporter B (one exported + one private decl), and
+ *  an importer A. Returns the two fs paths. */
+function makeImportWorkspace(): { root: string; a: string; b: string } {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "uetkx-ws-"));
+  fs.writeFileSync(path.join(root, "Demo.uproject"), "{}");
+  const b = path.join(root, "B.uetkx");
+  fs.writeFileSync(
+    b,
+    "export component Badge { return ( <Spacer /> ); }\ncomponent Private { return ( <Spacer /> ); }\nexport hook UseThing() -> int32 { return 1; }\n",
+  );
+  const a = path.join(root, "A.uetkx");
+  fs.writeFileSync(a, 'import { Badge } from "./B"\ncomponent App { return ( <Badge /> ); }\n');
+  return { root, a, b };
+}
+
+test("resolveSpecifier: relative + implicit .uetkx + forbidden forms", () => {
+  const { root, a, b } = makeImportWorkspace();
+  assert.strictEqual(resolveSpecifier(a, "./B"), path.resolve(b).replace(/\\/g, "/"));
+  assert.strictEqual(resolveSpecifier(a, "./B.uetkx"), path.resolve(b).replace(/\\/g, "/"));
+  assert.strictEqual(resolveSpecifier(a, "./Nope"), null, "missing file → null");
+  assert.strictEqual(resolveSpecifier(a, "Badge"), null, "bare specifier forbidden");
+  assert.strictEqual(resolveSpecifier(a, "Source/B"), null, "engine-native forbidden");
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test("getDecls + findExporter: exported names, kinds, first-exporter index", () => {
+  const { root, a, b } = makeImportWorkspace();
+  const decls = getDecls(b)!;
+  const badge = decls.find((d) => d.name === "Badge")!;
+  assert.strictEqual(badge.kind, "component");
+  assert.strictEqual(badge.exported, true);
+  assert.strictEqual(decls.find((d) => d.name === "Private")!.exported, false);
+  assert.strictEqual(decls.find((d) => d.name === "UseThing")!.kind, "hook");
+  const hit = findExporter("Badge", a)!;
+  assert.strictEqual(path.resolve(hit.file), path.resolve(b));
+  assert.strictEqual(hit.kind, "component");
+  assert.strictEqual(findExporter("Private", a), null, "non-exported is not an exporter");
+  assert.strictEqual(findExporter("Nonexistent", a), null);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test("resolveDiagnostics: 2300 unknown specifier / 2301 not exported / 2302 not declared", () => {
+  const { root, a } = makeImportWorkspace();
+  const only = (src: string) => resolveDiagnostics(scanFile(src, "A"), a).map((d) => d.code);
+  assert.deepStrictEqual(only('import { Badge } from "./B"\ncomponent App { return ( <Badge /> ); }\n'), [], "clean import");
+  assert.deepStrictEqual(only('import { Badge } from "./Nope"\ncomponent App { return ( <Badge /> ); }\n'), ["UETKX2300"]);
+  assert.deepStrictEqual(only('import { Private } from "./B"\ncomponent App { return ( <Private /> ); }\n'), ["UETKX2301"]);
+  assert.deepStrictEqual(only('import { Ghost } from "./B"\ncomponent App { return ( <Ghost /> ); }\n'), ["UETKX2302"]);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test("resolveDiagnostics: 2308 import crosses a module boundary", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "uetkx-mod-"));
+  fs.writeFileSync(path.join(root, "Demo.uproject"), "{}");
+  const modA = path.join(root, "ModA");
+  const modB = path.join(root, "ModB");
+  fs.mkdirSync(modA);
+  fs.mkdirSync(modB);
+  fs.writeFileSync(path.join(modA, "ModA.Build.cs"), "");
+  fs.writeFileSync(path.join(modB, "ModB.Build.cs"), "");
+  const b = path.join(modB, "B.uetkx");
+  fs.writeFileSync(b, "export component Badge { return ( <Spacer /> ); }\n");
+  const a = path.join(modA, "A.uetkx");
+  const src = 'import { Badge } from "../ModB/B"\ncomponent App { return ( <Badge /> ); }\n';
+  fs.writeFileSync(a, src);
+  assert.deepStrictEqual(
+    resolveDiagnostics(scanFile(src, "A"), a).map((d) => d.code),
+    ["UETKX2308"],
+  );
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test("suggestSpecifier: importer-relative, ./-prefixed, .uetkx dropped", () => {
+  const { root, a, b } = makeImportWorkspace();
+  assert.strictEqual(suggestSpecifier(a, b), "./B");
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test("importCursorAt: name-list vs specifier vs not-an-import", () => {
+  const line1 = 'import { Ba } from "./B"\n';
+  // cursor right after `Ba` in the name list
+  const nameCtx = importCursorAt(line1, line1.indexOf("Ba") + 2);
+  assert.strictEqual(nameCtx?.kind, "import-name");
+  assert.strictEqual((nameCtx as { specifier: string }).specifier, "./B");
+  assert.strictEqual((nameCtx as { partial: string }).partial, "Ba");
+  // cursor inside the specifier string
+  const specSrc = 'import { Badge } from "./B\n';
+  const specCtx = importCursorAt(specSrc, specSrc.indexOf("./B") + 3);
+  assert.strictEqual(specCtx?.kind, "import-specifier");
+  assert.strictEqual((specCtx as { partial: string }).partial, "./B");
+  // a component body line is not an import
+  assert.strictEqual(importCursorAt("component App { return ( <Badge\n", 30), null);
 });
