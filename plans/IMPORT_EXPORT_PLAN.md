@@ -355,12 +355,13 @@ compiler fingerprint) — all fold into ONE CodegenVersion bump + one golden re-
 > stable `<Basename>.uetkx`. Verified structurally + by compilation: RUICompile -full emits the
 > directives, the line mapping is correct (SimpleCounter's setup starts at source line 4 → `#line
 > 4`), and the RuiDemo + RuiHostTests aggregator TUs COMPILE with the directives + `#line @@R@@`
-> restore fixups. The **interactive VS breakpoint-bind + stepping confirmation** could NOT be run in
-> this headless environment (no live VS debugger); it is the one remaining human check — project-
-> relative was chosen because VS resolves `#line` paths via the `.sln` directory. Emit scope: the
-> top-level verbatim regions (component setup, hook bodies, module bodies). Mid-line attr/event
-> exprs AND directive (`@if`/`@for`/`@while`) headers are the accepted granularity limit (no per-
-> line `#line`; column drift accepted) — recorded under TD-023.
+> restore fixups. **INTERACTIVE BIND CONFIRMED BY OWNER (2026-07-11):** in VS2022 (Development
+> Editor, ReactiveUIUnrealDemo.sln), a breakpoint on `SimpleCounter.uetkx` line 4 BOUND and HIT
+> when the setup ran (`Automation RunTests ReactiveUI.Demos`) — VS resolved the project-relative
+> path off the `.sln` directory and stopped on the `.uetkx` source (not the generated `.inl`). Emit
+> scope: the top-level verbatim regions (component setup, hook bodies, module bodies). Mid-line
+> attr/event exprs AND directive (`@if`/`@for`/`@while`) headers are the accepted granularity limit
+> (no per-line `#line`; column drift accepted) — recorded under TD-023.
 
 - M7.1 SPIKE (before goldens): hand-edit one committed .inl with
   `#line N "Source/RuiDemo/Screens/HelloWorld/HelloWorld.uetkx"` inside setup; build; set a VS

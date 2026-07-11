@@ -295,8 +295,9 @@ referenced from plans/PRs.
   COMPONENT cycles now COMPILE — **UETKX2107 retired**; a `CycleProof/CycleA.uetkx`↔`CycleB.uetkx`
   fixture compiles + renders (`ReactiveUI.Uetkx.Cycle`). `#line <n> "<project-rel .uetkx>"` directives
   wrap every top-level verbatim region (`WithLine`/`BuildLineStarts`/`LineOf`); M7.1 spike verdict
-  recorded in the plan (project-relative; interactive VS bind is the one human check). CodegenVersion
-  1->2, all goldens re-pinned. battery 55/55, -check 0 drift.
+  recorded in the plan — **interactive breakpoint bind CONFIRMED by owner in VS2022 (2026-07-11)**:
+  a breakpoint on `SimpleCounter.uetkx` line 4 bound + hit on the `.uetkx` source (not the `.inl`).
+  CodegenVersion 1->2, all goldens re-pinned. battery 55/55, -check 0 drift.
 
 ## TD-024 — LSP server import intelligence + support-file formatting + VS2022 vsix rebuild (M11 tail)
 - **Where:** `ide-extensions/lsp-server/src/server.ts` (+ new `uetkxWorkspace.ts`), `formatUetkx.ts`,
