@@ -8,6 +8,7 @@
 #include "Misc/Paths.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
+#include "UetkxConfig.h"
 #include "UetkxFileScan.h"
 #include "UetkxLexer.h"
 
@@ -800,49 +801,15 @@ FUetkxFormatResult FUetkxFormatter::Format(const FString& Source, const FUetkxFo
 
 FUetkxFormatOptions FUetkxFormatter::ResolveOptions(const FString& StartDir)
 {
+	// The walk-up + JSON parse lives in the shared FUetkxConfig::Load (M1) so the formatter and
+	// the import resolver read one config through one code path (and can never disagree on which
+	// config wins for a file). The formatter just projects the options fields.
+	const FUetkxConfig Config = FUetkxConfig::Load(StartDir);
 	FUetkxFormatOptions Options;
-	FString Dir = StartDir;
-	for (int32 Depth = 0; Depth < 32 && !Dir.IsEmpty(); ++Depth)
-	{
-		const FString ConfigPath = Dir / TEXT("uetkx.config.json");
-		FString Json;
-		if (FFileHelper::LoadFileToString(Json, *ConfigPath))
-		{
-			TSharedPtr<FJsonObject> Root;
-			if (FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Json), Root) && Root.IsValid())
-			{
-				double Num = 0.0;
-				FString Str;
-				bool bFlag = false;
-				if (Root->TryGetNumberField(TEXT("printWidth"), Num))
-				{
-					Options.PrintWidth = static_cast<int32>(Num);
-				}
-				if (Root->TryGetStringField(TEXT("indentStyle"), Str))
-				{
-					Options.IndentStyle = Str;
-				}
-				if (Root->TryGetNumberField(TEXT("indentSize"), Num))
-				{
-					Options.IndentSize = static_cast<int32>(Num);
-				}
-				if (Root->TryGetBoolField(TEXT("singleAttributePerLine"), bFlag))
-				{
-					Options.bSingleAttributePerLine = bFlag;
-				}
-				if (Root->TryGetBoolField(TEXT("insertSpaceBeforeSelfClose"), bFlag))
-				{
-					Options.bInsertSpaceBeforeSelfClose = bFlag;
-				}
-			}
-			return Options; // nearest config wins, malformed = defaults (never half-applied)
-		}
-		const FString Parent = FPaths::GetPath(Dir);
-		if (Parent == Dir)
-		{
-			break;
-		}
-		Dir = Parent;
-	}
+	Options.PrintWidth = Config.PrintWidth;
+	Options.IndentStyle = Config.IndentStyle;
+	Options.IndentSize = Config.IndentSize;
+	Options.bSingleAttributePerLine = Config.bSingleAttributePerLine;
+	Options.bInsertSpaceBeforeSelfClose = Config.bInsertSpaceBeforeSelfClose;
 	return Options;
 }

@@ -12,6 +12,7 @@ import { readSidecarDiags } from "../diagsSidecar";
 import { srcHash } from "../cppScanner";
 import { shippedSchema } from "../uetkxSchema";
 import { scanFile, hasError, hookSignature } from "../uetkxFileScan";
+import { loadUetkxConfig, loadFormatterConfig, rootAnchorFor } from "../uetkxSchema";
 
 test("cursor classification", () => {
   const doc = 'component A {\n\treturn (\n\t\t<VerticalBox>\n\t\t\t<But\n\t\t\t<Button ContentP\n\t\t</VerticalBox>\n\t);\n}\n';
@@ -47,6 +48,37 @@ test("sidecar diags gate on src_hash", () => {
   assert.strictEqual(readSidecarDiags(file, source).length, 1);
   assert.strictEqual(readSidecarDiags(file, source + "// edited").length, 0, "stale sidecar suppressed");
   fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("uetkx.config.json walk-up: root key, no-merge shadowing, missing-root default", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "uetkx-cfg-"));
+  const screens = path.join(root, "MyMod", "Screens");
+  const sub = path.join(screens, "Sub");
+  const noRoot = path.join(root, "MyMod", "NoRoot");
+  for (const d of [sub, noRoot]) fs.mkdirSync(d, { recursive: true });
+  const modRoot = path.join(root, "MyMod");
+  fs.writeFileSync(path.join(modRoot, "uetkx.config.json"), JSON.stringify({ root: "Screens", printWidth: 80 }));
+  fs.writeFileSync(path.join(sub, "uetkx.config.json"), JSON.stringify({ indentSize: 4 })); // no root
+  fs.writeFileSync(path.join(noRoot, "uetkx.config.json"), JSON.stringify({ printWidth: 42 }));
+
+  // Nearest wins + config dir surfaced.
+  const fromScreens = loadUetkxConfig(screens);
+  assert.strictEqual(fromScreens.config.printWidth, 80);
+  assert.strictEqual(fromScreens.config.root, "Screens");
+  assert.strictEqual(fromScreens.configDir, modRoot);
+  assert.strictEqual(loadFormatterConfig(screens).printWidth, 80);
+
+  // Declared root resolves relative to the config dir.
+  assert.strictEqual(rootAnchorFor(screens), path.resolve(modRoot, "Screens"));
+  // No-merge shadowing: the nearer formatter-only config has no root -> null (caller falls back
+  // to the module root, which the TS side resolves in the workspace index, M11).
+  assert.strictEqual(rootAnchorFor(sub), null);
+  assert.strictEqual(rootAnchorFor(noRoot), null);
+  // No config at all -> defaults, null anchor.
+  assert.strictEqual(rootAnchorFor(root), null);
+  assert.strictEqual(loadUetkxConfig(root).configDir, null);
+
+  fs.rmSync(root, { recursive: true, force: true });
 });
 
 test("file scan parity spot checks", () => {

@@ -10,6 +10,7 @@
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
+#include "UetkxConfig.h"
 #include "UetkxLexer.h"
 #include "UetkxToolchainLog.h"
 
@@ -330,22 +331,12 @@ TMap<FString, FString> FUetkxDriver::BuildAggregators(const TArray<FString>& Uet
 	TMap<FString, TArray<FString>> ByModuleDir;
 	for (const FString& Path : UetkxPaths)
 	{
-		FString Dir = FPaths::GetPath(Path);
-		while (!Dir.IsEmpty())
+		// The nearest *.Build.cs ancestor (dir name == module name, UBT convention). Shared with
+		// the import resolver's `~/` module-root default via FUetkxConfig::ModuleRootFor (M1).
+		const FString ModuleDir = FUetkxConfig::ModuleRootFor(Path);
+		if (!ModuleDir.IsEmpty())
 		{
-			TArray<FString> BuildFiles;
-			IFileManager::Get().FindFiles(BuildFiles, *(Dir / TEXT("*.Build.cs")), true, false);
-			if (!BuildFiles.IsEmpty())
-			{
-				ByModuleDir.FindOrAdd(Dir).Add(Path);
-				break;
-			}
-			const FString Parent = FPaths::GetPath(Dir);
-			if (Parent == Dir)
-			{
-				break;
-			}
-			Dir = Parent;
+			ByModuleDir.FindOrAdd(ModuleDir).Add(Path);
 		}
 	}
 	TMap<FString, FString> Out;

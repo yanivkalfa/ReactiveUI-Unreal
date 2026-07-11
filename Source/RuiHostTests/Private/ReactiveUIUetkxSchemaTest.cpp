@@ -12,6 +12,7 @@
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "UetkxCodegen.h"
+#include "UetkxConfig.h"
 #include "UetkxFileActions.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -93,6 +94,70 @@ bool FRuiUetkxSchemaTest::RunTest(const FString&)
 				 FUetkxFileActions::CreateComponentFile(Scratch, TEXT("myPanel")).IsEmpty());
 		TestTrue(TEXT("rejects non-ident"),
 				 FUetkxFileActions::CreateComponentFile(Scratch, TEXT("My-Panel")).IsEmpty());
+
+		IFileManager::Get().DeleteDirectory(*Scratch, false, true);
+	}
+
+	// ── FUetkxConfig walk-up: `~/` root key, no-merge shadowing, module-root default (M1) ─────
+	{
+		auto Norm = [](FString P)
+		{
+			P = FPaths::ConvertRelativePathToFull(P);
+			FPaths::NormalizeDirectoryName(P);
+			return P;
+		};
+		const FString Scratch =
+			FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("ReactiveUI"), TEXT("ConfigWalkTest"));
+		IFileManager::Get().DeleteDirectory(*Scratch, false, true);
+
+		// A fake module `MyMod` (its *.Build.cs marks the module root), with a root-declaring
+		// config, a nested formatter-only config that must NOT inherit `root`, and a plain tree
+		// with no module at all.
+		const FString ModRoot = Scratch / TEXT("MyMod");
+		const FString Screens = ModRoot / TEXT("Screens");
+		const FString Sub = Screens / TEXT("Sub");
+		const FString NoRoot = ModRoot / TEXT("NoRoot");
+		const FString Plain = Scratch / TEXT("Plain");
+		for (const FString& D : {Screens, Sub, NoRoot, Plain})
+		{
+			IFileManager::Get().MakeDirectory(*D, true);
+		}
+		auto Write = [](const FString& Path, const FString& Body)
+		{ FFileHelper::SaveStringToFile(Body, *Path, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM); };
+		Write(ModRoot / TEXT("MyMod.Build.cs"), TEXT("// stub module rules"));
+		Write(ModRoot / TEXT("uetkx.config.json"), TEXT("{ \"root\": \"Screens\", \"printWidth\": 80 }"));
+		Write(Sub / TEXT("uetkx.config.json"), TEXT("{ \"indentSize\": 4 }")); // formatter-only, no root
+		Write(NoRoot / TEXT("uetkx.config.json"), TEXT("{ \"printWidth\": 42 }"));
+
+		// Load (nearest wins): from Screens the winner is MyMod/uetkx.config.json.
+		const FUetkxConfig FromScreens = FUetkxConfig::Load(Screens);
+		TestEqual(TEXT("root config printWidth"), FromScreens.PrintWidth, 80);
+		TestTrue(TEXT("root config declares root"), FromScreens.bHasRoot);
+		TestEqual(TEXT("root string verbatim"), FromScreens.RootRelative, FString(TEXT("Screens")));
+		TestEqual(TEXT("config dir is the module dir"), Norm(FromScreens.ConfigDir), Norm(ModRoot));
+
+		// ModuleRootFor: any file under MyMod resolves to the *.Build.cs dir.
+		TestEqual(TEXT("module root of a nested file"),
+				  Norm(FUetkxConfig::ModuleRootFor(Sub / TEXT("B.uetkx"))), Norm(ModRoot));
+		TestTrue(TEXT("no module root outside any module"),
+				 FUetkxConfig::ModuleRootFor(Plain / TEXT("D.uetkx")).IsEmpty());
+
+		// RootAnchorFor: declared root resolves relative to the config dir.
+		TestEqual(TEXT("~/ = declared root"), Norm(FUetkxConfig::RootAnchorFor(Screens / TEXT("A.uetkx"))),
+				  Norm(Screens));
+		// No-merge shadowing (A5g): the nearer formatter-only config resets `~/` to the module
+		// root — it does NOT inherit the ancestor's `root: Screens`.
+		TestEqual(TEXT("~/ shadowed back to module root"),
+				  Norm(FUetkxConfig::RootAnchorFor(Sub / TEXT("B.uetkx"))), Norm(ModRoot));
+		// A config that simply omits `root` also falls back to the module root.
+		TestEqual(TEXT("~/ missing-root default = module root"),
+				  Norm(FUetkxConfig::RootAnchorFor(NoRoot / TEXT("C.uetkx"))), Norm(ModRoot));
+
+		// No config anywhere: defaults, no root, empty config dir.
+		const FUetkxConfig None = FUetkxConfig::Load(Plain);
+		TestFalse(TEXT("no config declares no root"), None.bHasRoot);
+		TestTrue(TEXT("no config dir"), None.ConfigDir.IsEmpty());
+		TestEqual(TEXT("no config = default printWidth"), None.PrintWidth, 100);
 
 		IFileManager::Get().DeleteDirectory(*Scratch, false, true);
 	}
