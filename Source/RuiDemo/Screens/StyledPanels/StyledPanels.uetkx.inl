@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 
 
+#if defined(RUI_UETKX_DECL_PHASE)
 struct FStyledPanelsUetkxProps final : public FRuiPropsBase
 {
 
@@ -12,7 +13,9 @@ struct FStyledPanelsUetkxProps final : public FRuiPropsBase
 		return bEq;
 	}
 };
+inline FRuiNode StyledPanels(FStyledPanelsUetkxProps InProps = FStyledPanelsUetkxProps(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey InKey = FRuiKey());
 
+#else
 static FRuiNodeArray StyledPanels_UetkxImpl(FRuiContext& Ctx, const FStyledPanelsUetkxProps& Props, const TArray<FRuiNode>& children)
 {
 	auto [bDim, SetDim] = Ctx.UseState<bool>(false);
@@ -100,9 +103,10 @@ static FRuiNodeArray StyledPanels_UetkxImpl(FRuiContext& Ctx, const FStyledPanel
 }
 static const FName GStyledPanelsUetkxId = RUI::RegisterComponentId((void*)&StyledPanels_UetkxImpl, FName(TEXT("StyledPanels")));
 static constexpr uint32 StyledPanels_RUI_HOOK_SIG = 0x72A626EBu;
-inline FRuiNode StyledPanels(FStyledPanelsUetkxProps InProps = FStyledPanelsUetkxProps(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey InKey = FRuiKey())
+inline FRuiNode StyledPanels(FStyledPanelsUetkxProps InProps, TArray<FRuiNode> InChildren, FRuiKey InKey)
 {
 	return RUI::FC(&StyledPanels_UetkxImpl, MoveTemp(InProps), MoveTemp(InChildren), InKey);
 }
 static const bool GStyledPanelsUetkxFactoryReg = RUI::RegisterNamedFactory(FName(TEXT("StyledPanels")), []() { return StyledPanels(); });
 
+#endif

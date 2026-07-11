@@ -314,31 +314,62 @@ namespace
 		return TEXT("RuiPriv_") + S;
 	}
 
+	/** A declaration split into the aggregator's two phases (M6). The DECL phase (complete props
+	 *  structs + defaulted wrapper decls + hook fwd-decls + module bodies) is `#include`d for EVERY
+	 *  file before ANY body — so cross-file component references (incl. CYCLES) are all forward-
+	 *  declared before use. The BODY phase carries impls + default-FREE wrapper defs + registrations
+	 *  (+ hook bodies). Modules live entirely in the DECL phase (their member defaults may reference
+	 *  imported module constants). */
+	struct FEmittedDecl
+	{
+		FString DeclPhase;
+		FString BodyPhase;
+	};
+
+	/** Wrap both phases of a private declaration in the per-file detail namespace (A5e). */
+	void WrapPrivate(FEmittedDecl& E, const FString& PrivNs)
+	{
+		const FString Open = FString::Printf(TEXT("namespace %s\n{\n"), *PrivNs);
+		const FString Close = FString::Printf(TEXT("} // namespace %s\n"), *PrivNs);
+		if (!E.DeclPhase.IsEmpty())
+		{
+			E.DeclPhase = Open + E.DeclPhase + Close;
+		}
+		if (!E.BodyPhase.IsEmpty())
+		{
+			E.BodyPhase = Open + E.BodyPhase + Close;
+		}
+	}
+
 	/** A `hook` declaration → an inline free function taking FRuiContext& first (built-in hook
-	 *  calls in the body Ctx.-prefixed, nested user hooks Ctx-injected). Plain C++ — no markup,
-	 *  no registration, no hook signature. A non-exported hook is wrapped in the detail namespace. */
-	FString EmitHookInl(const FUetkxHookDecl& Hook, const FString& PrivNs, const TMap<FString, FString>& Qualified)
+	 *  calls in the body Ctx.-prefixed, nested user hooks Ctx-injected). DECL phase = the forward
+	 *  declaration; BODY phase = the definition. A non-exported hook wraps in the detail namespace. */
+	FEmittedDecl EmitHookInl(const FUetkxHookDecl& Hook, const FString& PrivNs, const TMap<FString, FString>& Qualified)
 	{
 		const FString Ret = Hook.Ret.IsEmpty() ? FString(TEXT("void")) : Hook.Ret;
-		FString Out = FString::Printf(TEXT("inline %s %s(FRuiContext& Ctx%s%s)\n{\n"), *Ret, *Hook.Name,
-									  Hook.Params.IsEmpty() ? TEXT("") : TEXT(", "), *Hook.Params);
+		const FString Sig = FString::Printf(TEXT("inline %s %s(FRuiContext& Ctx%s%s)"), *Ret, *Hook.Name,
+											Hook.Params.IsEmpty() ? TEXT("") : TEXT(", "), *Hook.Params);
+		FEmittedDecl E;
+		E.DeclPhase = Sig + TEXT(";\n");
+		FString Def = Sig + TEXT("\n{\n");
 		const FString Body = PrefixHookCalls(Hook.Body.TrimStartAndEnd(), Qualified);
 		if (!Body.IsEmpty())
 		{
-			Out += TEXT("\t") + Body.Replace(TEXT("\n"), TEXT("\n\t")) + TEXT("\n");
+			Def += TEXT("\t") + Body.Replace(TEXT("\n"), TEXT("\n\t")) + TEXT("\n");
 		}
-		Out += TEXT("}\n");
+		Def += TEXT("}\n");
+		E.BodyPhase = Def;
 		if (!Hook.bExported)
 		{
-			Out = FString::Printf(TEXT("namespace %s\n{\n"), *PrivNs) + Out +
-				  FString::Printf(TEXT("} // namespace %s\n"), *PrivNs);
+			WrapPrivate(E, PrivNs);
 		}
-		return Out + TEXT("\n");
+		return E;
 	}
 
-	/** A `module` declaration → a namespace holding its verbatim C++ body. A non-exported module is
-	 *  nested inside the per-file detail namespace so same-named private modules never collide. */
-	FString EmitModuleInl(const FUetkxModuleDecl& Module, const FString& PrivNs)
+	/** A `module` declaration → a namespace holding its verbatim C++ body, emitted ENTIRELY in the
+	 *  DECL phase (before any struct that might default from its constants). A non-exported module
+	 *  nests inside the per-file detail namespace so same-named private modules never collide. */
+	FEmittedDecl EmitModuleInl(const FUetkxModuleDecl& Module, const FString& PrivNs)
 	{
 		FString Out = FString::Printf(TEXT("namespace %s\n{\n"), *Module.Name);
 		const FString Body = Module.Body.TrimStartAndEnd();
@@ -347,12 +378,13 @@ namespace
 			Out += TEXT("\t") + Body.Replace(TEXT("\n"), TEXT("\n\t")) + TEXT("\n");
 		}
 		Out += FString::Printf(TEXT("} // namespace %s\n"), *Module.Name);
+		FEmittedDecl E;
+		E.DeclPhase = Out;
 		if (!Module.bExported)
 		{
-			Out = FString::Printf(TEXT("namespace %s\n{\n"), *PrivNs) + Out +
-				  FString::Printf(TEXT("} // namespace %s\n"), *PrivNs);
+			WrapPrivate(E, PrivNs);
 		}
-		return Out + TEXT("\n");
+		return E;
 	}
 
 	/** The one emitter (per component). */
@@ -365,7 +397,7 @@ namespace
 		{
 		}
 
-		FString Emit();
+		FEmittedDecl Emit();
 		bool HasError() const { return bError; }
 
 	private:
@@ -854,13 +886,14 @@ namespace
 		}
 	}
 
-	FString FEmitter::Emit()
+	FEmittedDecl FEmitter::Emit()
 	{
-		FString Out;
+		FEmittedDecl E;
 		const FString PropsType = FString::Printf(TEXT("F%sUetkxProps"), *Decl.Name);
 
-		// props struct
-		Out += FString::Printf(TEXT("struct %s final : public FRuiPropsBase\n{\n"), *PropsType);
+		// ── DECL phase: the COMPLETE props struct (call sites construct it BY VALUE, so it must be
+		// fully defined before every caller — a forward declaration is not enough).
+		FString Struct = FString::Printf(TEXT("struct %s final : public FRuiPropsBase\n{\n"), *PropsType);
 		for (const FUetkxParam& Param : Decl.Params)
 		{
 			if (Param.Type.IsEmpty())
@@ -870,70 +903,79 @@ namespace
 					 Decl.NameAt);
 				continue;
 			}
-			Out +=
+			Struct +=
 				FString::Printf(TEXT("\t%s %s%s;\n"), *Param.Type, *Param.Name,
 								Param.Default.IsEmpty() ? TEXT("{}") : *FString::Printf(TEXT(" = %s"), *Param.Default));
 		}
-		Out += TEXT("\n\tvirtual bool Equals(const FRuiPropsBase& OtherBase) const override\n\t{\n");
-		Out += FString::Printf(TEXT("\t\tconst %s& O = static_cast<const %s&>(OtherBase);\n"), *PropsType, *PropsType);
-		Out += TEXT("\t\tbool bEq = BaseFieldsEqual(O);\n");
+		Struct += TEXT("\n\tvirtual bool Equals(const FRuiPropsBase& OtherBase) const override\n\t{\n");
+		Struct +=
+			FString::Printf(TEXT("\t\tconst %s& O = static_cast<const %s&>(OtherBase);\n"), *PropsType, *PropsType);
+		Struct += TEXT("\t\tbool bEq = BaseFieldsEqual(O);\n");
 		for (const FUetkxParam& Param : Decl.Params)
 		{
 			if (Param.Type == TEXT("FText"))
 			{
-				Out += FString::Printf(
+				Struct += FString::Printf(
 					TEXT("\t\tbEq = bEq && (%s.IdenticalTo(O.%s) || %s.ToString() == O.%s.ToString());\n"), *Param.Name,
 					*Param.Name, *Param.Name, *Param.Name);
 			}
 			else
 			{
-				Out += FString::Printf(TEXT("\t\tbEq = bEq && (%s == O.%s);\n"), *Param.Name, *Param.Name);
+				Struct += FString::Printf(TEXT("\t\tbEq = bEq && (%s == O.%s);\n"), *Param.Name, *Param.Name);
 			}
 		}
-		Out += TEXT("\t\treturn bEq;\n\t}\n};\n\n");
+		Struct += TEXT("\t\treturn bEq;\n\t}\n};\n");
 
-		// component function
-		Out += FString::Printf(
+		// The wrapper's default arguments live on EXACTLY the DECL-phase forward declaration; the
+		// BODY-phase definition repeats the signature WITHOUT defaults (repeating them is a C++
+		// redefinition error; omitting them on the definition is legal).
+		const FString WrapDecl = FString::Printf(
+			TEXT("inline FRuiNode %s(%s InProps = %s(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey "
+				 "InKey = FRuiKey());\n"),
+			*Decl.Name, *PropsType, *PropsType);
+		E.DeclPhase = Struct + WrapDecl;
+
+		// ── BODY phase: the impl (markup lowering — MUST run to populate Uses/UseAts), the identity
+		// + hook-signature registrations, the default-free wrapper definition, and (exported only)
+		// the named-factory self-registration.
+		FString Impl = FString::Printf(
 			TEXT("static FRuiNodeArray %s_UetkxImpl(FRuiContext& Ctx, const %s& Props, const TArray<FRuiNode>& "
 				 "children)\n{\n"),
 			*Decl.Name, *PropsType);
 		for (const FUetkxParam& Param : Decl.Params)
 		{
-			Out += FString::Printf(TEXT("\tconst auto& %s = Props.%s;\n"), *Param.Name, *Param.Name);
+			Impl += FString::Printf(TEXT("\tconst auto& %s = Props.%s;\n"), *Param.Name, *Param.Name);
 		}
 		const FString Setup = Decl.Setup.TrimStartAndEnd();
 		if (!Setup.IsEmpty())
 		{
-			Out += TEXT("\t") + PrefixHooks(Setup).Replace(TEXT("\n"), TEXT("\n\t")) + TEXT("\n");
+			Impl += TEXT("\t") + PrefixHooks(Setup).Replace(TEXT("\n"), TEXT("\n\t")) + TEXT("\n");
 		}
-		Out += FString::Printf(TEXT("\treturn { %s };\n}\n"), *EmitNodeExpr(*Decl.Root, Decl.BodyAt));
-		Out += FString::Printf(TEXT("static const FName G%sUetkxId = RUI::RegisterComponentId((void*)&%s_UetkxImpl, "
-									"FName(TEXT(\"%s\")));\n"),
-							   *Decl.Name, *Decl.Name, *Decl.Name);
-		Out += FString::Printf(TEXT("static constexpr uint32 %s_RUI_HOOK_SIG = 0x%08Xu;\n"), *Decl.Name,
-							   FUetkxFileScan::HookSignature(Decl.HookCalls));
-		Out += FString::Printf(
-			TEXT("inline FRuiNode %s(%s InProps = %s(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey "
-				 "InKey = FRuiKey())\n{\n\treturn RUI::FC(&%s_UetkxImpl, MoveTemp(InProps), MoveTemp(InChildren), "
-				 "InKey);\n}\n"),
-			*Decl.Name, *PropsType, *PropsType, *Decl.Name);
-		// Cross-TU reach: the wrapper above is TU-local (the aggregator), so an EXPORTED component
-		// self-registers a default-props factory under its name (gallery/preview/HMR). A PRIVATE
-		// component is TREE-SHAKEN — no named factory, and the whole declaration is wrapped in the
-		// per-file detail namespace (A5e). RegisterComponentId is KEPT either way (HMR identity).
+		Impl += FString::Printf(TEXT("\treturn { %s };\n}\n"), *EmitNodeExpr(*Decl.Root, Decl.BodyAt));
+		Impl += FString::Printf(TEXT("static const FName G%sUetkxId = RUI::RegisterComponentId((void*)&%s_UetkxImpl, "
+									 "FName(TEXT(\"%s\")));\n"),
+								*Decl.Name, *Decl.Name, *Decl.Name);
+		Impl += FString::Printf(TEXT("static constexpr uint32 %s_RUI_HOOK_SIG = 0x%08Xu;\n"), *Decl.Name,
+								FUetkxFileScan::HookSignature(Decl.HookCalls));
+		Impl += FString::Printf(TEXT("inline FRuiNode %s(%s InProps, TArray<FRuiNode> InChildren, FRuiKey "
+									 "InKey)\n{\n\treturn RUI::FC(&%s_UetkxImpl, MoveTemp(InProps), "
+									 "MoveTemp(InChildren), InKey);\n}\n"),
+								*Decl.Name, *PropsType, *Decl.Name);
 		if (Decl.bExported)
 		{
-			Out += FString::Printf(TEXT("static const bool G%sUetkxFactoryReg = "
-										"RUI::RegisterNamedFactory(FName(TEXT(\"%s\")), []() { return %s(); });\n"),
-								   *Decl.Name, *Decl.Name, *Decl.Name);
+			Impl += FString::Printf(TEXT("static const bool G%sUetkxFactoryReg = "
+										 "RUI::RegisterNamedFactory(FName(TEXT(\"%s\")), []() { return %s(); });\n"),
+									*Decl.Name, *Decl.Name, *Decl.Name);
 		}
-		else
+		E.BodyPhase = Impl;
+
+		// A PRIVATE component is TREE-SHAKEN (no named factory, above) and both phases wrap in the
+		// per-file detail namespace (A5e). RegisterComponentId is KEPT either way (HMR identity).
+		if (!Decl.bExported)
 		{
-			const FString PrivNs = PrivNamespaceFor(Basename);
-			Out = FString::Printf(TEXT("namespace %s\n{\n"), *PrivNs) + Out +
-				  FString::Printf(TEXT("} // namespace %s\n"), *PrivNs);
+			WrapPrivate(E, PrivNamespaceFor(Basename));
 		}
-		return Out;
+		return E;
 	}
 } // namespace
 
@@ -986,11 +1028,13 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 		}
 	}
 
-	// De-binarized emit (mixed-decl v1): lower each declaration in SOURCE order. A component emits
-	// a struct + impl + wrapper + registrations (FEmitter); a hook emits an inline free function; a
-	// module emits a namespace. One .inl holds them all in the order the author wrote them.
+	// De-binarized emit (mixed-decl v1) split into the two aggregator phases (M6). Modules emit into
+	// the DECL phase FIRST (member defaults may reference them). Components + hooks emit in SOURCE
+	// order into both phases. The whole .inl is wrapped `#if defined(RUI_UETKX_DECL_PHASE) … #else …
+	// #endif` so the aggregator can include it once per phase.
 	TSet<FString> Uses;
 	TMap<FString, int32> UseAts;
+	FString ModuleDecls, OtherDecls, Bodies;
 	for (const TPair<EUetkxDeclKind, int32>& Entry : Scan.Order)
 	{
 		switch (Entry.Key)
@@ -999,12 +1043,13 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 		{
 			const FUetkxComponentDecl& Decl = Scan.Components[Entry.Value];
 			FEmitter Emitter(Basename, Decl, Out.Diags, Uses, UseAts, Qualified);
-			const FString Body = Emitter.Emit();
+			const FEmittedDecl E = Emitter.Emit();
 			if (Emitter.HasError())
 			{
 				return Out;
 			}
-			Inl += Body + TEXT("\n");
+			OtherDecls += E.DeclPhase + TEXT("\n");
+			Bodies += E.BodyPhase + TEXT("\n");
 			Out.ComponentNames.Add(Decl.Name);
 			if (Out.HookSig == 0)
 			{
@@ -1013,15 +1058,24 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 			break;
 		}
 		case EUetkxDeclKind::Hook:
-			Inl += EmitHookInl(Scan.Hooks[Entry.Value], PrivNs, Qualified);
+		{
+			const FEmittedDecl E = EmitHookInl(Scan.Hooks[Entry.Value], PrivNs, Qualified);
+			OtherDecls += E.DeclPhase + TEXT("\n");
+			Bodies += E.BodyPhase + TEXT("\n");
 			Out.ComponentNames.Add(Scan.Hooks[Entry.Value].Name);
 			break;
+		}
 		case EUetkxDeclKind::Module:
-			Inl += EmitModuleInl(Scan.Modules[Entry.Value], PrivNs);
+			ModuleDecls += EmitModuleInl(Scan.Modules[Entry.Value], PrivNs).DeclPhase + TEXT("\n");
 			Out.ComponentNames.Add(Scan.Modules[Entry.Value].Name);
 			break;
 		}
 	}
+	Inl += TEXT("#if defined(RUI_UETKX_DECL_PHASE)\n");
+	Inl += ModuleDecls + OtherDecls;
+	Inl += TEXT("#else\n");
+	Inl += Bodies;
+	Inl += TEXT("#endif\n");
 	// Import resolution + STRICT usage diagnostics (M4). Runs only when a resolver is supplied
 	// (driver / fixture harness); tests without one get syntax-only compilation. Resolution
 	// happens AFTER emit so the component-tag reference set (UseAts) is available; a resolution

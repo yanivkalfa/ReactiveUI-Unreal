@@ -2,6 +2,10 @@
 // Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 
 
+#if defined(RUI_UETKX_DECL_PHASE)
+inline TTuple<int32, TFunction<void()>> UseCounter(FRuiContext& Ctx, int32 Start);
+
+#else
 inline TTuple<int32, TFunction<void()>> UseCounter(FRuiContext& Ctx, int32 Start)
 {
 	auto [Count, SetCount] = Ctx.UseState<int32>(Start);
@@ -10,3 +14,4 @@ inline TTuple<int32, TFunction<void()>> UseCounter(FRuiContext& Ctx, int32 Start
 		return MakeTuple(Count, Increment);
 }
 
+#endif

@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 
 
+#if defined(RUI_UETKX_DECL_PHASE)
 struct FStatusChipUetkxProps final : public FRuiPropsBase
 {
 	FString Label = FString(TEXT("ok"));
@@ -14,7 +15,9 @@ struct FStatusChipUetkxProps final : public FRuiPropsBase
 		return bEq;
 	}
 };
+inline FRuiNode StatusChip(FStatusChipUetkxProps InProps = FStatusChipUetkxProps(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey InKey = FRuiKey());
 
+#else
 static FRuiNodeArray StatusChip_UetkxImpl(FRuiContext& Ctx, const FStatusChipUetkxProps& Props, const TArray<FRuiNode>& children)
 {
 	const auto& Label = Props.Label;
@@ -29,9 +32,10 @@ static FRuiNodeArray StatusChip_UetkxImpl(FRuiContext& Ctx, const FStatusChipUet
 }
 static const FName GStatusChipUetkxId = RUI::RegisterComponentId((void*)&StatusChip_UetkxImpl, FName(TEXT("StatusChip")));
 static constexpr uint32 StatusChip_RUI_HOOK_SIG = 0x811C9DC5u;
-inline FRuiNode StatusChip(FStatusChipUetkxProps InProps = FStatusChipUetkxProps(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey InKey = FRuiKey())
+inline FRuiNode StatusChip(FStatusChipUetkxProps InProps, TArray<FRuiNode> InChildren, FRuiKey InKey)
 {
 	return RUI::FC(&StatusChip_UetkxImpl, MoveTemp(InProps), MoveTemp(InChildren), InKey);
 }
 static const bool GStatusChipUetkxFactoryReg = RUI::RegisterNamedFactory(FName(TEXT("StatusChip")), []() { return StatusChip(); });
 
+#endif

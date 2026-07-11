@@ -3,6 +3,7 @@
 
 #include "RuiDemoSupport.h"
 
+#if defined(RUI_UETKX_DECL_PHASE)
 struct FSignalCounterUetkxProps final : public FRuiPropsBase
 {
 
@@ -13,7 +14,9 @@ struct FSignalCounterUetkxProps final : public FRuiPropsBase
 		return bEq;
 	}
 };
+inline FRuiNode SignalCounter(FSignalCounterUetkxProps InProps = FSignalCounterUetkxProps(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey InKey = FRuiKey());
 
+#else
 static FRuiNodeArray SignalCounter_UetkxImpl(FRuiContext& Ctx, const FSignalCounterUetkxProps& Props, const TArray<FRuiNode>& children)
 {
 	TSharedRef<TRuiSignal<int32>> Signal = RUI::GetOrCreateSignal<int32>(RuiDemo::GDemoCounterSignal, 0);
@@ -113,9 +116,10 @@ static FRuiNodeArray SignalCounter_UetkxImpl(FRuiContext& Ctx, const FSignalCoun
 }
 static const FName GSignalCounterUetkxId = RUI::RegisterComponentId((void*)&SignalCounter_UetkxImpl, FName(TEXT("SignalCounter")));
 static constexpr uint32 SignalCounter_RUI_HOOK_SIG = 0x811C9DC5u;
-inline FRuiNode SignalCounter(FSignalCounterUetkxProps InProps = FSignalCounterUetkxProps(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey InKey = FRuiKey())
+inline FRuiNode SignalCounter(FSignalCounterUetkxProps InProps, TArray<FRuiNode> InChildren, FRuiKey InKey)
 {
 	return RUI::FC(&SignalCounter_UetkxImpl, MoveTemp(InProps), MoveTemp(InChildren), InKey);
 }
 static const bool GSignalCounterUetkxFactoryReg = RUI::RegisterNamedFactory(FName(TEXT("SignalCounter")), []() { return SignalCounter(); });
 
+#endif

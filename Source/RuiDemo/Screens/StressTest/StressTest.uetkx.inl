@@ -3,6 +3,7 @@
 
 #include "RuiDemoSupport.h"
 
+#if defined(RUI_UETKX_DECL_PHASE)
 struct FStressTestUetkxProps final : public FRuiPropsBase
 {
 
@@ -13,7 +14,9 @@ struct FStressTestUetkxProps final : public FRuiPropsBase
 		return bEq;
 	}
 };
+inline FRuiNode StressTest(FStressTestUetkxProps InProps = FStressTestUetkxProps(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey InKey = FRuiKey());
 
+#else
 static FRuiNodeArray StressTest_UetkxImpl(FRuiContext& Ctx, const FStressTestUetkxProps& Props, const TArray<FRuiNode>& children)
 {
 	auto [CountText, SetCountText] = Ctx.UseState<FString>(FString(TEXT("300")));
@@ -252,9 +255,10 @@ static FRuiNodeArray StressTest_UetkxImpl(FRuiContext& Ctx, const FStressTestUet
 }
 static const FName GStressTestUetkxId = RUI::RegisterComponentId((void*)&StressTest_UetkxImpl, FName(TEXT("StressTest")));
 static constexpr uint32 StressTest_RUI_HOOK_SIG = 0x00ED6E73u;
-inline FRuiNode StressTest(FStressTestUetkxProps InProps = FStressTestUetkxProps(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey InKey = FRuiKey())
+inline FRuiNode StressTest(FStressTestUetkxProps InProps, TArray<FRuiNode> InChildren, FRuiKey InKey)
 {
 	return RUI::FC(&StressTest_UetkxImpl, MoveTemp(InProps), MoveTemp(InChildren), InKey);
 }
 static const bool GStressTestUetkxFactoryReg = RUI::RegisterNamedFactory(FName(TEXT("StressTest")), []() { return StressTest(); });
 
+#endif

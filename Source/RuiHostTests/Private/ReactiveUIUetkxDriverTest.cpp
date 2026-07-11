@@ -251,6 +251,24 @@ bool FRuiUetkxDriverTest::RunTest(const FString&)
 		FM.Delete(*PrivB);
 	}
 
+	// ── UETKX2306: a VALUE-import cycle (module <-> module) errors; component cycles are legal ────
+	{
+		const FString Dir = Scratch / TEXT("Value");
+		const FString MA = Dir / TEXT("MA.uetkx");
+		const FString MB = Dir / TEXT("MB.uetkx");
+		// MA's module reads MB's constant and vice versa — an eager-load init deadlock.
+		FFileHelper::SaveStringToFile(
+			TEXT("import { StyleB } from \"./MB\"\nexport module StyleA { inline const int32 X = StyleB::Y; }\n"), *MA);
+		FFileHelper::SaveStringToFile(
+			TEXT("import { StyleA } from \"./MA\"\nexport module StyleB { inline const int32 Y = StyleA::X; }\n"), *MB);
+		AddExpectedError(TEXT("UETKX2306"), EAutomationExpectedErrorFlags::Contains, 0);
+		const FUetkxSweepResult Sweep = FUetkxDriver::CompileAll(Scratch, /*bForce*/ true);
+		TestTrue(TEXT("module<->module value cycle is a sweep error (2306)"), Sweep.Errors >= 1);
+		FM.Delete(*MA);
+		FM.Delete(*MB);
+		FUetkxDriver::CompileAll(Scratch);
+	}
+
 	FM.DeleteDirectory(*Scratch, false, true);
 	return true;
 }

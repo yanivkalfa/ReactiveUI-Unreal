@@ -176,6 +176,35 @@ component RowList(Names: TArray<FString>) {
 			TestTrue(TEXT("private module qual qualified"), Out.Inl.Contains(TEXT("RuiPriv_Panel::RowStyle::Gap")));
 		}
 	}
+
+	// ── two-phase emit shape (M6): phase guards + defaults on the DECL wrapper only ───────────────
+	{
+		const FUetkxCompileOutput Out = FUetkxCodegen::CompileSource(
+			TEXT("export component TwoPhase(Title: FText) {\n\treturn ( <Spacer /> );\n}\n"), TEXT("TwoPhase"));
+		if (TestTrue(TEXT("two-phase sample compiles"), Out.bOk))
+		{
+			TestTrue(TEXT("has the decl-phase guard"), Out.Inl.Contains(TEXT("#if defined(RUI_UETKX_DECL_PHASE)")));
+			TestTrue(TEXT("has the body-phase #else"), Out.Inl.Contains(TEXT("#else")));
+			TestTrue(TEXT("has #endif"), Out.Inl.Contains(TEXT("#endif")));
+			// The DECL phase carries the complete struct + a defaulted forward declaration.
+			TestTrue(TEXT("decl phase has the complete props struct"),
+					 Out.Inl.Contains(TEXT("struct FTwoPhaseUetkxProps final : public FRuiPropsBase")));
+			TestTrue(TEXT("decl-phase wrapper is a DEFAULTED forward declaration"),
+					 Out.Inl.Contains(
+						 TEXT("inline FRuiNode TwoPhase(FTwoPhaseUetkxProps InProps = FTwoPhaseUetkxProps(), "
+							  "TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey InKey = FRuiKey());")));
+			// The BODY phase repeats the signature WITHOUT defaults (C++ redefinition rule).
+			TestTrue(TEXT("body-phase wrapper definition drops the defaults"),
+					 Out.Inl.Contains(TEXT("inline FRuiNode TwoPhase(FTwoPhaseUetkxProps InProps, TArray<FRuiNode> "
+										   "InChildren, FRuiKey InKey)\n{")));
+			TestFalse(TEXT("no defaulted wrapper DEFINITION (would be a redefinition error)"),
+					  Out.Inl.Contains(TEXT("FRuiKey InKey = FRuiKey())\n{")));
+			// The impl lives in the body phase; the struct does NOT repeat there.
+			const int32 Split = Out.Inl.Find(TEXT("#else"));
+			TestTrue(TEXT("impl is after #else (body phase)"),
+					 Split >= 0 && Out.Inl.Find(TEXT("TwoPhase_UetkxImpl")) > Split);
+		}
+	}
 	return true;
 }
 

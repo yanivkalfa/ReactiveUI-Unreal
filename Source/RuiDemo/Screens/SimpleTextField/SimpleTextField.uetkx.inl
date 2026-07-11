@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 
 
+#if defined(RUI_UETKX_DECL_PHASE)
 struct FSimpleTextFieldUetkxProps final : public FRuiPropsBase
 {
 
@@ -12,7 +13,9 @@ struct FSimpleTextFieldUetkxProps final : public FRuiPropsBase
 		return bEq;
 	}
 };
+inline FRuiNode SimpleTextField(FSimpleTextFieldUetkxProps InProps = FSimpleTextFieldUetkxProps(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey InKey = FRuiKey());
 
+#else
 static FRuiNodeArray SimpleTextField_UetkxImpl(FRuiContext& Ctx, const FSimpleTextFieldUetkxProps& Props, const TArray<FRuiNode>& children)
 {
 	auto [Text, SetText] = Ctx.UseState<FString>(FString());
@@ -51,9 +54,10 @@ static FRuiNodeArray SimpleTextField_UetkxImpl(FRuiContext& Ctx, const FSimpleTe
 }
 static const FName GSimpleTextFieldUetkxId = RUI::RegisterComponentId((void*)&SimpleTextField_UetkxImpl, FName(TEXT("SimpleTextField")));
 static constexpr uint32 SimpleTextField_RUI_HOOK_SIG = 0x986DF5F6u;
-inline FRuiNode SimpleTextField(FSimpleTextFieldUetkxProps InProps = FSimpleTextFieldUetkxProps(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey InKey = FRuiKey())
+inline FRuiNode SimpleTextField(FSimpleTextFieldUetkxProps InProps, TArray<FRuiNode> InChildren, FRuiKey InKey)
 {
 	return RUI::FC(&SimpleTextField_UetkxImpl, MoveTemp(InProps), MoveTemp(InChildren), InKey);
 }
 static const bool GSimpleTextFieldUetkxFactoryReg = RUI::RegisterNamedFactory(FName(TEXT("SimpleTextField")), []() { return SimpleTextField(); });
 
+#endif

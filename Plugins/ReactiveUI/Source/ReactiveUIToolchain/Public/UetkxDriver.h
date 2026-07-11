@@ -51,8 +51,9 @@ struct REACTIVEUITOOLCHAIN_API FUetkxCheckResult
 class REACTIVEUITOOLCHAIN_API FUetkxDriver
 {
 public:
-	/** Bump when generated-code SHAPE changes — the fingerprint that re-stales everything. */
-	static constexpr int32 CodegenVersion = 1;
+	/** Bump when generated-code SHAPE changes — the fingerprint that re-stales everything.
+	 *  v2: two-phase (`RUI_UETKX_DECL_PHASE`) aggregator + fwd-decl emit + `#line` directives (M6/M7). */
+	static constexpr int32 CodegenVersion = 2;
 
 	static FString InlPathFor(const FString& UetkxPath) { return UetkxPath + TEXT(".inl"); }
 	static FString SidecarPathFor(const FString& UetkxPath) { return UetkxPath + TEXT(".diags.json"); }

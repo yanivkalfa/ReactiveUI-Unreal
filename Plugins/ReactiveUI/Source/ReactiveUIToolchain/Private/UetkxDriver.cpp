@@ -230,36 +230,9 @@ namespace
 		return Rel;
 	}
 
-	/** A sidecar's ordering fields (absent on pre-uses sidecars → component kind, no uses). */
-	void ReadSidecarOrdering(const FString& SidecarPath, bool& bOutSupport, TArray<FString>& OutUses)
-	{
-		bOutSupport = false;
-		OutUses.Reset();
-		FString Json;
-		if (!FFileHelper::LoadFileToString(Json, *SidecarPath))
-		{
-			return;
-		}
-		TSharedPtr<FJsonObject> Root;
-		const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Json);
-		if (!FJsonSerializer::Deserialize(Reader, Root) || !Root.IsValid())
-		{
-			return;
-		}
-		FString Kind;
-		if (Root->TryGetStringField(TEXT("kind"), Kind))
-		{
-			bOutSupport = (Kind == TEXT("support"));
-		}
-		const TArray<TSharedPtr<FJsonValue>>* Uses = nullptr;
-		if (Root->TryGetArrayField(TEXT("uses"), Uses))
-		{
-			for (const TSharedPtr<FJsonValue>& Value : *Uses)
-			{
-				OutUses.Add(Value->AsString());
-			}
-		}
-	}
+	// NOTE (M6): the aggregator no longer orders by the sidecar `uses`/`kind` cache — ordering is now
+	// source-truth (fresh preamble import edges, A2). The sidecar's `uses`/`kind` fields remain in
+	// the payload as a verifier hint but are read by no code path here (ReadSidecarOrdering removed).
 } // namespace
 
 uint32 FUetkxDriver::SrcHash(const FString& Source)
@@ -453,46 +426,64 @@ TMap<FString, FString> FUetkxDriver::BuildAggregators(const TArray<FString>& Uet
 		Contents += TEXT("#include \"RuiSignal.h\"\n");
 		Contents += TEXT("#include \"RuiSlateElements.h\"\n");
 		Contents += TEXT("#include \"RuiStyle.h\"\n\n");
-		// Include ORDER is load-bearing: component tags lower to DIRECT calls, so a cross-file
-		// <Sub/> needs Sub's .inl earlier in this TU (C++ declaration order; C# has no such
-		// constraint — documented divergence). Order: support files (hooks/modules — callees of
-		// everything) alphabetically first, then components topo-sorted by their sidecar `uses`
-		// (Kahn, alphabetical tie-break). A cross-file reference cycle cannot compile as direct
-		// calls in any order — surfaced by RUICompile as UETKX2107 (CompileAll); here the cycle
-		// remainder appends alphabetically so the aggregator stays deterministic.
+		// TWO-PHASE include (M6): every .inl is `#include`d once in the DECL phase (complete props
+		// structs + defaulted wrapper decls + hook fwd-decls + module bodies) and once in the BODY
+		// phase. Because the decl pass forward-declares EVERY wrapper before any body, cross-file
+		// component references — INCLUDING CYCLES — all resolve; the old UETKX2107 error retires.
+		//
+		// Order is SOURCE-TRUTH (A2): each file's fresh PREAMBLE-scan imports, resolved to the files
+		// it depends on (not the per-machine sidecar `uses` cache). Topo-sorted (Kahn) so a
+		// dependency's declarations precede its importer — the only hard constraint is a module body
+		// preceding a struct whose member defaults read its constants — alphabetical tie-break, and
+		// the cycle remainder appended alphabetically (now legal under the two-phase decl pass).
+		auto NormFull = [](FString P)
+		{
+			P = FPaths::ConvertRelativePathToFull(P);
+			FPaths::NormalizeFilename(P);
+			return P;
+		};
 		TArray<FString> Sorted = Pair.Value;
 		Sorted.Sort();
-		TArray<FString> Supports, Components;
-		TMap<FString, TArray<FString>> UsesByPath; // path -> component names it references
-		TMap<FString, FString> OwnerOfName;		   // component name -> defining path
+		const FUetkxFsResolver Resolver(FPaths::ProjectDir(), {}, /*bFixtureMode*/ false);
+		TMap<FString, FString> NormToPath;
 		for (const FString& Uetkx : Sorted)
 		{
-			bool bSupport = false;
-			TArray<FString> FileUses;
-			ReadSidecarOrdering(SidecarPathFor(Uetkx), bSupport, FileUses);
-			(bSupport ? Supports : Components).Add(Uetkx);
-			UsesByPath.Add(Uetkx, MoveTemp(FileUses));
-			for (const FString& Name : ReadSidecarRefs(SidecarPathFor(Uetkx)))
-			{
-				OwnerOfName.Add(Name, Uetkx);
-			}
+			NormToPath.Add(NormFull(Uetkx), Uetkx);
 		}
-		TArray<FString> Ordered = Supports;
+		TMap<FString, TArray<FString>> DepsByPath; // path -> the group files it imports
+		for (const FString& Uetkx : Sorted)
+		{
+			TArray<FString> Deps;
+			FString Source;
+			if (FFileHelper::LoadFileToString(Source, *Uetkx))
+			{
+				const FString ProjRel = ProjectRelPathFor(Uetkx);
+				for (const FUetkxImportDecl& Imp : FUetkxFileScan::ScanPreamble(Source).Imports)
+				{
+					const FString Target = Resolver.Resolve(Imp.Specifier, ProjRel);
+					if (const FString* Dep = Target.IsEmpty() ? nullptr : NormToPath.Find(NormFull(Target)))
+					{
+						Deps.AddUnique(*Dep);
+					}
+				}
+			}
+			DepsByPath.Add(Uetkx, MoveTemp(Deps));
+		}
+		TArray<FString> Ordered;
 		TSet<FString> Emitted;
-		while (Ordered.Num() < Supports.Num() + Components.Num())
+		while (Ordered.Num() < Sorted.Num())
 		{
 			bool bProgress = false;
-			for (const FString& Uetkx : Components)
+			for (const FString& Uetkx : Sorted)
 			{
 				if (Emitted.Contains(Uetkx))
 				{
 					continue;
 				}
 				bool bReady = true;
-				for (const FString& Use : UsesByPath[Uetkx])
+				for (const FString& Dep : DepsByPath[Uetkx])
 				{
-					const FString* Owner = OwnerOfName.Find(Use);
-					if (Owner != nullptr && *Owner != Uetkx && !Emitted.Contains(*Owner))
+					if (Dep != Uetkx && !Emitted.Contains(Dep))
 					{
 						bReady = false;
 						break;
@@ -507,7 +498,7 @@ TMap<FString, FString> FUetkxDriver::BuildAggregators(const TArray<FString>& Uet
 			}
 			if (!bProgress)
 			{
-				for (const FString& Uetkx : Components) // cycle remainder: deterministic fallback
+				for (const FString& Uetkx : Sorted) // cycle remainder: deterministic alphabetical fallback
 				{
 					if (!Emitted.Contains(Uetkx))
 					{
@@ -517,11 +508,21 @@ TMap<FString, FString> FUetkxDriver::BuildAggregators(const TArray<FString>& Uet
 				}
 			}
 		}
-		for (const FString& Uetkx : Ordered)
+		auto RelOf = [&](const FString& Uetkx)
 		{
 			FString Rel = InlPathFor(Uetkx);
 			FPaths::MakePathRelativeTo(Rel, *(AggregatorDir + TEXT("/")));
-			Contents += FString::Printf(TEXT("#include \"%s\"\n"), *Rel);
+			return Rel;
+		};
+		Contents += TEXT("#define RUI_UETKX_DECL_PHASE\n");
+		for (const FString& Uetkx : Ordered)
+		{
+			Contents += FString::Printf(TEXT("#include \"%s\"\n"), *RelOf(Uetkx));
+		}
+		Contents += TEXT("#undef RUI_UETKX_DECL_PHASE\n");
+		for (const FString& Uetkx : Ordered)
+		{
+			Contents += FString::Printf(TEXT("#include \"%s\"\n"), *RelOf(Uetkx));
 		}
 		Out.Add(AggregatorPath, MoveTemp(Contents));
 	}
@@ -719,71 +720,104 @@ FUetkxSweepResult FUetkxDriver::CompileAllRoots(const TArray<FString>& Roots, bo
 		}
 		Out.Files.Add(MoveTemp(R));
 	}
-	// UETKX2107: a cross-FILE component-reference cycle can never compile as direct calls in
-	// any include order (C++ declaration order — documented divergence from the C# sibling).
-	// Detected here (sidecars are fresh) so the author gets a named error, not a cryptic
-	// C3861 from the aggregator TU. Kahn over the uses-graph; the remainder is the cycle.
+	// UETKX2306: a VALUE-import cycle. Cross-file COMPONENT cycles are now legal (the two-phase decl
+	// pass forward-declares every wrapper — UETKX2107 retired). But HOOKS and MODULES load EAGERLY,
+	// so a cycle among their imports is a genuine initialization deadlock (TDZ parity). Build the
+	// value-import graph (edges ONLY for imported hooks/modules) from fresh preamble scans and DFS
+	// for a cycle, printing the chain.
 	{
-		TMap<FString, TArray<FString>> UsesByPath;
-		TMap<FString, FString> OwnerOfName;
+		auto NormFull = [](FString P)
+		{
+			P = FPaths::ConvertRelativePathToFull(P);
+			FPaths::NormalizeFilename(P);
+			return P;
+		};
+		TMap<FString, FString> NormToOrig;
+		TMap<FString, TArray<FString>> ValueEdges; // normalized path -> normalized paths it value-imports
 		for (const FString& Path : All)
 		{
-			bool bSupport = false;
-			TArray<FString> FileUses;
-			ReadSidecarOrdering(SidecarPathFor(Path), bSupport, FileUses);
-			if (!bSupport)
+			const FString Norm = NormFull(Path);
+			NormToOrig.Add(Norm, Path);
+			TArray<FString> Edges;
+			FString Source;
+			if (FFileHelper::LoadFileToString(Source, *Path))
 			{
-				UsesByPath.Add(Path, MoveTemp(FileUses));
-				for (const FString& Name : ReadSidecarRefs(SidecarPathFor(Path)))
+				const FString ProjRel = ProjectRelPathFor(Path);
+				for (const FUetkxImportDecl& Imp : FUetkxFileScan::ScanPreamble(Source).Imports)
 				{
-					OwnerOfName.Add(Name, Path);
-				}
-			}
-		}
-		TSet<FString> Done;
-		bool bProgress = true;
-		while (bProgress)
-		{
-			bProgress = false;
-			for (const TPair<FString, TArray<FString>>& Pair : UsesByPath)
-			{
-				if (Done.Contains(Pair.Key))
-				{
-					continue;
-				}
-				bool bReady = true;
-				for (const FString& Use : Pair.Value)
-				{
-					const FString* Owner = OwnerOfName.Find(Use);
-					if (Owner != nullptr && *Owner != Pair.Key && !Done.Contains(*Owner))
+					const FString Target = Resolver.Resolve(Imp.Specifier, ProjRel);
+					if (Target.IsEmpty())
 					{
-						bReady = false;
-						break;
+						continue;
+					}
+					TMap<FString, FUetkxTargetDecl> Decls;
+					if (!Resolver.GetDecls(Target, Decls))
+					{
+						continue;
+					}
+					for (const FString& Name : Imp.Names)
+					{
+						const FUetkxTargetDecl* T = Decls.Find(Name);
+						if (T && (T->Kind == EUetkxDeclKind::Hook || T->Kind == EUetkxDeclKind::Module))
+						{
+							Edges.AddUnique(NormFull(Target));
+							break;
+						}
 					}
 				}
-				if (bReady)
+			}
+			ValueEdges.Add(Norm, MoveTemp(Edges));
+		}
+		TSet<FString> Visited, OnStack;
+		TArray<FString> Chain;
+		TFunction<bool(const FString&)> Dfs = [&](const FString& Node) -> bool
+		{
+			Visited.Add(Node);
+			OnStack.Add(Node);
+			Chain.Push(Node);
+			for (const FString& Next : ValueEdges.FindRef(Node))
+			{
+				if (OnStack.Contains(Next))
 				{
-					Done.Add(Pair.Key);
-					bProgress = true;
+					Chain.Push(Next); // close the cycle
+					return true;
+				}
+				if (!Visited.Contains(Next) && Dfs(Next))
+				{
+					return true;
+				}
+			}
+			OnStack.Remove(Node);
+			Chain.Pop();
+			return false;
+		};
+		bool bCycle = false;
+		for (const FString& Path : All)
+		{
+			const FString Norm = NormFull(Path);
+			if (!Visited.Contains(Norm))
+			{
+				Chain.Reset();
+				if (Dfs(Norm))
+				{
+					bCycle = true;
+					break;
 				}
 			}
 		}
-		if (Done.Num() < UsesByPath.Num())
+		if (bCycle)
 		{
-			TArray<FString> Cycle;
-			for (const TPair<FString, TArray<FString>>& Pair : UsesByPath)
+			const int32 Start = Chain.IndexOfByKey(Chain.Last());
+			TArray<FString> Names;
+			for (int32 i = FMath::Max(0, Start); i < Chain.Num(); ++i)
 			{
-				if (!Done.Contains(Pair.Key))
-				{
-					Cycle.Add(FPaths::GetCleanFilename(Pair.Key));
-				}
+				Names.Add(FPaths::GetCleanFilename(NormToOrig.FindRef(Chain[i])));
 			}
-			Cycle.Sort();
 			++Out.Errors;
 			UE_LOG(LogRuiToolchain, Error,
-				   TEXT("UETKX2107: component reference cycle across files (%s) — cross-file tags are direct C++ "
-						"calls; merge the cycle into one file or break it"),
-				   *FString::Join(Cycle, TEXT(" <-> ")));
+				   TEXT("UETKX2306: value-import cycle: %s (hooks/modules load eagerly — break the chain or move to "
+						"component refs)"),
+				   *FString::Join(Names, TEXT(" -> ")));
 		}
 	}
 	// Orphan sweep: a deleted Foo.uetkx takes its generated siblings with it — a committed

@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 
 
+#if defined(RUI_UETKX_DECL_PHASE)
 struct FSimpleCounterUetkxProps final : public FRuiPropsBase
 {
 
@@ -12,7 +13,9 @@ struct FSimpleCounterUetkxProps final : public FRuiPropsBase
 		return bEq;
 	}
 };
+inline FRuiNode SimpleCounter(FSimpleCounterUetkxProps InProps = FSimpleCounterUetkxProps(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey InKey = FRuiKey());
 
+#else
 static FRuiNodeArray SimpleCounter_UetkxImpl(FRuiContext& Ctx, const FSimpleCounterUetkxProps& Props, const TArray<FRuiNode>& children)
 {
 	auto [Count, Increment] = UseCounter(Ctx, 0);
@@ -62,9 +65,10 @@ static FRuiNodeArray SimpleCounter_UetkxImpl(FRuiContext& Ctx, const FSimpleCoun
 }
 static const FName GSimpleCounterUetkxId = RUI::RegisterComponentId((void*)&SimpleCounter_UetkxImpl, FName(TEXT("SimpleCounter")));
 static constexpr uint32 SimpleCounter_RUI_HOOK_SIG = 0x811C9DC5u;
-inline FRuiNode SimpleCounter(FSimpleCounterUetkxProps InProps = FSimpleCounterUetkxProps(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey InKey = FRuiKey())
+inline FRuiNode SimpleCounter(FSimpleCounterUetkxProps InProps, TArray<FRuiNode> InChildren, FRuiKey InKey)
 {
 	return RUI::FC(&SimpleCounter_UetkxImpl, MoveTemp(InProps), MoveTemp(InChildren), InKey);
 }
 static const bool GSimpleCounterUetkxFactoryReg = RUI::RegisterNamedFactory(FName(TEXT("SimpleCounter")), []() { return SimpleCounter(); });
 
+#endif

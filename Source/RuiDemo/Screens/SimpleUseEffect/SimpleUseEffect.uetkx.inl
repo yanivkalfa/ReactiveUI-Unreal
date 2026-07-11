@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 
 
+#if defined(RUI_UETKX_DECL_PHASE)
 struct FSimpleUseEffectUetkxProps final : public FRuiPropsBase
 {
 
@@ -12,7 +13,9 @@ struct FSimpleUseEffectUetkxProps final : public FRuiPropsBase
 		return bEq;
 	}
 };
+inline FRuiNode SimpleUseEffect(FSimpleUseEffectUetkxProps InProps = FSimpleUseEffectUetkxProps(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey InKey = FRuiKey());
 
+#else
 static FRuiNodeArray SimpleUseEffect_UetkxImpl(FRuiContext& Ctx, const FSimpleUseEffectUetkxProps& Props, const TArray<FRuiNode>& children)
 {
 	auto [Message, SetMessage] = Ctx.UseState<FString>(FString(TEXT("Waiting...")));
@@ -35,9 +38,10 @@ static FRuiNodeArray SimpleUseEffect_UetkxImpl(FRuiContext& Ctx, const FSimpleUs
 }
 static const FName GSimpleUseEffectUetkxId = RUI::RegisterComponentId((void*)&SimpleUseEffect_UetkxImpl, FName(TEXT("SimpleUseEffect")));
 static constexpr uint32 SimpleUseEffect_RUI_HOOK_SIG = 0x7B306E79u;
-inline FRuiNode SimpleUseEffect(FSimpleUseEffectUetkxProps InProps = FSimpleUseEffectUetkxProps(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey InKey = FRuiKey())
+inline FRuiNode SimpleUseEffect(FSimpleUseEffectUetkxProps InProps, TArray<FRuiNode> InChildren, FRuiKey InKey)
 {
 	return RUI::FC(&SimpleUseEffect_UetkxImpl, MoveTemp(InProps), MoveTemp(InChildren), InKey);
 }
 static const bool GSimpleUseEffectUetkxFactoryReg = RUI::RegisterNamedFactory(FName(TEXT("SimpleUseEffect")), []() { return SimpleUseEffect(); });
 
+#endif

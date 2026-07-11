@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 
 
+#if defined(RUI_UETKX_DECL_PHASE)
 namespace Palette
 {
 	inline const int32 Primary = 1;
@@ -9,8 +10,15 @@ namespace Palette
 
 namespace RuiPriv_Palette
 {
+inline void UsePrivate(FRuiContext& Ctx);
+} // namespace RuiPriv_Palette
+
+#else
+namespace RuiPriv_Palette
+{
 inline void UsePrivate(FRuiContext& Ctx)
 {
 }
 } // namespace RuiPriv_Palette
 
+#endif

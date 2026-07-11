@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 
 
+#if defined(RUI_UETKX_DECL_PHASE)
 struct FTicTacToeUetkxProps final : public FRuiPropsBase
 {
 
@@ -12,7 +13,9 @@ struct FTicTacToeUetkxProps final : public FRuiPropsBase
 		return bEq;
 	}
 };
+inline FRuiNode TicTacToe(FTicTacToeUetkxProps InProps = FTicTacToeUetkxProps(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey InKey = FRuiKey());
 
+#else
 static FRuiNodeArray TicTacToe_UetkxImpl(FRuiContext& Ctx, const FTicTacToeUetkxProps& Props, const TArray<FRuiNode>& children)
 {
 	auto EmptyGrid = []() {
@@ -227,9 +230,10 @@ static FRuiNodeArray TicTacToe_UetkxImpl(FRuiContext& Ctx, const FTicTacToeUetkx
 }
 static const FName GTicTacToeUetkxId = RUI::RegisterComponentId((void*)&TicTacToe_UetkxImpl, FName(TEXT("TicTacToe")));
 static constexpr uint32 TicTacToe_RUI_HOOK_SIG = 0x62237E89u;
-inline FRuiNode TicTacToe(FTicTacToeUetkxProps InProps = FTicTacToeUetkxProps(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey InKey = FRuiKey())
+inline FRuiNode TicTacToe(FTicTacToeUetkxProps InProps, TArray<FRuiNode> InChildren, FRuiKey InKey)
 {
 	return RUI::FC(&TicTacToe_UetkxImpl, MoveTemp(InProps), MoveTemp(InChildren), InKey);
 }
 static const bool GTicTacToeUetkxFactoryReg = RUI::RegisterNamedFactory(FName(TEXT("TicTacToe")), []() { return TicTacToe(); });
 
+#endif

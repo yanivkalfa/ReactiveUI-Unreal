@@ -3,6 +3,7 @@
 
 #include "CoreMinimal.h"
 
+#if defined(RUI_UETKX_DECL_PHASE)
 struct FPreambleUetkxProps final : public FRuiPropsBase
 {
 
@@ -13,16 +14,19 @@ struct FPreambleUetkxProps final : public FRuiPropsBase
 		return bEq;
 	}
 };
+inline FRuiNode Preamble(FPreambleUetkxProps InProps = FPreambleUetkxProps(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey InKey = FRuiKey());
 
+#else
 static FRuiNodeArray Preamble_UetkxImpl(FRuiContext& Ctx, const FPreambleUetkxProps& Props, const TArray<FRuiNode>& children)
 {
 	return { RUI::TextBlock(NSLOCTEXT("Uetkx.Preamble", "Preamble_1", "préamble with non-ASCII → and non-BMP 🎮"), FRuiKey()) };
 }
 static const FName GPreambleUetkxId = RUI::RegisterComponentId((void*)&Preamble_UetkxImpl, FName(TEXT("Preamble")));
 static constexpr uint32 Preamble_RUI_HOOK_SIG = 0x811C9DC5u;
-inline FRuiNode Preamble(FPreambleUetkxProps InProps = FPreambleUetkxProps(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey InKey = FRuiKey())
+inline FRuiNode Preamble(FPreambleUetkxProps InProps, TArray<FRuiNode> InChildren, FRuiKey InKey)
 {
 	return RUI::FC(&Preamble_UetkxImpl, MoveTemp(InProps), MoveTemp(InChildren), InKey);
 }
 static const bool GPreambleUetkxFactoryReg = RUI::RegisterNamedFactory(FName(TEXT("Preamble")), []() { return Preamble(); });
 
+#endif

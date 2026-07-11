@@ -3,6 +3,7 @@
 
 #include "RuiDemoSupport.h"
 
+#if defined(RUI_UETKX_DECL_PHASE)
 struct FSignalPanelUetkxProps final : public FRuiPropsBase
 {
 
@@ -13,7 +14,9 @@ struct FSignalPanelUetkxProps final : public FRuiPropsBase
 		return bEq;
 	}
 };
+inline FRuiNode SignalPanel(FSignalPanelUetkxProps InProps = FSignalPanelUetkxProps(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey InKey = FRuiKey());
 
+#else
 static FRuiNodeArray SignalPanel_UetkxImpl(FRuiContext& Ctx, const FSignalPanelUetkxProps& Props, const TArray<FRuiNode>& children)
 {
 	const int32 Count = RUI::UseSignalKey<int32>(Ctx, RuiDemo::GDemoCounterSignal, 0);
@@ -21,9 +24,10 @@ static FRuiNodeArray SignalPanel_UetkxImpl(FRuiContext& Ctx, const FSignalPanelU
 }
 static const FName GSignalPanelUetkxId = RUI::RegisterComponentId((void*)&SignalPanel_UetkxImpl, FName(TEXT("SignalPanel")));
 static constexpr uint32 SignalPanel_RUI_HOOK_SIG = 0xD50F149Cu;
-inline FRuiNode SignalPanel(FSignalPanelUetkxProps InProps = FSignalPanelUetkxProps(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey InKey = FRuiKey())
+inline FRuiNode SignalPanel(FSignalPanelUetkxProps InProps, TArray<FRuiNode> InChildren, FRuiKey InKey)
 {
 	return RUI::FC(&SignalPanel_UetkxImpl, MoveTemp(InProps), MoveTemp(InChildren), InKey);
 }
 static const bool GSignalPanelUetkxFactoryReg = RUI::RegisterNamedFactory(FName(TEXT("SignalPanel")), []() { return SignalPanel(); });
 
+#endif

@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 
 
+#if defined(RUI_UETKX_DECL_PHASE)
 struct FHelloWorldUetkxProps final : public FRuiPropsBase
 {
 
@@ -12,7 +13,9 @@ struct FHelloWorldUetkxProps final : public FRuiPropsBase
 		return bEq;
 	}
 };
+inline FRuiNode HelloWorld(FHelloWorldUetkxProps InProps = FHelloWorldUetkxProps(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey InKey = FRuiKey());
 
+#else
 static FRuiNodeArray HelloWorld_UetkxImpl(FRuiContext& Ctx, const FHelloWorldUetkxProps& Props, const TArray<FRuiNode>& children)
 {
 	return { [&]() -> FRuiNode {
@@ -32,9 +35,10 @@ static FRuiNodeArray HelloWorld_UetkxImpl(FRuiContext& Ctx, const FHelloWorldUet
 }
 static const FName GHelloWorldUetkxId = RUI::RegisterComponentId((void*)&HelloWorld_UetkxImpl, FName(TEXT("HelloWorld")));
 static constexpr uint32 HelloWorld_RUI_HOOK_SIG = 0x811C9DC5u;
-inline FRuiNode HelloWorld(FHelloWorldUetkxProps InProps = FHelloWorldUetkxProps(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey InKey = FRuiKey())
+inline FRuiNode HelloWorld(FHelloWorldUetkxProps InProps, TArray<FRuiNode> InChildren, FRuiKey InKey)
 {
 	return RUI::FC(&HelloWorld_UetkxImpl, MoveTemp(InProps), MoveTemp(InChildren), InKey);
 }
 static const bool GHelloWorldUetkxFactoryReg = RUI::RegisterNamedFactory(FName(TEXT("HelloWorld")), []() { return HelloWorld(); });
 
+#endif

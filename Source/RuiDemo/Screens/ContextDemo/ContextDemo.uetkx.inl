@@ -3,6 +3,7 @@
 
 #include "RuiDemoSupport.h"
 
+#if defined(RUI_UETKX_DECL_PHASE)
 struct FContextDemoUetkxProps final : public FRuiPropsBase
 {
 
@@ -13,7 +14,9 @@ struct FContextDemoUetkxProps final : public FRuiPropsBase
 		return bEq;
 	}
 };
+inline FRuiNode ContextDemo(FContextDemoUetkxProps InProps = FContextDemoUetkxProps(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey InKey = FRuiKey());
 
+#else
 static FRuiNodeArray ContextDemo_UetkxImpl(FRuiContext& Ctx, const FContextDemoUetkxProps& Props, const TArray<FRuiNode>& children)
 {
 	auto [bPrimary, SetPrimary] = Ctx.UseState<bool>(true);
@@ -77,9 +80,10 @@ static FRuiNodeArray ContextDemo_UetkxImpl(FRuiContext& Ctx, const FContextDemoU
 }
 static const FName GContextDemoUetkxId = RUI::RegisterComponentId((void*)&ContextDemo_UetkxImpl, FName(TEXT("ContextDemo")));
 static constexpr uint32 ContextDemo_RUI_HOOK_SIG = 0xF574B6D3u;
-inline FRuiNode ContextDemo(FContextDemoUetkxProps InProps = FContextDemoUetkxProps(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey InKey = FRuiKey())
+inline FRuiNode ContextDemo(FContextDemoUetkxProps InProps, TArray<FRuiNode> InChildren, FRuiKey InKey)
 {
 	return RUI::FC(&ContextDemo_UetkxImpl, MoveTemp(InProps), MoveTemp(InChildren), InKey);
 }
 static const bool GContextDemoUetkxFactoryReg = RUI::RegisterNamedFactory(FName(TEXT("ContextDemo")), []() { return ContextDemo(); });
 
+#endif

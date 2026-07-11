@@ -3,6 +3,7 @@
 
 #include "RuiDemoSupport.h"
 
+#if defined(RUI_UETKX_DECL_PHASE)
 struct FDemoContextPanelUetkxProps final : public FRuiPropsBase
 {
 	FString Label = FString(TEXT("Primary Panel"));
@@ -15,7 +16,9 @@ struct FDemoContextPanelUetkxProps final : public FRuiPropsBase
 		return bEq;
 	}
 };
+inline FRuiNode DemoContextPanel(FDemoContextPanelUetkxProps InProps = FDemoContextPanelUetkxProps(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey InKey = FRuiKey());
 
+#else
 static FRuiNodeArray DemoContextPanel_UetkxImpl(FRuiContext& Ctx, const FDemoContextPanelUetkxProps& Props, const TArray<FRuiNode>& children)
 {
 	const auto& Label = Props.Label;
@@ -37,9 +40,10 @@ static FRuiNodeArray DemoContextPanel_UetkxImpl(FRuiContext& Ctx, const FDemoCon
 }
 static const FName GDemoContextPanelUetkxId = RUI::RegisterComponentId((void*)&DemoContextPanel_UetkxImpl, FName(TEXT("DemoContextPanel")));
 static constexpr uint32 DemoContextPanel_RUI_HOOK_SIG = 0x3A36D564u;
-inline FRuiNode DemoContextPanel(FDemoContextPanelUetkxProps InProps = FDemoContextPanelUetkxProps(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey InKey = FRuiKey())
+inline FRuiNode DemoContextPanel(FDemoContextPanelUetkxProps InProps, TArray<FRuiNode> InChildren, FRuiKey InKey)
 {
 	return RUI::FC(&DemoContextPanel_UetkxImpl, MoveTemp(InProps), MoveTemp(InChildren), InKey);
 }
 static const bool GDemoContextPanelUetkxFactoryReg = RUI::RegisterNamedFactory(FName(TEXT("DemoContextPanel")), []() { return DemoContextPanel(); });
 
+#endif

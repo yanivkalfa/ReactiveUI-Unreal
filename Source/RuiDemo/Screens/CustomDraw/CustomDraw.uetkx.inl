@@ -3,6 +3,7 @@
 
 #include "RuiDemoSupport.h"
 
+#if defined(RUI_UETKX_DECL_PHASE)
 struct FCustomDrawUetkxProps final : public FRuiPropsBase
 {
 
@@ -13,7 +14,9 @@ struct FCustomDrawUetkxProps final : public FRuiPropsBase
 		return bEq;
 	}
 };
+inline FRuiNode CustomDraw(FCustomDrawUetkxProps InProps = FCustomDrawUetkxProps(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey InKey = FRuiKey());
 
+#else
 static FRuiNodeArray CustomDraw_UetkxImpl(FRuiContext& Ctx, const FCustomDrawUetkxProps& Props, const TArray<FRuiNode>& children)
 {
 	auto [Sides, SetSides] = Ctx.UseState<int32>(3);
@@ -197,9 +200,10 @@ static FRuiNodeArray CustomDraw_UetkxImpl(FRuiContext& Ctx, const FCustomDrawUet
 }
 static const FName GCustomDrawUetkxId = RUI::RegisterComponentId((void*)&CustomDraw_UetkxImpl, FName(TEXT("CustomDraw")));
 static constexpr uint32 CustomDraw_RUI_HOOK_SIG = 0x01D624F6u;
-inline FRuiNode CustomDraw(FCustomDrawUetkxProps InProps = FCustomDrawUetkxProps(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey InKey = FRuiKey())
+inline FRuiNode CustomDraw(FCustomDrawUetkxProps InProps, TArray<FRuiNode> InChildren, FRuiKey InKey)
 {
 	return RUI::FC(&CustomDraw_UetkxImpl, MoveTemp(InProps), MoveTemp(InChildren), InKey);
 }
 static const bool GCustomDrawUetkxFactoryReg = RUI::RegisterNamedFactory(FName(TEXT("CustomDraw")), []() { return CustomDraw(); });
 
+#endif

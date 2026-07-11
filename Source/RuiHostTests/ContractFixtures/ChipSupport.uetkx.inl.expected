@@ -2,14 +2,19 @@
 // Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 
 
+#if defined(RUI_UETKX_DECL_PHASE)
+namespace ChipStyle
+{
+	inline const float Padding = 4.0f;
+} // namespace ChipStyle
+
+inline int32 UseChipCount(FRuiContext& Ctx, int32 Start);
+
+#else
 inline int32 UseChipCount(FRuiContext& Ctx, int32 Start)
 {
 	auto [Count, SetCount] = Ctx.UseState<int32>(Start);
 		return Count;
 }
 
-namespace ChipStyle
-{
-	inline const float Padding = 4.0f;
-} // namespace ChipStyle
-
+#endif

@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 
 
+#if defined(RUI_UETKX_DECL_PHASE)
 namespace ContextDemoStyle
 {
 	inline const FLinearColor CoolTheme{0.23f, 0.65f, 0.95f, 1.0f};
@@ -9,3 +10,5 @@ namespace ContextDemoStyle
 		inline const FLinearColor PanelBackground{0.02f, 0.02f, 0.03f, 0.85f};
 } // namespace ContextDemoStyle
 
+#else
+#endif

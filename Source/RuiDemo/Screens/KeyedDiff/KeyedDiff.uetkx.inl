@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 
 
+#if defined(RUI_UETKX_DECL_PHASE)
 struct FKeyedDiffUetkxProps final : public FRuiPropsBase
 {
 
@@ -12,7 +13,9 @@ struct FKeyedDiffUetkxProps final : public FRuiPropsBase
 		return bEq;
 	}
 };
+inline FRuiNode KeyedDiff(FKeyedDiffUetkxProps InProps = FKeyedDiffUetkxProps(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey InKey = FRuiKey());
 
+#else
 static FRuiNodeArray KeyedDiff_UetkxImpl(FRuiContext& Ctx, const FKeyedDiffUetkxProps& Props, const TArray<FRuiNode>& children)
 {
 	static const TCHAR* Seed[] = {TEXT("Alpha"), TEXT("Bravo"), TEXT("Charlie"), TEXT("Delta"),
@@ -240,9 +243,10 @@ static FRuiNodeArray KeyedDiff_UetkxImpl(FRuiContext& Ctx, const FKeyedDiffUetkx
 }
 static const FName GKeyedDiffUetkxId = RUI::RegisterComponentId((void*)&KeyedDiff_UetkxImpl, FName(TEXT("KeyedDiff")));
 static constexpr uint32 KeyedDiff_RUI_HOOK_SIG = 0xDDEFCD0Cu;
-inline FRuiNode KeyedDiff(FKeyedDiffUetkxProps InProps = FKeyedDiffUetkxProps(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey InKey = FRuiKey())
+inline FRuiNode KeyedDiff(FKeyedDiffUetkxProps InProps, TArray<FRuiNode> InChildren, FRuiKey InKey)
 {
 	return RUI::FC(&KeyedDiff_UetkxImpl, MoveTemp(InProps), MoveTemp(InChildren), InKey);
 }
 static const bool GKeyedDiffUetkxFactoryReg = RUI::RegisterNamedFactory(FName(TEXT("KeyedDiff")), []() { return KeyedDiff(); });
 
+#endif
