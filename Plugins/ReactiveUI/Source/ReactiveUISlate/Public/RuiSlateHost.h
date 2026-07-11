@@ -34,6 +34,11 @@ struct REACTIVEUISLATE_API FRuiSlateNode
 	/** The parent NODE while attached (child ops + slot-prop updates go via its adapter). */
 	TWeakPtr<FRuiSlateNode> ParentNode;
 
+	/** MultiSlot child NODES in slot order — the bookkeeping a construct-only widget REPLACEMENT
+	 *  needs to re-parent children WITH their slot.* props into the rebuilt widget (TD-011). Kept
+	 *  in sync by Insert/Remove/ReorderChild; dead weak refs are compacted on read. */
+	TArray<TWeakPtr<FRuiSlateNode>> ChildNodes;
+
 	/** SingleContent bookkeeping: the current content child (warn_capacity semantics). */
 	TWeakPtr<SWidget> ContentChild;
 	bool bWarnedCapacity = false;
@@ -79,6 +84,11 @@ private:
 	void OnSlatePreTick(float DeltaTime);
 	void EnsurePreTickRegistered();
 	static void RemoveChildFromParent(FRuiSlateNode& Parent, const TSharedRef<SWidget>& ChildWidget);
+
+	/** TD-011: a construct-only prop changed — rebuild the widget (reusing the event proxy),
+	 *  re-parent its children with their slot props, and swap it into the parent's slot in place.
+	 *  Returns the new widget, or the existing one if replacement was not possible (no parent). */
+	void ReplaceWidget(FRuiSlateNode& Node, const FRuiPropsBase& NewProps);
 
 	TArray<TFunction<void()>> FrameQueue;
 	FDelegateHandle PreTickHandle;

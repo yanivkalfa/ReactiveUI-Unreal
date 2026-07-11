@@ -115,7 +115,16 @@ referenced from plans/PRs.
   reconstruct-mask prop, with a pointer-identity-change test proving the swap. (The header-sweep
   audit removed the last v1 mask user: SScrollBox Orientation turned out runtime-settable — as of
   the audit NO shipped widget uses the mask; it remains contract-only.)
-- **Status:** OPEN
+- **Status:** RESOLVED 2026-07-12 — `FRuiSlateHost::ReplaceWidget` rebuilds the widget (REUSING the
+  event proxy — bind-once-swap-inner), re-parents its children WITH their slot props (new
+  `FRuiSlateNode::ChildNodes` bookkeeping maintained by Insert/Remove/Reorder), swaps it into the
+  parent slot at the same index, and re-applies props/style. Trigger is now PRECISE:
+  `IRuiElementAdapter::ConstructOnlyChanged(Old,New)` gates the coarse mask (a mask bit set on both
+  sides with an unchanged value no longer forces a rebuild). `CommitUpdate` calls it and returns.
+  Test: `ReactiveUI.Slate.Replace` drives the host with a construct-only `Flavor` adapter and
+  asserts pointer-swap + child identity/order preserved + proxy reused on a Flavor change, and
+  NO replacement on a runtime-only change. battery 56/56 (Slate/Widgets/Update reorder paths green
+  — bookkeeping non-regressive).
 
 ## TD-012 — Batch-2 widget surface deliberately deferred to Phase 7 (header-sweep audit)
 - **Where:** `ReactiveUISlate` adapters (audit: engine-header sweep of all 15 shipped widgets)

@@ -54,6 +54,13 @@ public:
 	/** Construct-only prop bits (see class comment). Default: none. */
 	virtual uint64 GetReconstructMask() const { return 0; }
 
+	/** PRECISE replacement trigger (TD-011): true iff a construct-only prop's VALUE actually
+	 *  changed old→new. The mask alone is coarse — a mask bit set on both sides with an UNCHANGED
+	 *  value must NOT force a rebuild just because some other prop changed. Any adapter that
+	 *  returns a non-zero GetReconstructMask MUST override this to compare its construct-only
+	 *  fields; the default (true) preserves the old coarse behavior for un-migrated adapters. */
+	virtual bool ConstructOnlyChanged(const FRuiPropsBase& Old, const FRuiPropsBase& New) const { return true; }
+
 	/** True when the adapter binds any events — the host mints a proxy only when needed. */
 	virtual bool HasEvents() const { return false; }
 
