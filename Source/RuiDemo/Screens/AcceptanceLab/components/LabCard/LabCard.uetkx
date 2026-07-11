@@ -1,0 +1,29 @@
+// LabCard.uetkx — a small reusable SUB-COMPONENT rendered by AcceptanceLab.
+//
+// WHAT TO TEST HERE (maps to OWNER_ACCEPTANCE_CHECKLIST.md):
+//   D/E · COMPONENT TAGS + GO-TO-DEF — AcceptanceLab renders `<LabCard Label="…" Count={ … } />`.
+//         · F12 on `LabCard` in that file should jump HERE.
+//         · Typing `<Lab` in AcceptanceLab and pressing Ctrl+Space should offer `LabCard`
+//           (imported-component tag completion).
+//   D/E · PROP PASSING — this component declares two params (a string `Label` and an int `Count`).
+//         The caller passes `Label` as a plain string attribute and `Count` as an `={ expr }`
+//         attribute; both should colorize and complete.
+//
+// Component params use the family `Name: Type = Default` grammar (NOT verbatim C++ like hook
+// params). A component returns a single markup tree.
+
+import { LabStyle } from "../../AcceptanceLab.style"
+
+export component LabCard(Label: FString = FString(TEXT("Card")), Count: int32 = 0) {
+	// Simple derived value from a prop — exercises reading component props in the setup block.
+	const FLinearColor Tint = Count > 0 ? LabStyle::Good : LabStyle::Warn;
+
+	return (
+		<Border Padding="8" BorderImage="WhiteBrush" BorderBackgroundColor={ FLinearColor(0.05f, 0.05f, 0.07f, 0.9f) } Slot.Padding="0,0,6,0">
+			<VerticalBox>
+				<TextBlock Text={ FText::FromString(Label) } Font.Size={ 12.0f } ColorAndOpacity={ LabStyle::Accent } />
+				<TextBlock Text={ FText::FromString(FString::Printf(TEXT("value = %d"), Count)) } ColorAndOpacity={ Tint } />
+			</VerticalBox>
+		</Border>
+	);
+}

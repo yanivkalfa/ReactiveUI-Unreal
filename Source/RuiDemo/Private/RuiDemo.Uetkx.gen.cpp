@@ -10,6 +10,9 @@
 #include "RuiStyle.h"
 
 #define RUI_UETKX_DECL_PHASE
+#include "../Screens/AcceptanceLab/AcceptanceLab.hooks.uetkx.inl"
+#include "../Screens/AcceptanceLab/AcceptanceLab.style.uetkx.inl"
+#include "../Screens/AcceptanceLab/components/LabCard/LabCard.uetkx.inl"
 #include "../Screens/ContextDemo/components/DemoContextPanel/DemoContextPanel.uetkx.inl"
 #include "../Screens/ContextDemo/ContextDemo.style.uetkx.inl"
 #include "../Screens/ContextDemo/ContextDemo.uetkx.inl"
@@ -25,7 +28,11 @@
 #include "../Screens/StressTest/StressTest.uetkx.inl"
 #include "../Screens/StyledPanels/StyledPanels.uetkx.inl"
 #include "../Screens/TicTacToe/TicTacToe.uetkx.inl"
+#include "../Screens/AcceptanceLab/AcceptanceLab.uetkx.inl"
 #undef RUI_UETKX_DECL_PHASE
+#include "../Screens/AcceptanceLab/AcceptanceLab.hooks.uetkx.inl"
+#include "../Screens/AcceptanceLab/AcceptanceLab.style.uetkx.inl"
+#include "../Screens/AcceptanceLab/components/LabCard/LabCard.uetkx.inl"
 #include "../Screens/ContextDemo/components/DemoContextPanel/DemoContextPanel.uetkx.inl"
 #include "../Screens/ContextDemo/ContextDemo.style.uetkx.inl"
 #include "../Screens/ContextDemo/ContextDemo.uetkx.inl"
@@ -41,3 +48,4 @@
 #include "../Screens/StressTest/StressTest.uetkx.inl"
 #include "../Screens/StyledPanels/StyledPanels.uetkx.inl"
 #include "../Screens/TicTacToe/TicTacToe.uetkx.inl"
+#include "../Screens/AcceptanceLab/AcceptanceLab.uetkx.inl"

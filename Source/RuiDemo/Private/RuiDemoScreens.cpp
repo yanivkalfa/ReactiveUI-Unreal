@@ -27,6 +27,7 @@ namespace RuiDemo
 			{TEXT("Tic Tac Toe"), +[]() { return RUI::Named(FName(TEXT("TicTacToe"))); }},
 			{TEXT("Custom Draw"), +[]() { return RUI::Named(FName(TEXT("CustomDraw"))); }},
 			{TEXT("Stress Test"), +[]() { return RUI::Named(FName(TEXT("StressTest"))); }},
+			{TEXT("Acceptance Lab"), +[]() { return RUI::Named(FName(TEXT("AcceptanceLab"))); }},
 		};
 		return Entries;
 	}
@@ -37,7 +38,7 @@ namespace RuiDemo
 			FName(TEXT("HelloWorld")),		FName(TEXT("SimpleCounter")), FName(TEXT("SimpleTextField")),
 			FName(TEXT("SimpleUseEffect")), FName(TEXT("SignalCounter")), FName(TEXT("ContextDemo")),
 			FName(TEXT("KeyedDiff")),		FName(TEXT("StyledPanels")),  FName(TEXT("TicTacToe")),
-			FName(TEXT("CustomDraw")),		FName(TEXT("StressTest")),
+			FName(TEXT("CustomDraw")),		FName(TEXT("StressTest")),	  FName(TEXT("AcceptanceLab")),
 		};
 		return Names;
 	}

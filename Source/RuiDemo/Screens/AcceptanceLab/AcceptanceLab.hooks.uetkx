@@ -1,0 +1,24 @@
+// AcceptanceLab.hooks.uetkx — a COMPANION HOOK file for the AcceptanceLab screen.
+//
+// WHAT TO TEST HERE (maps to OWNER_ACCEPTANCE_CHECKLIST.md):
+//   D/E · IMPORT INTELLIGENCE — AcceptanceLab.uetkx does
+//         `import { UseLabState } from "./AcceptanceLab.hooks"`.
+//         · Put the caret on `UseLabState` in that import and press F12 → it should jump HERE.
+//         · Inside the import braces, Ctrl+Space should offer `UseLabState`.
+//   D/E · HOOK-FILE COLORS — open this file: `export hook`, the `-> Ret` arrow, and the embedded
+//         C++ body (UseState, lambdas) should all colorize.
+//   B   · HOOK-SHAPE HMR — add a line like `auto [Tick, SetTick] = UseState<int32>(0);` and save.
+//         The AcceptanceLab screen should RESET (MessageLog status `reset 1`); other screens
+//         untouched. Delete the line and save to restore.
+//
+// A user hook is a plain function taking FRuiContext& implicitly (the compiler auto-prefixes the
+// built-in Use* calls) — the documented family divergence. It returns a TTuple the caller
+// destructures with a structured binding.
+
+export hook UseLabState(int32 Start) -> TTuple<int32, TFunction<void()>, TFunction<void()>> {
+	auto [Count, SetCount] = UseState<int32>(Start);
+	const int32 Current = Count;
+	TFunction<void()> Increment = [SetCount, Current]() { SetCount(Current + 1); };
+	TFunction<void()> Reset = [SetCount]() { SetCount(0); };
+	return MakeTuple(Count, Increment, Reset);
+}
