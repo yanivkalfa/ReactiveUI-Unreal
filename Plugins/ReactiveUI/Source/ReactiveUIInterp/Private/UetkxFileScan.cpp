@@ -107,91 +107,6 @@ namespace
 		return Out;
 	}
 
-	/** The LAST top-level `return (` whose parens hold markup (T1.4). Returns m_start/m_end
-	 *  bounding the inside of the parens, and the return keyword's offset. */
-	struct FSplitReturn
-	{
-		bool bOk = false;
-		int32 ReturnAt = -1; // offset of `return`
-		int32 MStart = -1;	 // first char inside `(`
-		int32 MEnd = -1;	 // index OF the closing `)`
-		int32 AfterParen = -1;
-	};
-
-	FSplitReturn SplitReturn(const TArray<int32>& Body)
-	{
-		FSplitReturn Out;
-		const int32 N = Body.Num();
-		int32 Depth = 0;
-		int32 i = 0;
-		while (i < N)
-		{
-			const int32 j = FUetkxLexer::SkipNoncode(Body, i);
-			if (j != i)
-			{
-				i = j;
-				continue;
-			}
-			const int32 C = Body[i];
-			if (C == C_LBRACE || C == C_LPAREN || C == C_LBRACKET)
-			{
-				// a top-level markup return's window is skipped WHOLE below; every other
-				// bracket tracks depth so nested returns (lambdas) don't count as top-level
-				++Depth;
-				++i;
-				continue;
-			}
-			if (C == C_RBRACE || C == C_RPAREN || C == C_RBRACKET)
-			{
-				--Depth;
-				++i;
-				continue;
-			}
-			if (Depth == 0 && C == 'r' && FUetkxLexer::KeywordAt(Body, i, TEXT("return")))
-			{
-				const int32 P = SkipWsOnly(Body, i + 6);
-				if (P < N && Body[P] == C_LPAREN)
-				{
-					// markup window? peek first real char inside
-					int32 First = SkipWsOnly(Body, P + 1);
-					// skip leading markup comments
-					while (First < N)
-					{
-						const int32 Skipped = FUetkxLexer::SkipNoncodeMarkup(Body, First);
-						if (Skipped == First)
-						{
-							break;
-						}
-						First = SkipWsOnly(Body, Skipped);
-					}
-					const bool bMarkup =
-						First < N && (Body[First] == C_LT || Body[First] == C_AT || Body[First] == C_LBRACE);
-					const int32 Close =
-						bMarkup ? FUetkxLexer::FindMatchingMarkup(Body, P) : FUetkxLexer::FindMatching(Body, P);
-					if (Close == -1)
-					{
-						++i;
-						continue;
-					}
-					if (bMarkup)
-					{
-						Out.bOk = true; // keep scanning: the LAST one wins
-						Out.ReturnAt = i;
-						Out.MStart = P + 1;
-						Out.MEnd = Close;
-						Out.AfterParen = Close + 1;
-					}
-					i = Close + 1;
-					continue;
-				}
-				i += 6;
-				continue;
-			}
-			++i;
-		}
-		return Out;
-	}
-
 	/** Collect the ordered hook-call kinds in setup (word-boundary, not after . or ::). */
 	TArray<FString> ScanHookCalls(const TArray<int32>& Setup)
 	{
@@ -269,6 +184,82 @@ uint32 FUetkxFileScan::HookSignature(const TArray<FString>& HookCalls)
 	return Hash;
 }
 
+FUetkxSplitReturn FUetkxFileScan::SplitMarkupReturn(const TArray<int32>& Body, bool bRequireMarkupPeek)
+{
+	FUetkxSplitReturn Out;
+	const int32 N = Body.Num();
+	int32 Depth = 0;
+	int32 i = 0;
+	while (i < N)
+	{
+		const int32 j = FUetkxLexer::SkipNoncode(Body, i);
+		if (j != i)
+		{
+			i = j;
+			continue;
+		}
+		const int32 C = Body[i];
+		if (C == C_LBRACE || C == C_LPAREN || C == C_LBRACKET)
+		{
+			// a top-level markup return's window is skipped WHOLE below; every other
+			// bracket tracks depth so nested returns (lambdas) don't count as top-level
+			++Depth;
+			++i;
+			continue;
+		}
+		if (C == C_RBRACE || C == C_RPAREN || C == C_RBRACKET)
+		{
+			--Depth;
+			++i;
+			continue;
+		}
+		if (Depth == 0 && C == 'r' && FUetkxLexer::KeywordAt(Body, i, TEXT("return")))
+		{
+			const int32 P = SkipWsOnly(Body, i + 6);
+			if (P < N && Body[P] == C_LPAREN)
+			{
+				bool bMarkup = true;
+				if (bRequireMarkupPeek)
+				{
+					// markup window? peek first real char inside (past leading markup comments)
+					int32 First = SkipWsOnly(Body, P + 1);
+					while (First < N)
+					{
+						const int32 Skipped = FUetkxLexer::SkipNoncodeMarkup(Body, First);
+						if (Skipped == First)
+						{
+							break;
+						}
+						First = SkipWsOnly(Body, Skipped);
+					}
+					bMarkup = First < N && (Body[First] == C_LT || Body[First] == C_AT || Body[First] == C_LBRACE);
+				}
+				const int32 Close =
+					bMarkup ? FUetkxLexer::FindMatchingMarkup(Body, P) : FUetkxLexer::FindMatching(Body, P);
+				if (Close == -1)
+				{
+					++i;
+					continue;
+				}
+				if (bMarkup)
+				{
+					Out.bOk = true; // keep scanning: the LAST one wins
+					Out.ReturnAt = i;
+					Out.MStart = P + 1;
+					Out.MEnd = Close;
+					Out.AfterParen = Close + 1;
+				}
+				i = Close + 1;
+				continue;
+			}
+			i += 6;
+			continue;
+		}
+		++i;
+	}
+	return Out;
+}
+
 FUetkxFileScanResult FUetkxFileScan::Scan(const FString& Source, const FString& Basename)
 {
 	FUetkxFileScanResult Out;
@@ -325,6 +316,7 @@ FUetkxFileScanResult FUetkxFileScan::Scan(const FString& Source, const FString& 
 			++k;
 		}
 		FUetkxComponentDecl Decl;
+		Decl.At = Ci;
 		Decl.Name = FUetkxLexer::FromCodePoints(Src, Ns, k - Ns);
 		Decl.NameAt = Ns;
 		if (Decl.Name.IsEmpty())
@@ -367,7 +359,7 @@ FUetkxFileScanResult FUetkxFileScan::Scan(const FString& Source, const FString& 
 		Decl.Next = Bclose + 1;
 
 		const TArray<int32> Body = FUetkxLexer::ToCodePoints(Decl.Body);
-		const FSplitReturn Split = SplitReturn(Body);
+		const FUetkxSplitReturn Split = SplitMarkupReturn(Body, /*bRequireMarkupPeek*/ true);
 		if (!Split.bOk)
 		{
 			AddDiag(Out.Diags, TEXT("UETKX2101"), 0, TEXT("component has no `return ( ... )` markup return"), Ci, 9);

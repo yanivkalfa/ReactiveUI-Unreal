@@ -11,8 +11,7 @@
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 #include "UetkxLexer.h"
-
-DEFINE_LOG_CATEGORY_STATIC(LogRuiToolchain, Log, All);
+#include "UetkxToolchainLog.h"
 
 namespace
 {

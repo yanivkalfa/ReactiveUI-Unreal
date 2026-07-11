@@ -34,6 +34,7 @@ struct REACTIVEUIINTERP_API FUetkxParam
 struct REACTIVEUIINTERP_API FUetkxComponentDecl
 {
 	FString Name;
+	int32 At = -1; // the `component` keyword offset
 	int32 NameAt = -1;
 	TArray<FUetkxParam> Params;
 	FString Setup; // body text before the chosen markup return (verbatim C++)
@@ -65,6 +66,17 @@ struct REACTIVEUIINTERP_API FUetkxFileScanResult
 	}
 };
 
+/** The (last) top-level markup `return ( ... )` inside a body — the ONE splitter shared by
+ *  the file scan, the emitter, and the formatter (they must never disagree on the window). */
+struct REACTIVEUIINTERP_API FUetkxSplitReturn
+{
+	bool bOk = false;
+	int32 ReturnAt = -1; // offset of `return`
+	int32 MStart = -1;	 // first char inside `(`
+	int32 MEnd = -1;	 // index OF the closing `)`
+	int32 AfterParen = -1;
+};
+
 class REACTIVEUIINTERP_API FUetkxFileScan
 {
 public:
@@ -76,4 +88,10 @@ public:
 
 	/** Scan a whole .uetkx source: preamble + every component declaration. */
 	static FUetkxFileScanResult Scan(const FString& Source, const FString& Basename);
+
+	/** Find the LAST top-level `return ( ... )` in a body (T1.4 semantics). With
+	 *  bRequireMarkupPeek the window must START like markup (`<`/`@`/`{`, after leading markup
+	 *  comments) — the component scan's rule; without it any parenthesized return counts — the
+	 *  directive-body rule (EmitBody/formatter). */
+	static FUetkxSplitReturn SplitMarkupReturn(const TArray<int32>& Body, bool bRequireMarkupPeek);
 };

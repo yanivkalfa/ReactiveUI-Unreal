@@ -606,56 +606,13 @@ namespace
 	void FEmitter::EmitBody(FString& Out, const FString& BodyMarkup, const FString& Indent, int32 AbsAt)
 	{
 		const TArray<int32> Body = FUetkxLexer::ToCodePoints(BodyMarkup);
-		// find the (last) top-level markup return inside the body — bodies are code blocks
-		// whose markup arrives via `return ( ... )` (family 0.7 semantics).
-		int32 RetAt = -1, MStart = -1, MEnd = -1;
-		int32 i = 0;
-		const int32 N = Body.Num();
-		int32 Depth = 0;
-		while (i < N)
-		{
-			const int32 j = FUetkxLexer::SkipNoncode(Body, i);
-			if (j != i)
-			{
-				i = j;
-				continue;
-			}
-			const int32 C = Body[i];
-			if (C == '{' || C == '[' || C == '(')
-			{
-				++Depth;
-				++i;
-				continue;
-			}
-			if (C == '}' || C == ']' || C == ')')
-			{
-				--Depth;
-				++i;
-				continue;
-			}
-			if (Depth == 0 && C == 'r' && FUetkxLexer::KeywordAt(Body, i, TEXT("return")))
-			{
-				int32 P = i + 6;
-				while (P < N && (Body[P] == ' ' || Body[P] == '\t' || Body[P] == '\n' || Body[P] == '\r'))
-				{
-					++P;
-				}
-				if (P < N && Body[P] == '(')
-				{
-					const int32 Close = FUetkxLexer::FindMatchingMarkup(Body, P);
-					if (Close != -1)
-					{
-						RetAt = i;
-						MStart = P + 1;
-						MEnd = Close;
-						i = Close + 1;
-						continue;
-					}
-				}
-			}
-			++i;
-		}
-		if (RetAt == -1)
+		// the (last) top-level markup return inside the body — bodies are code blocks whose
+		// markup arrives via `return ( ... )` (family 0.7 semantics); ONE splitter of record.
+		const FUetkxSplitReturn Split = FUetkxFileScan::SplitMarkupReturn(Body, /*bRequireMarkupPeek*/ false);
+		const int32 RetAt = Split.ReturnAt;
+		const int32 MStart = Split.MStart;
+		const int32 MEnd = Split.MEnd;
+		if (!Split.bOk)
 		{
 			// no return -> pure statements (rare; e.g. a guard `continue;`) — splice verbatim
 			Out += Indent + PrefixHooks(BodyMarkup).TrimStartAndEnd() + TEXT("\n");

@@ -1,0 +1,87 @@
+{
+  "_": "uetkx-formatter-cases.json — golden corpus for the .uetkx formatter (D-22 contract mechanism). Run by BOTH the C++ automation suite (ReactiveUI.Uetkx.Formatter) and the lsp-server TS port's node --test (Phase 5); byte-identical output required. `fellBack: true` cases must return the input VERBATIM. Every non-fellback case is also an idempotence pin: format(expect) == expect. Default options: printWidth 100, indentStyle tab, singleAttributePerLine false, insertSpaceBeforeSelfClose true.",
+  "cases": [
+    {
+      "name": "already canonical is untouched",
+      "input": "component Badge {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n",
+      "expect": "component Badge {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n"
+    },
+    {
+      "name": "space indentation normalizes to tabs",
+      "input": "component Badge {\n  return (\n    <Spacer />\n  );\n}\n",
+      "expect": "component Badge {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n"
+    },
+    {
+      "name": "setup re-anchors depth-based; authored blank line before return kept",
+      "input": "component Counter(StartAt: int32 = 0) {\n    auto [Count, SetCount] = UseState(StartAt);\n    if (Count > 0) {\n        SetCount(0);\n    }\n\n    return (\n        <VerticalBox>\n            <TextBlock Text={ FText::AsNumber(Count) } />\n        </VerticalBox>\n    );\n}\n",
+      "expect": "component Counter(StartAt: int32 = 0) {\n\tauto [Count, SetCount] = UseState(StartAt);\n\tif (Count > 0) {\n\t\tSetCount(0);\n\t}\n\n\treturn (\n\t\t<VerticalBox>\n\t\t\t<TextBlock Text={ FText::AsNumber(Count) } />\n\t\t</VerticalBox>\n\t);\n}\n"
+    },
+    {
+      "name": "attributes wrap one-per-line past printWidth",
+      "opts": { "printWidth": 40 },
+      "input": "component Wide {\n\treturn (\n\t\t<Button OnClicked={ Fire() } bEnabled ContentPadding={ FMargin(4.f) }>Go</Button>\n\t);\n}\n",
+      "expect": "component Wide {\n\treturn (\n\t\t<Button\n\t\t\tOnClicked={ Fire() }\n\t\t\tbEnabled\n\t\t\tContentPadding={ FMargin(4.f) }\n\t\t>\n\t\t\tGo\n\t\t</Button>\n\t);\n}\n"
+    },
+    {
+      "name": "include-only preamble canonicalizes to one include per line + one blank",
+      "input": "#include \"MyTypes.h\"\n\n\n#include \"Other.h\"\ncomponent Badge {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n",
+      "expect": "#include \"MyTypes.h\"\n#include \"Other.h\"\n\ncomponent Badge {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n"
+    },
+    {
+      "name": "preamble with a comment is preserved byte-for-byte (never delete user content)",
+      "input": "// header art\n#include \"X.h\"\ncomponent Badge {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n",
+      "expect": "// header art\n#include \"X.h\"\ncomponent Badge {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n"
+    },
+    {
+      "name": "@if/@elif/@else: keyword spacing, joined braces, exploded returns",
+      "input": "component Gate(Open: bool = false) {\n\treturn (\n\t\t<VerticalBox>\n\t\t\t@if(Open){\n\t\t\t\treturn ( <TextBlock Text=\"open\" /> );\n\t\t\t} @elif (!Open) {\n\t\t\t\treturn ( <TextBlock Text=\"closed\" /> );\n\t\t\t}@else{\n\t\t\t\treturn ( <Spacer /> );\n\t\t\t}\n\t\t</VerticalBox>\n\t);\n}\n",
+      "expect": "component Gate(Open: bool = false) {\n\treturn (\n\t\t<VerticalBox>\n\t\t\t@if (Open) {\n\t\t\t\treturn (\n\t\t\t\t\t<TextBlock Text=\"open\" />\n\t\t\t\t);\n\t\t\t} @elif (!Open) {\n\t\t\t\treturn (\n\t\t\t\t\t<TextBlock Text=\"closed\" />\n\t\t\t\t);\n\t\t\t} @else {\n\t\t\t\treturn (\n\t\t\t\t\t<Spacer />\n\t\t\t\t);\n\t\t\t}\n\t\t</VerticalBox>\n\t);\n}\n"
+    },
+    {
+      "name": "@match: cases and default at one level in, exploded returns",
+      "input": "component Pick(Mode: int32 = 0) {\n\treturn (\n\t\t<VerticalBox>\n\t\t\t@match (Mode) {\n\t\t\t\t@case (0) { return ( <TextBlock Text=\"zero\" /> ); }\n\t\t\t\t@default { return ( <Spacer /> ); }\n\t\t\t}\n\t\t</VerticalBox>\n\t);\n}\n",
+      "expect": "component Pick(Mode: int32 = 0) {\n\treturn (\n\t\t<VerticalBox>\n\t\t\t@match (Mode) {\n\t\t\t\t@case (0) {\n\t\t\t\t\treturn (\n\t\t\t\t\t\t<TextBlock Text=\"zero\" />\n\t\t\t\t\t);\n\t\t\t\t}\n\t\t\t\t@default {\n\t\t\t\t\treturn (\n\t\t\t\t\t\t<Spacer />\n\t\t\t\t\t);\n\t\t\t\t}\n\t\t\t}\n\t\t</VerticalBox>\n\t);\n}\n"
+    },
+    {
+      "name": "parse error returns the source verbatim with fellBack",
+      "input": "component Broken {\n\treturn ( <Box> );\n}\n",
+      "fellBack": true
+    },
+    {
+      "name": "trailing content after the declaration round-trips after one blank line",
+      "input": "component Badge {\n\treturn (\n\t\t<Spacer />\n\t);\n}\nstray tail text\n",
+      "expect": "component Badge {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n\nstray tail text\n"
+    },
+    {
+      "name": "two components separate with exactly one blank line",
+      "input": "component Alpha {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n\n\n\ncomponent Beta {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n",
+      "expect": "component Alpha {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n\ncomponent Beta {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n"
+    },
+    {
+      "name": "anonymous fragment",
+      "input": "component Frag {\n\treturn (\n\t\t<>\n\t\t\t<Spacer />\n\t\t\t<Spacer />\n\t\t</>\n\t);\n}\n",
+      "expect": "component Frag {\n\treturn (\n\t\t<>\n\t\t\t<Spacer />\n\t\t\t<Spacer />\n\t\t</>\n\t);\n}\n"
+    },
+    {
+      "name": "named Fragment keeps the author's spelling and attrs",
+      "input": "component Named {\n\treturn (\n\t\t<Fragment key={1}>\n\t\t\t<Spacer />\n\t\t</Fragment>\n\t);\n}\n",
+      "expect": "component Named {\n\treturn (\n\t\t<Fragment key={ 1 }>\n\t\t\t<Spacer />\n\t\t</Fragment>\n\t);\n}\n"
+    },
+    {
+      "name": "directive body: lead statements keep whole-body geometry before the return",
+      "input": "component Rows(N: int32 = 3) {\n\treturn (\n\t\t<VerticalBox>\n\t\t\t@for (int32 i = 0; i < N; ++i) {\n\t\t\t\tconst FString Label = FString::FromInt(i);\n\t\t\t\treturn ( <TextBlock key={i} Text={ FText::FromString(Label) } /> );\n\t\t\t}\n\t\t</VerticalBox>\n\t);\n}\n",
+      "expect": "component Rows(N: int32 = 3) {\n\treturn (\n\t\t<VerticalBox>\n\t\t\t@for (int32 i = 0; i < N; ++i) {\n\t\t\t\tconst FString Label = FString::FromInt(i);\n\t\t\t\treturn (\n\t\t\t\t\t<TextBlock key={ i } Text={ FText::FromString(Label) } />\n\t\t\t\t);\n\t\t\t}\n\t\t</VerticalBox>\n\t);\n}\n"
+    },
+    {
+      "name": "space-indent option emits spaces",
+      "opts": { "indentStyle": "space", "indentSize": 2 },
+      "input": "component Badge {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n",
+      "expect": "component Badge {\n  return (\n    <Spacer />\n  );\n}\n"
+    },
+    {
+      "name": "markup comments verbatim; expr nodes get canonical brace spacing",
+      "input": "component Mixed {\n\treturn (\n\t\t<VerticalBox>\n\t\t\t<!-- a note -->\n\t\t\t{Compute()}\n\t\t\tplain text run\n\t\t</VerticalBox>\n\t);\n}\n",
+      "expect": "component Mixed {\n\treturn (\n\t\t<VerticalBox>\n\t\t\t<!-- a note -->\n\t\t\t{ Compute() }\n\t\t\tplain text run\n\t\t</VerticalBox>\n\t);\n}\n"
+    }
+  ]
+}

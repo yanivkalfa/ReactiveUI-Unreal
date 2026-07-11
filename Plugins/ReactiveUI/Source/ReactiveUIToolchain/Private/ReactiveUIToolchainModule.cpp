@@ -1,9 +1,9 @@
 // Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 
 #include "Modules/ModuleManager.h"
-#include "Logging/LogMacros.h"
+#include "UetkxToolchainLog.h"
 
-DEFINE_LOG_CATEGORY_STATIC(LogRuiToolchain, Log, All);
+DEFINE_LOG_CATEGORY(LogRuiToolchain);
 
 class FReactiveUIToolchainModule : public IModuleInterface
 {
