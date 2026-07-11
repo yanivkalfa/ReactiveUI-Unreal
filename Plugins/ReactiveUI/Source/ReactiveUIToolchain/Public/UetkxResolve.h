@@ -80,9 +80,9 @@ private:
 		uint32 Hash = 0;
 		FUetkxPreambleScan Scan;
 	};
-	mutable TMap<FString, FCacheEntry> Cache;		 // abs key -> parsed
+	mutable TMap<FString, FCacheEntry> Cache;		   // abs key -> parsed
 	mutable TMap<FString, EUetkxDeclKind> ExportIndex; // exported name -> kind (first exporter wins)
-	mutable TMap<FString, FString> ExporterOf;		 // exported name -> key
+	mutable TMap<FString, FString> ExporterOf;		   // exported name -> key
 	mutable bool bIndexBuilt = false;
 };
 
@@ -98,16 +98,16 @@ public:
 	/** Import resolution + strict usage diagnostics for one compiled file. Uses/UseAts = the
 	 *  component tags the markup references (from the emitter, name -> first offset). Appends
 	 *  2300-2308 to Diags and fills DepHashes (dep label -> its export hash) for the M8 graph. */
-	static void Apply(const FUetkxFileScanResult& Scan, const TMap<FString, int32>& UseAts,
-					  const FString& ImporterPath, const IUetkxImportResolver& Resolver,
-					  TArray<FUetkxDiag>& Diags, TMap<FString, uint32>& DepHashes);
+	static void Apply(const FUetkxFileScanResult& Scan, const TMap<FString, int32>& UseAts, const FString& ImporterPath,
+					  const IUetkxImportResolver& Resolver, TArray<FUetkxDiag>& Diags,
+					  TMap<FString, uint32>& DepHashes);
 
 	/** The imports the codemod (M10) should ADD to a file: every referenced name (component tags,
 	 *  bare Use<Upper>( calls, module quals) that is exported elsewhere but not yet imported or
 	 *  same-file, grouped by suggested POSIX specifier with names sorted. Cross-module edges are
 	 *  reported separately (never auto-written — they surface a real ownership decision, 2308).
 	 *  Tags = external component tags (from a resolver-free compile's Uses). */
-	static void MissingImports(const FUetkxFileScanResult& Scan, const TSet<FString>& Tags,
-							   const FString& ImporterPath, const IUetkxImportResolver& Resolver,
-							   TMap<FString, TArray<FString>>& OutBySpecifier, TArray<FString>& OutCrossModule);
+	static void MissingImports(const FUetkxFileScanResult& Scan, const TSet<FString>& Tags, const FString& ImporterPath,
+							   const IUetkxImportResolver& Resolver, TMap<FString, TArray<FString>>& OutBySpecifier,
+							   TArray<FString>& OutCrossModule);
 };

@@ -167,25 +167,25 @@ bool FRuiHmrTest::RunTest(const FString&)
 	// ── mixed-decl HMR (M9): a component+hook file swaps the component AND notes the rebuild ──────
 	{
 		FRuiHmr::ResetSession();
-		const FString Mixed = TEXT("export component MixHmr {\n\treturn ( <Spacer /> );\n}\n")
-							   TEXT("export hook UseMixHelper() {\n}\n");
+		const FString Mixed =
+			TEXT("export component MixHmr {\n\treturn ( <Spacer /> );\n}\n") TEXT("export hook UseMixHelper() {\n}\n");
 		const FRuiHmrStatus Status = FRuiHmr::ApplySource(Mixed, TEXT("MixHmr"));
 		TestTrue(TEXT("mixed file ok"), Status.Ok());
 		TestEqual(TEXT("mixed file swaps its component"), Status.Reloaded, 1);
-		TestTrue(TEXT("mixed file notes the hook/module rebuild"),
-				 Status.Notes.ContainsByPredicate([](const FString& N) { return N.Contains(TEXT("hook/module change")); }));
+		TestTrue(
+			TEXT("mixed file notes the hook/module rebuild"),
+			Status.Notes.ContainsByPredicate([](const FString& N) { return N.Contains(TEXT("hook/module change")); }));
 	}
 
 	// ── hook-only file names its import blast radius ──────────────────────────────────────────
 	{
 		FRuiHmr::ResetSession();
-		const FRuiHmrStatus Status =
-			FRuiHmr::ApplySource(TEXT("export hook UseShared() {\n}\n"), TEXT("Shared"),
-								 {TEXT("ScreenA"), TEXT("ScreenB")});
+		const FRuiHmrStatus Status = FRuiHmr::ApplySource(TEXT("export hook UseShared() {\n}\n"), TEXT("Shared"),
+														  {TEXT("ScreenA"), TEXT("ScreenB")});
 		TestEqual(TEXT("hook-only file swaps nothing"), Status.Reloaded, 0);
-		TestTrue(TEXT("rebuild note lists the importers"),
-				 Status.Notes.ContainsByPredicate([](const FString& N)
-												  { return N.Contains(TEXT("ScreenA, ScreenB")); }));
+		TestTrue(
+			TEXT("rebuild note lists the importers"),
+			Status.Notes.ContainsByPredicate([](const FString& N) { return N.Contains(TEXT("ScreenA, ScreenB")); }));
 	}
 
 	FRuiHmr::ResetSession();

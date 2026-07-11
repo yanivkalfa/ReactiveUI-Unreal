@@ -64,7 +64,7 @@ public:
 	 *  must never run) and the sidecar ALWAYS (unless payload-identical). bForce skips the
 	 *  staleness check. */
 	static FUetkxFileResult CompileFile(const FString& UetkxPath, bool bForce = false,
-									   const IUetkxImportResolver* Resolver = nullptr);
+										const IUetkxImportResolver* Resolver = nullptr);
 
 	/** True when UetkxPath needs a compile (missing/older .inl; error verdicts honored). */
 	static bool IsStale(const FString& UetkxPath);

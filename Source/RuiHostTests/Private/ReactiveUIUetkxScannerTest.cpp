@@ -102,7 +102,11 @@ bool FRuiUetkxScannerTest::RunTest(const FString&)
 	// — the same cases run by lsp-server's node --test (the mirror contract, A4).
 	auto Join = [](const TArray<FString>& A, const TCHAR* Sep) { return FString::Join(A, Sep); };
 	auto KindName = [](EUetkxDeclKind K)
-	{ return K == EUetkxDeclKind::Component ? TEXT("component") : K == EUetkxDeclKind::Hook ? TEXT("hook") : TEXT("module"); };
+	{
+		return K == EUetkxDeclKind::Component ? TEXT("component")
+			   : K == EUetkxDeclKind::Hook	  ? TEXT("hook")
+											  : TEXT("module");
+	};
 	auto RunFileScan = [this, &Total, &Join, &KindName](const TSharedPtr<FJsonObject>& Case)
 	{
 		const FString Name = Case->GetStringField(TEXT("name"));
@@ -149,7 +153,8 @@ bool FRuiUetkxScannerTest::RunTest(const FString&)
 				const TSharedPtr<FJsonObject> O = V->AsObject();
 				bool Exported = false;
 				O->TryGetBoolField(TEXT("exported"), Exported);
-				ExpS.Add(FString::Printf(TEXT("%s:%s"), *O->GetStringField(TEXT("name")), Exported ? TEXT("E") : TEXT("P")));
+				ExpS.Add(
+					FString::Printf(TEXT("%s:%s"), *O->GetStringField(TEXT("name")), Exported ? TEXT("E") : TEXT("P")));
 			}
 			TArray<FString> ActS;
 			for (int32 x = 0; x < ActNames.Num(); ++x)
@@ -160,9 +165,21 @@ bool FRuiUetkxScannerTest::RunTest(const FString&)
 		};
 		TArray<FString> CNames, HNames, MNames;
 		TArray<bool> CExp, HExp, MExp;
-		for (const FUetkxComponentDecl& D : Scan.Components) { CNames.Add(D.Name); CExp.Add(D.bExported); }
-		for (const FUetkxHookDecl& D : Scan.Hooks) { HNames.Add(D.Name); HExp.Add(D.bExported); }
-		for (const FUetkxModuleDecl& D : Scan.Modules) { MNames.Add(D.Name); MExp.Add(D.bExported); }
+		for (const FUetkxComponentDecl& D : Scan.Components)
+		{
+			CNames.Add(D.Name);
+			CExp.Add(D.bExported);
+		}
+		for (const FUetkxHookDecl& D : Scan.Hooks)
+		{
+			HNames.Add(D.Name);
+			HExp.Add(D.bExported);
+		}
+		for (const FUetkxModuleDecl& D : Scan.Modules)
+		{
+			MNames.Add(D.Name);
+			MExp.Add(D.bExported);
+		}
 		CheckDecls(TEXT("components"), CNames, CExp);
 		CheckDecls(TEXT("hooks"), HNames, HExp);
 		CheckDecls(TEXT("modules"), MNames, MExp);
@@ -178,8 +195,8 @@ bool FRuiUetkxScannerTest::RunTest(const FString&)
 			for (const TPair<EUetkxDeclKind, int32>& P : Scan.Order)
 			{
 				const FString Nm = P.Key == EUetkxDeclKind::Component ? Scan.Components[P.Value].Name
-								   : P.Key == EUetkxDeclKind::Hook		? Scan.Hooks[P.Value].Name
-																		: Scan.Modules[P.Value].Name;
+								   : P.Key == EUetkxDeclKind::Hook	  ? Scan.Hooks[P.Value].Name
+																	  : Scan.Modules[P.Value].Name;
 				ActS.Add(FString::Printf(TEXT("%s:%s"), KindName(P.Key), *Nm));
 			}
 			TestEqual(Label + TEXT(" order"), Join(ActS, TEXT(",")), Join(ExpS, TEXT(",")));
@@ -211,7 +228,8 @@ bool FRuiUetkxScannerTest::RunTest(const FString&)
 	for (const FString& Section : {FString(TEXT("fileScan")), FString(TEXT("fileScanLeg"))})
 	{
 		const TArray<TSharedPtr<FJsonValue>>* Cases = nullptr;
-		if (TestTrue(FString::Printf(TEXT("section '%s' exists"), *Section), RootObject->TryGetArrayField(Section, Cases)))
+		if (TestTrue(FString::Printf(TEXT("section '%s' exists"), *Section),
+					 RootObject->TryGetArrayField(Section, Cases)))
 		{
 			for (const TSharedPtr<FJsonValue>& Value : *Cases)
 			{

@@ -136,8 +136,8 @@ int32 URUIMigrateImportsCommandlet::Main(const FString& Params)
 		FString Block;
 		for (const FString& Spec : Specs)
 		{
-			Block += FString::Printf(TEXT("import { %s } from \"%s\"\n"), *FString::Join(BySpec[Spec], TEXT(", ")),
-									 *Spec);
+			Block +=
+				FString::Printf(TEXT("import { %s } from \"%s\"\n"), *FString::Join(BySpec[Spec], TEXT(", ")), *Spec);
 			ImportsAdded += BySpec[Spec].Num();
 		}
 		// Insert the import block right before the first declaration (after any #include block +
@@ -146,8 +146,9 @@ int32 URUIMigrateImportsCommandlet::Main(const FString& Params)
 		Source = InsertCp(Source, InsertAt, Block + TEXT("\n"));
 		WriteSource(File, Source);
 	}
-	UE_LOG(LogRUIMigrate, Display, TEXT("pass 2: inserted %d import binding(s); %d cross-module edge(s) left for the owner"),
-		   ImportsAdded, CrossModule);
+	UE_LOG(LogRUIMigrate, Display,
+		   TEXT("pass 2: inserted %d import binding(s); %d cross-module edge(s) left for the owner"), ImportsAdded,
+		   CrossModule);
 
 	// ── Gate: compile the whole tree WITH resolution; require ZERO diagnostics (strict day one). ──
 	int32 Errors = CrossModule;

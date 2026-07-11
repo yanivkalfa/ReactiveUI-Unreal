@@ -252,10 +252,10 @@ namespace
 			}
 			else if (ThisImport.Contains(Name))
 			{
-				AddDiag(Out.Diags, TEXT("UETKX2303"), 0,
-						FString::Printf(TEXT("duplicate import of `%s` (already imported from %s)"), *Name,
-										*Imp.Specifier),
-						NameAt, Name.Len());
+				AddDiag(
+					Out.Diags, TEXT("UETKX2303"), 0,
+					FString::Printf(TEXT("duplicate import of `%s` (already imported from %s)"), *Name, *Imp.Specifier),
+					NameAt, Name.Len());
 			}
 			else
 			{

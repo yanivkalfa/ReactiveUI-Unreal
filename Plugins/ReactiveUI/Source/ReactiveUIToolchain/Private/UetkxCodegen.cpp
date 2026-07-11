@@ -445,8 +445,8 @@ namespace
 		const FString& Basename;
 		const FUetkxComponentDecl& Decl;
 		TArray<FUetkxDiag>& Diags;
-		TSet<FString>& Uses;			 // component tags this component references (aggregator topo order)
-		TMap<FString, int32>& UseAts; // tag -> first reference offset (strict-import diagnostics, M4)
+		TSet<FString>& Uses;					 // component tags this component references (aggregator topo order)
+		TMap<FString, int32>& UseAts;			 // tag -> first reference offset (strict-import diagnostics, M4)
 		const TMap<FString, FString>& Qualified; // private same-file decl name -> RuiPriv_<Basename>::name
 		int32 TextKeyCounter = 0;
 		bool bError = false;
@@ -966,15 +966,24 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 	TMap<FString, FString> Qualified;
 	for (const FUetkxComponentDecl& D : Scan.Components)
 	{
-		if (!D.bExported) { Qualified.Add(D.Name, PrivNs + TEXT("::")); }
+		if (!D.bExported)
+		{
+			Qualified.Add(D.Name, PrivNs + TEXT("::"));
+		}
 	}
 	for (const FUetkxHookDecl& D : Scan.Hooks)
 	{
-		if (!D.bExported) { Qualified.Add(D.Name, PrivNs + TEXT("::")); }
+		if (!D.bExported)
+		{
+			Qualified.Add(D.Name, PrivNs + TEXT("::"));
+		}
 	}
 	for (const FUetkxModuleDecl& D : Scan.Modules)
 	{
-		if (!D.bExported) { Qualified.Add(D.Name, PrivNs + TEXT("::")); }
+		if (!D.bExported)
+		{
+			Qualified.Add(D.Name, PrivNs + TEXT("::"));
+		}
 	}
 
 	// De-binarized emit (mixed-decl v1): lower each declaration in SOURCE order. A component emits
@@ -1034,15 +1043,24 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 	// (private decls may collide across files by construction, A5e).
 	for (const FUetkxComponentDecl& D : Scan.Components)
 	{
-		if (D.bExported) { Out.ExportedNames.Add(D.Name); }
+		if (D.bExported)
+		{
+			Out.ExportedNames.Add(D.Name);
+		}
 	}
 	for (const FUetkxHookDecl& D : Scan.Hooks)
 	{
-		if (D.bExported) { Out.ExportedNames.Add(D.Name); }
+		if (D.bExported)
+		{
+			Out.ExportedNames.Add(D.Name);
+		}
 	}
 	for (const FUetkxModuleDecl& D : Scan.Modules)
 	{
-		if (D.bExported) { Out.ExportedNames.Add(D.Name); }
+		if (D.bExported)
+		{
+			Out.ExportedNames.Add(D.Name);
+		}
 	}
 
 	// a component never depends on ITSELF for ordering (recursion is legal in one TU)

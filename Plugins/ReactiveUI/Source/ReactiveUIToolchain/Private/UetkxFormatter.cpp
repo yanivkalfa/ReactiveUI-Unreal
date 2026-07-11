@@ -739,8 +739,7 @@ FUetkxFormatResult FUetkxFormatter::Format(const FString& Source, const FUetkxFo
 	// Preamble (T1.3 + M11): canonicalized ONLY when it is nothing but whitespace + #include +
 	// `import` lines. Leading comments or stray text are preserved byte-for-byte — Format Document
 	// must never delete user content. Canonical order: #include block, blank, import block, blank.
-	auto DeclStartOf = [](const FUetkxComponentDecl& D)
-	{ return D.bExported && D.ExportAt >= 0 ? D.ExportAt : D.At; };
+	auto DeclStartOf = [](const FUetkxComponentDecl& D) { return D.bExported && D.ExportAt >= 0 ? D.ExportAt : D.At; };
 	const FString Pre = FUetkxLexer::FromCodePoints(SrcCp, 0, DeclStartOf(Scan.Components[0]));
 	bool bPreCanonical = true;
 	{

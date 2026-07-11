@@ -106,8 +106,7 @@ bool FRuiUetkxSchemaTest::RunTest(const FString&)
 			FPaths::NormalizeDirectoryName(P);
 			return P;
 		};
-		const FString Scratch =
-			FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("ReactiveUI"), TEXT("ConfigWalkTest"));
+		const FString Scratch = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("ReactiveUI"), TEXT("ConfigWalkTest"));
 		IFileManager::Get().DeleteDirectory(*Scratch, false, true);
 
 		// A fake module `MyMod` (its *.Build.cs marks the module root), with a root-declaring
@@ -137,8 +136,8 @@ bool FRuiUetkxSchemaTest::RunTest(const FString&)
 		TestEqual(TEXT("config dir is the module dir"), Norm(FromScreens.ConfigDir), Norm(ModRoot));
 
 		// ModuleRootFor: any file under MyMod resolves to the *.Build.cs dir.
-		TestEqual(TEXT("module root of a nested file"),
-				  Norm(FUetkxConfig::ModuleRootFor(Sub / TEXT("B.uetkx"))), Norm(ModRoot));
+		TestEqual(TEXT("module root of a nested file"), Norm(FUetkxConfig::ModuleRootFor(Sub / TEXT("B.uetkx"))),
+				  Norm(ModRoot));
 		TestTrue(TEXT("no module root outside any module"),
 				 FUetkxConfig::ModuleRootFor(Plain / TEXT("D.uetkx")).IsEmpty());
 
@@ -147,8 +146,8 @@ bool FRuiUetkxSchemaTest::RunTest(const FString&)
 				  Norm(Screens));
 		// No-merge shadowing (A5g): the nearer formatter-only config resets `~/` to the module
 		// root — it does NOT inherit the ancestor's `root: Screens`.
-		TestEqual(TEXT("~/ shadowed back to module root"),
-				  Norm(FUetkxConfig::RootAnchorFor(Sub / TEXT("B.uetkx"))), Norm(ModRoot));
+		TestEqual(TEXT("~/ shadowed back to module root"), Norm(FUetkxConfig::RootAnchorFor(Sub / TEXT("B.uetkx"))),
+				  Norm(ModRoot));
 		// A config that simply omits `root` also falls back to the module root.
 		TestEqual(TEXT("~/ missing-root default = module root"),
 				  Norm(FUetkxConfig::RootAnchorFor(NoRoot / TEXT("C.uetkx"))), Norm(ModRoot));

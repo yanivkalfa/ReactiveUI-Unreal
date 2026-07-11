@@ -103,7 +103,7 @@ struct REACTIVEUIINTERP_API FUetkxModuleDecl
 struct REACTIVEUIINTERP_API FUetkxFileScanResult
 {
 	TArray<FString> PreambleIncludes; // verbatim `#include ...` lines from the preamble
-	TArray<FUetkxImportDecl> Imports;  // preamble `import { … } from "…"` declarations (A1)
+	TArray<FUetkxImportDecl> Imports; // preamble `import { … } from "…"` declarations (A1)
 	// FULL MIXED-DECL v1 (A1): a file is a SEQUENCE of any number of components + hooks + modules
 	// in any order. Each array holds its own kind; `Order` records the source order across all
 	// three so the emitter lowers declarations exactly as written (>1 component is a LINT warn,
@@ -138,7 +138,7 @@ struct REACTIVEUIINTERP_API FUetkxPreambleDecl
 	FString Name;
 	EUetkxDeclKind Kind = EUetkxDeclKind::Component;
 	bool bExported = false;
-	int32 At = -1;		// the decl keyword offset (a preceding `export`, if any, is at ExportAt)
+	int32 At = -1;		 // the decl keyword offset (a preceding `export`, if any, is at ExportAt)
 	int32 ExportAt = -1; // the `export` keyword offset when bExported, else -1 (codemod insert point)
 };
 

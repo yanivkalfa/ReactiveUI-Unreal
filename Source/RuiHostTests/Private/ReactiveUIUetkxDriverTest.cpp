@@ -217,8 +217,8 @@ bool FRuiUetkxDriverTest::RunTest(const FString&)
 		const FString BPath = Dir / TEXT("B.uetkx");
 		// B does not export X yet; A imports X from ./B and renders <X/> — A errors (2302).
 		FFileHelper::SaveStringToFile(TEXT("export component Placeholder { return ( <Spacer /> ); }\n"), *BPath);
-		FFileHelper::SaveStringToFile(
-			TEXT("import { X } from \"./B\"\nexport component A { return ( <X /> ); }\n"), *APath);
+		FFileHelper::SaveStringToFile(TEXT("import { X } from \"./B\"\nexport component A { return ( <X /> ); }\n"),
+									  *APath);
 		AddExpectedError(TEXT("UETKX2302"), EAutomationExpectedErrorFlags::Contains, 0);
 		FUetkxDriver::CompileAll(Scratch, /*bForce*/ true);
 		TestFalse(TEXT("A failed to resolve X -> no .inl"), FM.FileExists(*FUetkxDriver::InlPathFor(APath)));

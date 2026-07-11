@@ -151,20 +151,18 @@ component RowList(Names: TArray<FString>) {
 	{
 		// A file with an EXPORTED component that references a PRIVATE same-file component, hook, and
 		// module — the private decls wrap in RuiPriv_<Basename> and their references qualify.
-		const FString Src =
-			TEXT("module RowStyle {\n\tinline const int32 Gap = 4;\n}\n")
+		const FString Src = TEXT("module RowStyle {\n\tinline const int32 Gap = 4;\n}\n")
 			TEXT("hook UseLocalCount() -> int32 {\n\treturn 0;\n}\n")
-			TEXT("component Row {\n\treturn ( <Spacer /> );\n}\n")
-			TEXT("export component Panel {\n")
-			TEXT("\tint32 Pad = RowStyle::Gap;\n")
-			TEXT("\tauto V = UseLocalCount();\n")
-			TEXT("\treturn ( <VerticalBox> <Row /> </VerticalBox> );\n}\n");
+				TEXT("component Row {\n\treturn ( <Spacer /> );\n}\n") TEXT("export component Panel {\n")
+					TEXT("\tint32 Pad = RowStyle::Gap;\n") TEXT("\tauto V = UseLocalCount();\n")
+						TEXT("\treturn ( <VerticalBox> <Row /> </VerticalBox> );\n}\n");
 		const FUetkxCompileOutput Out = FUetkxCodegen::CompileSource(Src, TEXT("Panel"));
 		if (TestTrue(TEXT("privacy sample compiles"), Out.bOk))
 		{
 			// exported component: file scope + named factory.
-			TestTrue(TEXT("exported component registers a named factory"),
-					 Out.Inl.Contains(TEXT("RUI::RegisterNamedFactory(FName(TEXT(\"Panel\")), []() { return Panel(); })")));
+			TestTrue(
+				TEXT("exported component registers a named factory"),
+				Out.Inl.Contains(TEXT("RUI::RegisterNamedFactory(FName(TEXT(\"Panel\")), []() { return Panel(); })")));
 			TestTrue(TEXT("only exported decls in the export ledger"),
 					 Out.ExportedNames.Num() == 1 && Out.ExportedNames[0] == TEXT("Panel"));
 			// private decls wrap in the per-file detail namespace.
@@ -172,9 +170,8 @@ component RowList(Names: TArray<FString>) {
 			TestTrue(TEXT("private component NOT globally registered"),
 					 !Out.Inl.Contains(TEXT("RegisterNamedFactory(FName(TEXT(\"Row\"))")));
 			// same-file references reach into the detail namespace.
-			TestTrue(TEXT("private component tag qualified"),
-					 Out.Inl.Contains(TEXT("RuiPriv_Panel::FRowUetkxProps")) &&
-						 Out.Inl.Contains(TEXT("RuiPriv_Panel::Row(")));
+			TestTrue(TEXT("private component tag qualified"), Out.Inl.Contains(TEXT("RuiPriv_Panel::FRowUetkxProps")) &&
+																  Out.Inl.Contains(TEXT("RuiPriv_Panel::Row(")));
 			TestTrue(TEXT("private hook call qualified"), Out.Inl.Contains(TEXT("RuiPriv_Panel::UseLocalCount(Ctx)")));
 			TestTrue(TEXT("private module qual qualified"), Out.Inl.Contains(TEXT("RuiPriv_Panel::RowStyle::Gap")));
 		}

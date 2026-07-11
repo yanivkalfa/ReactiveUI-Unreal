@@ -67,25 +67,25 @@ bool FRuiUetkxResolveTest::RunTest(const FString&)
 			  Norm(Root / TEXT("Screens/Chip.uetkx")));
 	TestEqual(TEXT("../ resolves"), Norm(R.Resolve(TEXT("../hooks/Thing"), TEXT("Screens/App.uetkx"))),
 			  Norm(Root / TEXT("hooks/Thing.uetkx")));
-	TestEqual(TEXT("~/ resolves at the fixture root"), Norm(R.Resolve(TEXT("~/hooks/Thing"), TEXT("Screens/App.uetkx"))),
+	TestEqual(TEXT("~/ resolves at the fixture root"),
+			  Norm(R.Resolve(TEXT("~/hooks/Thing"), TEXT("Screens/App.uetkx"))),
 			  Norm(Root / TEXT("hooks/Thing.uetkx")));
 	TestTrue(TEXT("unknown specifier is unresolved"), R.Resolve(TEXT("./Nope"), TEXT("Screens/App.uetkx")).IsEmpty());
 	TestTrue(TEXT("bare/engine-native specifier is forbidden"),
 			 R.Resolve(TEXT("Chip"), TEXT("Screens/App.uetkx")).IsEmpty());
-	TestTrue(TEXT("res:// specifier is forbidden"),
-			 R.Resolve(TEXT("res://Chip"), TEXT("Screens/App.uetkx")).IsEmpty());
+	TestTrue(TEXT("res:// specifier is forbidden"), R.Resolve(TEXT("res://Chip"), TEXT("Screens/App.uetkx")).IsEmpty());
 
 	// ── strict diagnostics, one per case (rel = Screens/T.uetkx so ./ anchors in Screens) ─────
 	const FString Rel = TEXT("Screens/T.uetkx");
 	{ // clean: import a used component
-		const TArray<FString> C = Codes(
-			TEXT("import { Chip } from \"./Chip\"\ncomponent T {\n\treturn ( <Chip /> );\n}\n"), Rel, R);
+		const TArray<FString> C =
+			Codes(TEXT("import { Chip } from \"./Chip\"\ncomponent T {\n\treturn ( <Chip /> );\n}\n"), Rel, R);
 		TestEqual(TEXT("clean import has no diags"), C.Num(), 0);
 	}
 	{ // clean: ~/ hook import + use
-		const TArray<FString> C = Codes(
-			TEXT("import { UseThing } from \"~/hooks/Thing\"\ncomponent T {\n\tUseThing();\n\treturn ( <Spacer /> );\n}\n"),
-			Rel, R);
+		const TArray<FString> C = Codes(TEXT("import { UseThing } from \"~/hooks/Thing\"\ncomponent T "
+											 "{\n\tUseThing();\n\treturn ( <Spacer /> );\n}\n"),
+										Rel, R);
 		TestEqual(TEXT("~/ hook import + use is clean"), C.Num(), 0);
 	}
 	Has(Codes(TEXT("import { Chip } from \"./Nope\"\ncomponent T {\n\treturn ( <Spacer /> );\n}\n"), Rel, R),
@@ -110,8 +110,8 @@ bool FRuiUetkxResolveTest::RunTest(const FString&)
 
 	// same-file references are exempt from the import requirement.
 	{
-		const TArray<FString> C = Codes(
-			TEXT("component T {\n\tUseLocal();\n\treturn ( <Spacer /> );\n}\nhook UseLocal() {\n}\n"), Rel, R);
+		const TArray<FString> C =
+			Codes(TEXT("component T {\n\tUseLocal();\n\treturn ( <Spacer /> );\n}\nhook UseLocal() {\n}\n"), Rel, R);
 		HasNot(C, TEXT("UETKX2305"));
 		HasNot(C, TEXT("UETKX2307"));
 	}

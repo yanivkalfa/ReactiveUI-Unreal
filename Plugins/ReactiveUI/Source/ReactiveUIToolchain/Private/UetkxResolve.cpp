@@ -30,9 +30,10 @@ namespace
 
 	const TCHAR* KindWord(EUetkxDeclKind K)
 	{
-		return K == EUetkxDeclKind::Component ? TEXT("component") : K == EUetkxDeclKind::Hook ? TEXT("hook") : TEXT("module");
+		return K == EUetkxDeclKind::Component ? TEXT("component")
+			   : K == EUetkxDeclKind::Hook	  ? TEXT("hook")
+											  : TEXT("module");
 	}
-
 
 	bool IsIdentStart(int32 C)
 	{
@@ -325,8 +326,8 @@ FString FUetkxFsResolver::SuggestSpecifier(const FString& ImporterPath, const FS
 // ── FUetkxResolve::Apply ────────────────────────────────────────────────────────────────────
 
 void FUetkxResolve::Apply(const FUetkxFileScanResult& Scan, const TMap<FString, int32>& UseAts,
-						  const FString& ImporterPath, const IUetkxImportResolver& Resolver,
-						  TArray<FUetkxDiag>& Diags, TMap<FString, uint32>& DepHashes)
+						  const FString& ImporterPath, const IUetkxImportResolver& Resolver, TArray<FUetkxDiag>& Diags,
+						  TMap<FString, uint32>& DepHashes)
 {
 	auto Add = [&Diags](const TCHAR* Code, int32 Sev, const FString& Msg, int32 At, int32 Len = 1)
 	{
@@ -340,9 +341,18 @@ void FUetkxResolve::Apply(const FUetkxFileScanResult& Scan, const TMap<FString, 
 	};
 
 	TSet<FString> SameFile;
-	for (const FUetkxComponentDecl& D : Scan.Components) { SameFile.Add(D.Name); }
-	for (const FUetkxHookDecl& D : Scan.Hooks) { SameFile.Add(D.Name); }
-	for (const FUetkxModuleDecl& D : Scan.Modules) { SameFile.Add(D.Name); }
+	for (const FUetkxComponentDecl& D : Scan.Components)
+	{
+		SameFile.Add(D.Name);
+	}
+	for (const FUetkxHookDecl& D : Scan.Hooks)
+	{
+		SameFile.Add(D.Name);
+	}
+	for (const FUetkxModuleDecl& D : Scan.Modules)
+	{
+		SameFile.Add(D.Name);
+	}
 
 	// 1. Resolve imports → the imported-name table + per-name diagnostics.
 	TSet<FString> ImportedNames;
@@ -386,7 +396,8 @@ void FUetkxResolve::Apply(const FUetkxFileScanResult& Scan, const TMap<FString, 
 			else if (!T->bExported)
 			{
 				Add(TEXT("UETKX2301"), 0,
-					FString::Printf(TEXT("`%s` is not exported by %s — add `export` to its declaration"), *Name, *Label),
+					FString::Printf(TEXT("`%s` is not exported by %s — add `export` to its declaration"), *Name,
+									*Label),
 					NameAt, Name.Len());
 			}
 		}
@@ -431,9 +442,18 @@ void FUetkxResolve::Apply(const FUetkxFileScanResult& Scan, const TMap<FString, 
 	// exported by NO file is ambient (a hand-written header hook / engine namespace) and never
 	// diagnoses — imports address .uetkx targets only.
 	TArray<FExtRef> Refs;
-	for (const FUetkxComponentDecl& D : Scan.Components) { CollectExternalRefs(D.Setup, D.SetupAt, Refs); }
-	for (const FUetkxHookDecl& D : Scan.Hooks) { CollectExternalRefs(D.Body, D.BodyAt, Refs); }
-	for (const FUetkxModuleDecl& D : Scan.Modules) { CollectExternalRefs(D.Body, D.BodyAt, Refs); }
+	for (const FUetkxComponentDecl& D : Scan.Components)
+	{
+		CollectExternalRefs(D.Setup, D.SetupAt, Refs);
+	}
+	for (const FUetkxHookDecl& D : Scan.Hooks)
+	{
+		CollectExternalRefs(D.Body, D.BodyAt, Refs);
+	}
+	for (const FUetkxModuleDecl& D : Scan.Modules)
+	{
+		CollectExternalRefs(D.Body, D.BodyAt, Refs);
+	}
 	for (const FExtRef& R : Refs)
 	{
 		// A referenced name is USED (for 2304) regardless of whether it resolves — an imported
@@ -476,9 +496,18 @@ void FUetkxResolve::MissingImports(const FUetkxFileScanResult& Scan, const TSet<
 								   TMap<FString, TArray<FString>>& OutBySpecifier, TArray<FString>& OutCrossModule)
 {
 	TSet<FString> SameFile;
-	for (const FUetkxComponentDecl& D : Scan.Components) { SameFile.Add(D.Name); }
-	for (const FUetkxHookDecl& D : Scan.Hooks) { SameFile.Add(D.Name); }
-	for (const FUetkxModuleDecl& D : Scan.Modules) { SameFile.Add(D.Name); }
+	for (const FUetkxComponentDecl& D : Scan.Components)
+	{
+		SameFile.Add(D.Name);
+	}
+	for (const FUetkxHookDecl& D : Scan.Hooks)
+	{
+		SameFile.Add(D.Name);
+	}
+	for (const FUetkxModuleDecl& D : Scan.Modules)
+	{
+		SameFile.Add(D.Name);
+	}
 	TSet<FString> AlreadyImported;
 	for (const FUetkxImportDecl& Imp : Scan.Imports)
 	{
@@ -517,9 +546,18 @@ void FUetkxResolve::MissingImports(const FUetkxFileScanResult& Scan, const TSet<
 		Consider(Tag, false);
 	}
 	TArray<FExtRef> Refs;
-	for (const FUetkxComponentDecl& D : Scan.Components) { CollectExternalRefs(D.Setup, D.SetupAt, Refs); }
-	for (const FUetkxHookDecl& D : Scan.Hooks) { CollectExternalRefs(D.Body, D.BodyAt, Refs); }
-	for (const FUetkxModuleDecl& D : Scan.Modules) { CollectExternalRefs(D.Body, D.BodyAt, Refs); }
+	for (const FUetkxComponentDecl& D : Scan.Components)
+	{
+		CollectExternalRefs(D.Setup, D.SetupAt, Refs);
+	}
+	for (const FUetkxHookDecl& D : Scan.Hooks)
+	{
+		CollectExternalRefs(D.Body, D.BodyAt, Refs);
+	}
+	for (const FUetkxModuleDecl& D : Scan.Modules)
+	{
+		CollectExternalRefs(D.Body, D.BodyAt, Refs);
+	}
 	for (const FExtRef& R : Refs)
 	{
 		Consider(R.Name, R.Kind == FExtRef::EKind::Module);

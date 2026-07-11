@@ -570,8 +570,8 @@ FUetkxCheckResult FUetkxDriver::CheckDrift(const TArray<FString>& Roots)
 			if (const FString* Incumbent = NameToFile.Find(Name))
 			{
 				++Out.Errors;
-				Out.Messages.Add(FString::Printf(
-					TEXT("%s: UETKX2106: exported binding `%s` is already bound by %s"), *Path, *Name, **Incumbent));
+				Out.Messages.Add(FString::Printf(TEXT("%s: UETKX2106: exported binding `%s` is already bound by %s"),
+												 *Path, *Name, **Incumbent));
 			}
 			else
 			{
@@ -680,9 +680,10 @@ FUetkxSweepResult FUetkxDriver::CompileAllRoots(const TArray<FString>& Roots, bo
 			if (const FString* Incumbent = NameToFile.Find(Name))
 			{
 				++Out.Errors;
-				UE_LOG(LogRuiToolchain, Error,
-					   TEXT("%s: UETKX2106: exported binding `%s` is already bound by %s (one exported name, one file)"),
-					   *Path, *Name, **Incumbent);
+				UE_LOG(
+					LogRuiToolchain, Error,
+					TEXT("%s: UETKX2106: exported binding `%s` is already bound by %s (one exported name, one file)"),
+					*Path, *Name, **Incumbent);
 			}
 			else
 			{
