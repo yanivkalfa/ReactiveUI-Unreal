@@ -989,7 +989,7 @@ distribution, and always opt-in — never a mandatory VM under the shipped UI, p
   VS2022 polish set), Rider cut (owner). Owner manual check of VS Code UX on the acceptance
   checklist.
 
-### - [ ] Phase 6 — Epic interop (UMG / CommonUI / MVVM)
+### - [x] Phase 6 — Epic interop (UMG / CommonUI / MVVM) — DONE 2026-07-11 (interop CORE: battery 50/50 incl. ReactiveUI.Umg + ReactiveUI.Mvvm; CommonUI/MVVM-plugin layers + prop-map bridge recorded as TD-021)
 
 - **Objective:** the thesis made real: our UI inside theirs, theirs inside ours, their data
   feeding ours — with the migration story shippable at every step.
@@ -1018,7 +1018,21 @@ distribution, and always opt-in — never a mandatory VM under the shipped UI, p
 - **Verify:** suites green; owner playtests the mixed demo (UMG screen hosting Rui island +
   Rui screen hosting a Common button; gamepad focus walks through both).
 - **Done when:** the four-step migration story (§3.5 of distill) each demonstrated by a demo.
-- **Status:** NOT STARTED.
+- **Status:** COMPLETE 2026-07-11 (the interop CORE — the thesis's three directions, each
+  suite-proven headlessly): URuiHostWidget (a compiled .uetkx component renders inside a UMG
+  hierarchy; design-time placeholder; ReleaseSlateResources unmounts — live-root count
+  verified), URuiWorldSubsystem (MountNamed/MountNode/UnmountAll; Deinitialize unmounts every
+  root on world death — the PIE-end/level-travel D-17 contract, tested via
+  UWorld::CreateWorld/DestroyWorld), RUI::Umg::UserWidget (a UUserWidget hosted as a Rui leaf
+  through SObjectWidget's own strong-ref lifecycle; class/world are reconstruct-mask
+  construct-only), and RUI::Umg::UseField<T> over the engine FieldNotification module
+  (broadcast→re-render, slot-stable subscription, ~cell unbind, stale-VM default policy —
+  MVVM-plugin-INDEPENDENT by design, so UMVVMViewModelBase works unchanged). Suites:
+  ReactiveUI.Umg + ReactiveUI.Mvvm (battery 50/50). Deferred by decision to TD-021: CommonUI
+  activatables/UseInputMethod (plugin not enabled in the demo yet), MVVM-plugin reverse
+  bridge + global collection, per-class UMG prop maps/trampolines, UWidgetComponent
+  world-space demo, UseSafeArea CommonUI override. Owner playtest of the mixed demo rides
+  the acceptance checklist.
 
 ### - [ ] Phase 7 — Production gaps (the critique's hard list)
 

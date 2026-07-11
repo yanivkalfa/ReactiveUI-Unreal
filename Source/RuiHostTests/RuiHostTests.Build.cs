@@ -27,8 +27,11 @@ public class RuiHostTests : ModuleRules
 			"ReactiveUICore",   // the mock-host core suites
 			"ReactiveUISlate",  // the Slate host suites + reorder spike
 			"RuiDemo",          // the Demos suite mounts the gallery
-			"ReactiveUIInterp", // the .uetkx scanner/parser suites
+			"ReactiveUIInterp", // the .uetkx scanner/parser suites + VM/Hmr
 			"ReactiveUIToolchain", // the codegen suites
+			"ReactiveUIUMG",    // the Phase-6 interop suites (Umg/Mvvm)
+			"UMG",
+			"FieldNotification",
 			"Json",             // contract-corpus loading
 			"SlateCore",
 			"Slate",

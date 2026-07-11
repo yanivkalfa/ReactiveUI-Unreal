@@ -237,3 +237,21 @@ referenced from plans/PRs.
   graceful-degradation notice. The VS2022 polish set (options page, format-on-save, smart
   indent, brace completion — present in the Godot sibling) rides the same follow-up.
 - **Status:** OPEN
+
+## TD-021 — CommonUI activatables + MVVM-plugin glue + UMG prop-map bridge
+- **Where:** `ReactiveUICommonUI`, `ReactiveUIMVVMBridge`, `ReactiveUIUMG`
+- **What/why deferred:** Phase 6 shipped the interop CORE (URuiHostWidget, URuiWorldSubsystem
+  teardown contract, RUI::Umg::UserWidget embedding, UseField over the engine FieldNotification
+  module — deliberately MVVM-plugin-independent). Three plugin-coupled layers remain:
+  (1) CommonUI — URuiActivatableScreen/UseActivation/UseInputMethod need the CommonUI plugin
+  enabled (not in the demo project yet) + the D-27 optional-plugin gating decision exercised;
+  (2) ModelViewViewModel plugin glue — URuiSignalViewModel reverse bridge + global-collection
+  registration (UseField already serves UMVVMViewModelBase since it implements
+  INotifyFieldValueChanged); (3) per-class UMG prop maps + delegate trampolines so hosted
+  UUserWidgets receive Rui props declaratively (today the embedding seam is class+world).
+  Input policy: Rui events consume via Slate FReply::Handled inside SRui widgets; unhandled
+  input falls through to CommonUI's action router untouched — the docs note rides Phase 8.
+- **Production-grade resolution:** enable CommonUI/MVVM in the demo project, implement each
+  layer with its suite (ReactiveUI.CommonUI, the reverse-bridge test), per-class prop maps
+  generated from UHT reflection.
+- **Status:** OPEN

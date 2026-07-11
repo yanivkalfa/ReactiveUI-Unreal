@@ -2,11 +2,11 @@
 
 using UnrealBuildTool;
 
-// Epic interop, UObject side (Phases 6-7): URuiHostWidget, URuiSubsystem (per-world roots +
-// teardown-before-GC contract, D-17), RUI::Umg, UseField/UseViewModel over FieldNotify,
-// URuiSignalViewModel (reverse bridge), the brush FGCObject root, and UseSfx world glue.
-// Deps added with the code, per D-27:
-//   CoreUObject, Engine, UMG, FieldNotification, ReactiveUICore, ReactiveUISlate.
+// Epic interop, UObject side (Phase 6): URuiHostWidget (a Rui tree INSIDE a UMG/Blueprint
+// hierarchy — "our UI inside theirs"), RUI::Umg::UserWidget (a UMG widget INSIDE a Rui tree —
+// "theirs inside ours"), URuiWorldSubsystem (per-world mount surface with the teardown
+// contract: PIE end / level travel unmounts every root), and UseField over FieldNotify
+// ("their data feeding ours" — the engine FieldNotification module, plugin-independent).
 public class ReactiveUIUMG : ModuleRules
 {
 	public ReactiveUIUMG(ReadOnlyTargetRules Target) : base(Target)
@@ -17,6 +17,14 @@ public class ReactiveUIUMG : ModuleRules
 		PublicDependencyModuleNames.AddRange(new string[]
 		{
 			"Core",
+			"CoreUObject",
+			"Engine",
+			"UMG",
+			"Slate",
+			"SlateCore",
+			"FieldNotification",
+			"ReactiveUICore",
+			"ReactiveUISlate",
 		});
 	}
 }
