@@ -7,6 +7,18 @@
     "to catch any implementation indexing by UTF-16 units.",
     "skipNoncode = C++ lexis. skipNoncodeMarkup/findMatchingMarkup = the family markup lexis."
   ],
+  "_tiers": {
+    "_doc": [
+      "Corpus mirroring partition (A4 / TD-009). familyCore sections are BYTE-IDENTICAL",
+      "family-wide after the code-prefix substitution (UETKX|GUITKX|UITKX -> TKX) and are",
+      "hashed by scripts/corpus-hash.mjs into plans/family-corpus.hash; sibling repos adopt",
+      "the same script + hash file (release-time hash-match resolves TD-009). perLeg sections",
+      "are engine-specific lexis (C++/GDScript/C#) and are NOT part of the family hash.",
+      "nonBmp cases are routed by their per-case `section` field into whichever tier owns it."
+    ],
+    "familyCore": ["skipNoncodeMarkup", "findMatchingMarkup", "fileScan"],
+    "perLeg": ["skipNoncode", "findMatching"]
+  },
   "skipNoncode": [
     { "name": "not at noncode returns i", "input": "int x = 1;", "at": 0, "expect": 0 },
     { "name": "line comment to EOL", "input": "a // comment\nb", "at": 2, "expect": 12 },
