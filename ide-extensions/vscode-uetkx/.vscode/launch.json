@@ -1,0 +1,29 @@
+{
+  // F5 flow: builds the extension + bundles the language server (preLaunchTask), then opens
+  // an Extension Development Host with the repo loaded so the gallery .uetkx files are right
+  // there to poke. Breakpoints work in src/extension.ts; for SERVER-side breakpoints use the
+  // "Attach to UETKX Language Server" config after the host is up (the server runs with
+  // --inspect=6010 in debug).
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run UETKX Extension",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}",
+        "${workspaceFolder}/../.."
+      ],
+      "outFiles": ["${workspaceFolder}/out/**/*.js"],
+      "preLaunchTask": "npm: build"
+    },
+    {
+      "name": "Attach to UETKX Language Server",
+      "type": "node",
+      "request": "attach",
+      "port": 6010,
+      "restart": true,
+      "outFiles": ["${workspaceFolder}/server/**/*.js"]
+    }
+  ]
+}

@@ -47,10 +47,10 @@ referenced from plans/PRs.
   registration hook, with demos.
 - **Status:** OPEN
 
-## TD-005 — Rider LSP plugin (grammar-only in v1)
-- **Where:** `ide-extensions/` (v1 ships the TextMate bundle + sidecar diagnostics visibility)
-- **What/why deferred:** JetBrains-LSP-API plugin is a separate deliverable (D-23); grammar
-  gets Rider users syntax highlighting day one.
+## TD-005 — Rider support (skipped ENTIRELY for v1 — owner 2026-07-11)
+- **Where:** `ide-extensions/` (nothing ships for Rider in v1 — no TextMate bundle, no plugin)
+- **What/why deferred:** owner scope cut 2026-07-11 (was: grammar-only day-one tier); the
+  JetBrains-LSP-API plugin was always a separate deliverable (D-23).
 - **Production-grade resolution:** thin Rider plugin hosting the same stdio server.
 - **Status:** OPEN
 
@@ -141,4 +141,133 @@ referenced from plans/PRs.
   `RUI::Style().Opacity(0.5f).Color(...).FontSize(16)` and
   `RUI::Slot().Padding(8).HAlign(EH::Center).Fill(1.f)` — one method per registered key,
   generated from the same schema the markup compiler validates against (single source).
+- **Status:** OPEN
+
+## TD-014 — Content-Browser presence for `.uetkx` files
+- **Where:** `ReactiveUIEditor` (would extend `FUetkxFileActions`)
+- **What/why deferred:** `.uetkx` files live in SOURCE trees (`Source/`, `Plugins/`), which
+  the Content Browser does not browse — they are deliberately not imported assets (the
+  committed-generated-code design, D-19). v1 ships the real file actions instead:
+  `FUetkxFileActions::CreateComponentFile` (New Component template, compiler-validated by
+  `ReactiveUI.Uetkx.Schema`) and `OpenExternal` (OS default editor; wired to MessageLog
+  links in Phase 4). Browser visibility would need a `UAssetDefinition` + thin proxy-asset
+  design (import a pointer-asset per source file) — a real design decision, not glue.
+- **Production-grade resolution:** decide post-v1 whether proxy assets earn their keep
+  (Epic's Verse files ship WITHOUT Content-Browser presence; precedent says source stays in
+  the IDE). If yes: UAssetDefinition + factory + a sync pass in the Phase-4 watcher.
+- **Status:** OPEN
+
+## TD-015 — `.uetkx` v1 grammar limits (deliberate cuts, family Phase-C class)
+- **Where:** `ReactiveUIToolchain` codegen / `ReactiveUIInterp` file scan
+- **What/why deferred:** four expressiveness gaps, each diagnosed rather than silently
+  miscompiled: (1) EARLY markup returns — only the LAST top-level `return ( ... )` in a
+  component body wins (T1.4); guard-style `if (x) { return ( <A/> ); }` at component level
+  lowers only via `@if` today (the family added early returns in its Phase C). (2) children
+  FORWARDING — `{children}` in markup has no splice form; components that wrap arbitrary
+  children stay hand-written (the gallery card is inlined markup per screen for this reason).
+  (3) `classes={ expr }` requires the expression to yield `TArray<FName>` — no string-form
+  conditional classes (static `classes="a b"` works; the StyledPanels screen shows the
+  `@if`-duplication workaround). (4) UETKX3002/3003 — short-circuit markup and spread attrs
+  (family post-v1 too).
+- **Production-grade resolution:** port the family's Phase-C early-return splitter; add a
+  `{children}` splice node lowered to `Ch.Append(children)`; classes ternary sugar can ride
+  the schema. Each lands with corpus + codegen-test pins.
+- **Status:** OPEN
+
+## TD-016 — Event payload surface is the single magic `Value` (FRuiValue)
+- **Where:** `ReactiveUIToolchain` codegen (event attr lowering)
+- **What/why deferred:** every event handler expression compiles into
+  `FRuiCallback::Create([=](const FRuiValue& Value) { expr; })` — text/bool/float payloads
+  arrive as `Value.TextValue` / `Value.BoolValue` / etc. (see SimpleTextField/StyledPanels).
+  Typed per-event payloads (the analyzer knowing OnTextChanged carries text) is LSP/schema
+  work, not codegen work.
+- **Production-grade resolution:** the Phase-5 schema already types attrs as `event`; extend
+  it with a payload-kind field so the LSP can complete `Value.TextValue` correctly.
+- **Status:** OPEN
+
+## TD-017 — `hook` / `module` companion declarations in `.uetkx`
+- **Where:** `ReactiveUIInterp` file scan + `ReactiveUIToolchain` codegen
+- **What/why deferred:** the family grammar also has `hook Name(params) { ... }` and
+  `module Name { ... }` declarations (D-03's declaration inventory); the Phase-3 plan listed
+  their codegen shapes. v1 ships `component` only: in UE a custom hook is ALREADY a plain
+  C++ free function taking `FRuiContext&` (no sugar needed for capability — see the demo
+  support-header pattern), and modules are C++ namespaces. The decls add family-parity
+  authoring sugar, not capability.
+- **Production-grade resolution:** port `_parse_hook_at`/module member loops from guitkx.gd
+  into FUetkxFileScan, emit free functions in the `.inl`, corpus + contract fixtures. Do it
+  when the docs site (Phase 8) starts teaching cross-family authoring, or on user demand.
+- **Status:** OPEN
+
+## TD-018 — Cross-repo grammar-corpus mirroring (Godot follow-up PR)
+- **Where:** `ide-extensions/lsp-server/test-fixtures/uetkx-*.json` ↔ the Godot repo's
+  `guitkx` corpus
+- **What/why deferred:** Phase 3 step 7 calls for the host-language-agnostic corpus cases to
+  be mirrored INTO the Godot repo (its scanner corpus gains our markup-mode cases) via a
+  follow-up PR there. Our corpus already contains the family-shared cases + C++-lexis cases;
+  the Godot-side PR is out of this repo's branch scope.
+- **Production-grade resolution:** open the Godot-repo PR copying the markup-mode/nonBmp case
+  sections + the `grammar-contract` sync note; drop this entry when merged.
+- **Status:** OPEN
+
+## TD-019 — Hook-state VALUE migration across the compiled→interp swap
+- **Where:** `ReactiveUICore` hook cells + `ReactiveUIInterp` hook execution
+- **What/why deferred:** compiled components hold TYPED hook cells
+  (`TRuiStateCell<int32>`); the interpreter's cells are `FRuiValue`-typed. The first
+  hot-swap of a compiled component therefore RESETS its state (reported honestly as
+  "first interp swap (representation)"); interp→interp saves preserve. The family does not
+  have this seam (GDScript is engine-interpreted end to end).
+- **Production-grade resolution:** `IRuiHookCell::ExportRuiValue(FRuiValue&)` (specialized
+  via `if constexpr (std::is_constructible_v<FRuiValue, T>)`) + an interp-aware UseState
+  path that migrates an exporting cell's value into the fresh FRuiValue cell when the hook
+  signature matches. Numeric/string/bool/text state would then survive the FIRST save too.
+- **Status:** OPEN
+
+## TD-020 — Embedded-C++ intelligence (clangd proxy over a virtual document)
+- **Where:** `ide-extensions/lsp-server` (virtualDoc/sourceMap/clangdProxy modules)
+- **What/why deferred:** the Phase-5 enhancement layer — a length-preserving C++ virtual
+  document + source map forwarding hover/completion/definition inside `{expr}`/setup blocks
+  to a clangd child process (compile_commands.json walk-up). v1 ships the family's
+  fully-supported BASELINE instead: markup intelligence from the compiler-exported schema,
+  live parse diagnostics from the corpus-locked TS front-end, hash-gated sidecar compiler
+  diagnostics, and golden-corpus formatting. The proxy needs clangd present and is only
+  meaningfully verifiable interactively; the family precedent ("markup-only stays a fully-
+  supported baseline") is the shipped degradation contract.
+- **Production-grade resolution:** port virtualDoc.ts (third instantiation of the family
+  pattern; HookStubs.h parity test), sourceMap.ts spans, clangdProxy.ts child process with
+  graceful-degradation notice. The VS2022 polish set (options page, format-on-save, smart
+  indent, brace completion — present in the Godot sibling) rides the same follow-up.
+- **Status:** OPEN
+
+## TD-021 — CommonUI activatables + MVVM-plugin glue + UMG prop-map bridge
+- **Where:** `ReactiveUICommonUI`, `ReactiveUIMVVMBridge`, `ReactiveUIUMG`
+- **What/why deferred:** Phase 6 shipped the interop CORE (URuiHostWidget, URuiWorldSubsystem
+  teardown contract, RUI::Umg::UserWidget embedding, UseField over the engine FieldNotification
+  module — deliberately MVVM-plugin-independent). Three plugin-coupled layers remain:
+  (1) CommonUI — URuiActivatableScreen/UseActivation/UseInputMethod need the CommonUI plugin
+  enabled (not in the demo project yet) + the D-27 optional-plugin gating decision exercised;
+  (2) ModelViewViewModel plugin glue — URuiSignalViewModel reverse bridge + global-collection
+  registration (UseField already serves UMVVMViewModelBase since it implements
+  INotifyFieldValueChanged); (3) per-class UMG prop maps + delegate trampolines so hosted
+  UUserWidgets receive Rui props declaratively (today the embedding seam is class+world).
+  Input policy: Rui events consume via Slate FReply::Handled inside SRui widgets; unhandled
+  input falls through to CommonUI's action router untouched — the docs note rides Phase 8.
+- **Production-grade resolution:** enable CommonUI/MVVM in the demo project, implement each
+  layer with its suite (ReactiveUI.CommonUI, the reverse-bridge test), per-class prop maps
+  generated from UHT reflection.
+- **Status:** OPEN
+
+## TD-022 — Asset brushes (D-17) + focus extensions + item-model list views
+- **Where:** `ReactiveUISlate` (+ `ReactiveUIUMG` for the GC root)
+- **What/why deferred:** the remaining Phase-7 surface beyond the shipped animation/media
+  hooks: (1) asset brushes — `BorderImage`/`Image` accepting texture/material ASSETS needs
+  the FGCObject brush root keeping UObjects alive while Slate paints them (today: FCoreStyle
+  brush NAMES only); (2) focus extensions — programmatic focus API + focus-path hooks beyond
+  the Phase-2 fences; (3) item-model views (SListView/STileView/STreeView) — the virtualized
+  item-model adapter treatment (WIDGET_INVENTORY.md classifies the full set; TD-012 carries
+  the owner's ALL-runtime-widgets coverage target). The §4 parity LEDGER is otherwise
+  substantially in place (Slate.Events/KeyedReorder, Style.Classes/NodePool, Update tail,
+  Widgets.* — landed with Phases 1-2; custom_draw exercised via the compiled CustomDraw demo).
+- **Production-grade resolution:** each lands as its own production line with suites; asset
+  brushes first (unblocks real-game UIs), then SListView (the family item_list/tree port
+  completes the ledger), then focus.
 - **Status:** OPEN

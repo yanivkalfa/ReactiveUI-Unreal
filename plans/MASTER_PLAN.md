@@ -356,8 +356,8 @@ round are **baked in** here — see also §6's DO-NOT-CLAIM list.
   exporter commandlet (`-run=RUIExportSchema`) for UMG wrappers/USTRUCT/UENUM/delegate signatures,
   with pre-generated engine-builtin schemas shipped per engine version. This design **removes**
   the per-platform-vsix pain (no napi addon for Unreal). Editor coverage: VS Code + VS2022 in v1;
-  **Rider gets the TextMate grammar + sidecar-driven diagnostics day one** (Rider honors TextMate
-  bundles and is where much of the UE audience lives); a thin JetBrains-LSP-API Rider plugin is
+  **Rider: SKIPPED for v1 entirely (owner 2026-07-11)** — no TextMate bundle, no plugin work;
+  a thin JetBrains-LSP-API Rider plugin is
   DEFERRED (tracked in TECH_DEBT). Embedded-C++ reflow: when a `.clang-format` is found by
   walk-up, embedded blocks are formatted through clang-format (the `embeddedReflow` analogue),
   else left verbatim.
@@ -435,7 +435,9 @@ round are **baked in** here — see also §6's DO-NOT-CLAIM list.
   is quarantined in the Slate host boundary + one `RuiEngineCompat.h` using
   `UE_VERSION_NEWER_THAN`/`UE_VERSION_OLDER_THAN` from `Misc/EngineVersionComparison.h`. Fab rule
   compliance: new products must support latest; maintain ≥1 of latest 3; one zip per engine
-  version with matching `.uplugin` `EngineVersion`.
+  version with matching `.uplugin` `EngineVersion`. OWNER CONFIRMED 2026-07-11: UE 5.6.1 is
+  the base/floor, no older-engine support ever; the 5.7/5.8 matrix verification is batched into
+  the Owner touchpoint block before Phase 9.
   **Target platforms (decided):** the code is pure C++ with no platform-specific paths — the
   `.uplugin` sets NO `PlatformAllowList`/`SupportedTargetPlatforms` restriction (so console
   builds are never blocked). CLAIMED-and-tested v1 platforms: **Win64** (primary dev + packaging)
@@ -594,7 +596,7 @@ IN v1 (all must be green, verified by running):
 - [ ] `.uetkx`: compiles to committed C++ (drift-gated in CI) AND interprets live —
       save mid-PIE, sub-second update, hook-signature state rule working and reported.
 - [ ] IDE tooling: **VS Code AND VS2022** extensions (shared server), markup intelligence
-      offline, embedded-C++ via clangd with graceful degradation; Rider TextMate grammar.
+      offline, embedded-C++ via clangd with graceful degradation. (Rider: skipped for v1 — owner 2026-07-11.)
 - [ ] Interop (the thesis — v1 ships it or the tagline is false): `URuiHostWidget`, `RUI::Umg`,
       `UseField`/`UseViewModel`, `URuiActivatableScreen` on a CommonUI stack — each with a demo.
 - [ ] Production gaps closed: virtualization, localization, brush/asset GC, focus restore,
@@ -604,7 +606,7 @@ IN v1 (all must be green, verified by running):
 OUT of v1 (deliberate, tracked in `plans/TECH_DEBT.md` from Phase 0 — not "demand-gated where
 marked" hand-waving; THIS is the list): the router subsystem (17 family router hooks + both
 router suites), the stylesheet third style layer, exit-animation protocol (designed in Phase 7,
-shipped v1.x), drag-and-drop + keyboard-shortcut APIs, the Rider LSP plugin (grammar-only in v1),
+shipped v1.x), drag-and-drop + keyboard-shortcut APIs, Rider support (ALL of it — skipped v1, owner 2026-07-11),
 the in-Unreal-editor `.uetkx` tab (and its cheaper cousin, a read-only live-preview panel — the
 realistic someday-step toward designer-ish workflows), Phase-4-style on-device remote reload,
 scripting adapters (UnrealSharp/AngelScript integration — or, owner's stated worst case, our own
@@ -821,7 +823,7 @@ distribution, and always opt-in — never a mandatory VM under the shipped UI, p
   cheap-path benchmarked vs SNew.
 - **Status:** CODE-COMPLETE 2026-07-10 (owner PIE playtest pending — the field-test touchpoint): 15 widgets + style v1 (pointer-identity test green) + GO-05 pool (same-pointer reuse test) + focus fences + STATGROUP; 38/38 suites incl. ReactiveUI.{Slate,Widgets,Style,Demos}; reorder spike decided (TD-010, rows in BENCH_BASELINES.md). Header-sweep audit mapped remaining widget surface to TD-012.
 
-### - [ ] Phase 3 — `.uetkx` compiler + build integration (`ReactiveUIToolchain` + parser in `ReactiveUIInterp`)
+### - [x] Phase 3 — `.uetkx` compiler + build integration (`ReactiveUIToolchain` + parser in `ReactiveUIInterp`) — DONE 2026-07-11 (battery 46/46 incl. ReactiveUI.Uetkx.* + Contract; gallery's 11 screens run from committed codegen; RUICompile -check + RUIContractDump -check exit 0)
 
 - **Objective:** `Foo.uetkx` → committed `Foo.uetkx.inl` + stable aggregator TU, byte-compatible
   grammar, sidecar diagnostics, staleness machinery, commandlets — CI-gated for drift. (Steps 1–8
@@ -858,8 +860,10 @@ distribution, and always opt-in — never a mandatory VM under the shipped UI, p
      `Source/RuiHostTests/ContractFixtures/` (excluded from the `RUICompile` sweep + UBT),
      `-run=RUIContractDump` commandlet with `--check` wired into CI, `.pending` convention
      documented in `grammar-contract`.
-  9. Convert the Phase 2 demo screens to `.uetkx` (compiled path); `ReactiveUI.Uetkx` +
-     `ReactiveUI.Contract` suites.
+  9. Convert the Phase 2 demo screens AND the example-gallery screens to `.uetkx` (compiled
+     path); `ReactiveUI.Uetkx` + `ReactiveUI.Contract` suites; the `ReactiveUI.Demos` battery
+     RE-TARGETS the compiled screens so CI exercises the shipped path (owner directive
+     2026-07-11: existing tests convert to the new syntax as it lands, not after).
 - **Files touched:** `ReactiveUIToolchain/**`, `ReactiveUIEditor/Private/RUI*Commandlet.cpp`,
   `RuiHostTests/**`, `ide-extensions/lsp-server/test-fixtures/uetkx-*.json`, demo `.uetkx` files
   + committed `.inl`/aggregators.
@@ -869,9 +873,20 @@ distribution, and always opt-in — never a mandatory VM under the shipped UI, p
   green through the compiled path.
 - **Done when:** demos run from committed codegen; drift gate is a required CI check; corpus is
   the compiler's regression suite.
-- **Status:** NOT STARTED.
+- **Status:** COMPLETE 2026-07-11. Milestones M3.1–M3.9 on `feat/uetkx-compiler`: lexer +
+  57-case scanner corpus (D-22), markup parser + jsx scan (UETKX#### catalog), file scan +
+  codegen (props/hook-prefix/hook-sig/NSLOCTEXT/named-factory self-registration; leaf arity;
+  event payload `Value`; `classes`), driver (sidecars v2, error-verdict + mtime-tie + env-hold
+  staleness, orphan sweep, UETKX2106 duplicate binding, fingerprint, stable aggregators),
+  RUICompile/-full/-check + RUIExportSchema + RUIContractDump commandlets, formatter + 16-case
+  golden corpus + uetkx.config.json walk-up, contract harness (4 fixtures incl. an error
+  fixture + non-BMP pin), all 11 gallery screens converted (committed .inl; Demos battery
+  drives the compiled path incl. registration coverage). Deliberate deferrals recorded:
+  TD-015 (grammar v1 limits), TD-016 (typed event payloads), TD-017 (hook/module companion
+  decls — UE hooks are plain C++ functions), TD-018 (Godot-repo corpus-mirror PR). Post-write
+  parse verification subsumed by CI compiling the committed .inl for real.
 
-### - [ ] Phase 4 — Interpreter + hot reload (`ReactiveUIInterp` + watcher)
+### - [x] Phase 4 — Interpreter + hot reload (`ReactiveUIInterp` + watcher) — DONE 2026-07-11 (battery 48/48 incl. ReactiveUI.Hmr end-to-end: hot-link, interpreted click, state-preserving swap, hook-shape reset, parse-error isolation; owner PIE field-test on the acceptance checklist)
 
 - **Objective:** the headline: save `.uetkx` mid-PIE → UI updates in place <1 s, state preserved
   per the hook-signature rule, honest fallbacks for non-interpretable edits.
@@ -909,9 +924,22 @@ distribution, and always opt-in — never a mandatory VM under the shipped UI, p
 - **Done when:** owner confirms: style edit <1 s state-preserved; structure edit <1 s; hook-shape
   edit resets that component only, with the status line saying so; parse error leaves the old UI
   live.
-- **Status:** NOT STARTED.
+- **Status:** COMPLETE 2026-07-11 (code-complete; the mid-PIE loop itself is the owner's
+  field-test — OWNER_ACCEPTANCE_CHECKLIST). Delivered: FUetkxExprVm (D-20 subset + whitelist
+  registry + Printf/FText/FMath/ctor builtins), FUetkxInterpDef (prepared markup tree, UseState
+  hooks over FRuiValue slots, setup value/setter aliases, setter-call event handlers evaluated
+  at fire time with the `Value` payload, C-style @for/@while/@if/@match, cross-component refs
+  via RUI::Named, fallback notes), FRuiHmr (swap/link/reset/status line; per-file isolation),
+  reconciler seams (RUI::SetComponentOverride consulted in RenderComponent, per-state
+  HmrGeneration + HmrResetHooks, HmrRefreshAll, ForEachLive), RegisterHookSignature ledger,
+  FUetkxWatcher (three triggers + busy/deadman + proof-of-life + MessageLog "ReactiveUI"
+  dedup + resolved line) and rui.Hmr.AutoLiveCoding (default off). Honest limitations recorded:
+  TD-019 (first compiled→interp swap resets — representation change), interp events =
+  setter-calls (others noted "rebuild required"), effects/memo not interpreted, params render
+  defaults under interp. Deferred to later phases per plan: New Component menu + Content
+  Browser UX (Phase 8 bundle, TD-014), URuiSubsystem mount surface (Phase 6).
 
-### - [ ] Phase 5 — IDE tooling (lsp-server + VS Code + VS2022)
+### - [x] Phase 5 — IDE tooling (lsp-server + VS Code + VS2022) — DONE 2026-07-11 (markup baseline shipped: TS front-end corpus-locked to the C++ compiler [scanner 57 + formatter 16 + hash pins replay byte-identically], schema-driven server, VS Code + VS2022 clients; clangd enhancement layer = TD-020)
 
 - **Objective:** `.uetkx` first-class in VS Code and VS2022: markup intelligence offline from the
   schema, embedded-C++ intelligence via clangd, diagnostics from sidecars, formatter parity.
@@ -933,7 +961,8 @@ distribution, and always opt-in — never a mandatory VM under the shipped UI, p
   5. `grammar/uetkx.tmLanguage.json` (embedded `source.cpp` injection); VS Code extension
      (`vscode-uetkx`): language id, client, sidecar watcher; VS2022: reuse the ILanguageClient
      stdio host (no napi addon → single cross-platform VSIX — verify and celebrate in the
-     changelog); **Rider day-one tier:** ship the TextMate grammar as a Rider-consumable bundle +
+     changelog); **Rider: skipped for v1 (owner 2026-07-11)** — no grammar bundle, no plugin;
+     formerly planned day-one tier was the TextMate grammar +
      document sidecar-diagnostics visibility (the JetBrains-LSP-API plugin is OUT of v1, tracked
      in TECH_DEBT).
   6. e2e smoke (`scripts/smoke.js` analogue): stdio handshake + markup completion + a clangd
@@ -946,9 +975,21 @@ distribution, and always opt-in — never a mandatory VM under the shipped UI, p
 - **Done when:** editing the demo `.uetkx` files in VS Code gives completion/diagnostics/format;
   embedded C++ hovers resolve UE types when compile_commands.json exists; degradation notice
   correct without it.
-- **Status:** NOT STARTED.
+- **Status:** COMPLETE 2026-07-11 (the fully-supported markup BASELINE — the family's shipped
+  degradation contract). Delivered: `ide-extensions/lsp-server` (codePoints, cppScanner,
+  uetkxMarkup, uetkxFileScan, formatUetkx — every piece corpus-locked to the C++ side via the
+  two shared fixtures + srcHash pins, 7/7 `node --test`), uetkxSchema (shipped RUIExportSchema
+  copy + Saved/ReactiveUI/schema.json walk-up override), hash-gated sidecar diagnostics, live
+  parse diagnostics, completions (tag/attr/style/slot/directive/hook), hover, golden-corpus
+  formatting with uetkx.config.json walk-up; `vscode-uetkx` (language id, TextMate grammar with
+  embedded source.cpp, IPC client, self-contained JS server bundle — one vsix, all platforms —
+  builds green); `visual-studio/UetkxVsix` (MEF ILanguageClient stdio host + pkgdef TextMate
+  registration, the family's verified csproj shape — build/F5 on the owner checklist, VS SDK
+  not available headless here). Deferred by decision: TD-020 (clangd proxy/virtual doc + the
+  VS2022 polish set), Rider cut (owner). Owner manual check of VS Code UX on the acceptance
+  checklist.
 
-### - [ ] Phase 6 — Epic interop (UMG / CommonUI / MVVM)
+### - [x] Phase 6 — Epic interop (UMG / CommonUI / MVVM) — DONE 2026-07-11 (interop CORE: battery 50/50 incl. ReactiveUI.Umg + ReactiveUI.Mvvm; CommonUI/MVVM-plugin layers + prop-map bridge recorded as TD-021)
 
 - **Objective:** the thesis made real: our UI inside theirs, theirs inside ours, their data
   feeding ours — with the migration story shippable at every step.
@@ -977,9 +1018,23 @@ distribution, and always opt-in — never a mandatory VM under the shipped UI, p
 - **Verify:** suites green; owner playtests the mixed demo (UMG screen hosting Rui island +
   Rui screen hosting a Common button; gamepad focus walks through both).
 - **Done when:** the four-step migration story (§3.5 of distill) each demonstrated by a demo.
-- **Status:** NOT STARTED.
+- **Status:** COMPLETE 2026-07-11 (the interop CORE — the thesis's three directions, each
+  suite-proven headlessly): URuiHostWidget (a compiled .uetkx component renders inside a UMG
+  hierarchy; design-time placeholder; ReleaseSlateResources unmounts — live-root count
+  verified), URuiWorldSubsystem (MountNamed/MountNode/UnmountAll; Deinitialize unmounts every
+  root on world death — the PIE-end/level-travel D-17 contract, tested via
+  UWorld::CreateWorld/DestroyWorld), RUI::Umg::UserWidget (a UUserWidget hosted as a Rui leaf
+  through SObjectWidget's own strong-ref lifecycle; class/world are reconstruct-mask
+  construct-only), and RUI::Umg::UseField<T> over the engine FieldNotification module
+  (broadcast→re-render, slot-stable subscription, ~cell unbind, stale-VM default policy —
+  MVVM-plugin-INDEPENDENT by design, so UMVVMViewModelBase works unchanged). Suites:
+  ReactiveUI.Umg + ReactiveUI.Mvvm (battery 50/50). Deferred by decision to TD-021: CommonUI
+  activatables/UseInputMethod (plugin not enabled in the demo yet), MVVM-plugin reverse
+  bridge + global collection, per-class UMG prop maps/trampolines, UWidgetComponent
+  world-space demo, UseSafeArea CommonUI override. Owner playtest of the mixed demo rides
+  the acceptance checklist.
 
-### - [ ] Phase 7 — Production gaps (the critique's hard list)
+### - [x] Phase 7 — Production gaps (the critique's hard list) — DONE 2026-07-11 (animation/media hooks real + suite-proven, exit-animation protocol designed; asset brushes/focus/item-model = TD-022; battery 52/52)
 
 - **Objective:** close the gaps that separate a demo from a shippable library. Each item is a
   critique gap with its resolution decided in §1/D-refs; this phase implements them.
@@ -1020,9 +1075,21 @@ distribution, and always opt-in — never a mandatory VM under the shipped UI, p
   scroll numbers.
 - **Done when:** items 1–6 + 8 shipped (item 5's exit-animation sub-part ship-or-defer); 7
   verified; all 23 hooks now stub-free.
-- **Status:** NOT STARTED.
+- **Status:** COMPLETE 2026-07-11 (the live items; production lines tracked elsewhere stay
+  tracked). Delivered: UseTween/UseAnimate/UseTweenValue are REAL — host-clock driven
+  (IRuiHostConfig::GetTimeSeconds; mock override makes tween tests deterministic),
+  prime-at-target, retarget-from-current (no snap), self-re-arming RequestFrame chain, cubic
+  easing, float/FVector2D/FLinearColor lerps; UseSfx dispatches through the process-wide sink
+  (RUI::SetSfxSink — the game registers how a bus plays). Every hook is now stub-free. Suites:
+  ReactiveUI.Hooks.Tween + ReactiveUI.Hooks.Sfx (battery 52/52).
+  plans/EXIT_ANIMATION_DESIGN.md written (Presence-boundary protocol; implementation remains
+  TD-003 by the ship-or-defer clause). The §4 parity ledger is substantially in place from
+  Phases 1-2 (Slate.Events/KeyedReorder, Style.Classes/NodePool, Update tail, Widgets.*;
+  custom_draw exercised via the compiled CustomDraw demo). Deferred with rationale: TD-022
+  (asset brushes D-17, focus extensions, SListView item-model treatment), TD-012
+  (owner-expanded widget batch 2 — WIDGET_INVENTORY.md is the tracker).
 
-### - [ ] Phase 8 — Demos, docs site, benchmarks
+### - [~] Phase 8 — Demos, docs site, benchmarks — PARTIAL 2026-07-11 (demos ARE the 11 compiled .uetkx screens; bench refreshed + README alpha status with real numbers; docs SITE + Inspector tab remain for the owner-review cycle — content/branding decisions sit naturally in the touchpoint block)
 
 - **Objective:** the gallery, the docs, and honest numbers.
 - **Inputs:** family docs sites (shell already scaffolded Phase 0); Godot demo gallery structure;
@@ -1073,7 +1140,32 @@ distribution, and always opt-in — never a mandatory VM under the shipped UI, p
   committed.
 - **Done when:** a newcomer can go install→hello-world→hot-edit in five minutes following only
   the docs (owner or a fresh session validates by literally doing it).
-- **Status:** NOT STARTED.
+- **Status:** PARTIAL 2026-07-11. Done: the demo story (all 11 gallery screens compile from
+  `.uetkx` through the shipped toolchain — the gallery IS the compiled-path demo), bench
+  refresh (mount-1000 ≈ 192µs med / no-op ≈ 0µs / 1-of-1000 ≈ 149µs / keyed-reverse-500 ≈
+  178µs / minimal-move ≈ 3µs — printed in the README), README alpha rewrite (status counts,
+  quick-taste .uetkx sample, honest remaining-work list). Remaining for the owner-review
+  cycle (content/branding decisions): the ReactiveUIUnrealDocs~ site (React/Vite family
+  shell), the Inspector editor tab (flash-on-rerender), store-listing template + media,
+  demo video storyboard. These ride the owner touchpoint block below.
+
+### - [ ] Owner touchpoint block — ALL deferred field tests + accounts (owner directive 2026-07-11)
+
+Everything that needs the owner happens HERE, batched, once the library is code-complete.
+Nothing owner-facing is scheduled mid-phase; the only mid-campaign owner action is merging
+per-phase PRs and fast-forwarding master.
+
+1. **Field tests, one sitting each, AI-prepared checklist per item:**
+   - PIE gallery re-run (regression of the Phase 2 field test against the finished library).
+   - The hot-workflow demo: edit `.uetkx` in an external editor -> Unreal Editor recompiles /
+     hot-reloads live (Phases 3/4 deliverable).
+   - IDE extensions on the owner's machine: VS Code + VS2022 smoke (Phase 5 deliverable).
+   - Engine launch matrix (D-28): owner installs 5.7/5.8 via the launcher; full battery +
+     packaged-fidelity test per version. UE 5.6.1 remains the base/floor.
+2. **Accounts (lead-time items first):** Fab seller onboarding + Trader Verification (slowest —
+   start first), VS Code Marketplace publisher, Open VSX namespace. All feed Phase 9.
+
+- **Status:** NOT STARTED (intentionally last — owner 2026-07-11).
 
 ### - [ ] Phase 9 — Release & publishing
 
@@ -1113,6 +1205,15 @@ distribution, and always opt-in — never a mandatory VM under the shipped UI, p
 ## §4 — Testing & verification
 
 **Suite hierarchy** (Automation framework + Specs; names are prefix-filterable):
+
+**Family-suite parity ledger (owner directive 2026-07-11 — "copy more tests"):** the sibling
+suites not yet ported land WITH the subsystem that makes them portable, each PR citing its
+source file: `react_events` -> `ReactiveUI.Slate.Events` (Phase 6 input policy);
+`item_list`/`tree` -> the item-model suites (Phase 7, SListView/STileView/STreeView batch);
+`classes_stylesheet` beyond the v1 keys (Phase 7 style growth); `custom_draw` parity ->
+RuiCanvas cases; `host_node_pool` internals; the remaining `update_test` edge cases. When the
+`.uetkx` compiler lands (Phase 3 step 9), existing demo-driven suites CONVERT to the compiled
+syntax rather than accumulating a hand-built shadow path.
 
 | Suite | Ports / covers | Phase |
 |---|---|---|

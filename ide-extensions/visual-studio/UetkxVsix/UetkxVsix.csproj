@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- VS2022 VSIX (legacy project format — requires VS2022 + the "Visual Studio extension development"
+     workload / Microsoft.VSSDK.BuildTools to build). A MEF ILanguageClient that launches the shared
+     Node uetkx-language-server over stdio; the TextMate grammar under Syntaxes\ is registered by
+     uetkx.pkgdef. Before packaging, copy the built server into .\server (bundle-server.mjs in the
+     VS Code sibling produces the same layout) and optionally a Windows node.exe beside it. -->
+<Project ToolsVersion="Current" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{4C8E1B72-9A3D-4F6B-8E2A-7D1C5B9E0F44}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <RootNamespace>UetkxVsix</RootNamespace>
+    <AssemblyName>UetkxVsix</AssemblyName>
+    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
+    <GeneratePkgDefFile>true</GeneratePkgDefFile>
+    <IncludeAssemblyInVSIXContainer>true</IncludeAssemblyInVSIXContainer>
+    <IncludeDebugSymbolsInVSIXContainer>false</IncludeDebugSymbolsInVSIXContainer>
+    <CopyBuildOutputToOutputDirectory>true</CopyBuildOutputToOutputDirectory>
+    <CreateVsixContainer>true</CreateVsixContainer>
+    <DeployExtension>true</DeployExtension>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="UetkxContentDefinition.cs" />
+    <Compile Include="UetkxLanguageClient.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="source.extension.vsixmanifest">
+      <SubType>Designer</SubType>
+    </None>
+    <!-- MUST be Content (family finding: VsSDK.targets honors IncludeInVSIX only on @(Content)). -->
+    <Content Include="uetkx.pkgdef">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
+    <Content Include="Syntaxes\uetkx.tmLanguage.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <IncludeInVSIX>true</IncludeInVSIX>
+      <VSIXSubPath>Syntaxes</VSIXSubPath>
+    </Content>
+    <Content Include="language-configuration.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
+    <!-- The bundled Node language server (populate .\server before packaging). -->
+    <Content Include="server\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <IncludeInVSIX>true</IncludeInVSIX>
+      <VSIXSubPath>server\%(RecursiveDir)</VSIXSubPath>
+    </Content>
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The exact 17.7 GA family pins the Godot sibling verified against NuGet (floating pins
+         silently resolved to mixed minor lines there). -->
+    <PackageReference Include="Microsoft.VisualStudio.LanguageServer.Client" Version="17.7.20" />
+    <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.7.37357" ExcludeAssets="runtime" />
+    <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="17.7.2196" PrivateAssets="all" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <Import Project="$(VSToolsPath)\VSSDK\Microsoft.VsSDK.targets" Condition="Exists('$(VSToolsPath)\VSSDK\Microsoft.VsSDK.targets')" />
+</Project>

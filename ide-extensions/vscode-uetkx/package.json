@@ -1,0 +1,83 @@
+{
+  "name": "uetkx",
+  "displayName": "UETKX",
+  "description": "Syntax highlighting + language intelligence for .uetkx markup (ReactiveUI for Unreal). Markup completion/hover/formatting from the compiler-exported schema; compiler diagnostics via sidecars — fully offline, no running Unreal editor required.",
+  "version": "0.1.0",
+  "publisher": "ReactiveUITK",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yanivkalfa/ReactiveUI-Unreal"
+  },
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "unreal",
+    "slate",
+    "reactiveui",
+    "uetkx",
+    "jsx"
+  ],
+  "activationEvents": [
+    "onLanguage:uetkx"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "uetkx.restartLanguageServer",
+        "title": "Restart Language Server",
+        "category": "UETKX"
+      }
+    ],
+    "languages": [
+      {
+        "id": "uetkx",
+        "aliases": [
+          "UETKX",
+          "uetkx"
+        ],
+        "extensions": [
+          ".uetkx"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "configurationDefaults": {
+      "[uetkx]": {
+        "editor.defaultFormatter": "ReactiveUITK.uetkx",
+        "editor.formatOnSave": true,
+        "editor.autoIndent": "full",
+        "editor.insertSpaces": false,
+        "editor.detectIndentation": false
+      }
+    },
+    "grammars": [
+      {
+        "language": "uetkx",
+        "scopeName": "source.uetkx",
+        "path": "./syntaxes/uetkx.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.embedded.block.cpp": "cpp"
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "build": "tsc -p ./ && node scripts/bundle-server.mjs",
+    "watch": "tsc -w -p ./",
+    "package": "npm run build && npx @vscode/vsce package"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.75.0",
+    "typescript": "^5.4.0"
+  }
+}

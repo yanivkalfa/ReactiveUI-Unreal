@@ -201,7 +201,7 @@ struct FRuiStableCell final : IRuiHookCell
 	virtual ERuiHookKind GetKind() const override { return ERuiHookKind::Stable; }
 };
 
-/** Order-validation-only cell (UseSafeArea and the Phase-7-owned stubs record their slot). */
+/** Order-validation-only cell (UseSafeArea / UseSfx record their slot). */
 struct FRuiMarkerCell final : IRuiHookCell
 {
 	ERuiHookKind Kind;
@@ -209,6 +209,72 @@ struct FRuiMarkerCell final : IRuiHookCell
 	explicit FRuiMarkerCell(ERuiHookKind InKind) : Kind(InKind) {}
 	virtual ERuiHookKind GetKind() const override { return Kind; }
 };
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// Animation hooks (UseTween/UseAnimate/UseTweenValue)
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+enum class ERuiEase : uint8
+{
+	Linear,
+	In,	   // cubic
+	Out,   // cubic
+	InOut, // cubic
+};
+
+/** The tween slot: retarget-from-current, host-clock driven (see FRuiContext::TweenSlot). */
+template <typename T> struct TRuiTweenCell final : IRuiHookCell
+{
+	ERuiHookKind Kind;
+	T From{};
+	T To{};
+	T Current{};
+	double StartTime = 0.0;
+	float Duration = 0.25f;
+	bool bActive = false;
+	explicit TRuiTweenCell(ERuiHookKind InKind) : Kind(InKind) {}
+	virtual ERuiHookKind GetKind() const override { return Kind; }
+};
+
+namespace RUI
+{
+	inline float ApplyEase(ERuiEase Ease, float T)
+	{
+		switch (Ease)
+		{
+		case ERuiEase::Linear:
+			return T;
+		case ERuiEase::In:
+			return T * T * T;
+		case ERuiEase::Out:
+		{
+			const float Inv = 1.0f - T;
+			return 1.0f - Inv * Inv * Inv;
+		}
+		case ERuiEase::InOut:
+			return T < 0.5f ? 4.0f * T * T * T : 1.0f - FMath::Pow(-2.0f * T + 2.0f, 3.0f) / 2.0f;
+		}
+		return T;
+	}
+
+	inline float LerpTween(float From, float To, float Alpha)
+	{
+		return FMath::Lerp(From, To, Alpha);
+	}
+	inline FVector2D LerpTween(const FVector2D& From, const FVector2D& To, float Alpha)
+	{
+		return FMath::Lerp(From, To, Alpha);
+	}
+	inline FLinearColor LerpTween(const FLinearColor& From, const FLinearColor& To, float Alpha)
+	{
+		return FLinearColor::LerpUsingHSV(From, To, Alpha);
+	}
+
+	/** The process-wide UseSfx sink: the game registers HOW a bus plays (world context,
+	 *  audio assets). Unset = quiet no-op. */
+	REACTIVEUICORE_API void SetSfxSink(TFunction<void(FName Bus, const FRuiValue& Payload)> Sink);
+	REACTIVEUICORE_API void DispatchSfx(FName Bus, const FRuiValue& Payload);
+} // namespace RUI
 
 // ─────────────────────────────────────────────────────────────────────────────────────────
 // Effects (recorded during render, run during commit — reconciler drives)

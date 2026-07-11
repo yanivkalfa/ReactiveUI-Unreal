@@ -21,6 +21,8 @@ public class ReactiveUIInterp : ModuleRules
 		PublicDependencyModuleNames.AddRange(new string[]
 		{
 			"Core",
+			"ReactiveUICore",  // reconciler override/named-factory/hook-sig seams + FRuiValue
+			"ReactiveUISlate", // interp element builders construct the typed Slate props
 		});
 	}
 }

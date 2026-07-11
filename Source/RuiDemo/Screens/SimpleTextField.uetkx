@@ -1,0 +1,14 @@
+component SimpleTextField {
+	auto [Text, SetText] = UseState<FString>(FString());
+	TFunction<void(FString)> Set = SetText;
+
+	return (
+		<Border Padding="12" BorderImage="WhiteBrush" BorderBackgroundColor={ FLinearColor(0.02f, 0.02f, 0.03f, 0.85f) } Slot.Padding="0,10,0,0">
+			<VerticalBox>
+				<EditableTextBox Text={ FText::FromString(Text) } HintText="Type here..." OnTextChanged={ Set(Value.TextValue.ToString()) } />
+				<Spacer Size={ FVector2D(1.0f, 6.0f) } />
+				<TextBlock Text={ FText::FromString(FString::Printf(TEXT("You typed: %s"), *Text)) } />
+			</VerticalBox>
+		</Border>
+	);
+}

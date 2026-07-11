@@ -95,3 +95,30 @@ void FRuiContext::StubSlot(ERuiHookKind Kind, const TCHAR* HookName, const TCHAR
 								 HookName, Owner));
 	}
 }
+
+// ── UseSfx sink (RuiHooksInternal.h) ───────────────────────────────────────────────────────
+
+namespace
+{
+	TFunction<void(FName, const FRuiValue&)>& SfxSinkRef()
+	{
+		static TFunction<void(FName, const FRuiValue&)> Sink;
+		return Sink;
+	}
+} // namespace
+
+namespace RUI
+{
+	void SetSfxSink(TFunction<void(FName Bus, const FRuiValue& Payload)> Sink)
+	{
+		SfxSinkRef() = MoveTemp(Sink);
+	}
+
+	void DispatchSfx(FName Bus, const FRuiValue& Payload)
+	{
+		if (const TFunction<void(FName, const FRuiValue&)>& Sink = SfxSinkRef())
+		{
+			Sink(Bus, Payload);
+		}
+	}
+} // namespace RUI

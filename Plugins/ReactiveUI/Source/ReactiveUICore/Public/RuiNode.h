@@ -100,6 +100,45 @@ namespace RUI
 	/** The registered id for a fn pointer (NAME_None if unregistered — lambda components:
 	 *  documented always-re-render semantics via a per-call unique id). */
 	REACTIVEUICORE_API FName FindComponentId(void* FnPtr);
+
+	/** Name → zero-arg node factory (default props). Generated .uetkx code self-registers
+	 *  its components here; consumers in OTHER translation units (the gallery, previews,
+	 *  Phase-4 hot reload) instantiate by name — the generated wrappers themselves are
+	 *  TU-local to the aggregator by design. Re-registering a name replaces the factory
+	 *  (Live Coding / HMR). */
+	REACTIVEUICORE_API bool RegisterNamedFactory(FName Name, TFunction<FRuiNode()> Factory);
+
+	/** Instantiate a named component with default props (empty Fragment when unknown). */
+	REACTIVEUICORE_API FRuiNode Named(FName Name);
+
+	REACTIVEUICORE_API bool HasNamedFactory(FName Name);
+
+	// ── HMR seams (consumed by ReactiveUIInterp; the registries themselves are tiny and
+	//    shipping-safe — Shipping builds simply never register anything) ────────────────────
+
+	/** Hook-signature ledger: generated code self-registers its baked __RUI_HOOK_SIG; the
+	 *  interpreter compares its AST-computed signature against this to decide preserve vs
+	 *  deliberate state reset (the family rule). 0 = unknown. */
+	REACTIVEUICORE_API void RegisterHookSignature(FName ComponentId, uint32 Signature);
+	REACTIVEUICORE_API uint32 FindHookSignature(FName ComponentId);
+
+	/** A live definition override for a ComponentId: the reconciler invokes this INSTEAD of
+	 *  the fiber's compiled Invoke. Each Set bumps the generation; bResetState additionally
+	 *  disposes hook state the first time each fiber renders under the new generation (hook
+	 *  shape changed). Clear returns the component to its compiled definition. */
+	REACTIVEUICORE_API void SetComponentOverride(FName ComponentId, TSharedPtr<FRuiComponentInvoke> Invoke,
+												 bool bResetState);
+	REACTIVEUICORE_API void ClearComponentOverride(FName ComponentId);
+
+	struct FRuiComponentOverride
+	{
+		TSharedPtr<FRuiComponentInvoke> Invoke;
+		uint32 Generation = 0;
+		bool bResetState = false;
+	};
+	/** Snapshot lookup (copy — the registry may be swapped between renders). Unset = empty
+	 *  Invoke. */
+	REACTIVEUICORE_API FRuiComponentOverride FindComponentOverride(FName ComponentId);
 } // namespace RUI
 
 /**

@@ -22,7 +22,10 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SCAN_ROOTS = ['Source', 'Plugins', 'templates', 'scripts', 'ide-extensions'];
 const EXTS_SLASH = new Set(['.h', '.cpp', '.inl', '.cs', '.mjs', '.ts', '.tsx', '.js']);
 const EXTS_HASH = new Set(['.ps1']);
-const EXCLUDE_DIRS = new Set(['node_modules', 'out', 'dist', 'Binaries', 'Intermediate', 'Saved', '.git']);
+// `server` = the vscode-uetkx/UetkxVsix bundled-language-server output (compiled JS copied in
+// at package time — build output, same rationale as `out/`; git-ignored, but the scan walks
+// the filesystem so a locally-built bundle must not trip the gate either).
+const EXCLUDE_DIRS = new Set(['node_modules', 'out', 'dist', 'server', 'Binaries', 'Intermediate', 'Saved', '.git']);
 const NEEDLE = /Copyright \(c\) .*Yaniv Kalfa/;
 
 const failures = [];

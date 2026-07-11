@@ -83,6 +83,15 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRuiDemosTest, "ReactiveUI.Demos",
 								 EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 bool FRuiDemosTest::RunTest(const FString&)
 {
+	AddInfo(TEXT("[demos] every compiled .uetkx screen self-registered its factory"));
+	for (const FName& Name : RuiDemo::GetCompiledScreenNames())
+	{
+		// RUI::Named falls back to an empty Fragment — a missing registration would
+		// otherwise "mount" invisibly. This is the seam between the gallery and the
+		// committed generated code (RuiDemo.Uetkx.gen.cpp).
+		TestTrue(FString::Printf(TEXT("'%s' registered"), *Name.ToString()), RUI::HasNamedFactory(Name));
+	}
+
 	AddInfo(TEXT("[demos] every gallery entry mounts headlessly and unmounts clean"));
 	for (const RuiDemo::FRuiDemoEntry& Entry : RuiDemo::GetGalleryEntries())
 	{

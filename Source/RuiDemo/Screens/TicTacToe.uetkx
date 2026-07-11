@@ -1,0 +1,113 @@
+component TicTacToe {
+	auto EmptyGrid = []() {
+		TArray<FString> G;
+		G.SetNum(9);
+		return G;
+	};
+	auto [bStarted, SetStarted] = UseState<bool>(false);
+	auto [Turn, SetTurn] = UseState<FString>(FString(TEXT("X")));
+	auto [Grid, SetGrid] = UseState<TArray<FString>>(EmptyGrid());
+	auto [Winner, SetWinner] = UseState<FString>(FString());
+
+	TFunction<void(bool)> SetStartedFn = SetStarted;
+	TFunction<void(FString)> SetTurnFn = SetTurn;
+	TFunction<void(TArray<FString>)> SetGridFn = SetGrid;
+	TFunction<void(FString)> SetWinnerFn = SetWinner;
+	const TArray<FString> GridNow = Grid;
+	const FString TurnNow = Turn;
+	const FString WinnerNow = Winner;
+	const bool bStartedNow = bStarted;
+
+	auto Restart = [SetStartedFn, SetTurnFn, SetGridFn, SetWinnerFn, EmptyGrid]() {
+		SetStartedFn(true);
+		SetTurnFn(FString(TEXT("X")));
+		SetWinnerFn(FString());
+		SetGridFn(EmptyGrid());
+	};
+
+	auto CheckWinner = [](const TArray<FString>& G) -> FString {
+		static const int32 Lines[8][3] = {{0, 1, 2}, {3, 4, 5}, {6, 7, 8}, {0, 3, 6},
+										  {1, 4, 7}, {2, 5, 8}, {0, 4, 8}, {2, 4, 6}};
+		for (const int32* L : Lines)
+		{
+			if (!G[L[0]].IsEmpty() && G[L[0]] == G[L[1]] && G[L[0]] == G[L[2]])
+			{
+				return G[L[0]];
+			}
+		}
+		return FString();
+	};
+
+	int32 MovesLeft = 0;
+	for (const FString& Cell : GridNow)
+	{
+		if (Cell.IsEmpty())
+		{
+			++MovesLeft;
+		}
+	}
+
+	auto PlayCell = [SetGridFn, SetTurnFn, SetWinnerFn, CheckWinner, GridNow, TurnNow, WinnerNow](int32 Index) {
+		if (!WinnerNow.IsEmpty() || !GridNow[Index].IsEmpty())
+		{
+			return;
+		}
+		TArray<FString> Next = GridNow;
+		Next[Index] = TurnNow;
+		SetGridFn(Next);
+		const FString Win = CheckWinner(Next);
+		if (!Win.IsEmpty())
+		{
+			SetWinnerFn(Win);
+		}
+		else
+		{
+			SetTurnFn(TurnNow == TEXT("X") ? FString(TEXT("O")) : FString(TEXT("X")));
+		}
+	};
+
+	return (
+		<Border Padding="12" BorderImage="WhiteBrush" BorderBackgroundColor={ FLinearColor(0.02f, 0.02f, 0.03f, 0.85f) } Slot.Padding="0,10,0,0">
+			<VerticalBox>
+				<TextBlock Text="Welcome to Tic Tac Toe!" Font.Size={ 16.0f } ColorAndOpacity={ FLinearColor(0.4f, 0.8f, 1.0f) } />
+				<Spacer Size={ FVector2D(1.0f, 6.0f) } />
+				<HorizontalBox>
+					<Button OnClicked={ Restart() } ContentPadding="12,4" Slot.Padding="0,0,6,0">
+						<TextBlock Text={ FText::FromString(bStartedNow ? TEXT("Restart Game") : TEXT("Start Game")) } />
+					</Button>
+				</HorizontalBox>
+				@if (bStartedNow) {
+					return (
+						<VerticalBox>
+							<Spacer Size={ FVector2D(1.0f, 6.0f) } />
+							@if (!WinnerNow.IsEmpty()) {
+								return ( <TextBlock Text={ FText::FromString(FString::Printf(TEXT("Player %s is the winner"), *WinnerNow)) } Font.Size={ 14.0f } ColorAndOpacity={ FLinearColor(0.6f, 1.0f, 0.6f) } /> );
+							} @elif (MovesLeft == 0) {
+								return ( <TextBlock Text="Draw!" Font.Size={ 14.0f } ColorAndOpacity={ FLinearColor(1.0f, 0.8f, 0.4f) } /> );
+							} @else {
+								return ( <TextBlock Text={ FText::FromString(FString::Printf(TEXT("Player turn: %s   (moves left: %d)"), *TurnNow, MovesLeft)) } /> );
+							}
+							<Spacer Size={ FVector2D(1.0f, 6.0f) } />
+							@for (int32 R = 0; R < 3; ++R) {
+								return (
+									<HorizontalBox key={ 100 + R }>
+										@for (int32 C = 0; C < 3; ++C) {
+											const int32 Index = R * 3 + C;
+											return (
+												<Box key={ Index } WidthOverride={ 44.0f } HeightOverride={ 44.0f }>
+													<Button OnClicked={ PlayCell(Index) } ContentPadding="0">
+														<TextBlock Text={ FText::FromString(GridNow[Index].IsEmpty() ? FString(TEXT(" ")) : GridNow[Index]) } Font.Size={ 16.0f } ColorAndOpacity={ FLinearColor(1.0f, 0.85f, 0.4f) } />
+													</Button>
+												</Box>
+											);
+										}
+									</HorizontalBox>
+								);
+							}
+						</VerticalBox>
+					);
+				}
+			</VerticalBox>
+		</Border>
+	);
+}

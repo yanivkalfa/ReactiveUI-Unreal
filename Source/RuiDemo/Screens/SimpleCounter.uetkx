@@ -1,0 +1,17 @@
+component SimpleCounter {
+	auto [Count, SetCount] = UseState<int32>(0);
+	TFunction<void(int32)> Set = SetCount;
+	const int32 Current = Count;
+
+	return (
+		<Border Padding="12" BorderImage="WhiteBrush" BorderBackgroundColor={ FLinearColor(0.02f, 0.02f, 0.03f, 0.85f) } Slot.Padding="0,10,0,0">
+			<VerticalBox>
+				<TextBlock Text={ FText::FromString(FString::Printf(TEXT("Count: %d"), Count)) } />
+				<Spacer Size={ FVector2D(1.0f, 6.0f) } />
+				<HorizontalBox>
+					<Button OnClicked={ Set(Current + 1) } ContentPadding="12,4" Slot.Padding="0,0,6,0">+</Button>
+				</HorizontalBox>
+			</VerticalBox>
+		</Border>
+	);
+}

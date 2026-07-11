@@ -36,6 +36,18 @@ namespace
 			return Instance;
 		}
 	};
+
+	struct FRuiNamedFactoryRegistry
+	{
+		TMap<FName, TFunction<FRuiNode()>> Factories;
+		FCriticalSection Lock;
+
+		static FRuiNamedFactoryRegistry& Get()
+		{
+			static FRuiNamedFactoryRegistry Instance;
+			return Instance;
+		}
+	};
 } // namespace
 
 namespace RUI
@@ -57,6 +69,98 @@ namespace RUI
 			return *Found;
 		}
 		return NAME_None;
+	}
+
+	bool RegisterNamedFactory(FName Name, TFunction<FRuiNode()> Factory)
+	{
+		FRuiNamedFactoryRegistry& Reg = FRuiNamedFactoryRegistry::Get();
+		FScopeLock Guard(&Reg.Lock);
+		Reg.Factories.Add(Name, MoveTemp(Factory)); // replace-on-re-register (Live Coding/HMR)
+		return true;
+	}
+
+	FRuiNode Named(FName Name)
+	{
+		TFunction<FRuiNode()> Factory;
+		{
+			FRuiNamedFactoryRegistry& Reg = FRuiNamedFactoryRegistry::Get();
+			FScopeLock Guard(&Reg.Lock);
+			if (const TFunction<FRuiNode()>* Found = Reg.Factories.Find(Name))
+			{
+				Factory = *Found;
+			}
+		}
+		return Factory ? Factory() : Fragment({});
+	}
+
+	bool HasNamedFactory(FName Name)
+	{
+		FRuiNamedFactoryRegistry& Reg = FRuiNamedFactoryRegistry::Get();
+		FScopeLock Guard(&Reg.Lock);
+		return Reg.Factories.Contains(Name);
+	}
+
+	namespace
+	{
+		struct FRuiHmrRegistry
+		{
+			TMap<FName, uint32> HookSignatures;
+			TMap<FName, FRuiComponentOverride> Overrides;
+			uint32 NextGeneration = 1;
+			FCriticalSection Lock;
+
+			static FRuiHmrRegistry& Get()
+			{
+				static FRuiHmrRegistry Instance;
+				return Instance;
+			}
+		};
+	} // namespace
+
+	void RegisterHookSignature(FName ComponentId, uint32 Signature)
+	{
+		FRuiHmrRegistry& Reg = FRuiHmrRegistry::Get();
+		FScopeLock Guard(&Reg.Lock);
+		Reg.HookSignatures.Add(ComponentId, Signature);
+	}
+
+	uint32 FindHookSignature(FName ComponentId)
+	{
+		FRuiHmrRegistry& Reg = FRuiHmrRegistry::Get();
+		FScopeLock Guard(&Reg.Lock);
+		if (const uint32* Found = Reg.HookSignatures.Find(ComponentId))
+		{
+			return *Found;
+		}
+		return 0;
+	}
+
+	void SetComponentOverride(FName ComponentId, TSharedPtr<FRuiComponentInvoke> Invoke, bool bResetState)
+	{
+		FRuiHmrRegistry& Reg = FRuiHmrRegistry::Get();
+		FScopeLock Guard(&Reg.Lock);
+		FRuiComponentOverride& Entry = Reg.Overrides.FindOrAdd(ComponentId);
+		Entry.Invoke = MoveTemp(Invoke);
+		Entry.Generation = Reg.NextGeneration++;
+		Entry.bResetState = bResetState;
+	}
+
+	void ClearComponentOverride(FName ComponentId)
+	{
+		FRuiHmrRegistry& Reg = FRuiHmrRegistry::Get();
+		FScopeLock Guard(&Reg.Lock);
+		Reg.Overrides.Remove(ComponentId);
+	}
+
+	FRuiComponentOverride FindComponentOverride(FName ComponentId)
+	{
+		FRuiHmrRegistry& Reg = FRuiHmrRegistry::Get();
+		FScopeLock Guard(&Reg.Lock);
+		if (const FRuiComponentOverride* Found = Reg.Overrides.Find(ComponentId))
+		{
+			return *Found;
+		}
+		return FRuiComponentOverride();
 	}
 
 	FRuiElementTypeId InternElementType(FName Tag)

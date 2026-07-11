@@ -49,7 +49,10 @@ jobs:
       - name: Check Source trees against .clang-format
         run: |
           set -e
-          FILES=$(find Source Plugins/ReactiveUI/Source templates -type f \( -name '*.cpp' -o -name '*.h' -o -name '*.inl' \) 2>/dev/null || true)
+          # GENERATED code is excluded: *.uetkx.inl + *.Uetkx.gen.cpp are RUICompile output
+          # (DO NOT EDIT banners; the codegen emits its own deterministic shape, pinned by the
+          # contract goldens — a human-style gate on machine output would fight the compiler).
+          FILES=$(find Source Plugins/ReactiveUI/Source templates -type f \( -name '*.cpp' -o -name '*.h' -o -name '*.inl' \) -not -name '*.uetkx.inl' -not -name '*.Uetkx.gen.cpp' 2>/dev/null || true)
           if [ -z "$FILES" ]; then echo "no C++ files yet"; exit 0; fi
           clang-format --dry-run -Werror $FILES
 

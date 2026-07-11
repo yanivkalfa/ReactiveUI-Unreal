@@ -89,4 +89,8 @@ public:
 	{
 		OutLeft = OutTop = OutRight = OutBottom = 0.0f;
 	}
+
+	/** Monotonic time for the animation hooks (UseTween/UseAnimate/UseTweenValue). The mock
+	 *  host overrides with a settable clock so tween tests are deterministic. */
+	virtual double GetTimeSeconds() const { return FPlatformTime::Seconds(); }
 };

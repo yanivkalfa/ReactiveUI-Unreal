@@ -137,6 +137,13 @@ public:
 		B = SafeArea.Bottom;
 	}
 
+	/** Settable clock — the tween hooks read host time, so tests advance deterministically. */
+	double MockTimeSeconds = 0.0;
+	virtual double GetTimeSeconds() const override { return MockTimeSeconds; }
+
+	/** Any frame callbacks queued? (tween tests assert the chain arms/drains) */
+	bool HasQueuedFrames() const { return !FrameQueue.IsEmpty(); }
+
 	/** Run one "frame": drain the callbacks queued so far (new ones queue for the next). */
 	void PumpFrame()
 	{

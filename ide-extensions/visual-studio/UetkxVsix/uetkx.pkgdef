@@ -1,0 +1,9 @@
+// Registers the UETKX TextMate grammar with Visual Studio. VS sources colorization from TextMate
+// (never from LSP), so this is required even though the language server provides everything else.
+[$RootKey$\TextMate\Repositories]
+"ReactiveUIUetkx"="$PackageFolder$\Syntaxes"
+
+// Declarative Language Configuration keyed by the grammar's TextMate scope name (source.uetkx),
+// NOT the "uetkx" MEF content-type name — VS's TextMate integration keys everything off scope.
+[$RootKey$\TextMate\LanguageConfiguration\GrammarMapping]
+"source.uetkx"="$PackageFolder$\language-configuration.json"

@@ -18,6 +18,13 @@ public class ReactiveUIToolchain : ModuleRules
 		PublicDependencyModuleNames.AddRange(new string[]
 		{
 			"Core",
+			"ReactiveUICore",   // RUI:: registries referenced by generated-code shapes
+			"ReactiveUIInterp", // the single grammar implementation (D-27)
+		});
+
+		PrivateDependencyModuleNames.AddRange(new string[]
+		{
+			"Json", // diagnostics sidecars (.uetkx.diags.json, schema v2)
 		});
 	}
 }

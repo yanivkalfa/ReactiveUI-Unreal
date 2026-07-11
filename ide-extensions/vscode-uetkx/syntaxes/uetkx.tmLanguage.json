@@ -1,0 +1,108 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "UETKX",
+  "scopeName": "source.uetkx",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#preprocessor" },
+    { "include": "#componentDecl" },
+    { "include": "#directives" },
+    { "include": "#tags" },
+    { "include": "#exprBlock" },
+    { "include": "#strings" },
+    { "include": "#cppKeywords" },
+    { "include": "#numbers" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        { "name": "comment.line.double-slash.uetkx", "match": "//.*$" },
+        { "name": "comment.block.uetkx", "begin": "/\\*", "end": "\\*/" },
+        { "name": "comment.block.html.uetkx", "begin": "<!--", "end": "-->" }
+      ]
+    },
+    "preprocessor": {
+      "name": "meta.preprocessor.uetkx",
+      "match": "^\\s*#\\s*(include|pragma|define|if|ifdef|ifndef|endif|else)\\b.*$",
+      "captures": { "1": { "name": "keyword.control.directive.uetkx" } }
+    },
+    "componentDecl": {
+      "match": "\\b(component)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+      "captures": {
+        "1": { "name": "storage.type.component.uetkx" },
+        "2": { "name": "entity.name.type.component.uetkx" }
+      }
+    },
+    "directives": {
+      "match": "(@)(if|elif|else|for|while|match|case|default)\\b",
+      "captures": {
+        "1": { "name": "punctuation.definition.directive.uetkx" },
+        "2": { "name": "keyword.control.directive.uetkx" }
+      }
+    },
+    "tags": {
+      "patterns": [
+        {
+          "name": "meta.tag.uetkx",
+          "begin": "(</?)([A-Za-z_][A-Za-z0-9_]*)?",
+          "beginCaptures": {
+            "1": { "name": "punctuation.definition.tag.uetkx" },
+            "2": { "name": "entity.name.tag.uetkx" }
+          },
+          "end": "(/?>)",
+          "endCaptures": { "1": { "name": "punctuation.definition.tag.uetkx" } },
+          "patterns": [
+            { "include": "#attrComment" },
+            { "include": "#attrExpr" },
+            { "include": "#strings" },
+            {
+              "name": "entity.other.attribute-name.uetkx",
+              "match": "[A-Za-z_][A-Za-z0-9_.\\-]*"
+            }
+          ]
+        }
+      ]
+    },
+    "attrComment": {
+      "name": "comment.block.attr.uetkx",
+      "begin": "\\{\\s*/\\*",
+      "end": "\\*/\\s*\\}"
+    },
+    "attrExpr": {
+      "name": "meta.embedded.block.cpp",
+      "begin": "\\{",
+      "beginCaptures": { "0": { "name": "punctuation.section.embedded.begin.uetkx" } },
+      "end": "\\}",
+      "endCaptures": { "0": { "name": "punctuation.section.embedded.end.uetkx" } },
+      "patterns": [{ "include": "#braceBalance" }, { "include": "source.cpp" }]
+    },
+    "exprBlock": {
+      "name": "meta.embedded.block.cpp",
+      "begin": "\\{",
+      "beginCaptures": { "0": { "name": "punctuation.section.embedded.begin.uetkx" } },
+      "end": "\\}",
+      "endCaptures": { "0": { "name": "punctuation.section.embedded.end.uetkx" } },
+      "patterns": [{ "include": "#braceBalance" }, { "include": "source.cpp" }]
+    },
+    "braceBalance": {
+      "name": "meta.embedded.block.cpp",
+      "begin": "\\{",
+      "end": "\\}",
+      "patterns": [{ "include": "#braceBalance" }, { "include": "source.cpp" }]
+    },
+    "strings": {
+      "name": "string.quoted.double.uetkx",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [{ "name": "constant.character.escape.uetkx", "match": "\\\\." }]
+    },
+    "cppKeywords": {
+      "match": "\\b(return|auto|const|if|else|for|while|true|false|int32|int64|float|double|bool|void)\\b",
+      "name": "keyword.other.cpp.uetkx"
+    },
+    "numbers": {
+      "match": "\\b[0-9]+(\\.[0-9]+)?f?\\b",
+      "name": "constant.numeric.uetkx"
+    }
+  }
+}

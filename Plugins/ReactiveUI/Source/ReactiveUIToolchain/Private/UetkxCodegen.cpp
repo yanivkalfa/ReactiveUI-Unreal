@@ -1,0 +1,899 @@
+// Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
+
+#include "UetkxCodegen.h"
+
+#include "Dom/JsonObject.h"
+#include "Serialization/JsonSerializer.h"
+#include "Serialization/JsonWriter.h"
+#include "UetkxJsxScan.h"
+#include "UetkxLexer.h"
+
+namespace
+{
+	// ── the D-33 host vocabulary ─────────────────────────────────────────────────────────
+	// Attr categories drive the value conversion + the emit target (setter vs dict).
+
+	enum class EAttrType : uint8
+	{
+		Text,	 // FText prop     -> Set<Name>(NSLOCTEXT(...)) for str attrs
+		Float,	 // float prop
+		Int,	 // int32/int64 prop
+		Bool,	 // bool prop
+		Name,	 // FName prop     -> Set<Name>(FName(TEXT("...")))
+		Margin,	 // FMargin prop   -> expr-only for non-uniform; str "a" -> FMargin(a)
+		Vector2, // FVector2D prop -> expr-only recommended
+		Color,	 // FLinearColor   -> expr-only (hex parsing is post-v1)
+		Event,	 // FRuiCallback   -> Set<Name>(FRuiCallback::Create([=]() { expr; }))
+		Expr	 // expression-only value (callable/brush/...) -> {expr} required
+	};
+
+	struct FTagDef
+	{
+		FString Factory;   // e.g. "RUI::Slate::Button"
+		FString PropsType; // e.g. "FRuiButtonProps"
+		bool bChildren = true;
+		TMap<FName, EAttrType> Attrs;
+	};
+
+	const TMap<FName, FTagDef>& HostTags()
+	{
+		static const TMap<FName, FTagDef> Tags = []()
+		{
+			TMap<FName, FTagDef> M;
+			{
+				FTagDef T{TEXT("RUI::TextBlock"), FString(), false, {}};
+				// TextBlock is special-cased in EmitElement (factory takes the FText directly).
+				T.Attrs.Add(TEXT("Text"), EAttrType::Text);
+				M.Add(TEXT("TextBlock"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::Button"), TEXT("FRuiButtonProps"), true, {}};
+				T.Attrs.Add(TEXT("OnClicked"), EAttrType::Event);
+				T.Attrs.Add(TEXT("bEnabled"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("ContentPadding"), EAttrType::Margin);
+				M.Add(TEXT("Button"), MoveTemp(T));
+			}
+			M.Add(TEXT("VerticalBox"), {TEXT("RUI::Slate::VerticalBox"), TEXT("FRuiVerticalBoxProps"), true, {}});
+			M.Add(TEXT("HorizontalBox"), {TEXT("RUI::Slate::HorizontalBox"), TEXT("FRuiHorizontalBoxProps"), true, {}});
+			M.Add(TEXT("Overlay"), {TEXT("RUI::Slate::Overlay"), TEXT("FRuiOverlayProps"), true, {}});
+			{
+				FTagDef T{TEXT("RUI::Slate::Border"), TEXT("FRuiBorderProps"), true, {}};
+				T.Attrs.Add(TEXT("Padding"), EAttrType::Margin);
+				T.Attrs.Add(TEXT("BorderBackgroundColor"), EAttrType::Color);
+				T.Attrs.Add(TEXT("HAlign"), EAttrType::Name);
+				T.Attrs.Add(TEXT("VAlign"), EAttrType::Name);
+				T.Attrs.Add(TEXT("BorderImage"), EAttrType::Name);
+				M.Add(TEXT("Border"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::Box"), TEXT("FRuiBoxProps"), true, {}};
+				for (const TCHAR* P : {TEXT("WidthOverride"), TEXT("HeightOverride"), TEXT("MinDesiredWidth"),
+									   TEXT("MinDesiredHeight"), TEXT("MaxDesiredWidth"), TEXT("MaxDesiredHeight")})
+				{
+					T.Attrs.Add(P, EAttrType::Float);
+				}
+				T.Attrs.Add(TEXT("HAlign"), EAttrType::Name);
+				T.Attrs.Add(TEXT("VAlign"), EAttrType::Name);
+				M.Add(TEXT("Box"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::Image"), TEXT("FRuiImageProps"), false, {}};
+				T.Attrs.Add(TEXT("ColorAndOpacity"), EAttrType::Color);
+				T.Attrs.Add(TEXT("DesiredSizeOverride"), EAttrType::Vector2);
+				M.Add(TEXT("Image"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::ScrollBox"), TEXT("FRuiScrollBoxProps"), true, {}};
+				T.Attrs.Add(TEXT("Orientation"), EAttrType::Name);
+				M.Add(TEXT("ScrollBox"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::Spacer"), TEXT("FRuiSpacerProps"), false, {}};
+				T.Attrs.Add(TEXT("Size"), EAttrType::Vector2);
+				M.Add(TEXT("Spacer"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::EditableTextBox"), TEXT("FRuiEditableTextBoxProps"), false, {}};
+				T.Attrs.Add(TEXT("Text"), EAttrType::Text);
+				T.Attrs.Add(TEXT("HintText"), EAttrType::Text);
+				T.Attrs.Add(TEXT("bIsReadOnly"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("OnTextChanged"), EAttrType::Event);
+				T.Attrs.Add(TEXT("OnTextCommitted"), EAttrType::Event);
+				M.Add(TEXT("EditableTextBox"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::CheckBox"), TEXT("FRuiCheckBoxProps"), true, {}};
+				T.Attrs.Add(TEXT("bIsChecked"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("OnCheckStateChanged"), EAttrType::Event);
+				M.Add(TEXT("CheckBox"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::Slider"), TEXT("FRuiSliderProps"), false, {}};
+				for (const TCHAR* P : {TEXT("Value"), TEXT("MinValue"), TEXT("MaxValue"), TEXT("StepSize")})
+				{
+					T.Attrs.Add(P, EAttrType::Float);
+				}
+				T.Attrs.Add(TEXT("OnValueChanged"), EAttrType::Event);
+				M.Add(TEXT("Slider"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::ProgressBar"), TEXT("FRuiProgressBarProps"), false, {}};
+				T.Attrs.Add(TEXT("Percent"), EAttrType::Float);
+				M.Add(TEXT("ProgressBar"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::RuiCanvas"), TEXT("FRuiCanvasProps"), false, {}};
+				T.Attrs.Add(TEXT("RedrawKey"), EAttrType::Int);
+				T.Attrs.Add(TEXT("CanvasSize"), EAttrType::Vector2);
+				T.Attrs.Add(TEXT("DrawFn"), EAttrType::Expr); // identity semantics — {expr} only
+				M.Add(TEXT("RuiCanvas"), MoveTemp(T));
+			}
+			return M;
+		}();
+		return Tags;
+	}
+
+	const TSet<FString>& StyleKeys()
+	{
+		static const TSet<FString> Keys = {
+			TEXT("RenderOpacity"),		  TEXT("Visibility"),	   TEXT("Enabled"),
+			TEXT("RenderTranslation"),	  TEXT("RenderScale"),	   TEXT("RenderTransformAngle"),
+			TEXT("RenderTransformPivot"), TEXT("ColorAndOpacity"), TEXT("Font.Size"),
+			TEXT("Justification"),		  TEXT("AutoWrapText"),	   TEXT("FillColorAndOpacity")};
+		return Keys;
+	}
+
+	bool IsStyleKey(const FString& Name)
+	{
+		return StyleKeys().Contains(Name);
+	}
+
+	FString CppStringLiteral(const FString& S)
+	{
+		FString Out = S;
+		Out.ReplaceInline(TEXT("\\"), TEXT("\\\\"));
+		Out.ReplaceInline(TEXT("\""), TEXT("\\\""));
+		Out.ReplaceInline(TEXT("\n"), TEXT("\\n"));
+		Out.ReplaceInline(TEXT("\t"), TEXT("\\t"));
+		Out.ReplaceInline(TEXT("\r"), TEXT("\\r"));
+		return Out;
+	}
+
+	/** The one emitter (per component). */
+	class FEmitter
+	{
+	public:
+		FEmitter(const FString& InBasename, const FUetkxComponentDecl& InDecl, TArray<FUetkxDiag>& InDiags)
+			: Basename(InBasename), Decl(InDecl), Diags(InDiags)
+		{
+		}
+
+		FString Emit();
+		bool HasError() const { return bError; }
+
+	private:
+		void Fail(const TCHAR* Code, const FString& Msg, int32 At)
+		{
+			FUetkxDiag D;
+			D.Code = Code;
+			D.Severity = 0;
+			D.Message = Msg;
+			D.Offset = At;
+			Diags.Add(MoveTemp(D));
+			bError = true;
+		}
+
+		FString NsLocText(const FString& Value)
+		{
+			return FString::Printf(TEXT("NSLOCTEXT(\"Uetkx.%s\", \"%s_%d\", \"%s\")"), *Basename, *Decl.Name,
+								   ++TextKeyCounter, *CppStringLiteral(Value));
+		}
+
+		/** Hook auto-prefix: bare hook calls (UseState, ProvideContext, ...) become Ctx.-
+		 *  qualified (word boundary, not after `.`, `->`, `::`). Everything else verbatim. */
+		FString PrefixHooks(const FString& Code)
+		{
+			const TArray<int32> Src = FUetkxLexer::ToCodePoints(Code);
+			FString Out;
+			int32 i = 0;
+			const int32 N = Src.Num();
+			while (i < N)
+			{
+				const int32 j = FUetkxLexer::SkipNoncode(Src, i);
+				if (j != i)
+				{
+					Out += FUetkxLexer::FromCodePoints(Src, i, j - i);
+					i = j;
+					continue;
+				}
+				bool bMatched = false;
+				if (Src[i] == 'U' || Src[i] == 'P')
+				{
+					for (const FString& Hook : FUetkxFileScan::HookNames())
+					{
+						// UseSignal/UseSignalKey are RUI:: free functions taking Ctx as an
+						// argument — never Ctx.-prefixable (authors write the qualified form).
+						if (Hook == TEXT("UseSignal") || Hook == TEXT("UseSignalKey"))
+						{
+							continue;
+						}
+						if (FUetkxLexer::KeywordAt(Src, i, *Hook))
+						{
+							// not after member/scope access
+							bool bQualified = false;
+							for (int32 k = i - 1; k >= 0; --k)
+							{
+								const int32 P = Src[k];
+								if (P == ' ' || P == '\t')
+								{
+									continue;
+								}
+								bQualified = (P == '.') || (P == ':') || (P == '>' && k > 0 && Src[k - 1] == '-');
+								break;
+							}
+							if (!bQualified)
+							{
+								Out += TEXT("Ctx.");
+							}
+							Out += Hook;
+							i += Hook.Len();
+							bMatched = true;
+							break;
+						}
+					}
+				}
+				if (!bMatched)
+				{
+					Out += FUetkxLexer::FromCodePoints(Src, i, 1);
+					++i;
+				}
+			}
+			return Out;
+		}
+
+		/** An embedded expression: rewrite nested markup ranges (jsx scan) to element exprs. */
+		FString EmitExpr(const FString& Expr, int32 AbsAt)
+		{
+			const TArray<int32> Src = FUetkxLexer::ToCodePoints(Expr);
+			TArray<FUetkxMarkupRange> Ranges = FUetkxJsxScan::FindMarkupRanges(Src, 0, Src.Num());
+			if (Ranges.IsEmpty())
+			{
+				return PrefixHooks(Expr);
+			}
+			FString Out;
+			int32 Cursor = 0;
+			for (const FUetkxMarkupRange& Range : Ranges)
+			{
+				if (Range.End == -1)
+				{
+					Fail(TEXT("UETKX2508"), TEXT("unbalanced markup inside expression"), AbsAt);
+					return Expr;
+				}
+				if (!Range.Op.IsEmpty())
+				{
+					Fail(TEXT("UETKX3002"),
+						 TEXT("short-circuit markup (`&&`/`||`) is post-v1 in .uetkx — use a ternary `cond ? "
+							  "<X/> : <>...</>`"),
+						 AbsAt);
+					return Expr;
+				}
+				Out += PrefixHooks(FUetkxLexer::FromCodePoints(Src, Cursor, Range.Start - Cursor));
+				FUetkxMarkup Parser;
+				FUetkxParseResult Pr = Parser.Parse(Src, Range.Start, Range.End);
+				if (!Pr.IsOk() || Pr.Nodes.Num() != 1)
+				{
+					Fail(TEXT("UETKX2508"), TEXT("invalid markup inside expression"), AbsAt);
+					return Expr;
+				}
+				Out += EmitNodeExpr(*Pr.Nodes[0], AbsAt);
+				Cursor = Range.End;
+			}
+			Out += PrefixHooks(FUetkxLexer::FromCodePoints(Src, Cursor, Src.Num() - Cursor));
+			return Out;
+		}
+
+		/** One node as a C++ FRuiNode expression. */
+		FString EmitNodeExpr(const FUetkxNode& Node, int32 AbsAt);
+
+		/** Children statements appending into `Ch`. */
+		void EmitChildren(FString& Out, const TArray<TSharedPtr<FUetkxNode>>& Children, const FString& Indent,
+						  int32 AbsAt);
+
+		/** A directive body: C++ statements ending in `return ( <markup> )` — leading
+		 *  statements splice verbatim, the returned markup lowers to Ch.Add(...). */
+		void EmitBody(FString& Out, const FString& BodyMarkup, const FString& Indent, int32 AbsAt);
+
+		const FString& Basename;
+		const FUetkxComponentDecl& Decl;
+		TArray<FUetkxDiag>& Diags;
+		int32 TextKeyCounter = 0;
+		bool bError = false;
+	};
+
+	FString FEmitter::EmitNodeExpr(const FUetkxNode& Node, int32 AbsAt)
+	{
+		switch (Node.Type)
+		{
+		case EUetkxNodeType::Text:
+			return FString::Printf(TEXT("RUI::TextBlock(%s)"), *NsLocText(Node.Value));
+		case EUetkxNodeType::Expr:
+			return FString::Printf(TEXT("(%s)"), *EmitExpr(Node.Code, AbsAt));
+		case EUetkxNodeType::Comment:
+			return FString(); // comments emit nothing
+		case EUetkxNodeType::Frag:
+		{
+			FString Out = TEXT("[&]() -> FRuiNode {\n\t\tTArray<FRuiNode> Ch;\n");
+			EmitChildren(Out, Node.Children, TEXT("\t\t"), AbsAt);
+			FString Key = TEXT("FRuiKey()");
+			for (const FUetkxAttr& Attr : Node.Attrs)
+			{
+				if (Attr.Name == TEXT("key"))
+				{
+					Key = Attr.Kind == EUetkxAttrKind::Expr
+							  ? FString::Printf(TEXT("FRuiKey(%s)"), *EmitExpr(Attr.Value, AbsAt))
+							  : FString::Printf(TEXT("FRuiKey(FName(TEXT(\"%s\")))"), *CppStringLiteral(Attr.Value));
+				}
+			}
+			Out += FString::Printf(TEXT("\t\treturn RUI::Fragment(MoveTemp(Ch), %s);\n\t}()"), *Key);
+			return Out;
+		}
+		case EUetkxNodeType::If:
+		case EUetkxNodeType::For:
+		case EUetkxNodeType::While:
+		case EUetkxNodeType::Match:
+		{
+			// A directive as a ROOT/expression position lowers to a fragment of its output.
+			FString Out = TEXT("[&]() -> FRuiNode {\n\t\tTArray<FRuiNode> Ch;\n");
+			TArray<TSharedPtr<FUetkxNode>> Self;
+			Self.Add(MakeShared<FUetkxNode>(Node));
+			EmitChildren(Out, Self, TEXT("\t\t"), AbsAt);
+			Out += TEXT("\t\treturn Ch.Num() == 1 ? MoveTemp(Ch[0]) : RUI::Fragment(MoveTemp(Ch));\n\t}()");
+			return Out;
+		}
+		case EUetkxNodeType::El:
+			break;
+		}
+
+		// ── element ────────────────────────────────────────────────────────────────────────
+		const FTagDef* Tag = HostTags().Find(FName(*Node.Tag));
+		const bool bComponent = Tag == nullptr;
+		if (bComponent && !(Node.Tag[0] >= 'A' && Node.Tag[0] <= 'Z'))
+		{
+			Fail(TEXT("UETKX0105"), FString::Printf(TEXT("unknown tag <%s>"), *Node.Tag), AbsAt + Node.At);
+			return FString(TEXT("FRuiNode()"));
+		}
+
+		// TextBlock special case: single Text attr routes through the factory directly.
+		if (!bComponent && Node.Tag == TEXT("TextBlock"))
+		{
+			FString TextExpr = TEXT("FText::GetEmpty()");
+			FString Key = TEXT("FRuiKey()");
+			bool bStyled = false;
+			FString StyleStmts;
+			FString ClassStmts;
+			for (const FUetkxAttr& Attr : Node.Attrs)
+			{
+				if (Attr.Kind == EUetkxAttrKind::Comment)
+				{
+					continue;
+				}
+				if (Attr.Name == TEXT("Text"))
+				{
+					TextExpr = Attr.Kind == EUetkxAttrKind::Str
+								   ? NsLocText(Attr.Value)
+								   : FString::Printf(TEXT("(%s)"), *EmitExpr(Attr.Value, AbsAt));
+				}
+				else if (Attr.Name == TEXT("key"))
+				{
+					Key = Attr.Kind == EUetkxAttrKind::Expr
+							  ? FString::Printf(TEXT("FRuiKey(%s)"), *EmitExpr(Attr.Value, AbsAt))
+							  : FString::Printf(TEXT("FRuiKey(FName(TEXT(\"%s\")))"), *CppStringLiteral(Attr.Value));
+				}
+				else if (Attr.Name == TEXT("classes"))
+				{
+					bStyled = true;
+					if (Attr.Kind == EUetkxAttrKind::Expr)
+					{
+						ClassStmts += FString::Printf(TEXT("\t\t__P->Classes = (%s);\n"), *EmitExpr(Attr.Value, AbsAt));
+					}
+					else
+					{
+						TArray<FString> ClassNames;
+						Attr.Value.ParseIntoArrayWS(ClassNames);
+						for (const FString& ClassName : ClassNames)
+						{
+							ClassStmts += FString::Printf(TEXT("\t\t__P->Classes.Add(FName(TEXT(\"%s\")));\n"),
+														  *CppStringLiteral(ClassName));
+						}
+					}
+				}
+				else if (IsStyleKey(Attr.Name) || Attr.Name.StartsWith(TEXT("Slot.")))
+				{
+					bStyled = true;
+					const bool bSlot = Attr.Name.StartsWith(TEXT("Slot."));
+					const FString Value =
+						Attr.Kind == EUetkxAttrKind::Expr
+							? FString::Printf(TEXT("FRuiValue(%s)"), *EmitExpr(Attr.Value, AbsAt))
+							: FString::Printf(TEXT("FRuiValue(TEXT(\"%s\"))"), *CppStringLiteral(Attr.Value));
+					StyleStmts += FString::Printf(TEXT("\t\t__%s->Add(FName(TEXT(\"%s\")), %s);\n"),
+												  bSlot ? TEXT("Slot") : TEXT("Style"), *Attr.Name, *Value);
+				}
+				else
+				{
+					Fail(TEXT("UETKX0105"), FString::Printf(TEXT("unknown attribute '%s' on <TextBlock>"), *Attr.Name),
+						 AbsAt + Attr.At);
+				}
+			}
+			if (!bStyled)
+			{
+				return FString::Printf(TEXT("RUI::TextBlock(%s, %s)"), *TextExpr, *Key);
+			}
+			FString Out = TEXT("[&]() -> FRuiNode {\n");
+			Out += FString::Printf(TEXT("\t\tFRuiNode __N = RUI::TextBlock(%s, %s);\n"), *TextExpr, *Key);
+			Out += TEXT("\t\tTSharedRef<FRuiTextBlockProps> __P = "
+						"MakeShared<FRuiTextBlockProps>(static_cast<const FRuiTextBlockProps&>(*__N.Props));\n");
+			Out += TEXT("\t\tTSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();\n");
+			Out += TEXT("\t\tTSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();\n");
+			Out += ClassStmts;
+			Out += StyleStmts;
+			Out += TEXT("\t\tif (!__Style->IsEmpty()) { __P->Style = __Style; }\n");
+			Out += TEXT("\t\tif (!__Slot->IsEmpty()) { __P->SlotProps = __Slot; }\n");
+			Out += TEXT("\t\t__N.Props = __P;\n\t\treturn __N;\n\t}()");
+			return Out;
+		}
+
+		const FString PropsType = bComponent ? FString::Printf(TEXT("F%sUetkxProps"), *Node.Tag) : Tag->PropsType;
+		const FString Factory = bComponent ? Node.Tag : Tag->Factory;
+
+		FString Out = TEXT("[&]() -> FRuiNode {\n");
+		Out += FString::Printf(TEXT("\t\t%s P;\n"), *PropsType);
+		FString Key = TEXT("FRuiKey()");
+		FString StyleStmts;
+		for (const FUetkxAttr& Attr : Node.Attrs)
+		{
+			if (Attr.Kind == EUetkxAttrKind::Comment)
+			{
+				continue;
+			}
+			if (Attr.Name == TEXT("key"))
+			{
+				Key = Attr.Kind == EUetkxAttrKind::Expr
+						  ? FString::Printf(TEXT("FRuiKey(%s)"), *EmitExpr(Attr.Value, AbsAt))
+						  : FString::Printf(TEXT("FRuiKey(FName(TEXT(\"%s\")))"), *CppStringLiteral(Attr.Value));
+				continue;
+			}
+			if (Attr.Kind == EUetkxAttrKind::Spread)
+			{
+				Fail(TEXT("UETKX3003"), TEXT("spread attributes are post-v1 in .uetkx"), AbsAt + Attr.At);
+				continue;
+			}
+			if (Attr.Name == TEXT("classes"))
+			{
+				// universal reserved prop: `classes="a b"` (static) or `classes={ expr }`
+				// where the expression yields a TArray<FName>.
+				if (Attr.Kind == EUetkxAttrKind::Expr)
+				{
+					Out += FString::Printf(TEXT("\t\tP.Classes = (%s);\n"), *EmitExpr(Attr.Value, AbsAt));
+				}
+				else
+				{
+					TArray<FString> ClassNames;
+					Attr.Value.ParseIntoArrayWS(ClassNames);
+					for (const FString& ClassName : ClassNames)
+					{
+						Out += FString::Printf(TEXT("\t\tP.Classes.Add(FName(TEXT(\"%s\")));\n"),
+											   *CppStringLiteral(ClassName));
+					}
+				}
+				continue;
+			}
+			if (IsStyleKey(Attr.Name) || Attr.Name.StartsWith(TEXT("Slot.")))
+			{
+				const bool bSlot = Attr.Name.StartsWith(TEXT("Slot."));
+				const FString Value =
+					Attr.Kind == EUetkxAttrKind::Expr
+						? FString::Printf(TEXT("FRuiValue(%s)"), *EmitExpr(Attr.Value, AbsAt))
+						: FString::Printf(TEXT("FRuiValue(TEXT(\"%s\"))"), *CppStringLiteral(Attr.Value));
+				StyleStmts += FString::Printf(TEXT("\t\t__%s->Add(FName(TEXT(\"%s\")), %s);\n"),
+											  bSlot ? TEXT("Slot") : TEXT("Style"), *Attr.Name, *Value);
+				continue;
+			}
+			if (bComponent)
+			{
+				// component props are plain fields on the generated struct
+				const FString Value = Attr.Kind == EUetkxAttrKind::Expr ? EmitExpr(Attr.Value, AbsAt)
+									  : Attr.Kind == EUetkxAttrKind::Bool
+										  ? FString(TEXT("true"))
+										  : FString::Printf(TEXT("TEXT(\"%s\")"), *CppStringLiteral(Attr.Value));
+				Out += FString::Printf(TEXT("\t\tP.%s = %s;\n"), *Attr.Name, *Value);
+				continue;
+			}
+			const EAttrType* AttrType = Tag->Attrs.Find(FName(*Attr.Name));
+			if (AttrType == nullptr)
+			{
+				Fail(TEXT("UETKX0105"), FString::Printf(TEXT("unknown attribute '%s' on <%s>"), *Attr.Name, *Node.Tag),
+					 AbsAt + Attr.At);
+				continue;
+			}
+			FString Value;
+			if (Attr.Kind == EUetkxAttrKind::Expr)
+			{
+				// Events: the handler body sees the payload as `Value` (FRuiValue — text/bool/
+				// float of the widget event); zero-payload events simply ignore it.
+				Value = *AttrType == EAttrType::Event
+							? FString::Printf(TEXT("FRuiCallback::Create([=](const FRuiValue& Value) { %s; })"),
+											  *PrefixHooks(Attr.Value))
+							: FString::Printf(TEXT("(%s)"), *EmitExpr(Attr.Value, AbsAt));
+			}
+			else if (Attr.Kind == EUetkxAttrKind::Bool)
+			{
+				Value = TEXT("true");
+			}
+			else
+			{
+				switch (*AttrType)
+				{
+				case EAttrType::Text:
+					Value = NsLocText(Attr.Value);
+					break;
+				case EAttrType::Name:
+					Value = FString::Printf(TEXT("FName(TEXT(\"%s\"))"), *CppStringLiteral(Attr.Value));
+					break;
+				case EAttrType::Float:
+				case EAttrType::Int:
+					Value = Attr.Value;
+					break;
+				case EAttrType::Bool:
+					Value = Attr.Value;
+					break;
+				case EAttrType::Margin:
+					Value = FString::Printf(TEXT("FMargin(%s)"), *Attr.Value);
+					break;
+				default:
+					Fail(TEXT("UETKX0105"),
+						 FString::Printf(TEXT("attribute '%s' on <%s> needs an {expr} value (no string form)"),
+										 *Attr.Name, *Node.Tag),
+						 AbsAt + Attr.At);
+					continue;
+				}
+			}
+			Out += FString::Printf(TEXT("\t\tP.Set%s(%s);\n"), *Attr.Name, *Value);
+		}
+		if (!StyleStmts.IsEmpty())
+		{
+			Out += TEXT("\t\tTSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();\n");
+			Out += TEXT("\t\tTSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();\n");
+			Out += StyleStmts;
+			Out += TEXT("\t\tif (!__Style->IsEmpty()) { P.Style = __Style; }\n");
+			Out += TEXT("\t\tif (!__Slot->IsEmpty()) { P.SlotProps = __Slot; }\n");
+		}
+		// Leaf widgets take (Props, Key) — no children argument (the factory arity is the
+		// vocabulary's bChildren flag; components always take children via their wrapper).
+		if (!bComponent && !Tag->bChildren)
+		{
+			for (const TSharedPtr<FUetkxNode>& Child : Node.Children)
+			{
+				if (Child.IsValid() && Child->Type != EUetkxNodeType::Comment)
+				{
+					Fail(TEXT("UETKX3005"),
+						 FString::Printf(TEXT("<%s> is a leaf widget and does not accept children"), *Node.Tag),
+						 AbsAt + Node.At);
+					break;
+				}
+			}
+			Out += FString::Printf(TEXT("\t\treturn %s(MoveTemp(P), %s);\n\t}()"), *Factory, *Key);
+			return Out;
+		}
+		Out += TEXT("\t\tTArray<FRuiNode> Ch;\n");
+		EmitChildren(Out, Node.Children, TEXT("\t\t"), AbsAt);
+		Out += FString::Printf(TEXT("\t\treturn %s(MoveTemp(P), MoveTemp(Ch), %s);\n\t}()"), *Factory, *Key);
+		return Out;
+	}
+
+	void FEmitter::EmitChildren(FString& Out, const TArray<TSharedPtr<FUetkxNode>>& Children, const FString& Indent,
+								int32 AbsAt)
+	{
+		for (const TSharedPtr<FUetkxNode>& ChildPtr : Children)
+		{
+			if (!ChildPtr.IsValid())
+			{
+				continue;
+			}
+			const FUetkxNode& Child = *ChildPtr;
+			switch (Child.Type)
+			{
+			case EUetkxNodeType::Comment:
+				break;
+			case EUetkxNodeType::If:
+			{
+				for (int32 b = 0; b < Child.Branches.Num(); ++b)
+				{
+					const FUetkxIfBranch& Branch = Child.Branches[b];
+					Out += FString::Printf(TEXT("%s%s (%s)\n%s{\n"), *Indent, b == 0 ? TEXT("if") : TEXT("else if"),
+										   *EmitExpr(Branch.Cond, AbsAt), *Indent);
+					EmitBody(Out, Branch.BodyMarkup, Indent + TEXT("\t"), AbsAt + Child.At);
+					Out += Indent + TEXT("}\n");
+				}
+				if (Child.ElseBody.IsSet())
+				{
+					Out += Indent + TEXT("else\n") + Indent + TEXT("{\n");
+					EmitBody(Out, Child.ElseBody.GetValue(), Indent + TEXT("\t"), AbsAt + Child.At);
+					Out += Indent + TEXT("}\n");
+				}
+				break;
+			}
+			case EUetkxNodeType::For:
+			case EUetkxNodeType::While:
+			{
+				Out += FString::Printf(TEXT("%s%s (%s)\n%s{\n"), *Indent,
+									   Child.Type == EUetkxNodeType::For ? TEXT("for") : TEXT("while"),
+									   *PrefixHooks(Child.Header), *Indent);
+				EmitBody(Out, Child.BodyMarkup, Indent + TEXT("\t"), AbsAt + Child.At);
+				Out += Indent + TEXT("}\n");
+				break;
+			}
+			case EUetkxNodeType::Match:
+			{
+				Out += FString::Printf(TEXT("%sswitch (%s)\n%s{\n"), *Indent, *EmitExpr(Child.Subject, AbsAt), *Indent);
+				for (const FUetkxMatchCase& Case : Child.Cases)
+				{
+					Out += FString::Printf(TEXT("%scase %s:\n%s{\n"), *Indent, *Case.Value, *Indent);
+					EmitBody(Out, Case.BodyMarkup, Indent + TEXT("\t"), AbsAt + Child.At);
+					Out += Indent + TEXT("\tbreak;\n") + Indent + TEXT("}\n");
+				}
+				if (Child.DefaultBody.IsSet())
+				{
+					Out += Indent + TEXT("default:\n") + Indent + TEXT("{\n");
+					EmitBody(Out, Child.DefaultBody.GetValue(), Indent + TEXT("\t"), AbsAt + Child.At);
+					Out += Indent + TEXT("\tbreak;\n") + Indent + TEXT("}\n");
+				}
+				Out += Indent + TEXT("}\n");
+				break;
+			}
+			default:
+			{
+				const FString Expr = EmitNodeExpr(Child, AbsAt);
+				if (!Expr.IsEmpty())
+				{
+					Out += FString::Printf(TEXT("%sCh.Add(%s);\n"), *Indent, *Expr);
+				}
+				break;
+			}
+			}
+		}
+	}
+
+	void FEmitter::EmitBody(FString& Out, const FString& BodyMarkup, const FString& Indent, int32 AbsAt)
+	{
+		const TArray<int32> Body = FUetkxLexer::ToCodePoints(BodyMarkup);
+		// the (last) top-level markup return inside the body — bodies are code blocks whose
+		// markup arrives via `return ( ... )` (family 0.7 semantics); ONE splitter of record.
+		const FUetkxSplitReturn Split = FUetkxFileScan::SplitMarkupReturn(Body, /*bRequireMarkupPeek*/ false);
+		const int32 RetAt = Split.ReturnAt;
+		const int32 MStart = Split.MStart;
+		const int32 MEnd = Split.MEnd;
+		if (!Split.bOk)
+		{
+			// no return -> pure statements (rare; e.g. a guard `continue;`) — splice verbatim
+			Out += Indent + PrefixHooks(BodyMarkup).TrimStartAndEnd() + TEXT("\n");
+			return;
+		}
+		const FString Lead = FUetkxLexer::FromCodePoints(Body, 0, RetAt).TrimStartAndEnd();
+		if (!Lead.IsEmpty())
+		{
+			Out += Indent + PrefixHooks(Lead) + TEXT("\n");
+		}
+		FUetkxMarkup Parser;
+		FUetkxParseResult Pr = Parser.Parse(Body, MStart, MEnd);
+		if (!Pr.IsOk())
+		{
+			Fail(*Pr.ErrorCode, Pr.ErrorMsg, AbsAt);
+			return;
+		}
+		for (const TSharedPtr<FUetkxNode>& Node : Pr.Nodes)
+		{
+			if (Node.IsValid() && Node->Type != EUetkxNodeType::Comment)
+			{
+				Out += FString::Printf(TEXT("%sCh.Add(%s);\n"), *Indent, *EmitNodeExpr(*Node, AbsAt));
+			}
+		}
+	}
+
+	FString FEmitter::Emit()
+	{
+		FString Out;
+		const FString PropsType = FString::Printf(TEXT("F%sUetkxProps"), *Decl.Name);
+
+		// props struct
+		Out += FString::Printf(TEXT("struct %s final : public FRuiPropsBase\n{\n"), *PropsType);
+		for (const FUetkxParam& Param : Decl.Params)
+		{
+			if (Param.Type.IsEmpty())
+			{
+				Fail(TEXT("UETKX3004"),
+					 FString::Printf(TEXT("param `%s` needs a type: `%s: <Type>`"), *Param.Name, *Param.Name),
+					 Decl.NameAt);
+				continue;
+			}
+			Out +=
+				FString::Printf(TEXT("\t%s %s%s;\n"), *Param.Type, *Param.Name,
+								Param.Default.IsEmpty() ? TEXT("{}") : *FString::Printf(TEXT(" = %s"), *Param.Default));
+		}
+		Out += TEXT("\n\tvirtual bool Equals(const FRuiPropsBase& OtherBase) const override\n\t{\n");
+		Out += FString::Printf(TEXT("\t\tconst %s& O = static_cast<const %s&>(OtherBase);\n"), *PropsType, *PropsType);
+		Out += TEXT("\t\tbool bEq = BaseFieldsEqual(O);\n");
+		for (const FUetkxParam& Param : Decl.Params)
+		{
+			if (Param.Type == TEXT("FText"))
+			{
+				Out += FString::Printf(
+					TEXT("\t\tbEq = bEq && (%s.IdenticalTo(O.%s) || %s.ToString() == O.%s.ToString());\n"), *Param.Name,
+					*Param.Name, *Param.Name, *Param.Name);
+			}
+			else
+			{
+				Out += FString::Printf(TEXT("\t\tbEq = bEq && (%s == O.%s);\n"), *Param.Name, *Param.Name);
+			}
+		}
+		Out += TEXT("\t\treturn bEq;\n\t}\n};\n\n");
+
+		// component function
+		Out += FString::Printf(
+			TEXT("static FRuiNodeArray %s_UetkxImpl(FRuiContext& Ctx, const %s& Props, const TArray<FRuiNode>& "
+				 "children)\n{\n"),
+			*Decl.Name, *PropsType);
+		for (const FUetkxParam& Param : Decl.Params)
+		{
+			Out += FString::Printf(TEXT("\tconst auto& %s = Props.%s;\n"), *Param.Name, *Param.Name);
+		}
+		const FString Setup = Decl.Setup.TrimStartAndEnd();
+		if (!Setup.IsEmpty())
+		{
+			Out += TEXT("\t") + PrefixHooks(Setup).Replace(TEXT("\n"), TEXT("\n\t")) + TEXT("\n");
+		}
+		Out += FString::Printf(TEXT("\treturn { %s };\n}\n"), *EmitNodeExpr(*Decl.Root, Decl.BodyAt));
+		Out += FString::Printf(TEXT("static const FName G%sUetkxId = RUI::RegisterComponentId((void*)&%s_UetkxImpl, "
+									"FName(TEXT(\"%s\")));\n"),
+							   *Decl.Name, *Decl.Name, *Decl.Name);
+		Out += FString::Printf(TEXT("static constexpr uint32 %s_RUI_HOOK_SIG = 0x%08Xu;\n"), *Decl.Name,
+							   FUetkxFileScan::HookSignature(Decl.HookCalls));
+		Out += FString::Printf(
+			TEXT("inline FRuiNode %s(%s InProps = %s(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey "
+				 "InKey = FRuiKey())\n{\n\treturn RUI::FC(&%s_UetkxImpl, MoveTemp(InProps), MoveTemp(InChildren), "
+				 "InKey);\n}\n"),
+			*Decl.Name, *PropsType, *PropsType, *Decl.Name);
+		// Cross-TU reach: the wrapper above is TU-local (the aggregator), so every component
+		// also self-registers a default-props factory under its name (gallery/preview/HMR).
+		Out += FString::Printf(TEXT("static const bool G%sUetkxFactoryReg = "
+									"RUI::RegisterNamedFactory(FName(TEXT(\"%s\")), []() { return %s(); });\n"),
+							   *Decl.Name, *Decl.Name, *Decl.Name);
+		return Out;
+	}
+} // namespace
+
+FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FString& Basename)
+{
+	FUetkxCompileOutput Out;
+	FUetkxFileScanResult Scan = FUetkxFileScan::Scan(Source, Basename);
+	Out.Diags = Scan.Diags;
+	if (Scan.HasError())
+	{
+		return Out;
+	}
+
+	FString Inl;
+	Inl += TEXT("// AUTO-GENERATED by RUICompile — DO NOT EDIT. Source: ") + Basename + TEXT(".uetkx\n");
+	Inl += TEXT("// Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.\n\n");
+	for (const FString& Include : Scan.PreambleIncludes)
+	{
+		Inl += Include + TEXT("\n");
+	}
+	Inl += TEXT("\n");
+
+	for (const FUetkxComponentDecl& Decl : Scan.Components)
+	{
+		FEmitter Emitter(Basename, Decl, Out.Diags);
+		const FString Body = Emitter.Emit();
+		if (Emitter.HasError())
+		{
+			return Out;
+		}
+		Inl += Body + TEXT("\n");
+		Out.ComponentNames.Add(Decl.Name);
+		if (Out.HookSig == 0)
+		{
+			Out.HookSig = FUetkxFileScan::HookSignature(Decl.HookCalls);
+		}
+	}
+	Out.bOk = true;
+	Out.Inl = MoveTemp(Inl);
+	return Out;
+}
+
+FString FUetkxCodegen::ExportSchemaJson()
+{
+	auto TypeName = [](EAttrType Type) -> const TCHAR*
+	{
+		switch (Type)
+		{
+		case EAttrType::Text:
+			return TEXT("text");
+		case EAttrType::Float:
+			return TEXT("float");
+		case EAttrType::Int:
+			return TEXT("int");
+		case EAttrType::Bool:
+			return TEXT("bool");
+		case EAttrType::Name:
+			return TEXT("name");
+		case EAttrType::Margin:
+			return TEXT("margin");
+		case EAttrType::Vector2:
+			return TEXT("vector2");
+		case EAttrType::Color:
+			return TEXT("color");
+		case EAttrType::Event:
+			return TEXT("event");
+		case EAttrType::Expr:
+			return TEXT("expr");
+		}
+		return TEXT("expr");
+	};
+
+	TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
+	Root->SetNumberField(TEXT("v"), 1);
+
+	TSharedRef<FJsonObject> Elements = MakeShared<FJsonObject>();
+	TArray<FName> TagNames;
+	HostTags().GetKeys(TagNames);
+	TagNames.Sort(FNameLexicalLess());
+	for (const FName& TagName : TagNames)
+	{
+		const FTagDef& Tag = HostTags()[TagName];
+		TSharedRef<FJsonObject> El = MakeShared<FJsonObject>();
+		El->SetStringField(TEXT("factory"), Tag.Factory);
+		El->SetBoolField(TEXT("children"), Tag.bChildren);
+		TSharedRef<FJsonObject> Attrs = MakeShared<FJsonObject>();
+		TArray<FName> AttrNames;
+		Tag.Attrs.GetKeys(AttrNames);
+		AttrNames.Sort(FNameLexicalLess());
+		for (const FName& AttrName : AttrNames)
+		{
+			Attrs->SetStringField(AttrName.ToString(), TypeName(Tag.Attrs[AttrName]));
+		}
+		El->SetObjectField(TEXT("attrs"), Attrs);
+		Elements->SetObjectField(TagName.ToString(), El);
+	}
+	Root->SetObjectField(TEXT("elements"), Elements);
+
+	TArray<FString> SortedStyleKeys = StyleKeys().Array();
+	SortedStyleKeys.Sort();
+	TArray<TSharedPtr<FJsonValue>> StyleArray;
+	for (const FString& Key : SortedStyleKeys)
+	{
+		StyleArray.Add(MakeShared<FJsonValueString>(Key));
+	}
+	Root->SetArrayField(TEXT("styleKeys"), StyleArray);
+
+	// Slot.* is an OPEN prefix (any name routes to the slot dict); these are the D-33 canon.
+	Root->SetStringField(TEXT("slotPrefix"), TEXT("Slot."));
+	TArray<TSharedPtr<FJsonValue>> SlotArray;
+	for (const TCHAR* Key :
+		 {TEXT("Slot.Padding"), TEXT("Slot.HAlign"), TEXT("Slot.VAlign"), TEXT("Slot.Fill"), TEXT("Slot.ZOrder")})
+	{
+		SlotArray.Add(MakeShared<FJsonValueString>(Key));
+	}
+	Root->SetArrayField(TEXT("slotKeys"), SlotArray);
+
+	TArray<TSharedPtr<FJsonValue>> HookArray;
+	for (const FString& Hook : FUetkxFileScan::HookNames())
+	{
+		HookArray.Add(MakeShared<FJsonValueString>(Hook));
+	}
+	Root->SetArrayField(TEXT("hooks"), HookArray);
+
+	FString Out;
+	const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);
+	FJsonSerializer::Serialize(Root, Writer);
+	return Out;
+}

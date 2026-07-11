@@ -1,0 +1,135 @@
+{
+  "_readme": [
+    "The .uetkx scanner contract corpus (D-22): run by BOTH the C++ automation test",
+    "(ReactiveUI.Uetkx.Scanner) and lsp-server's node --test — the family mechanism that keeps",
+    "two implementations in two languages in lockstep (scanner-cases.json precedent).",
+    "Every `at`/`expect` value is a Unicode CODE POINT index (D-18) — the nonBmp cases exist",
+    "to catch any implementation indexing by UTF-16 units.",
+    "skipNoncode = C++ lexis. skipNoncodeMarkup/findMatchingMarkup = the family markup lexis."
+  ],
+  "skipNoncode": [
+    { "name": "not at noncode returns i", "input": "int x = 1;", "at": 0, "expect": 0 },
+    { "name": "line comment to EOL", "input": "a // comment\nb", "at": 2, "expect": 12 },
+    { "name": "line comment at EOF", "input": "// tail", "at": 0, "expect": 7 },
+    { "name": "block comment", "input": "a /* x */ b", "at": 2, "expect": 9 },
+    { "name": "block comment unterminated", "input": "/* open", "at": 0, "expect": 7 },
+    { "name": "block comment with slashes inside", "input": "/* a // b */c", "at": 0, "expect": 12 },
+    { "name": "string simple", "input": "x\"hi\"y", "at": 1, "expect": 5 },
+    { "name": "string with escape", "input": "\"a\\\"b\"c", "at": 0, "expect": 6 },
+    { "name": "string with escaped backslash", "input": "\"a\\\\\"c", "at": 0, "expect": 5 },
+    { "name": "string stops at newline (unterminated)", "input": "\"abc\ndef", "at": 0, "expect": 4 },
+    { "name": "char literal", "input": "'c' + x", "at": 0, "expect": 3 },
+    { "name": "char literal escaped quote", "input": "'\\''x", "at": 0, "expect": 4 },
+    { "name": "digit separator apostrophe is NOT a char", "input": "1'000'000", "at": 1, "expect": 1 },
+    { "name": "preprocessor line", "input": "#include <x.h>\nint y;", "at": 0, "expect": 14 },
+    { "name": "preprocessor after leading ws", "input": "  #if X\nint y;", "at": 2, "expect": 7 },
+    { "name": "hash mid-line is not preprocessor", "input": "a #b", "at": 2, "expect": 2 },
+    { "name": "preprocessor backslash continuation", "input": "#define A \\\n  b\nint c;", "at": 0, "expect": 15 },
+    { "name": "raw string", "input": "R\"(a \" b)\" x", "at": 0, "expect": 10 },
+    { "name": "raw string with delimiter", "input": "R\"xy(a )\" b)xy\" z", "at": 0, "expect": 15 },
+    { "name": "raw string unterminated", "input": "R\"(open", "at": 0, "expect": 7 },
+    { "name": "prefix L string", "input": "L\"wide\" x", "at": 0, "expect": 7 },
+    { "name": "prefix u8 string", "input": "u8\"s\" x", "at": 0, "expect": 5 },
+    { "name": "prefix LR raw string", "input": "LR\"(a)\" x", "at": 0, "expect": 7 },
+    { "name": "prefix u8R raw string", "input": "u8R\"(a)\" x", "at": 0, "expect": 8 },
+    { "name": "prefix after identifier is not a prefix", "input": "FOOL\"(x)\"", "at": 3, "expect": 3 },
+    { "name": "quote after prefix-lookalike identifier char", "input": "AU\"s\"", "at": 1, "expect": 1 },
+    { "name": "R after identifier is not raw", "input": "VAR\"s\"", "at": 2, "expect": 2 }
+  ],
+  "findMatching": [
+    { "name": "simple parens", "input": "(a + b)", "at": 0, "expect": 6 },
+    { "name": "nested mixed", "input": "{ a[1] + (b) }", "at": 0, "expect": 13 },
+    { "name": "brace inside string ignored", "input": "( \"}\" )", "at": 0, "expect": 6 },
+    { "name": "paren inside line comment ignored", "input": "( // )\n)", "at": 0, "expect": 7 },
+    { "name": "paren inside block comment ignored", "input": "( /* ) */ )", "at": 0, "expect": 10 },
+    { "name": "paren inside char literal ignored", "input": "( ')' )", "at": 0, "expect": 6 },
+    { "name": "paren inside raw string ignored", "input": "( R\"(x))(y)\" )", "at": 0, "expect": 13 },
+    { "name": "unbalanced returns -1", "input": "( ( )", "at": 0, "expect": -1 },
+    { "name": "mismatched kind returns -1", "input": "( ]", "at": 0, "expect": -1 },
+    { "name": "preprocessor line skipped", "input": "(\n#if 0 )\n)", "at": 0, "expect": 10 }
+  ],
+  "skipNoncodeMarkup": [
+    { "name": "hash is literal text in markup", "input": "# not a comment", "at": 0, "expect": 0 },
+    { "name": "line comment", "input": "// c\nx", "at": 0, "expect": 4 },
+    { "name": "block comment", "input": "/* c */x", "at": 0, "expect": 7 },
+    { "name": "html comment", "input": "<!-- hi -->x", "at": 0, "expect": 11 },
+    { "name": "html comment unterminated", "input": "<!-- open", "at": 0, "expect": 9 },
+    { "name": "double-quoted string", "input": "\"a'b\"x", "at": 0, "expect": 5 },
+    { "name": "single-quoted string", "input": "'a\"b'x", "at": 0, "expect": 5 },
+    { "name": "triple-quoted string spans newline", "input": "\"\"\"a\nb\"\"\"x", "at": 0, "expect": 9 },
+    { "name": "lt not comment", "input": "<Tag>", "at": 0, "expect": 0 }
+  ],
+  "findMatchingMarkup": [
+    {
+      "name": "return window with hash literal",
+      "input": "return (\n\t<TextBlock Text=\"Score #3\" />\n)",
+      "at": 7,
+      "expect": 40
+    },
+    {
+      "name": "component body: prelude comment with paren does not desync",
+      "input": "{\n\tint32 A = 1; // note (unbalanced\n\t// still) fine\n\treturn (\n\t\t<Box />\n\t)\n}",
+      "at": 0,
+      "expect": 75
+    },
+    {
+      "name": "expr hole is code lexis",
+      "input": "( <T V={ FString(\")\") } /> )",
+      "at": 0,
+      "expect": 27
+    },
+    {
+      "name": "if header is code then body braces",
+      "input": "{\n\t@if (A > 0) {\n\t\t<T />\n\t}\n}",
+      "at": 0,
+      "expect": 28
+    },
+    {
+      "name": "else re-arms body",
+      "input": "{\n\t@if (A) {\n\t\t<T />\n\t} @else {\n\t\t<U />\n\t}\n}",
+      "at": 0,
+      "expect": 43
+    },
+    {
+      "name": "markup text hash inside return window line classified prelude",
+      "input": "{\n\tint32 X = 0;\n\treturn ( <L T=\"#7\" /> )\n}",
+      "at": 0,
+      "expect": 41
+    },
+    {
+      "name": "unbalanced returns -1",
+      "input": "( <T ",
+      "at": 0,
+      "expect": -1
+    },
+    {
+      "name": "code island bracket inherits code lexis",
+      "input": "( <T V={ Arr[0] } /> )",
+      "at": 0,
+      "expect": 21
+    }
+  ],
+  "nonBmp": [
+    {
+      "name": "emoji in string counts as ONE code point (skipNoncode)",
+      "section": "skipNoncode",
+      "input": "\"a😀b\" x",
+      "at": 0,
+      "expect": 5
+    },
+    {
+      "name": "emoji before delimiter (findMatching)",
+      "section": "findMatching",
+      "input": "( \"😀\" )",
+      "at": 0,
+      "expect": 6
+    },
+    {
+      "name": "emoji literal markup text (findMatchingMarkup)",
+      "section": "findMatchingMarkup",
+      "input": "( <T L=\"😀#\" /> )",
+      "at": 0,
+      "expect": 15
+    }
+  ]
+}
