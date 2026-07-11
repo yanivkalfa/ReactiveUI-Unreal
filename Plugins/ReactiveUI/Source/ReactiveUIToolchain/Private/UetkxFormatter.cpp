@@ -707,6 +707,48 @@ namespace
 		Out += TEXT("}\n");
 		return Out;
 	}
+
+	// A verbatim-C++ body (hook / module) canonically re-anchored at depth 1 with the authored
+	// leading/trailing blank lines kept — the FmtComponent setup treatment, shared so the two
+	// verbatim-body declaration kinds format identically.
+	FString FmtVerbatimBody(const FString& Body, FFmtState& State)
+	{
+		FString Out;
+		const FString Reanchored = Reanchor(Body, 1, State.O);
+		if (!Reanchored.IsEmpty())
+		{
+			if (HasLeadingBlank(Body))
+			{
+				Out += TEXT("\n");
+			}
+			Out += Reanchored;
+			if (HasTrailingBlank(Body))
+			{
+				Out += TEXT("\n");
+			}
+		}
+		return Out;
+	}
+
+	FString FmtHook(const FUetkxHookDecl& Decl, FFmtState& State)
+	{
+		// `export? hook Name(<verbatim C++ params>) [-> <verbatim Ret>] {`. Params/Ret are verbatim
+		// C++ (template commas the family grammar can't split) — trimmed, never re-parsed.
+		FString Header = FString::Printf(TEXT("%shook %s(%s)"), Decl.bExported ? TEXT("export ") : TEXT(""), *Decl.Name,
+										 *Decl.Params.TrimStartAndEnd());
+		const FString Ret = Decl.Ret.TrimStartAndEnd();
+		if (!Ret.IsEmpty())
+		{
+			Header += FString::Printf(TEXT(" -> %s"), *Ret);
+		}
+		return Header + TEXT(" {\n") + FmtVerbatimBody(Decl.Body, State) + TEXT("}\n");
+	}
+
+	FString FmtModule(const FUetkxModuleDecl& Decl, FFmtState& State)
+	{
+		FString Header = FString::Printf(TEXT("%smodule %s"), Decl.bExported ? TEXT("export ") : TEXT(""), *Decl.Name);
+		return Header + TEXT(" {\n") + FmtVerbatimBody(Decl.Body, State) + TEXT("}\n");
+	}
 } // namespace
 
 FUetkxFormatResult FUetkxFormatter::Format(const FString& Source, const FUetkxFormatOptions& Options)
@@ -720,7 +762,7 @@ FUetkxFormatResult FUetkxFormatter::Format(const FString& Source, const FUetkxFo
 		return Result;
 	};
 	const FUetkxFileScanResult Scan = FUetkxFileScan::Scan(Source, FString());
-	if (Scan.Components.IsEmpty())
+	if (Scan.Order.IsEmpty())
 	{
 		// no declaration at all: nothing to format (not a syntax error)
 		return Verbatim(Scan.HasError() ? true : false);
@@ -736,11 +778,56 @@ FUetkxFormatResult FUetkxFormatter::Format(const FString& Source, const FUetkxFo
 	// code-point array, or a non-BMP char in a comment shifts all later slices.
 	const TArray<int32> SrcCp = FUetkxLexer::ToCodePoints(Source);
 
+	// The source-order start/end + canonical re-emit of any top-level declaration kind (M12
+	// FmtHook/FmtModule): the mixed-decl file is a SEQUENCE (Scan.Order) of components + hooks +
+	// modules, each canonicalized by its own formatter. TrueStart honors a preceding `export`.
+	auto TrueStart = [&Scan](const TPair<EUetkxDeclKind, int32>& Ord) -> int32
+	{
+		switch (Ord.Key)
+		{
+		case EUetkxDeclKind::Component:
+			return Scan.Components[Ord.Value].bExported && Scan.Components[Ord.Value].ExportAt >= 0
+					   ? Scan.Components[Ord.Value].ExportAt
+					   : Scan.Components[Ord.Value].At;
+		case EUetkxDeclKind::Hook:
+			return Scan.Hooks[Ord.Value].bExported && Scan.Hooks[Ord.Value].ExportAt >= 0
+					   ? Scan.Hooks[Ord.Value].ExportAt
+					   : Scan.Hooks[Ord.Value].At;
+		default:
+			return Scan.Modules[Ord.Value].bExported && Scan.Modules[Ord.Value].ExportAt >= 0
+					   ? Scan.Modules[Ord.Value].ExportAt
+					   : Scan.Modules[Ord.Value].At;
+		}
+	};
+	auto DeclNext = [&Scan](const TPair<EUetkxDeclKind, int32>& Ord) -> int32
+	{
+		switch (Ord.Key)
+		{
+		case EUetkxDeclKind::Component:
+			return Scan.Components[Ord.Value].Next;
+		case EUetkxDeclKind::Hook:
+			return Scan.Hooks[Ord.Value].Next;
+		default:
+			return Scan.Modules[Ord.Value].Next;
+		}
+	};
+	auto FmtDecl = [&Scan, &State](const TPair<EUetkxDeclKind, int32>& Ord) -> FString
+	{
+		switch (Ord.Key)
+		{
+		case EUetkxDeclKind::Component:
+			return FmtComponent(Scan.Components[Ord.Value], State);
+		case EUetkxDeclKind::Hook:
+			return FmtHook(Scan.Hooks[Ord.Value], State);
+		default:
+			return FmtModule(Scan.Modules[Ord.Value], State);
+		}
+	};
+
 	// Preamble (T1.3 + M11): canonicalized ONLY when it is nothing but whitespace + #include +
 	// `import` lines. Leading comments or stray text are preserved byte-for-byte — Format Document
 	// must never delete user content. Canonical order: #include block, blank, import block, blank.
-	auto DeclStartOf = [](const FUetkxComponentDecl& D) { return D.bExported && D.ExportAt >= 0 ? D.ExportAt : D.At; };
-	const FString Pre = FUetkxLexer::FromCodePoints(SrcCp, 0, DeclStartOf(Scan.Components[0]));
+	const FString Pre = FUetkxLexer::FromCodePoints(SrcCp, 0, TrueStart(Scan.Order[0]));
 	bool bPreCanonical = true;
 	{
 		TArray<FString> PreLines;
@@ -785,21 +872,21 @@ FUetkxFormatResult FUetkxFormatter::Format(const FString& Source, const FUetkxFo
 	}
 
 	int32 Cursor = -1;
-	for (int32 k = 0; k < Scan.Components.Num(); ++k)
+	for (int32 k = 0; k < Scan.Order.Num(); ++k)
 	{
-		const FUetkxComponentDecl& Decl = Scan.Components[k];
+		const TPair<EUetkxDeclKind, int32>& Ord = Scan.Order[k];
 		if (k > 0)
 		{
 			// content between declarations would be silently dropped by a re-emit — never
 			// delete user text (T1.3): fall back verbatim.
-			if (!FUetkxLexer::FromCodePoints(SrcCp, Cursor, DeclStartOf(Decl) - Cursor).TrimStartAndEnd().IsEmpty())
+			if (!FUetkxLexer::FromCodePoints(SrcCp, Cursor, TrueStart(Ord) - Cursor).TrimStartAndEnd().IsEmpty())
 			{
 				return Verbatim(true);
 			}
-			Out += TEXT("\n"); // exactly one blank line between components
+			Out += TEXT("\n"); // exactly one blank line between declarations
 		}
-		Out += FmtComponent(Decl, State);
-		Cursor = Decl.Next;
+		Out += FmtDecl(Ord);
+		Cursor = DeclNext(Ord);
 	}
 	if (State.bUnsafeStrAttr)
 	{

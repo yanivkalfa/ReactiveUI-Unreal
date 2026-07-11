@@ -80,6 +80,7 @@ struct REACTIVEUIINTERP_API FUetkxHookDecl
 	FString Name;
 	bool bExported = false; // `export hook`
 	int32 At = -1;
+	int32 ExportAt = -1; // the `export` keyword offset when bExported, else -1 (the decl's true start)
 	int32 NameAt = -1;
 	FString Params; // verbatim C++ parameter list (may be empty)
 	FString Ret;	// verbatim return type; empty = void (family: omitted arrow ⇒ void)
@@ -94,6 +95,7 @@ struct REACTIVEUIINTERP_API FUetkxModuleDecl
 	FString Name;
 	bool bExported = false; // `export module`
 	int32 At = -1;
+	int32 ExportAt = -1; // the `export` keyword offset when bExported, else -1 (the decl's true start)
 	int32 NameAt = -1;
 	FString Body; // verbatim C++
 	int32 BodyAt = -1;

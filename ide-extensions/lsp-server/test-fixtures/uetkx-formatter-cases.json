@@ -102,6 +102,26 @@
       "name": "M11: preamble canonicalizes to #include block, blank, import block, blank",
       "input": "#include \"X.h\"\n\n\nimport { A } from \"./A\"\nexport component S {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n",
       "expect": "#include \"X.h\"\n\nimport { A } from \"./A\"\n\nexport component S {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n"
+    },
+    {
+      "name": "hook: header whitespace + params canonicalize; body re-anchored to tabs",
+      "input": "export   hook UseCounter(int32 Start)  ->  TTuple<int32, int32> {\n    auto [C, Set] = UseState<int32>(Start);\n    return MakeTuple(C, C);\n}\n",
+      "expect": "export hook UseCounter(int32 Start) -> TTuple<int32, int32> {\n\tauto [C, Set] = UseState<int32>(Start);\n\treturn MakeTuple(C, C);\n}\n"
+    },
+    {
+      "name": "non-exported void hook keeps the arrow omitted",
+      "input": "hook UsePrivate() {\n    UseEffect([] { Log(); });\n}\n",
+      "expect": "hook UsePrivate() {\n\tUseEffect([] { Log(); });\n}\n"
+    },
+    {
+      "name": "module: verbatim C++ body re-anchored, name canonical",
+      "input": "export module Styles {\n        using Accent = FLinearColor;\n        const int32 N = 3;\n}\n",
+      "expect": "export module Styles {\n\tusing Accent = FLinearColor;\n\tconst int32 N = 3;\n}\n"
+    },
+    {
+      "name": "mixed file in source order: module, hook, component (one blank line between)",
+      "input": "export module M {\n    using T = int32;\n}\nexport hook UseX() -> int32 {\n    return 1;\n}\ncomponent App {\n    return (\n        <Spacer />\n    );\n}\n",
+      "expect": "export module M {\n\tusing T = int32;\n}\n\nexport hook UseX() -> int32 {\n\treturn 1;\n}\n\ncomponent App {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n"
     }
   ]
 }

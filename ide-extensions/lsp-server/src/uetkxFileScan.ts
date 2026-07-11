@@ -66,6 +66,7 @@ export interface UetkxHookDecl {
   name: string;
   exported: boolean; // `export hook`
   at: number;
+  exportAt: number; // the `export` keyword offset when exported, else -1 (the decl's true start)
   nameAt: number;
   params: string; // verbatim C++ parameter list
   ret: string; // verbatim return type; "" = void
@@ -78,6 +79,7 @@ export interface UetkxModuleDecl {
   name: string;
   exported: boolean; // `export module`
   at: number;
+  exportAt: number; // the `export` keyword offset when exported, else -1 (the decl's true start)
   nameAt: number;
   body: string; // verbatim C++
   bodyAt: number;
@@ -491,7 +493,7 @@ function parseHook(src: number[], hi: number, exported: boolean, out: UetkxFileS
     return -1;
   }
   const idx = out.hooks.length;
-  out.hooks.push({ name, exported, at: hi, nameAt, params, ret, body: fromCodePoints(src, k + 1, bclose - k - 1), bodyAt: k + 1, next: bclose + 1 });
+  out.hooks.push({ name, exported, at: hi, exportAt: -1, nameAt, params, ret, body: fromCodePoints(src, k + 1, bclose - k - 1), bodyAt: k + 1, next: bclose + 1 });
   out.order.push({ kind: "hook", index: idx });
   return bclose + 1;
 }
@@ -518,7 +520,7 @@ function parseModule(src: number[], mi: number, exported: boolean, out: UetkxFil
     return -1;
   }
   const idx = out.modules.length;
-  out.modules.push({ name, exported, at: mi, nameAt, body: fromCodePoints(src, k + 1, bclose - k - 1), bodyAt: k + 1, next: bclose + 1 });
+  out.modules.push({ name, exported, at: mi, exportAt: -1, nameAt, body: fromCodePoints(src, k + 1, bclose - k - 1), bodyAt: k + 1, next: bclose + 1 });
   out.order.push({ kind: "module", index: idx });
   return bclose + 1;
 }
@@ -577,8 +579,13 @@ export function scanFile(source: string, basename: string): UetkxFileScanResult 
     if (keywordAt(src, i, "component")) {
       next = parseComponent(src, i, exported, out);
       if (next >= 0 && exported) out.components[out.components.length - 1].exportAt = declStart; // the decl's true start
-    } else if (keywordAt(src, i, "hook")) next = parseHook(src, i, exported, out);
-    else if (keywordAt(src, i, "module")) next = parseModule(src, i, exported, out);
+    } else if (keywordAt(src, i, "hook")) {
+      next = parseHook(src, i, exported, out);
+      if (next >= 0 && exported) out.hooks[out.hooks.length - 1].exportAt = declStart; // the decl's true start
+    } else if (keywordAt(src, i, "module")) {
+      next = parseModule(src, i, exported, out);
+      if (next >= 0 && exported) out.modules[out.modules.length - 1].exportAt = declStart; // the decl's true start
+    }
     else {
       pushDiag(
         out,
