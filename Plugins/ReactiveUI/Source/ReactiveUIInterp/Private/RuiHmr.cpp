@@ -34,7 +34,7 @@ FString FRuiHmrStatus::ToString() const
 		Errors.IsEmpty() ? TEXT("") : *FString::Printf(TEXT(" | %d error(s)"), Errors.Num()));
 }
 
-FRuiHmrStatus FRuiHmr::ApplySource(const FString& Source, const FString& Basename)
+FRuiHmrStatus FRuiHmr::ApplySource(const FString& Source, const FString& Basename, const TArray<FString>& Importers)
 {
 	const double Start = FPlatformTime::Seconds();
 	FRuiHmrStatus Status;
@@ -54,22 +54,10 @@ FRuiHmrStatus FRuiHmr::ApplySource(const FString& Source, const FString& Basenam
 		return Status;
 	}
 
-	// Support files (hook/module declarations) carry arbitrary C++ — there is nothing the
-	// interpreter can swap. The compile side already regenerated the .inl; the honest live
-	// answer is "rebuild": surface it as a note, not an error (the old binary keeps running).
-	if (Scan.IsSupportFile())
-	{
-		Status.Notes.Add(FString::Printf(
-			TEXT("%s.uetkx: hook/module change — compiled only; Live Coding (Ctrl+Alt+F11) or rebuild to apply"),
-			*Basename));
-		Status.Ms = (FPlatformTime::Seconds() - Start) * 1000.0;
-		UE_LOG(LogRuiHmr, Display, TEXT("%s"), *Status.ToString());
-		for (const FString& Note : Status.Notes)
-		{
-			UE_LOG(LogRuiHmr, Display, TEXT("  note: %s"), *Note);
-		}
-		return Status;
-	}
+	// MIXED-DECL v1 (M9): a file is a SEQUENCE of components + hooks + modules. Always swap the
+	// components the interpreter CAN hot-apply (loop below); a support-only file has none and the
+	// loop is a no-op. Hooks/modules carry arbitrary C++ the interpreter cannot swap — surface the
+	// honest "rebuild" note (below) NAMING the import blast radius, not an error.
 
 	FHmrSession& Session = FHmrSession::Get();
 	for (const FUetkxComponentDecl& Decl : Scan.Components)
@@ -124,6 +112,18 @@ FRuiHmrStatus FRuiHmr::ApplySource(const FString& Source, const FString& Basenam
 		++Status.Reloaded;
 	}
 
+	// Hook/module edits (support-only OR the support half of a mixed file) recompiled but did not
+	// interp-swap — name the import blast radius so the user knows which screens a rebuild affects.
+	if (Scan.Hooks.Num() + Scan.Modules.Num() > 0)
+	{
+		const FString Blast =
+			Importers.IsEmpty() ? FString(TEXT("(none recorded)")) : FString::Join(Importers, TEXT(", "));
+		Status.Notes.Add(FString::Printf(
+			TEXT("%s.uetkx: hook/module change — compiled only; importers: %s; Live Coding (Ctrl+Alt+F11) or rebuild, "
+				 "then affected screens refresh"),
+			*Basename, *Blast));
+	}
+
 	int32 Refreshed = 0;
 	FRuiReconciler::ForEachLive(
 		[&Refreshed](FRuiReconciler& Reconciler)
@@ -142,7 +142,7 @@ FRuiHmrStatus FRuiHmr::ApplySource(const FString& Source, const FString& Basenam
 	return Status;
 }
 
-FRuiHmrStatus FRuiHmr::ApplyFile(const FString& UetkxPath)
+FRuiHmrStatus FRuiHmr::ApplyFile(const FString& UetkxPath, const TArray<FString>& Importers)
 {
 	FString Source;
 	if (!FFileHelper::LoadFileToString(Source, *UetkxPath))
@@ -151,7 +151,7 @@ FRuiHmrStatus FRuiHmr::ApplyFile(const FString& UetkxPath)
 		Status.Errors.Add(FString::Printf(TEXT("%s: unreadable (editor save race?) — will retry"), *UetkxPath));
 		return Status;
 	}
-	return ApplySource(Source, FPaths::GetBaseFilename(UetkxPath));
+	return ApplySource(Source, FPaths::GetBaseFilename(UetkxPath), Importers);
 }
 
 void FRuiHmr::ResetSession()

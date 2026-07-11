@@ -33,11 +33,14 @@ struct REACTIVEUIINTERP_API FRuiHmrStatus
 class REACTIVEUIINTERP_API FRuiHmr
 {
 public:
-	/** Apply one saved .uetkx: swap/link its components, refresh live roots. */
-	static FRuiHmrStatus ApplyFile(const FString& UetkxPath);
+	/** Apply one saved .uetkx: swap/link its components, refresh live roots. Importers = the
+	 *  project-relative names of files that import this one (the blast radius named in the
+	 *  hook/module rebuild note, M9) — the watcher supplies them from the driver's import graph. */
+	static FRuiHmrStatus ApplyFile(const FString& UetkxPath, const TArray<FString>& Importers = {});
 
 	/** Apply from source text (tests / in-memory). Basename names the file binding. */
-	static FRuiHmrStatus ApplySource(const FString& Source, const FString& Basename);
+	static FRuiHmrStatus ApplySource(const FString& Source, const FString& Basename,
+									 const TArray<FString>& Importers = {});
 
 	/** Drop every interp override (a real rebuild landed — compiled definitions rule again). */
 	static void ResetSession();

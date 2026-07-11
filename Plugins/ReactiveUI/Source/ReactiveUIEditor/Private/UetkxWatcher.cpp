@@ -209,8 +209,14 @@ int32 FUetkxWatcher::Sweep(const TCHAR* Reason)
 			ReportDiags(File.UetkxPath, FileErrors);
 			if (File.bOk)
 			{
-				// the live half of the loop: swap the definition under the running UI
-				const FRuiHmrStatus Status = FRuiHmr::ApplyFile(File.UetkxPath);
+				// the live half of the loop: swap the definition under the running UI. Name the
+				// import blast radius so a hook/module edit's rebuild note lists affected screens.
+				FString ProjRel = File.UetkxPath;
+				FPaths::MakePathRelativeTo(ProjRel, *FPaths::ProjectDir());
+				ProjRel.ReplaceInline(TEXT("\\"), TEXT("/"));
+				const TArray<FString> Importers =
+					FUetkxDriver::ImportersOf(ProjRel, URUICompileCommandlet::DefaultRoots());
+				const FRuiHmrStatus Status = FRuiHmr::ApplyFile(File.UetkxPath, Importers);
 				FMessageLog(MessageLogName).Info(FText::FromString(Status.ToString()));
 				if (Status.Notes.Num() > 0)
 				{

@@ -168,6 +168,26 @@ namespace
 		return false;
 	}
 
+	/** The dependency labels a sidecar recorded (dep_hashes keys) — the resolved imports of a file,
+	 *  the reverse-edge source for the HMR blast radius (M9). */
+	TArray<FString> ReadSidecarDepKeys(const FString& SidecarPath)
+	{
+		TArray<FString> Out;
+		FString Json;
+		TSharedPtr<FJsonObject> Root;
+		if (!FFileHelper::LoadFileToString(Json, *SidecarPath) ||
+			!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Json), Root) || !Root.IsValid())
+		{
+			return Out;
+		}
+		const TSharedPtr<FJsonObject>* Deps = nullptr;
+		if (Root->TryGetObjectField(TEXT("dep_hashes"), Deps))
+		{
+			(*Deps)->Values.GetKeys(Out);
+		}
+		return Out;
+	}
+
 	/** The component names a sidecar recorded (its refs keys) — how a SKIPPED file still
 	 *  contributes to the duplicate-binding check without recompiling. */
 	TArray<FString> ReadSidecarRefs(const FString& SidecarPath)
@@ -596,6 +616,23 @@ FUetkxCheckResult FUetkxDriver::CheckDrift(const TArray<FString>& Roots)
 			Out.Messages.Add(FString::Printf(TEXT("%s: aggregator stale — include set changed"), *Pair.Key));
 		}
 	}
+	return Out;
+}
+
+TArray<FString> FUetkxDriver::ImportersOf(const FString& ProjRelPath, const TArray<FString>& Roots)
+{
+	TArray<FString> Out;
+	for (const FString& Root : Roots)
+	{
+		for (const FString& Path : FindAll(Root))
+		{
+			if (ReadSidecarDepKeys(SidecarPathFor(Path)).Contains(ProjRelPath))
+			{
+				Out.AddUnique(FPaths::GetBaseFilename(Path));
+			}
+		}
+	}
+	Out.Sort();
 	return Out;
 }
 

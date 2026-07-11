@@ -102,6 +102,11 @@ public:
 	 *  not preserve mtimes), no writes. Line endings are normalized before comparing. */
 	static FUetkxCheckResult CheckDrift(const TArray<FString>& Roots);
 
+	/** The import blast radius (M9): the basenames of files under Roots whose recorded dep graph
+	 *  (sidecar v3 dep_hashes) points at ProjRelPath — i.e. the files that import it. Sorted; the
+	 *  watcher names these in the HMR hook/module rebuild note. */
+	static TArray<FString> ImportersOf(const FString& ProjRelPath, const TArray<FString>& Roots);
+
 	/** Fingerprint file check: mismatch/absent -> everything stale (returns true). Call
 	 *  RefreshFingerprint after a clean sweep. */
 	static bool FingerprintMismatch();
