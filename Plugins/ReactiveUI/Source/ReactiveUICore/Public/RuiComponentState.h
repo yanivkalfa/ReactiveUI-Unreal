@@ -65,6 +65,43 @@ public:
 	bool bHookOrderPrimed = false;
 	TSet<FName> DiagWarned; // warn-once keys
 
+	/** The definition-override generation this state last rendered under (HMR). A fiber
+	 *  seeing a NEWER generation with bResetState pending runs a deliberate state reset. */
+	uint32 HmrGeneration = 0;
+
+	/** The HMR hook-shape reset: run effect cleanups, then drop every hook slot so the next
+	 *  render re-initializes (cell destructors release external subscriptions). Scheduling
+	 *  wiring (OnStateUpdated/Fiber) and LastOutput stay — the fiber is still mounted. */
+	void HmrResetHooks()
+	{
+		for (FRuiEffect& Effect : LayoutEffects)
+		{
+			if (Effect.Cleanup)
+			{
+				Effect.Cleanup();
+				Effect.Cleanup = nullptr;
+			}
+		}
+		for (FRuiEffect& Effect : Effects)
+		{
+			if (Effect.Cleanup)
+			{
+				Effect.Cleanup();
+				Effect.Cleanup = nullptr;
+			}
+		}
+		Hooks.Empty();
+		Effects.Empty();
+		LayoutEffects.Empty();
+		ContextDeps.Empty();
+		HookIndex = 0;
+		EffectIndex = 0;
+		LayoutIndex = 0;
+		bHookOrderPrimed = false;
+		HookLog.Reset();
+		HookSignatures.Reset();
+	}
+
 	/** Deliberate full teardown (unmount / HMR hook-shape reset). Cell destructors release
 	 *  external subscriptions (signal cells unsubscribe in ~cell); effects' cleanups must
 	 *  have been run by the reconciler BEFORE this (family order). */

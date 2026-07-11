@@ -49,6 +49,14 @@ public:
 	/** Run any pending work NOW, synchronously and unsliced (tests, HMR, mount surfaces). */
 	void FlushSync();
 
+	/** HMR: mark EVERY function fiber dirty (defeats bailout caches — component definitions
+	 *  may have been swapped under their ComponentIds) and coalesce a re-render. */
+	void HmrRefreshAll();
+
+	/** Every live reconciler (mounted roots register in ctor/dtor) — how HMR reaches the
+	 *  running UIs without plumbing. Game-thread only. */
+	static void ForEachLive(TFunctionRef<void(FRuiReconciler&)> Fn);
+
 	/** Tear down: cleanups, refs nulled, host nodes released, fibers freed. */
 	void Unmount();
 

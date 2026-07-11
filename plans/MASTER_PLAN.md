@@ -886,7 +886,7 @@ distribution, and always opt-in — never a mandatory VM under the shipped UI, p
   decls — UE hooks are plain C++ functions), TD-018 (Godot-repo corpus-mirror PR). Post-write
   parse verification subsumed by CI compiling the committed .inl for real.
 
-### - [ ] Phase 4 — Interpreter + hot reload (`ReactiveUIInterp` + watcher)
+### - [x] Phase 4 — Interpreter + hot reload (`ReactiveUIInterp` + watcher) — DONE 2026-07-11 (battery 48/48 incl. ReactiveUI.Hmr end-to-end: hot-link, interpreted click, state-preserving swap, hook-shape reset, parse-error isolation; owner PIE field-test on the acceptance checklist)
 
 - **Objective:** the headline: save `.uetkx` mid-PIE → UI updates in place <1 s, state preserved
   per the hook-signature rule, honest fallbacks for non-interpretable edits.
@@ -924,7 +924,20 @@ distribution, and always opt-in — never a mandatory VM under the shipped UI, p
 - **Done when:** owner confirms: style edit <1 s state-preserved; structure edit <1 s; hook-shape
   edit resets that component only, with the status line saying so; parse error leaves the old UI
   live.
-- **Status:** NOT STARTED.
+- **Status:** COMPLETE 2026-07-11 (code-complete; the mid-PIE loop itself is the owner's
+  field-test — OWNER_ACCEPTANCE_CHECKLIST). Delivered: FUetkxExprVm (D-20 subset + whitelist
+  registry + Printf/FText/FMath/ctor builtins), FUetkxInterpDef (prepared markup tree, UseState
+  hooks over FRuiValue slots, setup value/setter aliases, setter-call event handlers evaluated
+  at fire time with the `Value` payload, C-style @for/@while/@if/@match, cross-component refs
+  via RUI::Named, fallback notes), FRuiHmr (swap/link/reset/status line; per-file isolation),
+  reconciler seams (RUI::SetComponentOverride consulted in RenderComponent, per-state
+  HmrGeneration + HmrResetHooks, HmrRefreshAll, ForEachLive), RegisterHookSignature ledger,
+  FUetkxWatcher (three triggers + busy/deadman + proof-of-life + MessageLog "ReactiveUI"
+  dedup + resolved line) and rui.Hmr.AutoLiveCoding (default off). Honest limitations recorded:
+  TD-019 (first compiled→interp swap resets — representation change), interp events =
+  setter-calls (others noted "rebuild required"), effects/memo not interpreted, params render
+  defaults under interp. Deferred to later phases per plan: New Component menu + Content
+  Browser UX (Phase 8 bundle, TD-014), URuiSubsystem mount surface (Phase 6).
 
 ### - [ ] Phase 5 — IDE tooling (lsp-server + VS Code + VS2022)
 

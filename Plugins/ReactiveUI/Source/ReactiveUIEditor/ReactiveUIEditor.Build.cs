@@ -25,8 +25,13 @@ public class ReactiveUIEditor : ModuleRules
 			"CoreUObject",		 // commandlet UCLASSes
 			"Engine",			 // UCommandlet base
 			"Projects",			 // sweep roots
-			"ReactiveUIInterp",	 // diagnostics types (via the toolchain's public surface)
+			"ReactiveUIInterp",	 // FRuiHmr (editor-only module — the Interp linkage rule allows it)
 			"ReactiveUIToolchain", // FUetkxDriver / FUetkxCodegen
+			"DirectoryWatcher",	 // watcher trigger 1
+			"Slate",			 // window-activation trigger
+			"SlateCore",
+			"MessageLog",  // the "ReactiveUI" dock listing
+			"LiveCoding",  // optional rui.Hmr.AutoLiveCoding trigger
 		});
 	}
 }

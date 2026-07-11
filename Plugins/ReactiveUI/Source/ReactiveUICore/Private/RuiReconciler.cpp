@@ -19,6 +19,15 @@ DEFINE_LOG_CATEGORY_STATIC(LogRuiReconciler, Log, All);
 
 const TArray<FRuiNode> FRuiReconciler::EmptyChildren;
 
+namespace
+{
+	TArray<FRuiReconciler*>& LiveReconcilers()
+	{
+		static TArray<FRuiReconciler*> Instances;
+		return Instances;
+	}
+} // namespace
+
 FRuiReconciler::FRuiReconciler(IRuiHostConfig& InHost, FRuiHostHandle InRootContainer)
 	: Host(InHost), RootContainer(MoveTemp(InRootContainer))
 {
@@ -26,13 +35,28 @@ FRuiReconciler::FRuiReconciler(IRuiHostConfig& InHost, FRuiHostHandle InRootCont
 	Root->Tag = ERuiFiberTag::Root;
 	Root->Node = RootContainer;
 	RootCurrent = Root;
+	LiveReconcilers().Add(this);
 }
 
 FRuiReconciler::~FRuiReconciler()
 {
+	LiveReconcilers().Remove(this);
 	if (RootCurrent != nullptr)
 	{
 		Unmount();
+	}
+}
+
+void FRuiReconciler::ForEachLive(TFunctionRef<void(FRuiReconciler&)> Fn)
+{
+	// snapshot: Fn may mount/unmount (HMR refresh triggers renders)
+	TArray<FRuiReconciler*> Snapshot = LiveReconcilers();
+	for (FRuiReconciler* Reconciler : Snapshot)
+	{
+		if (LiveReconcilers().Contains(Reconciler))
+		{
+			Fn(*Reconciler);
+		}
 	}
 }
 
@@ -141,6 +165,35 @@ void FRuiReconciler::FlushSync()
 		// Run one full unsliced pass now (tests/HMR/mount surfaces).
 		Tick();
 		(void)bWasSlicing;
+	}
+}
+
+void FRuiReconciler::HmrRefreshAll()
+{
+	if (!RootCurrent)
+	{
+		return;
+	}
+	// Every function fiber goes dirty — a definition may have been swapped under any
+	// ComponentId, and props-equality bailouts would otherwise keep serving stale output.
+	// ScheduleUpdateOnFiber also maintains the ancestor subtree flags + coalesced tick.
+	FRuiFiber* Fiber = RootCurrent;
+	while (Fiber)
+	{
+		if (Fiber->State.IsValid())
+		{
+			ScheduleUpdateOnFiber(Fiber);
+		}
+		if (Fiber->Child)
+		{
+			Fiber = Fiber->Child;
+			continue;
+		}
+		while (Fiber && !Fiber->Sibling)
+		{
+			Fiber = Fiber->Parent;
+		}
+		Fiber = Fiber ? Fiber->Sibling : nullptr;
 	}
 }
 
@@ -363,6 +416,25 @@ void FRuiReconciler::RenderComponent(FRuiFiber* Fiber)
 	TSharedPtr<FRuiComponentState>& State = Fiber->State;
 	check(State.IsValid());
 
+	// HMR: a live definition override for this ComponentId replaces the compiled Invoke; a
+	// new generation with bResetState runs the deliberate hook-shape reset ONCE per state.
+	TSharedPtr<FRuiComponentInvoke> InvokeOverride;
+	{
+		RUI::FRuiComponentOverride Override = RUI::FindComponentOverride(Fiber->ComponentId);
+		if (Override.Invoke.IsValid())
+		{
+			InvokeOverride = Override.Invoke;
+			if (State->HmrGeneration != Override.Generation)
+			{
+				if (Override.bResetState && State->Hooks.Num() > 0)
+				{
+					State->HmrResetHooks(); // hook shape changed: deliberate reset (family rule)
+				}
+				State->HmrGeneration = Override.Generation;
+			}
+		}
+	}
+
 	auto RunOnce = [&]() -> FRuiNodeArray
 	{
 		// _begin
@@ -378,8 +450,9 @@ void FRuiReconciler::RenderComponent(FRuiFiber* Fiber)
 		RUI::SetRendering(true);
 
 		FRuiContext Ctx(State.ToSharedRef(), *Fiber, *this, Host);
-		FRuiNodeArray Result = (*Fiber->Invoke)(Ctx, Fiber->PendingProps.Get(),
-												Fiber->InputChildren.IsValid() ? *Fiber->InputChildren : EmptyChildren);
+		const FRuiComponentInvoke& InvokeFn = InvokeOverride.IsValid() ? *InvokeOverride : *Fiber->Invoke;
+		FRuiNodeArray Result = InvokeFn(Ctx, Fiber->PendingProps.Get(),
+										Fiber->InputChildren.IsValid() ? *Fiber->InputChildren : EmptyChildren);
 
 		// _end
 		RUI::SetRendering(false);

@@ -208,3 +208,16 @@ referenced from plans/PRs.
 - **Production-grade resolution:** open the Godot-repo PR copying the markup-mode/nonBmp case
   sections + the `grammar-contract` sync note; drop this entry when merged.
 - **Status:** OPEN
+
+## TD-019 — Hook-state VALUE migration across the compiled→interp swap
+- **Where:** `ReactiveUICore` hook cells + `ReactiveUIInterp` hook execution
+- **What/why deferred:** compiled components hold TYPED hook cells
+  (`TRuiStateCell<int32>`); the interpreter's cells are `FRuiValue`-typed. The first
+  hot-swap of a compiled component therefore RESETS its state (reported honestly as
+  "first interp swap (representation)"); interp→interp saves preserve. The family does not
+  have this seam (GDScript is engine-interpreted end to end).
+- **Production-grade resolution:** `IRuiHookCell::ExportRuiValue(FRuiValue&)` (specialized
+  via `if constexpr (std::is_constructible_v<FRuiValue, T>)`) + an interp-aware UseState
+  path that migrates an exporting cell's value into the fresh FRuiValue cell when the hook
+  signature matches. Numeric/string/bool/text state would then survive the FIRST save too.
+- **Status:** OPEN
