@@ -1,4 +1,6 @@
-component SimpleCounter {
+import { UseCounter } from "./SimpleCounter.hooks"
+
+export component SimpleCounter {
 	auto [Count, Increment] = UseCounter(0);
 	TFunction<void()> Inc = Increment;
 

@@ -1,6 +1,6 @@
 #include "RuiDemoSupport.h"
 
-component DemoContextPanel(Label: FString = FString(TEXT("Primary Panel"))) {
+export component DemoContextPanel(Label: FString = FString(TEXT("Primary Panel"))) {
 	const FLinearColor Theme = UseContext(RuiDemo::GDemoThemeCtx);
 	return (
 		<Border Padding="10" BorderImage="WhiteBrush" BorderBackgroundColor={ Theme } Slot.Padding="0,6,0,0">

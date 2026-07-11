@@ -1,6 +1,8 @@
 #include "RuiDemoSupport.h"
 
-component SignalCounter {
+import { SignalPanel } from "./components/SignalPanel/SignalPanel"
+
+export component SignalCounter {
 	TSharedRef<TRuiSignal<int32>> Signal = RUI::GetOrCreateSignal<int32>(RuiDemo::GDemoCounterSignal, 0);
 	return (
 		<Border Padding="12" BorderImage="WhiteBrush" BorderBackgroundColor={ FLinearColor(0.02f, 0.02f, 0.03f, 0.85f) } Slot.Padding="0,10,0,0">

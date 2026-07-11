@@ -1,4 +1,4 @@
-component SimpleUseEffect {
+export component SimpleUseEffect {
 	auto [Message, SetMessage] = UseState<FString>(FString(TEXT("Waiting...")));
 	TFunction<void(FString)> Set = SetMessage;
 	UseEffect([Set]() { Set(FString(TEXT("Effect ran!"))); }, RUI::Deps());

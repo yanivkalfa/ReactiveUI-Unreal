@@ -798,14 +798,19 @@ FUetkxPreambleScan FUetkxFileScan::ScanPreamble(const FString& Source)
 			++i;
 			continue;
 		}
+		const int32 DeclStart = i;
 		bool bExported = false;
+		int32 ExportAt = -1;
 		if (FUetkxLexer::KeywordAt(Src, i, TEXT("export")))
 		{
 			bExported = true;
+			ExportAt = i;
 			i = SkipWsOnly(Src, i + 6);
 		}
 		FUetkxPreambleDecl D;
 		D.bExported = bExported;
+		D.ExportAt = ExportAt;
+		D.At = i;
 		int32 KeywordLen = 0;
 		if (FUetkxLexer::KeywordAt(Src, i, TEXT("component")))
 		{
@@ -866,6 +871,10 @@ FUetkxPreambleScan FUetkxFileScan::ScanPreamble(const FString& Source)
 		}
 		if (!D.Name.IsEmpty())
 		{
+			if (Out.FirstDeclAt < 0)
+			{
+				Out.FirstDeclAt = DeclStart;
+			}
 			Out.Decls.Add(MoveTemp(D));
 		}
 		i = Bclose + 1;

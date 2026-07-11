@@ -1,4 +1,4 @@
-component StyledPanels {
+export component StyledPanels {
 	auto [bDim, SetDim] = UseState<bool>(false);
 	auto [Text, SetText] = UseState<FString>(FString(TEXT("type here")));
 	TFunction<void(bool)> SetDimFn = SetDim;

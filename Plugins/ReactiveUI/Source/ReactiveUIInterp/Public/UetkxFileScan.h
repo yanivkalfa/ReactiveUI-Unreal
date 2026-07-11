@@ -137,6 +137,8 @@ struct REACTIVEUIINTERP_API FUetkxPreambleDecl
 	FString Name;
 	EUetkxDeclKind Kind = EUetkxDeclKind::Component;
 	bool bExported = false;
+	int32 At = -1;		// the decl keyword offset (a preceding `export`, if any, is at ExportAt)
+	int32 ExportAt = -1; // the `export` keyword offset when bExported, else -1 (codemod insert point)
 };
 
 /** The result of ScanPreamble: imports + declaration identities in source order, WITHOUT parsing
@@ -146,6 +148,7 @@ struct REACTIVEUIINTERP_API FUetkxPreambleScan
 {
 	TArray<FUetkxImportDecl> Imports;
 	TArray<FUetkxPreambleDecl> Decls;
+	int32 FirstDeclAt = -1; // offset where the first declaration begins (preamble end); -1 = none
 };
 
 /** The (last) top-level markup `return ( ... )` inside a body — the ONE splitter shared by

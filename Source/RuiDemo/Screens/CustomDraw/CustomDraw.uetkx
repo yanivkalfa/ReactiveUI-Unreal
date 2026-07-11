@@ -1,6 +1,6 @@
 #include "RuiDemoSupport.h"
 
-component CustomDraw {
+export component CustomDraw {
 	auto [Sides, SetSides] = UseState<int32>(3);
 	auto [bBlue, SetBlue] = UseState<bool>(true);
 	auto [RedrawTick, SetRedrawTick] = UseState<int32>(0);

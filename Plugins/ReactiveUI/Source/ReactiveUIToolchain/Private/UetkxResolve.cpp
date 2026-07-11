@@ -395,64 +395,65 @@ void FUetkxResolve::Apply(const FUetkxFileScanResult& Scan, const TMap<FString, 
 	// be imported or same-file. Reference set (with offsets) = component tags (from the emitter),
 	// bare Use<Upper>( calls, and `Ident::` module quals.
 	TSet<FString> Referenced;
-	auto Strict = [&](const FString& Name, int32 At)
+	auto Emit2305 = [&](const FString& Name, const FString& Owner, int32 At)
 	{
-		Referenced.Add(Name);
-		if (SameFile.Contains(Name) || ImportedNames.Contains(Name))
+		Add(TEXT("UETKX2305"), 0,
+			FString::Printf(TEXT("`%s` is defined in %s but not imported — add: import { %s } from \"%s\""), *Name,
+							*Resolver.LabelForKey(Owner), *Name, *Resolver.SuggestSpecifier(ImporterPath, Owner)),
+			At, Name.Len());
+	};
+	// Component TAGS are markup-owned: a tag that is not a host element, not same-file, and not
+	// imported MUST resolve to an exported component (2305) or it is broken (2307) — a markup tag
+	// has no ambient/hand-written escape hatch.
+	for (const TPair<FString, int32>& Tag : UseAts)
+	{
+		Referenced.Add(Tag.Key);
+		if (SameFile.Contains(Tag.Key) || ImportedNames.Contains(Tag.Key))
 		{
-			return;
+			continue;
 		}
 		EUetkxDeclKind Kind;
-		const FString Owner = Resolver.FindExporter(Name, Kind);
+		const FString Owner = Resolver.FindExporter(Tag.Key, Kind);
 		if (!Owner.IsEmpty())
 		{
-			Add(TEXT("UETKX2305"), 0,
-				FString::Printf(TEXT("`%s` is defined in %s but not imported — add: import { %s } from \"%s\""), *Name,
-								*Resolver.LabelForKey(Owner), *Name, *Resolver.SuggestSpecifier(ImporterPath, Owner)),
-				At, Name.Len());
+			Emit2305(Tag.Key, Owner, Tag.Value);
 		}
 		else
 		{
 			Add(TEXT("UETKX2307"), 0,
-				FString::Printf(TEXT("`%s` is used like a uetkx component/hook but no file exports it"), *Name), At,
-				Name.Len());
+				FString::Printf(TEXT("`%s` is used like a uetkx component/hook but no file exports it"), *Tag.Key),
+				Tag.Value, Tag.Key.Len());
 		}
-	};
-	for (const TPair<FString, int32>& Tag : UseAts)
-	{
-		Strict(Tag.Key, Tag.Value);
 	}
+	// User hook calls + module quals police EXPORT-TABLE names only (A4): a `Use<Upper>(` call or
+	// `Ident::` qual whose name is exported by a .uetkx file but not imported here is 2305; a name
+	// exported by NO file is ambient (a hand-written header hook / engine namespace) and never
+	// diagnoses — imports address .uetkx targets only.
 	TArray<FExtRef> Refs;
 	for (const FUetkxComponentDecl& D : Scan.Components) { CollectExternalRefs(D.Setup, D.SetupAt, Refs); }
 	for (const FUetkxHookDecl& D : Scan.Hooks) { CollectExternalRefs(D.Body, D.BodyAt, Refs); }
 	for (const FUetkxModuleDecl& D : Scan.Modules) { CollectExternalRefs(D.Body, D.BodyAt, Refs); }
 	for (const FExtRef& R : Refs)
 	{
-		if (R.Kind == FExtRef::EKind::Hook)
+		// A referenced name is USED (for 2304) regardless of whether it resolves — an imported
+		// name that appears here is not unused even if it turns out private/ambient.
+		Referenced.Add(R.Name);
+		EUetkxDeclKind Kind;
+		const FString Owner = Resolver.FindExporter(R.Name, Kind);
+		if (Owner.IsEmpty())
 		{
-			Strict(R.Name, R.At);
+			continue; // exported by no file → ambient (hand-written), not policed
 		}
-		else
+		const EUetkxDeclKind Want = R.Kind == FExtRef::EKind::Hook ? EUetkxDeclKind::Hook : EUetkxDeclKind::Module;
+		if (Kind != Want)
 		{
-			// A module qual only diagnoses when the name IS a module exported somewhere — otherwise
-			// it is a hand-written C++ namespace (ambient, A4) and never polices.
-			EUetkxDeclKind Kind;
-			const FString Owner = Resolver.FindExporter(R.Name, Kind);
-			if (Owner.IsEmpty() || Kind != EUetkxDeclKind::Module)
-			{
-				continue;
-			}
-			Referenced.Add(R.Name);
-			if (SameFile.Contains(R.Name) || ImportedNames.Contains(R.Name))
-			{
-				continue;
-			}
-			Add(TEXT("UETKX2305"), 0,
-				FString::Printf(TEXT("`%s` is defined in %s but not imported — add: import { %s } from \"%s\""),
-								*R.Name, *Resolver.LabelForKey(Owner), *R.Name,
-								*Resolver.SuggestSpecifier(ImporterPath, Owner)),
-				R.At, R.Name.Len());
+			continue; // shape mismatch (e.g. Ident:: that names a component) → not this reference
 		}
+		if (SameFile.Contains(R.Name) || ImportedNames.Contains(R.Name))
+		{
+			continue;
+		}
+		Emit2305(R.Name, Owner, R.At);
 	}
 
 	// 3. Unused imports (2304, warn): an imported name never referenced.
@@ -466,5 +467,64 @@ void FUetkxResolve::Apply(const FUetkxFileScanResult& Scan, const TMap<FString, 
 					Imp.Names[n].Len());
 			}
 		}
+	}
+}
+
+void FUetkxResolve::MissingImports(const FUetkxFileScanResult& Scan, const TSet<FString>& Tags,
+								   const FString& ImporterPath, const IUetkxImportResolver& Resolver,
+								   TMap<FString, TArray<FString>>& OutBySpecifier, TArray<FString>& OutCrossModule)
+{
+	TSet<FString> SameFile;
+	for (const FUetkxComponentDecl& D : Scan.Components) { SameFile.Add(D.Name); }
+	for (const FUetkxHookDecl& D : Scan.Hooks) { SameFile.Add(D.Name); }
+	for (const FUetkxModuleDecl& D : Scan.Modules) { SameFile.Add(D.Name); }
+	TSet<FString> AlreadyImported;
+	for (const FUetkxImportDecl& Imp : Scan.Imports)
+	{
+		for (const FString& Name : Imp.Names)
+		{
+			AlreadyImported.Add(Name);
+		}
+	}
+	TSet<FString> Handled;
+	auto Consider = [&](const FString& Name, bool bModuleQual)
+	{
+		if (SameFile.Contains(Name) || AlreadyImported.Contains(Name) || Handled.Contains(Name))
+		{
+			return;
+		}
+		EUetkxDeclKind Kind;
+		const FString Owner = Resolver.FindExporter(Name, Kind);
+		if (Owner.IsEmpty())
+		{
+			return; // exported by no file — the codemod cannot fix it (2307 stays for the author)
+		}
+		if (bModuleQual && Kind != EUetkxDeclKind::Module)
+		{
+			return; // a hand-written C++ namespace qual, not a module — ambient (A4)
+		}
+		Handled.Add(Name);
+		if (Resolver.CrossesModuleBoundary(ImporterPath, Owner))
+		{
+			OutCrossModule.Add(FString::Printf(TEXT("%s -> %s"), *Name, *Resolver.LabelForKey(Owner)));
+			return; // never auto-written (2308) — surfaces the real ownership decision
+		}
+		OutBySpecifier.FindOrAdd(Resolver.SuggestSpecifier(ImporterPath, Owner)).AddUnique(Name);
+	};
+	for (const FString& Tag : Tags)
+	{
+		Consider(Tag, false);
+	}
+	TArray<FExtRef> Refs;
+	for (const FUetkxComponentDecl& D : Scan.Components) { CollectExternalRefs(D.Setup, D.SetupAt, Refs); }
+	for (const FUetkxHookDecl& D : Scan.Hooks) { CollectExternalRefs(D.Body, D.BodyAt, Refs); }
+	for (const FUetkxModuleDecl& D : Scan.Modules) { CollectExternalRefs(D.Body, D.BodyAt, Refs); }
+	for (const FExtRef& R : Refs)
+	{
+		Consider(R.Name, R.Kind == FExtRef::EKind::Module);
+	}
+	for (TPair<FString, TArray<FString>>& Pair : OutBySpecifier)
+	{
+		Pair.Value.Sort();
 	}
 }
