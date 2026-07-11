@@ -12,10 +12,37 @@ markup (same grammar as the siblings' `.guitkx`/`.uitkx`) that **compiles to nat
 shipping builds** and **hot-reloads live in PIE** during development: save the file, see the UI
 update in under a second, no C++ recompile, no script VM in your shipped game.
 
-> **Status: pre-alpha — nothing to install yet.** The repo currently contains the plans, the
-> research corpus, and the Phase 0 production scaffolding (CI, skills, templates, plugin
-> skeleton). Follow progress in [plans/ROADMAP.md](plans/ROADMAP.md) — the living status table —
-> and the detailed execution plan in [plans/MASTER_PLAN.md](plans/MASTER_PLAN.md).
+> **Status: alpha — the core loop works end to end.** The reconciler (23 hooks, all stub-free),
+> 15 wrapped Slate widgets with setter styling, the `.uetkx` compiler (committed codegen +
+> `RUICompile`/drift-gate/contract commandlets), live hot reload mid-session (expression VM +
+> interpreter + editor watcher), the UMG/FieldNotify interop core, and VS Code/VS2022 language
+> tooling are implemented and green under a 52-suite headless battery. The demo gallery's 11
+> screens all compile from `.uetkx`. Open `ReactiveUIUnrealDemo.uproject` (UE 5.6.1+) and press
+> Play. Remaining before v1: the widget-inventory sweep, asset brushes, CommonUI/MVVM plugin
+> layers, docs site — tracked in [plans/ROADMAP.md](plans/ROADMAP.md) and
+> [plans/TECH_DEBT.md](plans/TECH_DEBT.md).
+
+**Quick taste** — `Source/RuiDemo/Screens/SimpleCounter.uetkx` (compiles to the committed
+sibling `.inl`; edit it while the editor runs and the screen hot-swaps in place):
+
+```jsx
+component SimpleCounter {
+	auto [Count, SetCount] = UseState<int32>(0);
+	TFunction<void(int32)> Set = SetCount;
+	const int32 Current = Count;
+
+	return (
+		<VerticalBox>
+			<TextBlock Text={ FText::FromString(FString::Printf(TEXT("Count: %d"), Count)) } />
+			<Button OnClicked={ Set(Current + 1) } ContentPadding="12,4">+</Button>
+		</VerticalBox>
+	);
+}
+```
+
+Reconciler numbers (headless bench, Win64 dev build, 2026-07): mount 1000 leaves ≈ **192 µs**
+median; no-op re-render ≈ **0 µs**; 1-of-1000 targeted update ≈ **149 µs**; 500 keyed rows fully
+reversed ≈ **178 µs**; minimal-move single reorder ≈ **3 µs**.
 
 ## The one-sentence thesis
 

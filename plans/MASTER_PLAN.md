@@ -1089,7 +1089,7 @@ distribution, and always opt-in — never a mandatory VM under the shipped UI, p
   (asset brushes D-17, focus extensions, SListView item-model treatment), TD-012
   (owner-expanded widget batch 2 — WIDGET_INVENTORY.md is the tracker).
 
-### - [ ] Phase 8 — Demos, docs site, benchmarks
+### - [~] Phase 8 — Demos, docs site, benchmarks — PARTIAL 2026-07-11 (demos ARE the 11 compiled .uetkx screens; bench refreshed + README alpha status with real numbers; docs SITE + Inspector tab remain for the owner-review cycle — content/branding decisions sit naturally in the touchpoint block)
 
 - **Objective:** the gallery, the docs, and honest numbers.
 - **Inputs:** family docs sites (shell already scaffolded Phase 0); Godot demo gallery structure;
@@ -1140,7 +1140,14 @@ distribution, and always opt-in — never a mandatory VM under the shipped UI, p
   committed.
 - **Done when:** a newcomer can go install→hello-world→hot-edit in five minutes following only
   the docs (owner or a fresh session validates by literally doing it).
-- **Status:** NOT STARTED.
+- **Status:** PARTIAL 2026-07-11. Done: the demo story (all 11 gallery screens compile from
+  `.uetkx` through the shipped toolchain — the gallery IS the compiled-path demo), bench
+  refresh (mount-1000 ≈ 192µs med / no-op ≈ 0µs / 1-of-1000 ≈ 149µs / keyed-reverse-500 ≈
+  178µs / minimal-move ≈ 3µs — printed in the README), README alpha rewrite (status counts,
+  quick-taste .uetkx sample, honest remaining-work list). Remaining for the owner-review
+  cycle (content/branding decisions): the ReactiveUIUnrealDocs~ site (React/Vite family
+  shell), the Inspector editor tab (flash-on-rerender), store-listing template + media,
+  demo video storyboard. These ride the owner touchpoint block below.
 
 ### - [ ] Owner touchpoint block — ALL deferred field tests + accounts (owner directive 2026-07-11)
 
