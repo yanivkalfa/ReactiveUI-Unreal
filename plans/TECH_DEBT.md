@@ -255,3 +255,19 @@ referenced from plans/PRs.
   layer with its suite (ReactiveUI.CommonUI, the reverse-bridge test), per-class prop maps
   generated from UHT reflection.
 - **Status:** OPEN
+
+## TD-022 — Asset brushes (D-17) + focus extensions + item-model list views
+- **Where:** `ReactiveUISlate` (+ `ReactiveUIUMG` for the GC root)
+- **What/why deferred:** the remaining Phase-7 surface beyond the shipped animation/media
+  hooks: (1) asset brushes — `BorderImage`/`Image` accepting texture/material ASSETS needs
+  the FGCObject brush root keeping UObjects alive while Slate paints them (today: FCoreStyle
+  brush NAMES only); (2) focus extensions — programmatic focus API + focus-path hooks beyond
+  the Phase-2 fences; (3) item-model views (SListView/STileView/STreeView) — the virtualized
+  item-model adapter treatment (WIDGET_INVENTORY.md classifies the full set; TD-012 carries
+  the owner's ALL-runtime-widgets coverage target). The §4 parity LEDGER is otherwise
+  substantially in place (Slate.Events/KeyedReorder, Style.Classes/NodePool, Update tail,
+  Widgets.* — landed with Phases 1-2; custom_draw exercised via the compiled CustomDraw demo).
+- **Production-grade resolution:** each lands as its own production line with suites; asset
+  brushes first (unblocks real-game UIs), then SListView (the family item_list/tree port
+  completes the ledger), then focus.
+- **Status:** OPEN

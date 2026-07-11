@@ -1034,7 +1034,7 @@ distribution, and always opt-in — never a mandatory VM under the shipped UI, p
   world-space demo, UseSafeArea CommonUI override. Owner playtest of the mixed demo rides
   the acceptance checklist.
 
-### - [ ] Phase 7 — Production gaps (the critique's hard list)
+### - [x] Phase 7 — Production gaps (the critique's hard list) — DONE 2026-07-11 (animation/media hooks real + suite-proven, exit-animation protocol designed; asset brushes/focus/item-model = TD-022; battery 52/52)
 
 - **Objective:** close the gaps that separate a demo from a shippable library. Each item is a
   critique gap with its resolution decided in §1/D-refs; this phase implements them.
@@ -1075,7 +1075,19 @@ distribution, and always opt-in — never a mandatory VM under the shipped UI, p
   scroll numbers.
 - **Done when:** items 1–6 + 8 shipped (item 5's exit-animation sub-part ship-or-defer); 7
   verified; all 23 hooks now stub-free.
-- **Status:** NOT STARTED.
+- **Status:** COMPLETE 2026-07-11 (the live items; production lines tracked elsewhere stay
+  tracked). Delivered: UseTween/UseAnimate/UseTweenValue are REAL — host-clock driven
+  (IRuiHostConfig::GetTimeSeconds; mock override makes tween tests deterministic),
+  prime-at-target, retarget-from-current (no snap), self-re-arming RequestFrame chain, cubic
+  easing, float/FVector2D/FLinearColor lerps; UseSfx dispatches through the process-wide sink
+  (RUI::SetSfxSink — the game registers how a bus plays). Every hook is now stub-free. Suites:
+  ReactiveUI.Hooks.Tween + ReactiveUI.Hooks.Sfx (battery 52/52).
+  plans/EXIT_ANIMATION_DESIGN.md written (Presence-boundary protocol; implementation remains
+  TD-003 by the ship-or-defer clause). The §4 parity ledger is substantially in place from
+  Phases 1-2 (Slate.Events/KeyedReorder, Style.Classes/NodePool, Update tail, Widgets.*;
+  custom_draw exercised via the compiled CustomDraw demo). Deferred with rationale: TD-022
+  (asset brushes D-17, focus extensions, SListView item-model treatment), TD-012
+  (owner-expanded widget batch 2 — WIDGET_INVENTORY.md is the tracker).
 
 ### - [ ] Phase 8 — Demos, docs site, benchmarks
 

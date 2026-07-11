@@ -348,30 +348,99 @@ public:
 		return Out;
 	}
 
-	// ── phase-owned stubs (fully wired before the ship gate; owners per MASTER_PLAN) ──
+	// ── animation (Phase 7) ───────────────────────────────────────────────────────────
 
-	/** UseTween/UseAnimate: adapter setter-table drive lands in Phase 7 step 5. */
-	template <typename... TArgs> void UseTween(TArgs&&...)
+	/**
+	 * Animate towards Target, re-rendering every frame until settled (a self-re-arming
+	 * RequestFrame chain — the Suspense poll-driver pattern). Retargeting mid-flight starts
+	 * from the CURRENT value (no snap). First render primes at Target (no mount animation;
+	 * use UseAnimate for enter transitions). Time comes from the host clock (deterministic
+	 * under the mock host).
+	 */
+	template <typename T> T UseTweenValue(const T& Target, float DurationSec = 0.25f, ERuiEase Ease = ERuiEase::InOut)
 	{
-		StubSlot(ERuiHookKind::Tween, TEXT("UseTween"), TEXT("Phase 7 step 5"));
-	}
-	template <typename... TArgs> void UseAnimate(TArgs&&...)
-	{
-		StubSlot(ERuiHookKind::Animate, TEXT("UseAnimate"), TEXT("Phase 7 step 5"));
-	}
-	template <typename... TArgs> void UseTweenValue(TArgs&&...)
-	{
-		StubSlot(ERuiHookKind::TweenValue, TEXT("UseTweenValue"), TEXT("Phase 7 step 5"));
+		return TweenSlot<T>(ERuiHookKind::TweenValue, Target, DurationSec, Ease);
 	}
 
-	/** UseSfx: world-context glue lands in Phase 7 step 5 (ReactiveUIUMG). */
-	FRuiCallback UseSfx(FName /*Bus*/ = NAME_None)
+	/** Float convenience over UseTweenValue. */
+	float UseTween(float Target, float DurationSec = 0.25f, ERuiEase Ease = ERuiEase::InOut)
 	{
-		StubSlot(ERuiHookKind::Sfx, TEXT("UseSfx"), TEXT("Phase 7 step 5"));
-		return FRuiCallback();
+		return TweenSlot<float>(ERuiHookKind::Tween, Target, DurationSec, Ease);
+	}
+
+	/** 0..1 progress towards bIn — the enter/exit-animation driver. */
+	float UseAnimate(bool bIn, float DurationSec = 0.25f, ERuiEase Ease = ERuiEase::InOut)
+	{
+		return TweenSlot<float>(ERuiHookKind::Animate, bIn ? 1.0f : 0.0f, DurationSec, Ease);
+	}
+
+	/**
+	 * A play-sound callback for a named bus. Dispatch goes through the process-wide sfx sink
+	 * (RUI::SetSfxSink) — the game registers HOW to play (world context, audio assets); an
+	 * unset sink is a quiet no-op. The callback payload rides through to the sink.
+	 */
+	FRuiCallback UseSfx(FName Bus = NAME_None)
+	{
+		Record(ERuiHookKind::Sfx);
+		const int32 i = State.HookIndex++;
+		if (i >= State.Hooks.Num())
+		{
+			State.Hooks.Emplace(MakeUnique<FRuiMarkerCell>(ERuiHookKind::Sfx));
+		}
+		return FRuiCallback::Create([Bus](const FRuiValue& Payload) { RUI::DispatchSfx(Bus, Payload); });
 	}
 
 	// ── signals (UseSignal/UseSignalKey live in RuiSignal.h as templates over this) ───
+
+	/** \internal — the shared tween slot: prime → retarget-from-current → ease → re-arm. */
+	template <typename T> T TweenSlot(ERuiHookKind Kind, const T& Target, float DurationSec, ERuiEase Ease)
+	{
+		Record(Kind);
+		const int32 i = State.HookIndex++;
+		if (i >= State.Hooks.Num())
+		{
+			TUniquePtr<TRuiTweenCell<T>> Cell = MakeUnique<TRuiTweenCell<T>>(Kind);
+			Cell->From = Target;
+			Cell->To = Target;
+			Cell->Current = Target; // prime at target — no mount animation
+			State.Hooks.Emplace(MoveTemp(Cell));
+		}
+		TRuiTweenCell<T>* Cell = static_cast<TRuiTweenCell<T>*>(State.Hooks[i].Get());
+		const double Now = Host.GetTimeSeconds();
+		if (!(Cell->To == Target))
+		{
+			Cell->From = Cell->Current; // retarget mid-flight: continue from where we are
+			Cell->To = Target;
+			Cell->StartTime = Now;
+			Cell->Duration = FMath::Max(DurationSec, 0.0001f);
+			Cell->bActive = true;
+		}
+		if (Cell->bActive)
+		{
+			const float Progress =
+				FMath::Clamp(static_cast<float>((Now - Cell->StartTime) / Cell->Duration), 0.0f, 1.0f);
+			Cell->Current = RUI::LerpTween(Cell->From, Cell->To, RUI::ApplyEase(Ease, Progress));
+			if (Progress >= 1.0f)
+			{
+				Cell->Current = Cell->To;
+				Cell->bActive = false;
+			}
+			else
+			{
+				// self-re-arming frame chain: one coalesced re-render per frame while animating
+				TWeakPtr<FRuiComponentState> Weak = StateWeak();
+				Host.RequestFrame(
+					[Weak]()
+					{
+						if (TSharedPtr<FRuiComponentState> Live = Weak.Pin())
+						{
+							Live->NotifyStateUpdated();
+						}
+					});
+			}
+		}
+		return Cell->Current;
+	}
 
 	/** \internal — signal hook plumbing (see RuiSignal.h). */
 	template <typename TCell, typename... TCellArgs> TCell* AcquireCell(ERuiHookKind Kind, TCellArgs&&... Args)
