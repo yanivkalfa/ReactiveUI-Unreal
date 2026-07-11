@@ -12,6 +12,7 @@
 #include "Serialization/JsonWriter.h"
 #include "UetkxConfig.h"
 #include "UetkxLexer.h"
+#include "UetkxResolve.h"
 #include "UetkxToolchainLog.h"
 
 namespace
@@ -252,7 +253,7 @@ bool FUetkxDriver::IsStale(const FString& UetkxPath)
 	return SrcHash(Source) != SidecarHash;
 }
 
-FUetkxFileResult FUetkxDriver::CompileFile(const FString& UetkxPath, bool bForce)
+FUetkxFileResult FUetkxDriver::CompileFile(const FString& UetkxPath, bool bForce, const IUetkxImportResolver* Resolver)
 {
 	FUetkxFileResult Out;
 	Out.UetkxPath = UetkxPath;
@@ -276,7 +277,8 @@ FUetkxFileResult FUetkxDriver::CompileFile(const FString& UetkxPath, bool bForce
 	}
 	const FString Basename = FPaths::GetBaseFilename(UetkxPath);
 	const uint32 Hash = SrcHash(Source);
-	FUetkxCompileOutput Compiled = FUetkxCodegen::CompileSource(Source, Basename, ProjectRelPathFor(UetkxPath));
+	FUetkxCompileOutput Compiled =
+		FUetkxCodegen::CompileSource(Source, Basename, ProjectRelPathFor(UetkxPath), Resolver);
 	Out.Diags = Compiled.Diags;
 	Out.ComponentNames = Compiled.ComponentNames;
 	Out.ExportedNames = Compiled.ExportedNames;
@@ -466,6 +468,7 @@ FUetkxCheckResult FUetkxDriver::CheckDrift(const TArray<FString>& Roots)
 	}
 	Out.Total = All.Num();
 	TMap<FString, FString> NameToFile; // duplicate-binding ledger (UETKX2106)
+	const FUetkxFsResolver Resolver(FPaths::ProjectDir(), Roots, /*bFixtureMode*/ false); // strict resolution
 	for (const FString& Path : All)
 	{
 		FString Source;
@@ -476,7 +479,7 @@ FUetkxCheckResult FUetkxDriver::CheckDrift(const TArray<FString>& Roots)
 			continue;
 		}
 		const FUetkxCompileOutput Compiled =
-			FUetkxCodegen::CompileSource(Source, FPaths::GetBaseFilename(Path), ProjectRelPathFor(Path));
+			FUetkxCodegen::CompileSource(Source, FPaths::GetBaseFilename(Path), ProjectRelPathFor(Path), &Resolver);
 		for (const FString& Name : Compiled.ExportedNames)
 		{
 			if (const FString* Incumbent = NameToFile.Find(Name))
@@ -564,9 +567,12 @@ FUetkxSweepResult FUetkxDriver::CompileAllRoots(const TArray<FString>& Roots, bo
 	Out.Total = All.Num();
 	bool bAnyHeld = false;
 	TMap<FString, FString> NameToFile; // SINGLE exported-name ledger across ALL roots (UETKX2106, A5e)
+	// STRICT enforcement (A1): the compiler resolves imports over the sweep roots. Migrated files
+	// resolve clean; a broken import fails the file (its .inl is deleted) — strict day one.
+	const FUetkxFsResolver Resolver(FPaths::ProjectDir(), Roots, /*bFixtureMode*/ false);
 	for (const FString& Path : All)
 	{
-		FUetkxFileResult R = CompileFile(Path, bForce || bFingerprintStale);
+		FUetkxFileResult R = CompileFile(Path, bForce || bFingerprintStale, &Resolver);
 		for (const FString& Name : R.ExportedNames)
 		{
 			if (const FString* Incumbent = NameToFile.Find(Name))

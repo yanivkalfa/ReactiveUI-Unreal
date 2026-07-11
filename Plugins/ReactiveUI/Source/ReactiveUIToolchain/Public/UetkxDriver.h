@@ -15,6 +15,8 @@
 #include "CoreMinimal.h"
 #include "UetkxCodegen.h"
 
+class IUetkxImportResolver;
+
 struct REACTIVEUITOOLCHAIN_API FUetkxFileResult
 {
 	bool bOk = false;
@@ -61,7 +63,8 @@ public:
 	/** Compile one file: writes the .inl on success (deletes it on failure — stale output
 	 *  must never run) and the sidecar ALWAYS (unless payload-identical). bForce skips the
 	 *  staleness check. */
-	static FUetkxFileResult CompileFile(const FString& UetkxPath, bool bForce = false);
+	static FUetkxFileResult CompileFile(const FString& UetkxPath, bool bForce = false,
+									   const IUetkxImportResolver* Resolver = nullptr);
 
 	/** True when UetkxPath needs a compile (missing/older .inl; error verdicts honored). */
 	static bool IsStale(const FString& UetkxPath);
