@@ -2,6 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
   "name": "UETKX",
   "scopeName": "source.uetkx",
+  "fileTypes": ["uetkx"],
   "comment": "Ported from the Unity sibling's uitkx grammar architecture: NO source.cpp embed — a hand-rolled C++ mini-tokenizer (#expression-content) with distinct scopes, markup↔code mutual recursion (#code-block-body), and anti-runaway guards ((?<==)\\{ attr lookbehind, strings-first ordering, (?<![=!<])> tag end). Divergence from the sibling: element vs component tags split STATICALLY (our host vocabulary is closed — 15 names, pinned by the schema test) and Use-hooks get their own scope (our hooks are PascalCase, the sibling's are camelCase).",
   "patterns": [
     { "include": "#markup-comment" },
