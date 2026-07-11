@@ -162,6 +162,14 @@ const settle = (ms = 300) => new Promise((r) => setTimeout(r, ms));
   if (!def || !def.uri.endsWith("B.uetkx")) fail("go-to-def did not land in B.uetkx: " + JSON.stringify(defRes.result));
   console.log("go-to-definition OK (import name → exporter file)");
 
+  // tag completion folds in the imported component: `\treturn ( <Badge /> );` — cursor mid-name
+  // at char 14 (`<Bad|ge`) is a tag position
+  const tagWs = await request("textDocument/completion", { textDocument: { uri: aUri }, position: { line: 2, character: 14 } });
+  const tagWsItems = Array.isArray(tagWs.result) ? tagWs.result : (tagWs.result && tagWs.result.items) || [];
+  if (!tagWsItems.some((i) => i.label === "Badge")) fail("tag completion missing imported component Badge: " + JSON.stringify(tagWsItems.map((i) => i.label)));
+  if (!tagWsItems.some((i) => i.label === "VerticalBox")) fail("tag completion dropped host elements when folding in components");
+  console.log("tag completion OK (imported component Badge + host elements)");
+
   // live resolution diagnostic: importing a NON-exported name flags UETKX2301
   const aBadText = 'import { Hidden } from "./B"\ncomponent App {\n\treturn ( <Hidden /> );\n}\n';
   notify("textDocument/didChange", { textDocument: { uri: aUri, version: 2 }, contentChanges: [{ text: aBadText }] });

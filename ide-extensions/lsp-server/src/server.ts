@@ -159,11 +159,33 @@ connection.onCompletion((params): CompletionItem[] => {
   const ctx = classifyCursor(text, cp);
   const schema = schemaOf(doc);
   if (ctx.kind === "tag") {
-    return Object.keys(schema.elements).map((tag) => ({
+    const items: CompletionItem[] = Object.keys(schema.elements).map((tag) => ({
       label: tag,
       kind: CompletionItemKind.Class,
       detail: schema.elements[tag].factory,
     }));
+    // Import intelligence: a component declared in THIS file or imported here is renderable as a
+    // `<Tag>` too — fold those in after the host elements (host names win a collision).
+    const fsPath = fsPathOf(doc);
+    const scan = scanFile(text, path.basename(fsPath, ".uetkx"));
+    const seen = new Set<string>(Object.keys(schema.elements));
+    const addComp = (name: string, detail: string) => {
+      if (seen.has(name)) return;
+      seen.add(name);
+      items.push({ label: name, kind: CompletionItemKind.Class, detail });
+    };
+    for (const c of scan.components) addComp(c.name, "component (this file)");
+    for (const imp of scan.imports) {
+      const key = resolveSpecifier(fsPath, imp.specifier);
+      const decls = key ? getDecls(key) : null;
+      for (const nm of imp.names) {
+        // A resolved import: offer it only when it is (or is presumed) a component; a known hook/
+        // module is not a tag. Unresolved (decls null) → offer it, the author knows their intent.
+        const d = decls?.find((x) => x.name === nm);
+        if (!d || d.kind === "component") addComp(nm, "component (imported)");
+      }
+    }
+    return items;
   }
   if (ctx.kind === "attr") {
     const items: CompletionItem[] = [];
