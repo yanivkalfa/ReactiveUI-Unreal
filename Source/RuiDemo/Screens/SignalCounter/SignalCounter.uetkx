@@ -1,12 +1,5 @@
 #include "RuiDemoSupport.h"
 
-component SignalPanel {
-	const int32 Count = RUI::UseSignalKey<int32>(Ctx, RuiDemo::GDemoCounterSignal, 0);
-	return (
-		<TextBlock Text={ FText::FromString(FString::Printf(TEXT("Count: %d"), Count)) } />
-	);
-}
-
 component SignalCounter {
 	TSharedRef<TRuiSignal<int32>> Signal = RUI::GetOrCreateSignal<int32>(RuiDemo::GDemoCounterSignal, 0);
 	return (

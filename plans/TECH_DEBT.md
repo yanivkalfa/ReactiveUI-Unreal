@@ -196,7 +196,7 @@ referenced from plans/PRs.
 - **Production-grade resolution:** port `_parse_hook_at`/module member loops from guitkx.gd
   into FUetkxFileScan, emit free functions in the `.inl`, corpus + contract fixtures. Do it
   when the docs site (Phase 8) starts teaching cross-family authoring, or on user demand.
-- **Status:** OPEN
+- **Status:** RESOLVED 2026-07-11 — hook/module declarations + one-component-per-file + companion suffixes + refs-topo aggregator shipped on feat/uetkx-compiler (plans/UETKX_DECLARATIONS_PLAN.md; owner field-test directive)
 
 ## TD-018 — Cross-repo grammar-corpus mirroring (Godot follow-up PR)
 - **Where:** `ide-extensions/lsp-server/test-fixtures/uetkx-*.json` ↔ the Godot repo's

@@ -2,22 +2,22 @@
   "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
   "name": "UETKX",
   "scopeName": "source.uetkx",
+  "comment": "Ported from the Unity sibling's uitkx grammar architecture: NO source.cpp embed — a hand-rolled C++ mini-tokenizer (#expression-content) with distinct scopes, markup↔code mutual recursion (#code-block-body), and anti-runaway guards ((?<==)\\{ attr lookbehind, strings-first ordering, (?<![=!<])> tag end). Divergence from the sibling: element vs component tags split STATICALLY (our host vocabulary is closed — 15 names, pinned by the schema test) and Use-hooks get their own scope (our hooks are PascalCase, the sibling's are camelCase).",
   "patterns": [
-    { "include": "#comments" },
+    { "include": "#markup-comment" },
     { "include": "#preprocessor" },
-    { "include": "#componentDecl" },
-    { "include": "#directives" },
-    { "include": "#tags" },
-    { "include": "#exprBlock" },
-    { "include": "#strings" },
-    { "include": "#cppKeywords" },
-    { "include": "#numbers" }
+    { "include": "#component-decl" },
+    { "include": "#hook-decl" },
+    { "include": "#module-decl" },
+    { "include": "#control-flow-with-expression" },
+    { "include": "#control-flow-keyword" },
+    { "include": "#tag-close" },
+    { "include": "#tag-open" },
+    { "include": "#code-block-body" }
   ],
   "repository": {
-    "comments": {
+    "markup-comment": {
       "patterns": [
-        { "name": "comment.line.double-slash.uetkx", "match": "//.*$" },
-        { "name": "comment.block.uetkx", "begin": "/\\*", "end": "\\*/" },
         { "name": "comment.block.html.uetkx", "begin": "<!--", "end": "-->" }
       ]
     },
@@ -26,83 +26,200 @@
       "match": "^\\s*#\\s*(include|pragma|define|if|ifdef|ifndef|endif|else)\\b.*$",
       "captures": { "1": { "name": "keyword.control.directive.uetkx" } }
     },
-    "componentDecl": {
+    "component-decl": {
       "match": "\\b(component)\\s+([A-Za-z_][A-Za-z0-9_]*)",
       "captures": {
-        "1": { "name": "storage.type.component.uetkx" },
+        "1": { "name": "keyword.other.directive.uetkx" },
         "2": { "name": "entity.name.type.component.uetkx" }
       }
     },
-    "directives": {
+    "hook-decl": {
+      "match": "\\b(hook)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+      "captures": {
+        "1": { "name": "keyword.other.hook.uetkx" },
+        "2": { "name": "entity.name.function.hook.uetkx" }
+      }
+    },
+    "module-decl": {
+      "match": "\\b(module)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+      "captures": {
+        "1": { "name": "keyword.other.module.uetkx" },
+        "2": { "name": "entity.name.type.module.uetkx" }
+      }
+    },
+    "control-flow-with-expression": {
+      "name": "meta.control.uetkx",
+      "begin": "(@)(if|elif|for|while|match)\\b\\s*(\\()",
+      "end": "(\\))",
+      "beginCaptures": {
+        "1": { "name": "keyword.control.directive.uetkx" },
+        "2": { "name": "keyword.control.directive.uetkx" },
+        "3": { "name": "punctuation.section.group.begin.uetkx" }
+      },
+      "endCaptures": { "1": { "name": "punctuation.section.group.end.uetkx" } },
+      "patterns": [{ "include": "#expression-content" }]
+    },
+    "control-flow-keyword": {
       "match": "(@)(if|elif|else|for|while|match|case|default)\\b",
       "captures": {
-        "1": { "name": "punctuation.definition.directive.uetkx" },
+        "1": { "name": "keyword.control.directive.uetkx" },
         "2": { "name": "keyword.control.directive.uetkx" }
       }
     },
-    "tags": {
-      "patterns": [
-        {
-          "name": "meta.tag.uetkx",
-          "begin": "(</?)([A-Za-z_][A-Za-z0-9_]*)?",
-          "beginCaptures": {
-            "1": { "name": "punctuation.definition.tag.uetkx" },
-            "2": { "name": "entity.name.tag.uetkx" }
-          },
-          "end": "(/?>)",
-          "endCaptures": { "1": { "name": "punctuation.definition.tag.uetkx" } },
+    "tag-open": {
+      "name": "meta.tag.open.uetkx",
+      "begin": "(<)(?!/)((?:Border|Box|Button|CheckBox|EditableTextBox|HorizontalBox|Image|Overlay|ProgressBar|RuiCanvas|ScrollBox|Slider|Spacer|TextBlock|VerticalBox)\\b|[A-Za-z_][A-Za-z0-9_]*)?",
+      "end": "(/?>)",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.uetkx" },
+        "2": {
           "patterns": [
-            { "include": "#attrComment" },
-            { "include": "#attrExpr" },
-            { "include": "#strings" },
             {
-              "name": "entity.other.attribute-name.uetkx",
-              "match": "[A-Za-z_][A-Za-z0-9_.\\-]*"
-            }
+              "match": "\\b(Border|Box|Button|CheckBox|EditableTextBox|HorizontalBox|Image|Overlay|ProgressBar|RuiCanvas|ScrollBox|Slider|Spacer|TextBlock|VerticalBox)\\b",
+              "name": "entity.name.tag.uetkx"
+            },
+            { "match": "[A-Za-z_][A-Za-z0-9_]*", "name": "support.class.component.uetkx" }
           ]
+        }
+      },
+      "endCaptures": { "1": { "name": "punctuation.definition.tag.end.uetkx" } },
+      "patterns": [{ "include": "#tag-attributes" }]
+    },
+    "tag-close": {
+      "match": "(</)([A-Za-z_][A-Za-z0-9_]*)?\\s*(>)",
+      "captures": {
+        "1": { "name": "punctuation.definition.tag.begin.uetkx" },
+        "2": {
+          "patterns": [
+            {
+              "match": "\\b(Border|Box|Button|CheckBox|EditableTextBox|HorizontalBox|Image|Overlay|ProgressBar|RuiCanvas|ScrollBox|Slider|Spacer|TextBlock|VerticalBox)\\b",
+              "name": "entity.name.tag.uetkx"
+            },
+            { "match": "[A-Za-z_][A-Za-z0-9_]*", "name": "support.class.component.uetkx" }
+          ]
+        },
+        "3": { "name": "punctuation.definition.tag.end.uetkx" }
+      }
+    },
+    "tag-attributes": {
+      "patterns": [
+        { "name": "comment.block.attr.uetkx", "begin": "\\{\\s*/\\*", "end": "\\*/\\s*\\}" },
+        { "include": "#attribute-value-expression" },
+        { "include": "#double-quoted-string" },
+        {
+          "match": "\\b(key|classes)(?=\\s*[={])",
+          "name": "keyword.other.attribute-name.structural.uetkx"
+        },
+        {
+          "match": "\\b(On[A-Z][A-Za-z0-9_]*)(?=\\s*[={])",
+          "name": "entity.other.attribute-name.event.uetkx"
+        },
+        {
+          "match": "\\b(Slot\\.[A-Za-z_][A-Za-z0-9_.]*)(?=\\s*[={])",
+          "name": "entity.other.attribute-name.slot.uetkx"
+        },
+        {
+          "match": "[A-Za-z_][A-Za-z0-9_.\\-]*",
+          "name": "entity.other.attribute-name.uetkx"
         }
       ]
     },
-    "attrComment": {
-      "name": "comment.block.attr.uetkx",
-      "begin": "\\{\\s*/\\*",
-      "end": "\\*/\\s*\\}"
-    },
-    "attrExpr": {
-      "name": "meta.embedded.block.cpp",
-      "begin": "\\{",
+    "attribute-value-expression": {
+      "comment": "Only a { immediately preceded by = is an attribute expression — the lookbehind keeps control-flow braces out (sibling anti-runaway guard).",
+      "begin": "(?<==)\\{",
+      "end": "\\}",
       "beginCaptures": { "0": { "name": "punctuation.section.embedded.begin.uetkx" } },
-      "end": "\\}",
       "endCaptures": { "0": { "name": "punctuation.section.embedded.end.uetkx" } },
-      "patterns": [{ "include": "#braceBalance" }, { "include": "source.cpp" }]
+      "patterns": [{ "include": "#expression-content" }]
     },
-    "exprBlock": {
-      "name": "meta.embedded.block.cpp",
+    "markup-brace": {
+      "comment": "A { ... } inside markup/code — full markup+code recursion so nesting depth never loses coloring.",
       "begin": "\\{",
+      "end": "\\}",
       "beginCaptures": { "0": { "name": "punctuation.section.embedded.begin.uetkx" } },
-      "end": "\\}",
       "endCaptures": { "0": { "name": "punctuation.section.embedded.end.uetkx" } },
-      "patterns": [{ "include": "#braceBalance" }, { "include": "source.cpp" }]
+      "patterns": [{ "include": "#code-block-body" }]
     },
-    "braceBalance": {
-      "name": "meta.embedded.block.cpp",
-      "begin": "\\{",
-      "end": "\\}",
-      "patterns": [{ "include": "#braceBalance" }, { "include": "source.cpp" }]
+    "code-block-body": {
+      "comment": "Content of component/hook/module bodies and directive bodies — expression tokenization PLUS embedded markup (the mutual recursion that keeps both regions distinct).",
+      "patterns": [
+        { "include": "#cpp-line-comment" },
+        { "include": "#cpp-block-comment" },
+        { "include": "#control-flow-with-expression" },
+        { "include": "#control-flow-keyword" },
+        { "include": "#markup-comment" },
+        { "include": "#tag-close" },
+        { "include": "#tag-open" },
+        { "include": "#markup-brace" },
+        { "include": "#expression-content" }
+      ]
     },
-    "strings": {
+    "expression-content": {
+      "comment": "The hand-rolled C++ tokenizer — ordered: comments/strings first, then hooks, keywords, types, numbers, operators, recursion, calls, identifiers.",
+      "patterns": [
+        { "include": "#cpp-line-comment" },
+        { "include": "#cpp-block-comment" },
+        { "include": "#double-quoted-string" },
+        { "include": "#char-literal" },
+        { "include": "#hook-call" },
+        { "include": "#cpp-keywords" },
+        { "include": "#function-call" },
+        { "include": "#cpp-type-name" },
+        { "include": "#numeric-literal" },
+        { "include": "#cpp-operator" },
+        { "include": "#markup-brace" },
+        { "include": "#paren-expression" },
+        { "include": "#identifier" }
+      ]
+    },
+    "cpp-line-comment": { "name": "comment.line.double-slash.uetkx", "match": "//.*$" },
+    "cpp-block-comment": { "name": "comment.block.uetkx", "begin": "/\\*", "end": "\\*/" },
+    "double-quoted-string": {
+      "comment": "Dedicated rule so a } inside a string can never close an embedded block early.",
       "name": "string.quoted.double.uetkx",
       "begin": "\"",
       "end": "\"",
       "patterns": [{ "name": "constant.character.escape.uetkx", "match": "\\\\." }]
     },
-    "cppKeywords": {
-      "match": "\\b(return|auto|const|if|else|for|while|true|false|int32|int64|float|double|bool|void)\\b",
-      "name": "keyword.other.cpp.uetkx"
+    "char-literal": {
+      "name": "string.quoted.single.uetkx",
+      "match": "'(\\\\.|[^'\\\\])'"
     },
-    "numbers": {
+    "hook-call": {
+      "comment": "Use-hooks get a distinct scope (ours are PascalCase — a plain type rule would swallow them).",
+      "match": "\\b(Use[A-Z][A-Za-z0-9_]*|ProvideContext)\\b",
+      "name": "support.function.hook.uetkx"
+    },
+    "cpp-keywords": {
+      "match": "\\b(auto|const|constexpr|static|inline|return|if|else|for|while|switch|case|break|continue|default|true|false|nullptr|new|delete|void|bool|char|int|struct|class|enum|namespace|using|template|typename|this|virtual|override|public|private|protected|int8|int16|int32|int64|uint8|uint16|uint32|uint64|float|double|TEXT|INVTEXT|NSLOCTEXT|MoveTemp|Forward)\\b",
+      "name": "keyword.control.uetkx"
+    },
+    "cpp-type-name": {
+      "match": "\\b[A-Z][A-Za-z0-9_]*\\b",
+      "name": "entity.name.type.uetkx"
+    },
+    "numeric-literal": {
       "match": "\\b[0-9]+(\\.[0-9]+)?f?\\b",
       "name": "constant.numeric.uetkx"
+    },
+    "cpp-operator": {
+      "match": "->|::|\\+\\+|--|&&|\\|\\||[+\\-*/%!<>=&|^~?:]",
+      "name": "keyword.operator.uetkx"
+    },
+    "paren-expression": {
+      "begin": "\\(",
+      "end": "\\)",
+      "beginCaptures": { "0": { "name": "punctuation.section.group.begin.uetkx" } },
+      "endCaptures": { "0": { "name": "punctuation.section.group.end.uetkx" } },
+      "patterns": [{ "include": "#code-block-body" }]
+    },
+    "function-call": {
+      "match": "\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()",
+      "name": "entity.name.function.uetkx"
+    },
+    "identifier": {
+      "match": "\\b[a-z_][A-Za-z0-9_]*\\b",
+      "name": "variable.other.uetkx"
     }
   }
 }

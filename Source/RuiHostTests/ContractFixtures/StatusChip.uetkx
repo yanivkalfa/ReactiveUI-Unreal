@@ -1,0 +1,7 @@
+component StatusChip(Label: FString = FString(TEXT("ok"))) {
+	return (
+		<Border Padding="4" BorderImage="WhiteBrush">
+			<TextBlock Text={ FText::FromString(Label) } />
+		</Border>
+	);
+}

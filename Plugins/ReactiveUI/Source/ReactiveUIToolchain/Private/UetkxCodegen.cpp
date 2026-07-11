@@ -159,12 +159,118 @@ namespace
 		return Out;
 	}
 
+	/** Hook auto-prefix over verbatim C++ (shared by component setup/exprs AND `hook` decl
+	 *  bodies): bare BUILT-IN hook calls become Ctx.-qualified; bare USER hook calls
+	 *  (`Use<Upper>...` not in the built-in table, incl. `NS::Use...`) get `Ctx` injected as
+	 *  their first argument — user hooks are plain functions taking FRuiContext& first (the
+	 *  documented divergence from Unity's ambient statics). Member access (`.`/`->`) blocks
+	 *  both transforms. */
+	FString PrefixHookCalls(const FString& Code)
+	{
+		const TArray<int32> Src = FUetkxLexer::ToCodePoints(Code);
+		FString Out;
+		int32 i = 0;
+		const int32 N = Src.Num();
+		while (i < N)
+		{
+			const int32 j = FUetkxLexer::SkipNoncode(Src, i);
+			if (j != i)
+			{
+				Out += FUetkxLexer::FromCodePoints(Src, i, j - i);
+				i = j;
+				continue;
+			}
+			// member/scope access scan-back, shared by both branches
+			auto ScanBack = [&Src](int32 From, bool& bOutMember, bool& bOutScope)
+			{
+				bOutMember = false;
+				bOutScope = false;
+				for (int32 k = From - 1; k >= 0; --k)
+				{
+					const int32 P = Src[k];
+					if (P == ' ' || P == '\t')
+					{
+						continue;
+					}
+					bOutMember = (P == '.') || (P == '>' && k > 0 && Src[k - 1] == '-');
+					bOutScope = (P == ':');
+					break;
+				}
+			};
+			bool bMatched = false;
+			const bool bWordStart = (i == 0) || !FUetkxLexer::IsIdentCode(Src[i - 1]);
+			if (bWordStart && (Src[i] == 'U' || Src[i] == 'P'))
+			{
+				for (const FString& Hook : FUetkxFileScan::HookNames())
+				{
+					// UseSignal/UseSignalKey are RUI:: free functions taking Ctx as an
+					// argument — never Ctx.-prefixable (authors write the qualified form).
+					if (Hook == TEXT("UseSignal") || Hook == TEXT("UseSignalKey"))
+					{
+						continue;
+					}
+					if (FUetkxLexer::KeywordAt(Src, i, *Hook))
+					{
+						bool bMember = false, bScope = false;
+						ScanBack(i, bMember, bScope);
+						if (!bMember && !bScope)
+						{
+							Out += TEXT("Ctx.");
+						}
+						Out += Hook;
+						i += Hook.Len();
+						bMatched = true;
+						break;
+					}
+				}
+			}
+			// user hook: Use<Upper>… + not built-in + call syntax → inject Ctx as first arg
+			if (!bMatched && bWordStart && i + 3 < N && Src[i] == 'U' && Src[i + 1] == 's' && Src[i + 2] == 'e' &&
+				Src[i + 3] >= 'A' && Src[i + 3] <= 'Z')
+			{
+				int32 e = i;
+				while (e < N && FUetkxLexer::IsIdentCode(Src[e]))
+				{
+					++e;
+				}
+				const FString Ident = FUetkxLexer::FromCodePoints(Src, i, e - i);
+				bool bMember = false, bScope = false;
+				ScanBack(i, bMember, bScope);
+				int32 p = e;
+				while (p < N && (Src[p] == ' ' || Src[p] == '\t'))
+				{
+					++p;
+				}
+				if (!FUetkxFileScan::HookNames().Contains(Ident) && !bMember && p < N && Src[p] == '(')
+				{
+					int32 q = p + 1;
+					while (q < N && (Src[q] == ' ' || Src[q] == '\t' || Src[q] == '\n' || Src[q] == '\r'))
+					{
+						++q;
+					}
+					const bool bEmptyArgs = (q < N && Src[q] == ')');
+					Out += Ident;
+					Out += bEmptyArgs ? TEXT("(Ctx") : TEXT("(Ctx, ");
+					i = p + 1;
+					bMatched = true;
+				}
+			}
+			if (!bMatched)
+			{
+				Out += FUetkxLexer::FromCodePoints(Src, i, 1);
+				++i;
+			}
+		}
+		return Out;
+	}
+
 	/** The one emitter (per component). */
 	class FEmitter
 	{
 	public:
-		FEmitter(const FString& InBasename, const FUetkxComponentDecl& InDecl, TArray<FUetkxDiag>& InDiags)
-			: Basename(InBasename), Decl(InDecl), Diags(InDiags)
+		FEmitter(const FString& InBasename, const FUetkxComponentDecl& InDecl, TArray<FUetkxDiag>& InDiags,
+				 TSet<FString>& InUses)
+			: Basename(InBasename), Decl(InDecl), Diags(InDiags), Uses(InUses)
 		{
 		}
 
@@ -189,67 +295,9 @@ namespace
 								   ++TextKeyCounter, *CppStringLiteral(Value));
 		}
 
-		/** Hook auto-prefix: bare hook calls (UseState, ProvideContext, ...) become Ctx.-
-		 *  qualified (word boundary, not after `.`, `->`, `::`). Everything else verbatim. */
-		FString PrefixHooks(const FString& Code)
-		{
-			const TArray<int32> Src = FUetkxLexer::ToCodePoints(Code);
-			FString Out;
-			int32 i = 0;
-			const int32 N = Src.Num();
-			while (i < N)
-			{
-				const int32 j = FUetkxLexer::SkipNoncode(Src, i);
-				if (j != i)
-				{
-					Out += FUetkxLexer::FromCodePoints(Src, i, j - i);
-					i = j;
-					continue;
-				}
-				bool bMatched = false;
-				if (Src[i] == 'U' || Src[i] == 'P')
-				{
-					for (const FString& Hook : FUetkxFileScan::HookNames())
-					{
-						// UseSignal/UseSignalKey are RUI:: free functions taking Ctx as an
-						// argument — never Ctx.-prefixable (authors write the qualified form).
-						if (Hook == TEXT("UseSignal") || Hook == TEXT("UseSignalKey"))
-						{
-							continue;
-						}
-						if (FUetkxLexer::KeywordAt(Src, i, *Hook))
-						{
-							// not after member/scope access
-							bool bQualified = false;
-							for (int32 k = i - 1; k >= 0; --k)
-							{
-								const int32 P = Src[k];
-								if (P == ' ' || P == '\t')
-								{
-									continue;
-								}
-								bQualified = (P == '.') || (P == ':') || (P == '>' && k > 0 && Src[k - 1] == '-');
-								break;
-							}
-							if (!bQualified)
-							{
-								Out += TEXT("Ctx.");
-							}
-							Out += Hook;
-							i += Hook.Len();
-							bMatched = true;
-							break;
-						}
-					}
-				}
-				if (!bMatched)
-				{
-					Out += FUetkxLexer::FromCodePoints(Src, i, 1);
-					++i;
-				}
-			}
-			return Out;
-		}
+		/** Hook auto-prefix (built-in → Ctx.*, user hooks → Ctx first arg) — the shared
+		 *  PrefixHookCalls; kept as a member name so call sites read unchanged. */
+		FString PrefixHooks(const FString& Code) { return PrefixHookCalls(Code); }
 
 		/** An embedded expression: rewrite nested markup ranges (jsx scan) to element exprs. */
 		FString EmitExpr(const FString& Expr, int32 AbsAt)
@@ -306,6 +354,7 @@ namespace
 		const FString& Basename;
 		const FUetkxComponentDecl& Decl;
 		TArray<FUetkxDiag>& Diags;
+		TSet<FString>& Uses; // component tags this component references (aggregator topo order)
 		int32 TextKeyCounter = 0;
 		bool bError = false;
 	};
@@ -361,6 +410,10 @@ namespace
 		{
 			Fail(TEXT("UETKX0105"), FString::Printf(TEXT("unknown tag <%s>"), *Node.Tag), AbsAt + Node.At);
 			return FString(TEXT("FRuiNode()"));
+		}
+		if (bComponent)
+		{
+			Uses.Add(Node.Tag);
 		}
 
 		// TextBlock special case: single Text attr routes through the factory directly.
@@ -790,9 +843,45 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 	}
 	Inl += TEXT("\n");
 
+	// Support file: hooks emit as inline free functions taking FRuiContext& first (built-in
+	// calls in the body Ctx.-prefixed, nested user hooks Ctx-injected); modules emit VERBATIM
+	// inside a namespace. Both are plain C++ — no markup, no registration, no hook signature.
+	if (Scan.IsSupportFile())
+	{
+		for (const FUetkxHookDecl& Hook : Scan.Hooks)
+		{
+			const FString Ret = Hook.Ret.IsEmpty() ? FString(TEXT("void")) : Hook.Ret;
+			Inl += FString::Printf(TEXT("inline %s %s(FRuiContext& Ctx%s%s)\n{\n"), *Ret, *Hook.Name,
+								   Hook.Params.IsEmpty() ? TEXT("") : TEXT(", "), *Hook.Params);
+			const FString Body = PrefixHookCalls(Hook.Body.TrimStartAndEnd());
+			if (!Body.IsEmpty())
+			{
+				Inl += TEXT("\t") + Body.Replace(TEXT("\n"), TEXT("\n\t")) + TEXT("\n");
+			}
+			Inl += TEXT("}\n\n");
+			Out.ComponentNames.Add(Hook.Name);
+		}
+		for (const FUetkxModuleDecl& Module : Scan.Modules)
+		{
+			Inl += FString::Printf(TEXT("namespace %s\n{\n"), *Module.Name);
+			const FString Body = Module.Body.TrimStartAndEnd();
+			if (!Body.IsEmpty())
+			{
+				Inl += TEXT("\t") + Body.Replace(TEXT("\n"), TEXT("\n\t")) + TEXT("\n");
+			}
+			Inl += FString::Printf(TEXT("} // namespace %s\n\n"), *Module.Name);
+			Out.ComponentNames.Add(Module.Name);
+		}
+		Out.bSupportFile = true;
+		Out.bOk = true;
+		Out.Inl = MoveTemp(Inl);
+		return Out;
+	}
+
+	TSet<FString> Uses;
 	for (const FUetkxComponentDecl& Decl : Scan.Components)
 	{
-		FEmitter Emitter(Basename, Decl, Out.Diags);
+		FEmitter Emitter(Basename, Decl, Out.Diags, Uses);
 		const FString Body = Emitter.Emit();
 		if (Emitter.HasError())
 		{
@@ -805,6 +894,13 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 			Out.HookSig = FUetkxFileScan::HookSignature(Decl.HookCalls);
 		}
 	}
+	// a component never depends on ITSELF for ordering (recursion is legal in one TU)
+	for (const FString& Name : Out.ComponentNames)
+	{
+		Uses.Remove(Name);
+	}
+	Out.Uses = Uses.Array();
+	Out.Uses.Sort();
 	Out.bOk = true;
 	Out.Inl = MoveTemp(Inl);
 	return Out;

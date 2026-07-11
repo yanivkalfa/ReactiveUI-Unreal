@@ -41,11 +41,21 @@ namespace
 	}
 
 	FString SerializeSidecar(uint32 SrcHash, const TArray<FUetkxDiag>& Diags, const TArray<FString>& ComponentNames,
-							 const FString& InlName)
+							 const FString& InlName, const TArray<FString>& Uses, bool bSupportFile)
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		Root->SetNumberField(TEXT("v"), 2);
 		Root->SetNumberField(TEXT("src_hash"), static_cast<double>(SrcHash));
+		// Optional (schema-v2-compatible) ordering fields: which components this file's markup
+		// REFERENCES + whether it is a hook/module support file. BuildAggregators reads these
+		// to order #includes (direct component calls need callee-before-caller in the TU).
+		Root->SetStringField(TEXT("kind"), bSupportFile ? TEXT("support") : TEXT("component"));
+		TArray<TSharedPtr<FJsonValue>> UsesArray;
+		for (const FString& Use : Uses)
+		{
+			UsesArray.Add(MakeShared<FJsonValueString>(Use));
+		}
+		Root->SetArrayField(TEXT("uses"), UsesArray);
 		TArray<TSharedPtr<FJsonValue>> DiagArray;
 		for (const FUetkxDiag& Diag : Diags)
 		{
@@ -133,6 +143,37 @@ namespace
 	bool IsContractFixturePath(const FString& Path)
 	{
 		return Path.Replace(TEXT("\\"), TEXT("/")).Contains(TEXT("/ContractFixtures/"));
+	}
+
+	/** A sidecar's ordering fields (absent on pre-uses sidecars → component kind, no uses). */
+	void ReadSidecarOrdering(const FString& SidecarPath, bool& bOutSupport, TArray<FString>& OutUses)
+	{
+		bOutSupport = false;
+		OutUses.Reset();
+		FString Json;
+		if (!FFileHelper::LoadFileToString(Json, *SidecarPath))
+		{
+			return;
+		}
+		TSharedPtr<FJsonObject> Root;
+		const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Json);
+		if (!FJsonSerializer::Deserialize(Reader, Root) || !Root.IsValid())
+		{
+			return;
+		}
+		FString Kind;
+		if (Root->TryGetStringField(TEXT("kind"), Kind))
+		{
+			bOutSupport = (Kind == TEXT("support"));
+		}
+		const TArray<TSharedPtr<FJsonValue>>* Uses = nullptr;
+		if (Root->TryGetArrayField(TEXT("uses"), Uses))
+		{
+			for (const TSharedPtr<FJsonValue>& Value : *Uses)
+			{
+				OutUses.Add(Value->AsString());
+			}
+		}
 	}
 } // namespace
 
@@ -251,7 +292,8 @@ FUetkxFileResult FUetkxDriver::CompileFile(const FString& UetkxPath, bool bForce
 								   /*Quiet*/ true);
 	}
 	WriteIfChanged(SidecarPathFor(UetkxPath),
-				   SerializeSidecar(Hash, Out.Diags, Compiled.ComponentNames, FPaths::GetCleanFilename(Out.InlPath)));
+				   SerializeSidecar(Hash, Out.Diags, Compiled.ComponentNames, FPaths::GetCleanFilename(Out.InlPath),
+									Compiled.Uses, Compiled.bSupportFile));
 	return Out;
 }
 
@@ -322,9 +364,71 @@ TMap<FString, FString> FUetkxDriver::BuildAggregators(const TArray<FString>& Uet
 		Contents += TEXT("#include \"RuiSignal.h\"\n");
 		Contents += TEXT("#include \"RuiSlateElements.h\"\n");
 		Contents += TEXT("#include \"RuiStyle.h\"\n\n");
+		// Include ORDER is load-bearing: component tags lower to DIRECT calls, so a cross-file
+		// <Sub/> needs Sub's .inl earlier in this TU (C++ declaration order; C# has no such
+		// constraint — documented divergence). Order: support files (hooks/modules — callees of
+		// everything) alphabetically first, then components topo-sorted by their sidecar `uses`
+		// (Kahn, alphabetical tie-break). A cross-file reference cycle cannot compile as direct
+		// calls in any order — surfaced by RUICompile as UETKX2107 (CompileAll); here the cycle
+		// remainder appends alphabetically so the aggregator stays deterministic.
 		TArray<FString> Sorted = Pair.Value;
-		Sorted.Sort(); // deterministic; cross-component refs must respect alphabetical order (v1)
+		Sorted.Sort();
+		TArray<FString> Supports, Components;
+		TMap<FString, TArray<FString>> UsesByPath; // path -> component names it references
+		TMap<FString, FString> OwnerOfName;		   // component name -> defining path
 		for (const FString& Uetkx : Sorted)
+		{
+			bool bSupport = false;
+			TArray<FString> FileUses;
+			ReadSidecarOrdering(SidecarPathFor(Uetkx), bSupport, FileUses);
+			(bSupport ? Supports : Components).Add(Uetkx);
+			UsesByPath.Add(Uetkx, MoveTemp(FileUses));
+			for (const FString& Name : ReadSidecarRefs(SidecarPathFor(Uetkx)))
+			{
+				OwnerOfName.Add(Name, Uetkx);
+			}
+		}
+		TArray<FString> Ordered = Supports;
+		TSet<FString> Emitted;
+		while (Ordered.Num() < Supports.Num() + Components.Num())
+		{
+			bool bProgress = false;
+			for (const FString& Uetkx : Components)
+			{
+				if (Emitted.Contains(Uetkx))
+				{
+					continue;
+				}
+				bool bReady = true;
+				for (const FString& Use : UsesByPath[Uetkx])
+				{
+					const FString* Owner = OwnerOfName.Find(Use);
+					if (Owner != nullptr && *Owner != Uetkx && !Emitted.Contains(*Owner))
+					{
+						bReady = false;
+						break;
+					}
+				}
+				if (bReady)
+				{
+					Ordered.Add(Uetkx);
+					Emitted.Add(Uetkx);
+					bProgress = true;
+				}
+			}
+			if (!bProgress)
+			{
+				for (const FString& Uetkx : Components) // cycle remainder: deterministic fallback
+				{
+					if (!Emitted.Contains(Uetkx))
+					{
+						Ordered.Add(Uetkx);
+						Emitted.Add(Uetkx);
+					}
+				}
+			}
+		}
+		for (const FString& Uetkx : Ordered)
 		{
 			FString Rel = InlPathFor(Uetkx);
 			FPaths::MakePathRelativeTo(Rel, *(AggregatorDir + TEXT("/")));
@@ -493,6 +597,73 @@ FUetkxSweepResult FUetkxDriver::CompileAll(const FString& RootDir, bool bForce)
 			}
 		}
 		Out.Files.Add(MoveTemp(R));
+	}
+	// UETKX2107: a cross-FILE component-reference cycle can never compile as direct calls in
+	// any include order (C++ declaration order — documented divergence from the C# sibling).
+	// Detected here (sidecars are fresh) so the author gets a named error, not a cryptic
+	// C3861 from the aggregator TU. Kahn over the uses-graph; the remainder is the cycle.
+	{
+		TMap<FString, TArray<FString>> UsesByPath;
+		TMap<FString, FString> OwnerOfName;
+		for (const FString& Path : All)
+		{
+			bool bSupport = false;
+			TArray<FString> FileUses;
+			ReadSidecarOrdering(SidecarPathFor(Path), bSupport, FileUses);
+			if (!bSupport)
+			{
+				UsesByPath.Add(Path, MoveTemp(FileUses));
+				for (const FString& Name : ReadSidecarRefs(SidecarPathFor(Path)))
+				{
+					OwnerOfName.Add(Name, Path);
+				}
+			}
+		}
+		TSet<FString> Done;
+		bool bProgress = true;
+		while (bProgress)
+		{
+			bProgress = false;
+			for (const TPair<FString, TArray<FString>>& Pair : UsesByPath)
+			{
+				if (Done.Contains(Pair.Key))
+				{
+					continue;
+				}
+				bool bReady = true;
+				for (const FString& Use : Pair.Value)
+				{
+					const FString* Owner = OwnerOfName.Find(Use);
+					if (Owner != nullptr && *Owner != Pair.Key && !Done.Contains(*Owner))
+					{
+						bReady = false;
+						break;
+					}
+				}
+				if (bReady)
+				{
+					Done.Add(Pair.Key);
+					bProgress = true;
+				}
+			}
+		}
+		if (Done.Num() < UsesByPath.Num())
+		{
+			TArray<FString> Cycle;
+			for (const TPair<FString, TArray<FString>>& Pair : UsesByPath)
+			{
+				if (!Done.Contains(Pair.Key))
+				{
+					Cycle.Add(FPaths::GetCleanFilename(Pair.Key));
+				}
+			}
+			Cycle.Sort();
+			++Out.Errors;
+			UE_LOG(LogRuiToolchain, Error,
+				   TEXT("UETKX2107: component reference cycle across files (%s) — cross-file tags are direct C++ "
+						"calls; merge the cycle into one file or break it"),
+				   *FString::Join(Cycle, TEXT(" <-> ")));
+		}
 	}
 	// Orphan sweep: a deleted Foo.uetkx takes its generated siblings with it — a committed
 	// .inl with no source would otherwise keep BUILDING through the aggregator's next regen

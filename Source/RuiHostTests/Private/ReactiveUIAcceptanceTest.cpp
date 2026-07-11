@@ -56,13 +56,15 @@ bool FRuiAcceptanceTest::RunTest(const FString&)
 		const FUetkxCheckResult Drift = FUetkxDriver::CheckDrift(Roots);
 		TestEqual(TEXT("1. no .uetkx drift"), Drift.Drift, 0);
 		TestEqual(TEXT("1. no .uetkx compile errors"), Drift.Errors, 0);
-		TestEqual(TEXT("1. all 11 screens swept"), Drift.Total, 11);
+		// 15 = 11 screens + 2 subcomponents (DemoContextPanel, SignalPanel — one component per
+		// file, components/ convention) + 2 support files (ContextDemo.style, SimpleCounter.hooks).
+		TestEqual(TEXT("1. all 15 gallery .uetkx files swept"), Drift.Total, 15);
 	}
 
 	// 2. The contract goldens hold (codegen shape is what the fixtures pinned).
 	{
 		const FUetkxContractResult Contract = FUetkxContract::Run(FUetkxContract::DefaultFixtureDir(), false);
-		TestTrue(TEXT("2. contract harness passes"), Contract.Passed() && Contract.Total >= 4);
+		TestTrue(TEXT("2. contract harness passes"), Contract.Passed() && Contract.Total >= 6);
 	}
 
 	// 3. Every gallery screen self-registered and mounts through the named-factory seam.

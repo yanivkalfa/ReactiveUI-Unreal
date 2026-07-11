@@ -1,0 +1,6 @@
+hook UseCounter(int32 Start) -> TTuple<int32, TFunction<void()>> {
+	auto [Count, SetCount] = UseState<int32>(Start);
+	const int32 Current = Count;
+	TFunction<void()> Increment = [SetCount, Current]() { SetCount(Current + 1); };
+	return MakeTuple(Count, Increment);
+}

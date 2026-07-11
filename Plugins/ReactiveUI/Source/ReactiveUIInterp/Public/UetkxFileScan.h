@@ -47,11 +47,43 @@ struct REACTIVEUIINTERP_API FUetkxComponentDecl
 	int32 Next = -1;		   // just past the closing brace
 };
 
+/** `hook UseName(params) [-> Ret] { body }` — a user hook (support-file declaration). The
+ *  params/body are VERBATIM C++ (unlike component params, which use the `Name: Type` decl
+ *  grammar) — C++ params can carry template commas the family grammar can't split. */
+struct REACTIVEUIINTERP_API FUetkxHookDecl
+{
+	FString Name;
+	int32 At = -1;
+	int32 NameAt = -1;
+	FString Params; // verbatim C++ parameter list (may be empty)
+	FString Ret;	// verbatim return type; empty = void (family: omitted arrow ⇒ void)
+	FString Body;	// verbatim C++ body
+	int32 BodyAt = -1;
+	int32 Next = -1;
+};
+
+/** `module Name { body }` — verbatim C++ declarations (style dicts, types, statics). */
+struct REACTIVEUIINTERP_API FUetkxModuleDecl
+{
+	FString Name;
+	int32 At = -1;
+	int32 NameAt = -1;
+	FString Body; // verbatim C++
+	int32 BodyAt = -1;
+	int32 Next = -1;
+};
+
 struct REACTIVEUIINTERP_API FUetkxFileScanResult
 {
 	TArray<FString> PreambleIncludes; // verbatim `#include ...` lines from the preamble
 	TArray<FUetkxComponentDecl> Components;
+	// Support-file declarations (a file is EITHER one component OR a hook/module sequence —
+	// the family file grammar; mixing kinds or a second component is UETKX2105).
+	TArray<FUetkxHookDecl> Hooks;
+	TArray<FUetkxModuleDecl> Modules;
 	TArray<FUetkxDiag> Diags;
+
+	bool IsSupportFile() const { return Components.IsEmpty() && (Hooks.Num() + Modules.Num()) > 0; }
 
 	bool HasError() const
 	{
@@ -94,4 +126,8 @@ public:
 	 *  comments) — the component scan's rule; without it any parenthesized return counts — the
 	 *  directive-body rule (EmitBody/formatter). */
 	static FUetkxSplitReturn SplitMarkupReturn(const TArray<int32>& Body, bool bRequireMarkupPeek);
+
+private:
+	/** Parse a support file (a `hook`/`module` declaration sequence) starting at `i`. */
+	static void ScanSupportDecls(const TArray<int32>& Src, int32 i, FUetkxFileScanResult& Out);
 };

@@ -285,14 +285,23 @@ FUetkxFileScanResult FUetkxFileScan::Scan(const FString& Source, const FString& 
 			i = j;
 			continue;
 		}
-		if (FUetkxLexer::KeywordAt(Src, i, TEXT("component")))
+		if (FUetkxLexer::KeywordAt(Src, i, TEXT("component")) || FUetkxLexer::KeywordAt(Src, i, TEXT("hook")) ||
+			FUetkxLexer::KeywordAt(Src, i, TEXT("module")))
 		{
 			break;
 		}
 		++i;
 	}
 
-	// component declarations
+	// Dispatch by the FIRST declaration keyword (family file grammar): a component file holds
+	// exactly ONE component; a support file holds a SEQUENCE of hook/module declarations.
+	if (i < N && (FUetkxLexer::KeywordAt(Src, i, TEXT("hook")) || FUetkxLexer::KeywordAt(Src, i, TEXT("module"))))
+	{
+		ScanSupportDecls(Src, i, Out);
+		return Out;
+	}
+
+	// component declaration (exactly one — trailing content is UETKX2105, family parity)
 	bool bAny = false;
 	while (i < N)
 	{
@@ -395,19 +404,189 @@ FUetkxFileScanResult FUetkxFileScan::Scan(const FString& Source, const FString& 
 		}
 		Decl.Root = RenderRoots[0];
 
-		if (Decl.Name != Basename && !Basename.IsEmpty())
+		// Compare against the first dot-segment: companion suffixes (`X.style.uetkx`) are
+		// cosmetic in the family — they must never pressure a rename.
+		FString BaseCmp = Basename;
+		int32 DotAt = -1;
+		if (BaseCmp.FindChar(TEXT('.'), DotAt))
+		{
+			BaseCmp = BaseCmp.Left(DotAt);
+		}
+		if (Decl.Name != BaseCmp && !BaseCmp.IsEmpty())
 		{
 			AddDiag(Out.Diags, TEXT("UETKX0103"), 1,
-					FString::Printf(TEXT("component `%s` differs from file name `%s`"), *Decl.Name, *Basename), Ns,
+					FString::Printf(TEXT("component `%s` differs from file name `%s`"), *Decl.Name, *BaseCmp), Ns,
 					Decl.Name.Len());
 		}
 		Out.Components.Add(MoveTemp(Decl));
 		i = Bclose + 1;
+
+		// ONE component per file (family: Unity UITKX2105 trailing-statement, Godot
+		// _error_on_trailing): anything real past the body — a second component, stray code —
+		// is an error, not a silently-appended sibling.
+		int32 t = i;
+		while (t < N)
+		{
+			const int32 s = FUetkxLexer::SkipNoncode(Src, t);
+			if (s != t)
+			{
+				t = s;
+				continue;
+			}
+			if (Src[t] == ' ' || Src[t] == '\t' || Src[t] == '\n' || Src[t] == '\r')
+			{
+				++t;
+				continue;
+			}
+			AddDiag(Out.Diags, TEXT("UETKX2105"), 0,
+					TEXT("invalid content after the component body — one component per file (move siblings "
+						 "into components/<Name>/<Name>.uetkx)"),
+					t);
+			break;
+		}
+		break;
 	}
 
 	if (!bAny)
 	{
-		AddDiag(Out.Diags, TEXT("UETKX2101"), 0, TEXT("no `component` declaration found"), -1);
+		AddDiag(Out.Diags, TEXT("UETKX2101"), 0, TEXT("no `component`, `hook`, or `module` declaration found"), -1);
 	}
 	return Out;
+}
+
+void FUetkxFileScan::ScanSupportDecls(const TArray<int32>& Src, int32 i, FUetkxFileScanResult& Out)
+{
+	const int32 N = Src.Num();
+	while (i < N)
+	{
+		const int32 j = FUetkxLexer::SkipNoncode(Src, i);
+		if (j != i)
+		{
+			i = j;
+			continue;
+		}
+		if (Src[i] == ' ' || Src[i] == '\t' || Src[i] == '\n' || Src[i] == '\r')
+		{
+			++i;
+			continue;
+		}
+		if (FUetkxLexer::KeywordAt(Src, i, TEXT("hook")))
+		{
+			// hook UseName(params) [-> Ret] { body } — params () REQUIRED (family UITKX2201)
+			FUetkxHookDecl Decl;
+			Decl.At = i;
+			int32 k = SkipWsOnly(Src, i + 4);
+			Decl.NameAt = k;
+			while (k < N && FUetkxLexer::IsIdentCode(Src[k]))
+			{
+				++k;
+			}
+			Decl.Name = FUetkxLexer::FromCodePoints(Src, Decl.NameAt, k - Decl.NameAt);
+			if (Decl.Name.IsEmpty())
+			{
+				AddDiag(Out.Diags, TEXT("UETKX2200"), 0, TEXT("missing hook name"), k);
+				return;
+			}
+			if (!Decl.Name.StartsWith(TEXT("Use")) || Decl.Name.Len() < 4 || !FChar::IsUpper(Decl.Name[3]))
+			{
+				AddDiag(Out.Diags, TEXT("UETKX2203"), 1,
+						FString::Printf(TEXT("hook name `%s` should start with `Use`"), *Decl.Name), Decl.NameAt,
+						Decl.Name.Len());
+			}
+			k = SkipWsOnly(Src, k);
+			if (k < N && Src[k] == '<')
+			{
+				AddDiag(Out.Diags, TEXT("UETKX3006"), 0,
+						TEXT("template `hook` declarations are not supported — write a C++ template in a `module`"), k);
+				return;
+			}
+			if (k >= N || Src[k] != C_LPAREN)
+			{
+				AddDiag(Out.Diags, TEXT("UETKX2201"), 0,
+						FString::Printf(TEXT("hook `%s` is missing its parameter list `( ... )`"), *Decl.Name), k);
+				return;
+			}
+			const int32 Pc = FUetkxLexer::FindMatching(Src, k);
+			if (Pc == -1)
+			{
+				AddDiag(Out.Diags, TEXT("UETKX0304"), 0, TEXT("unclosed `(` in hook params"), k);
+				return;
+			}
+			Decl.Params = FUetkxLexer::FromCodePoints(Src, k + 1, Pc - k - 1).TrimStartAndEnd();
+			k = SkipWsOnly(Src, Pc + 1);
+			if (k + 1 < N && Src[k] == '-' && Src[k + 1] == '>')
+			{
+				const int32 Rh = k + 2;
+				while (k < N && Src[k] != C_LBRACE)
+				{
+					++k;
+				}
+				Decl.Ret = FUetkxLexer::FromCodePoints(Src, Rh, k - Rh).TrimStartAndEnd();
+			}
+			k = SkipWsOnly(Src, k);
+			if (k >= N || Src[k] != C_LBRACE)
+			{
+				AddDiag(Out.Diags, TEXT("UETKX2202"), 0,
+						FString::Printf(TEXT("hook `%s` body `{ ... }` expected"), *Decl.Name), FMath::Min(k, N - 1));
+				return;
+			}
+			const int32 Bclose = FUetkxLexer::FindMatching(Src, k);
+			if (Bclose == -1)
+			{
+				AddDiag(Out.Diags, TEXT("UETKX0304"), 0, TEXT("unclosed hook body"), k);
+				return;
+			}
+			Decl.Body = FUetkxLexer::FromCodePoints(Src, k + 1, Bclose - k - 1);
+			Decl.BodyAt = k + 1;
+			Decl.Next = Bclose + 1;
+			i = Decl.Next;
+			Out.Hooks.Add(MoveTemp(Decl));
+			continue;
+		}
+		if (FUetkxLexer::KeywordAt(Src, i, TEXT("module")))
+		{
+			// module Name { verbatim C++ } — NO parameter list (family UITKX2205)
+			FUetkxModuleDecl Decl;
+			Decl.At = i;
+			int32 k = SkipWsOnly(Src, i + 6);
+			Decl.NameAt = k;
+			while (k < N && FUetkxLexer::IsIdentCode(Src[k]))
+			{
+				++k;
+			}
+			Decl.Name = FUetkxLexer::FromCodePoints(Src, Decl.NameAt, k - Decl.NameAt);
+			if (Decl.Name.IsEmpty())
+			{
+				AddDiag(Out.Diags, TEXT("UETKX2204"), 0, TEXT("missing module name"), k);
+				return;
+			}
+			k = SkipWsOnly(Src, k);
+			if (k >= N || Src[k] != C_LBRACE)
+			{
+				AddDiag(Out.Diags, TEXT("UETKX2205"), 0,
+						FString::Printf(TEXT("module `%s` is missing a body — expected `{` after the name (modules "
+											 "take no `( )`)"),
+										*Decl.Name),
+						FMath::Min(k, N - 1));
+				return;
+			}
+			const int32 Bclose = FUetkxLexer::FindMatching(Src, k);
+			if (Bclose == -1)
+			{
+				AddDiag(Out.Diags, TEXT("UETKX0304"), 0, TEXT("unclosed module body"), k);
+				return;
+			}
+			Decl.Body = FUetkxLexer::FromCodePoints(Src, k + 1, Bclose - k - 1);
+			Decl.BodyAt = k + 1;
+			Decl.Next = Bclose + 1;
+			i = Decl.Next;
+			Out.Modules.Add(MoveTemp(Decl));
+			continue;
+		}
+		// Real content that is not a hook/module declaration (incl. a `component` after support
+		// decls — mixing the two file kinds) — family UITKX2105.
+		AddDiag(Out.Diags, TEXT("UETKX2105"), 0,
+				TEXT("invalid content in a hook/module file — only `hook` and `module` declarations are allowed"), i);
+		return;
+	}
 }

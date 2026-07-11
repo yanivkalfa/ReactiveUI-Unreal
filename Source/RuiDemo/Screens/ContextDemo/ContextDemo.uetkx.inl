@@ -3,46 +3,6 @@
 
 #include "RuiDemoSupport.h"
 
-struct FDemoContextPanelUetkxProps final : public FRuiPropsBase
-{
-	FString Label = FString(TEXT("Primary Panel"));
-
-	virtual bool Equals(const FRuiPropsBase& OtherBase) const override
-	{
-		const FDemoContextPanelUetkxProps& O = static_cast<const FDemoContextPanelUetkxProps&>(OtherBase);
-		bool bEq = BaseFieldsEqual(O);
-		bEq = bEq && (Label == O.Label);
-		return bEq;
-	}
-};
-
-static FRuiNodeArray DemoContextPanel_UetkxImpl(FRuiContext& Ctx, const FDemoContextPanelUetkxProps& Props, const TArray<FRuiNode>& children)
-{
-	const auto& Label = Props.Label;
-	const FLinearColor Theme = Ctx.UseContext(RuiDemo::GDemoThemeCtx);
-	return { [&]() -> FRuiNode {
-		FRuiBorderProps P;
-		P.SetPadding(FMargin(10));
-		P.SetBorderImage(FName(TEXT("WhiteBrush")));
-		P.SetBorderBackgroundColor((Theme));
-		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
-		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
-		__Slot->Add(FName(TEXT("Slot.Padding")), FRuiValue(TEXT("0,6,0,0")));
-		if (!__Style->IsEmpty()) { P.Style = __Style; }
-		if (!__Slot->IsEmpty()) { P.SlotProps = __Slot; }
-		TArray<FRuiNode> Ch;
-		Ch.Add(RUI::TextBlock((FText::FromString(FString::Printf(TEXT("%s: rgba(%.2f, %.2f, %.2f)"), *Label, Theme.R, Theme.G, Theme.B))), FRuiKey()));
-		return RUI::Slate::Border(MoveTemp(P), MoveTemp(Ch), FRuiKey());
-	}() };
-}
-static const FName GDemoContextPanelUetkxId = RUI::RegisterComponentId((void*)&DemoContextPanel_UetkxImpl, FName(TEXT("DemoContextPanel")));
-static constexpr uint32 DemoContextPanel_RUI_HOOK_SIG = 0x3A36D564u;
-inline FRuiNode DemoContextPanel(FDemoContextPanelUetkxProps InProps = FDemoContextPanelUetkxProps(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey InKey = FRuiKey())
-{
-	return RUI::FC(&DemoContextPanel_UetkxImpl, MoveTemp(InProps), MoveTemp(InChildren), InKey);
-}
-static const bool GDemoContextPanelUetkxFactoryReg = RUI::RegisterNamedFactory(FName(TEXT("DemoContextPanel")), []() { return DemoContextPanel(); });
-
 struct FContextDemoUetkxProps final : public FRuiPropsBase
 {
 
@@ -59,13 +19,13 @@ static FRuiNodeArray ContextDemo_UetkxImpl(FRuiContext& Ctx, const FContextDemoU
 	auto [bPrimary, SetPrimary] = Ctx.UseState<bool>(true);
 		TFunction<void(bool)> Set = SetPrimary;
 		const bool bNow = bPrimary;
-		const FLinearColor Theme = bPrimary ? FLinearColor(0.23f, 0.65f, 0.95f, 1.0f) : FLinearColor(0.95f, 0.4f, 0.35f, 1.0f);
+		const FLinearColor Theme = bPrimary ? ContextDemoStyle::CoolTheme : ContextDemoStyle::WarmTheme;
 		Ctx.ProvideContext(RuiDemo::GDemoThemeCtx, Theme);
 	return { [&]() -> FRuiNode {
 		FRuiBorderProps P;
 		P.SetPadding(FMargin(12));
 		P.SetBorderImage(FName(TEXT("WhiteBrush")));
-		P.SetBorderBackgroundColor((FLinearColor(0.02f, 0.02f, 0.03f, 0.85f)));
+		P.SetBorderBackgroundColor((ContextDemoStyle::PanelBackground));
 		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
 		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
 		__Slot->Add(FName(TEXT("Slot.Padding")), FRuiValue(TEXT("0,10,0,0")));

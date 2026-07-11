@@ -45,9 +45,31 @@ export interface UetkxComponentDecl {
   next: number;
 }
 
+export interface UetkxHookDecl {
+  name: string;
+  at: number;
+  nameAt: number;
+  params: string; // verbatim C++ parameter list
+  ret: string; // verbatim return type; "" = void
+  body: string;
+  bodyAt: number;
+  next: number;
+}
+
+export interface UetkxModuleDecl {
+  name: string;
+  at: number;
+  nameAt: number;
+  body: string; // verbatim C++
+  bodyAt: number;
+  next: number;
+}
+
 export interface UetkxFileScanResult {
   preambleIncludes: string[];
   components: UetkxComponentDecl[];
+  hooks: UetkxHookDecl[];
+  modules: UetkxModuleDecl[];
   diags: UetkxDiag[];
 }
 
@@ -236,7 +258,7 @@ function scanHookCalls(setup: readonly number[]): string[] {
 }
 
 export function scanFile(source: string, basename: string): UetkxFileScanResult {
-  const out: UetkxFileScanResult = { preambleIncludes: [], components: [], diags: [] };
+  const out: UetkxFileScanResult = { preambleIncludes: [], components: [], hooks: [], modules: [], diags: [] };
   const src: number[] = [];
   for (const ch of source) src.push(ch.codePointAt(0)!);
   const n = src.length;
@@ -255,8 +277,15 @@ export function scanFile(source: string, basename: string): UetkxFileScanResult 
       i = j;
       continue;
     }
-    if (keywordAt(src, i, "component")) break;
+    if (keywordAt(src, i, "component") || keywordAt(src, i, "hook") || keywordAt(src, i, "module")) break;
     i++;
+  }
+
+  // Dispatch by the FIRST declaration keyword (family file grammar): a component file holds
+  // exactly ONE component; a support file holds a SEQUENCE of hook/module declarations.
+  if (i < n && (keywordAt(src, i, "hook") || keywordAt(src, i, "module"))) {
+    scanSupportDecls(src, i, out, addDiag);
+    return out;
   }
 
   let any = false;
@@ -323,8 +352,10 @@ export function scanFile(source: string, basename: string): UetkxFileScanResult 
               bodyAt + split.mStart);
       return out;
     }
-    if (name !== basename && basename) {
-      addDiag("UETKX0103", 1, `component \`${name}\` differs from file name \`${basename}\``, ns, name.length);
+    // First dot-segment only: companion suffixes (`X.style.uetkx`) are cosmetic in the family.
+    const baseCmp = basename.includes(".") ? basename.slice(0, basename.indexOf(".")) : basename;
+    if (name !== baseCmp && baseCmp) {
+      addDiag("UETKX0103", 1, `component \`${name}\` differs from file name \`${baseCmp}\``, ns, name.length);
     }
     out.components.push({
       name,
@@ -340,9 +371,126 @@ export function scanFile(source: string, basename: string): UetkxFileScanResult 
       next: bclose + 1,
     });
     i = bclose + 1;
+
+    // ONE component per file (family UITKX2105): anything real past the body is an error.
+    let t = i;
+    while (t < n) {
+      const s = skipNoncode(src, t);
+      if (s !== t) {
+        t = s;
+        continue;
+      }
+      if (src[t] === 0x20 || src[t] === 0x09 || src[t] === 0x0a || src[t] === 0x0d) {
+        t++;
+        continue;
+      }
+      addDiag(
+        "UETKX2105",
+        0,
+        "invalid content after the component body — one component per file (move siblings into components/<Name>/<Name>.uetkx)",
+        t,
+      );
+      break;
+    }
+    break;
   }
-  if (!any) addDiag("UETKX2101", 0, "no `component` declaration found", -1);
+  if (!any) addDiag("UETKX2101", 0, "no `component`, `hook`, or `module` declaration found", -1);
   return out;
+}
+
+function scanSupportDecls(
+  src: number[],
+  i: number,
+  out: UetkxFileScanResult,
+  addDiag: (code: string, severity: number, message: string, offset: number, length?: number) => void,
+): void {
+  const n = src.length;
+  while (i < n) {
+    const j = skipNoncode(src, i);
+    if (j !== i) {
+      i = j;
+      continue;
+    }
+    if (src[i] === 0x20 || src[i] === 0x09 || src[i] === 0x0a || src[i] === 0x0d) {
+      i++;
+      continue;
+    }
+    if (keywordAt(src, i, "hook")) {
+      const at = i;
+      let k = skipWsOnly(src, i + 4);
+      const nameAt = k;
+      while (k < n && isIdentCp(src[k])) k++;
+      const name = fromCodePoints(src, nameAt, k - nameAt);
+      if (!name) {
+        addDiag("UETKX2200", 0, "missing hook name", k);
+        return;
+      }
+      if (!(name.startsWith("Use") && name.length >= 4 && name[3] >= "A" && name[3] <= "Z")) {
+        addDiag("UETKX2203", 1, `hook name \`${name}\` should start with \`Use\``, nameAt, name.length);
+      }
+      k = skipWsOnly(src, k);
+      if (k < n && src[k] === 0x3c /* < */) {
+        addDiag("UETKX3006", 0, "template `hook` declarations are not supported — write a C++ template in a `module`", k);
+        return;
+      }
+      if (k >= n || src[k] !== C_LPAREN) {
+        addDiag("UETKX2201", 0, `hook \`${name}\` is missing its parameter list \`( ... )\``, k);
+        return;
+      }
+      const pc = findMatching(src, k);
+      if (pc === -1) {
+        addDiag("UETKX0304", 0, "unclosed `(` in hook params", k);
+        return;
+      }
+      const params = fromCodePoints(src, k + 1, pc - k - 1).trim();
+      k = skipWsOnly(src, pc + 1);
+      let ret = "";
+      if (k + 1 < n && src[k] === 0x2d /* - */ && src[k + 1] === 0x3e /* > */) {
+        const rh = k + 2;
+        while (k < n && src[k] !== C_LBRACE) k++;
+        ret = fromCodePoints(src, rh, k - rh).trim();
+      }
+      k = skipWsOnly(src, k);
+      if (k >= n || src[k] !== C_LBRACE) {
+        addDiag("UETKX2202", 0, `hook \`${name}\` body \`{ ... }\` expected`, Math.min(k, n - 1));
+        return;
+      }
+      const bclose = findMatching(src, k);
+      if (bclose === -1) {
+        addDiag("UETKX0304", 0, "unclosed hook body", k);
+        return;
+      }
+      out.hooks.push({ name, at, nameAt, params, ret, body: fromCodePoints(src, k + 1, bclose - k - 1), bodyAt: k + 1, next: bclose + 1 });
+      i = bclose + 1;
+      continue;
+    }
+    if (keywordAt(src, i, "module")) {
+      const at = i;
+      let k = skipWsOnly(src, i + 6);
+      const nameAt = k;
+      while (k < n && isIdentCp(src[k])) k++;
+      const name = fromCodePoints(src, nameAt, k - nameAt);
+      if (!name) {
+        addDiag("UETKX2204", 0, "missing module name", k);
+        return;
+      }
+      k = skipWsOnly(src, k);
+      if (k >= n || src[k] !== C_LBRACE) {
+        addDiag("UETKX2205", 0, `module \`${name}\` is missing a body — expected \`{\` after the name (modules take no \`( )\`)`, Math.min(k, n - 1));
+        return;
+      }
+      const bclose = findMatching(src, k);
+      if (bclose === -1) {
+        addDiag("UETKX0304", 0, "unclosed module body", k);
+        return;
+      }
+      out.modules.push({ name, at, nameAt, body: fromCodePoints(src, k + 1, bclose - k - 1), bodyAt: k + 1, next: bclose + 1 });
+      i = bclose + 1;
+      continue;
+    }
+    addDiag("UETKX2105", 0, "invalid content in a hook/module file — only `hook` and `module` declarations are allowed", i);
+    return;
+  }
 }
 
 function isIdentCp(c: number): boolean {

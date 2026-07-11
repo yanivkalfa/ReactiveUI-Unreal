@@ -3,30 +3,6 @@
 
 #include "RuiDemoSupport.h"
 
-struct FSignalPanelUetkxProps final : public FRuiPropsBase
-{
-
-	virtual bool Equals(const FRuiPropsBase& OtherBase) const override
-	{
-		const FSignalPanelUetkxProps& O = static_cast<const FSignalPanelUetkxProps&>(OtherBase);
-		bool bEq = BaseFieldsEqual(O);
-		return bEq;
-	}
-};
-
-static FRuiNodeArray SignalPanel_UetkxImpl(FRuiContext& Ctx, const FSignalPanelUetkxProps& Props, const TArray<FRuiNode>& children)
-{
-	const int32 Count = RUI::UseSignalKey<int32>(Ctx, RuiDemo::GDemoCounterSignal, 0);
-	return { RUI::TextBlock((FText::FromString(FString::Printf(TEXT("Count: %d"), Count))), FRuiKey()) };
-}
-static const FName GSignalPanelUetkxId = RUI::RegisterComponentId((void*)&SignalPanel_UetkxImpl, FName(TEXT("SignalPanel")));
-static constexpr uint32 SignalPanel_RUI_HOOK_SIG = 0xD50F149Cu;
-inline FRuiNode SignalPanel(FSignalPanelUetkxProps InProps = FSignalPanelUetkxProps(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey InKey = FRuiKey())
-{
-	return RUI::FC(&SignalPanel_UetkxImpl, MoveTemp(InProps), MoveTemp(InChildren), InKey);
-}
-static const bool GSignalPanelUetkxFactoryReg = RUI::RegisterNamedFactory(FName(TEXT("SignalPanel")), []() { return SignalPanel(); });
-
 struct FSignalCounterUetkxProps final : public FRuiPropsBase
 {
 

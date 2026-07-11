@@ -54,6 +54,23 @@ FRuiHmrStatus FRuiHmr::ApplySource(const FString& Source, const FString& Basenam
 		return Status;
 	}
 
+	// Support files (hook/module declarations) carry arbitrary C++ — there is nothing the
+	// interpreter can swap. The compile side already regenerated the .inl; the honest live
+	// answer is "rebuild": surface it as a note, not an error (the old binary keeps running).
+	if (Scan.IsSupportFile())
+	{
+		Status.Notes.Add(FString::Printf(
+			TEXT("%s.uetkx: hook/module change — compiled only; Live Coding (Ctrl+Alt+F11) or rebuild to apply"),
+			*Basename));
+		Status.Ms = (FPlatformTime::Seconds() - Start) * 1000.0;
+		UE_LOG(LogRuiHmr, Display, TEXT("%s"), *Status.ToString());
+		for (const FString& Note : Status.Notes)
+		{
+			UE_LOG(LogRuiHmr, Display, TEXT("  note: %s"), *Note);
+		}
+		return Status;
+	}
+
 	FHmrSession& Session = FHmrSession::Get();
 	for (const FUetkxComponentDecl& Decl : Scan.Components)
 	{

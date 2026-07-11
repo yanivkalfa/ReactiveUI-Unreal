@@ -18,7 +18,9 @@
     },
     {
       "name": "attributes wrap one-per-line past printWidth",
-      "opts": { "printWidth": 40 },
+      "opts": {
+        "printWidth": 40
+      },
       "input": "component Wide {\n\treturn (\n\t\t<Button OnClicked={ Fire() } bEnabled ContentPadding={ FMargin(4.f) }>Go</Button>\n\t);\n}\n",
       "expect": "component Wide {\n\treturn (\n\t\t<Button\n\t\t\tOnClicked={ Fire() }\n\t\t\tbEnabled\n\t\t\tContentPadding={ FMargin(4.f) }\n\t\t>\n\t\t\tGo\n\t\t</Button>\n\t);\n}\n"
     },
@@ -48,14 +50,14 @@
       "fellBack": true
     },
     {
-      "name": "trailing content after the declaration round-trips after one blank line",
+      "name": "trailing content after the component body falls back verbatim (one component per file)",
       "input": "component Badge {\n\treturn (\n\t\t<Spacer />\n\t);\n}\nstray tail text\n",
-      "expect": "component Badge {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n\nstray tail text\n"
+      "fellBack": true
     },
     {
-      "name": "two components separate with exactly one blank line",
+      "name": "a second component in one file falls back verbatim (one component per file)",
       "input": "component Alpha {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n\n\n\ncomponent Beta {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n",
-      "expect": "component Alpha {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n\ncomponent Beta {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n"
+      "fellBack": true
     },
     {
       "name": "anonymous fragment",
@@ -74,7 +76,10 @@
     },
     {
       "name": "space-indent option emits spaces",
-      "opts": { "indentStyle": "space", "indentSize": 2 },
+      "opts": {
+        "indentStyle": "space",
+        "indentSize": 2
+      },
       "input": "component Badge {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n",
       "expect": "component Badge {\n  return (\n    <Spacer />\n  );\n}\n"
     },
@@ -82,6 +87,11 @@
       "name": "markup comments verbatim; expr nodes get canonical brace spacing",
       "input": "component Mixed {\n\treturn (\n\t\t<VerticalBox>\n\t\t\t<!-- a note -->\n\t\t\t{Compute()}\n\t\t\tplain text run\n\t\t</VerticalBox>\n\t);\n}\n",
       "expect": "component Mixed {\n\treturn (\n\t\t<VerticalBox>\n\t\t\t<!-- a note -->\n\t\t\t{ Compute() }\n\t\t\tplain text run\n\t\t</VerticalBox>\n\t);\n}\n"
+    },
+    {
+      "name": "support files (hook/module) round-trip verbatim without fallback",
+      "input": "hook UseThing(int32 A) -> int32 {\n\tauto [V, SetV] = UseState<int32>(A);\n\treturn V;\n}\n\nmodule ThingStyle {\n\tinline const float Pad = 4.0f;\n}\n",
+      "expect": "hook UseThing(int32 A) -> int32 {\n\tauto [V, SetV] = UseState<int32>(A);\n\treturn V;\n}\n\nmodule ThingStyle {\n\tinline const float Pad = 4.0f;\n}\n"
     }
   ]
 }

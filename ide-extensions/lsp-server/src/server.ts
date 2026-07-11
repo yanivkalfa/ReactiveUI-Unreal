@@ -64,10 +64,17 @@ function validate(doc: TextDocument): void {
     });
   };
   const scan = scanFile(text, path.basename(fsPathOf(doc), ".uetkx"));
-  for (const d of scan.diags) push(d.offset, d.length, d.severity, d.code, d.message);
+  const seen = new Set<string>();
+  for (const d of scan.diags) {
+    seen.add(`${d.code}@${d.offset}:${d.length}`);
+    push(d.offset, d.length, d.severity, d.code, d.message);
+  }
   if (!scan.diags.some((d) => d.severity === 0)) {
-    // clean parse: surface the compiler's full verdict for THIS content (hash-gated)
-    for (const d of readSidecarDiags(fsPathOf(doc), text)) push(d.off, d.len, d.severity, d.code, d.message);
+    // clean parse: surface the compiler's full verdict for THIS content (hash-gated) — minus
+    // entries the live scan already produced (same code+range), which would double the hover.
+    for (const d of readSidecarDiags(fsPathOf(doc), text)) {
+      if (!seen.has(`${d.code}@${d.off}:${d.len}`)) push(d.off, d.len, d.severity, d.code, d.message);
+    }
   }
   connection.sendDiagnostics({ uri: doc.uri, diagnostics: diags });
 }

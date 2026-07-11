@@ -18,7 +18,9 @@ struct REACTIVEUITOOLCHAIN_API FUetkxCompileOutput
 	bool bOk = false;
 	FString Inl; // the generated .uetkx.inl text ("" on failure)
 	TArray<FUetkxDiag> Diags;
-	TArray<FString> ComponentNames; // bindings (name -> this file), for refs/aggregator order
+	TArray<FString> ComponentNames; // bindings (component/hook/module names -> this file); 2106 + refs
+	TArray<FString> Uses;			// component names REFERENCED by markup (aggregator topo order)
+	bool bSupportFile = false;		// hook/module file (no markup — HMR rebuild, not interp swap)
 	uint32 HookSig = 0;				// first component's hook signature (interp swap key)
 };
 

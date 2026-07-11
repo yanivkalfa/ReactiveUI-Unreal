@@ -15,9 +15,8 @@ struct FSimpleCounterUetkxProps final : public FRuiPropsBase
 
 static FRuiNodeArray SimpleCounter_UetkxImpl(FRuiContext& Ctx, const FSimpleCounterUetkxProps& Props, const TArray<FRuiNode>& children)
 {
-	auto [Count, SetCount] = Ctx.UseState<int32>(0);
-		TFunction<void(int32)> Set = SetCount;
-		const int32 Current = Count;
+	auto [Count, Increment] = UseCounter(Ctx, 0);
+		TFunction<void()> Inc = Increment;
 	return { [&]() -> FRuiNode {
 		FRuiBorderProps P;
 		P.SetPadding(FMargin(12));
@@ -43,7 +42,7 @@ static FRuiNodeArray SimpleCounter_UetkxImpl(FRuiContext& Ctx, const FSimpleCoun
 		TArray<FRuiNode> Ch;
 		Ch.Add([&]() -> FRuiNode {
 		FRuiButtonProps P;
-		P.SetOnClicked(FRuiCallback::Create([=](const FRuiValue& Value) { Set(Current + 1); }));
+		P.SetOnClicked(FRuiCallback::Create([=](const FRuiValue& Value) { Inc(); }));
 		P.SetContentPadding(FMargin(12,4));
 		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
 		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
@@ -62,7 +61,7 @@ static FRuiNodeArray SimpleCounter_UetkxImpl(FRuiContext& Ctx, const FSimpleCoun
 	}() };
 }
 static const FName GSimpleCounterUetkxId = RUI::RegisterComponentId((void*)&SimpleCounter_UetkxImpl, FName(TEXT("SimpleCounter")));
-static constexpr uint32 SimpleCounter_RUI_HOOK_SIG = 0x986DF5F6u;
+static constexpr uint32 SimpleCounter_RUI_HOOK_SIG = 0x811C9DC5u;
 inline FRuiNode SimpleCounter(FSimpleCounterUetkxProps InProps = FSimpleCounterUetkxProps(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey InKey = FRuiKey())
 {
 	return RUI::FC(&SimpleCounter_UetkxImpl, MoveTemp(InProps), MoveTemp(InChildren), InKey);
