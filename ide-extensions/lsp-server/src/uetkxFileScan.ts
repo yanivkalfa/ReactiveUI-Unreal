@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 // TypeScript port of FUetkxFileScan (UetkxFileScan.cpp): the .uetkx FILE grammar — preamble
 // includes, `component Name(params) {}` declarations, the shared last-top-level-markup-return
 // splitter, hook-call scanning and the FNV hook signature. All offsets are code points.

@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 // tsc compiles only .ts — runtime assets (the shipped schema) ride along here.
 import { copyFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";

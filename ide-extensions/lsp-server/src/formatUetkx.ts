@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 // TypeScript port of FUetkxFormatter (UetkxFormatter.cpp) — byte-identical output, pinned by
 // the SHARED golden corpus test-fixtures/uetkx-formatter-cases.json the C++ automation suite
 // also replays. AST-driven re-emit; VERBATIM on any parse error (never corrupt) with fellBack;

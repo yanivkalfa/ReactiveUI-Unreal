@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 // Pure-function server pieces: cursor classification, schema fallbacks, sidecar hash gating,
 // and the config walk-up mapping — the testable core under the LSP plumbing.
 

@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 // Bundle the language server into the extension: copy ../lsp-server/out + its runtime deps
 // into ./server so the .vsix is self-contained (pure JS — one vsix serves every platform).
 import { cpSync, mkdirSync, rmSync, existsSync } from "node:fs";

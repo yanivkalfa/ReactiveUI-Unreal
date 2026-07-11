@@ -16,6 +16,18 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
+static bool HasString(const TArray<TSharedPtr<FJsonValue>>& Arr, const TCHAR* Value)
+{
+	for (const TSharedPtr<FJsonValue>& Entry : Arr)
+	{
+		if (Entry->AsString() == Value)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRuiUetkxSchemaTest, "ReactiveUI.Uetkx.Schema",
 								 EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 bool FRuiUetkxSchemaTest::RunTest(const FString&)
@@ -50,10 +62,6 @@ bool FRuiUetkxSchemaTest::RunTest(const FString&)
 
 		const TArray<TSharedPtr<FJsonValue>>& StyleKeys = Schema->GetArrayField(TEXT("styleKeys"));
 		TestEqual(TEXT("12 style keys"), StyleKeys.Num(), 12);
-		auto HasString = [](const TArray<TSharedPtr<FJsonValue>>& Arr, const TCHAR* Value)
-		{
-			return Arr.ContainsByPredicate([Value](const TSharedPtr<FJsonValue>& V) { return V->AsString() == Value; });
-		};
 		TestTrue(TEXT("RenderOpacity styled"), HasString(StyleKeys, TEXT("RenderOpacity")));
 		TestTrue(TEXT("Font.Size styled"), HasString(StyleKeys, TEXT("Font.Size")));
 

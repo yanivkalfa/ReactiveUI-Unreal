@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 // Diagnostics sidecar reader (schema v2): full compiler diagnostics arrive via
 // `Foo.uetkx.diags.json`, gated by src_hash — a sidecar for DIFFERENT content is stale and
 // must not be shown (the live parse covers the current text until the next compile).

@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 // TypeScript port of FUetkxMarkup (UetkxMarkup.cpp) — the byte-compatible markup parser.
 // Line-for-line with the C++ (which is itself line-for-line with guitkx_markup.gd): change
 // ALL dialects or none. All offsets are CODE POINTS into the array given to parse().

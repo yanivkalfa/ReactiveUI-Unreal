@@ -21,18 +21,25 @@ TArray<FString> URUICompileCommandlet::DefaultRoots()
 	return Roots;
 }
 
+static bool HasSwitch(const TArray<FString>& Switches, const TCHAR* Name)
+{
+	for (const FString& Switch : Switches)
+	{
+		if (Switch.Equals(Name, ESearchCase::IgnoreCase))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 int32 URUICompileCommandlet::Main(const FString& Params)
 {
 	TArray<FString> Tokens, Switches;
 	ParseCommandLine(*Params, Tokens, Switches);
-	auto HasSwitch = [&Switches](const TCHAR* Name)
-	{
-		return Switches.ContainsByPredicate([Name](const FString& S)
-											{ return S.Equals(Name, ESearchCase::IgnoreCase); });
-	};
 	const TArray<FString> Roots = DefaultRoots();
 
-	if (HasSwitch(TEXT("check")))
+	if (HasSwitch(Switches, TEXT("check")))
 	{
 		const FUetkxCheckResult Check = FUetkxDriver::CheckDrift(Roots);
 		for (const FString& Message : Check.Messages)
@@ -46,7 +53,7 @@ int32 URUICompileCommandlet::Main(const FString& Params)
 
 	// Capture the fingerprint verdict ONCE — CompileAll refreshes it per root, and the second
 	// root must not lose the "codegen version changed" force.
-	const bool bForce = HasSwitch(TEXT("full")) || FUetkxDriver::FingerprintMismatch();
+	const bool bForce = HasSwitch(Switches, TEXT("full")) || FUetkxDriver::FingerprintMismatch();
 	int32 Compiled = 0, Errors = 0, Skipped = 0, Total = 0;
 	for (const FString& Root : Roots)
 	{

@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 // The markup vocabulary: SHIPPED default (src/uetkx-schema.json — the committed RUIExportSchema
 // output) overridden by the workspace's live export at <workspace>/Saved/ReactiveUI/schema.json
 // when present (regenerate with `UnrealEditor-Cmd <proj>.uproject -run=RUIExportSchema`).

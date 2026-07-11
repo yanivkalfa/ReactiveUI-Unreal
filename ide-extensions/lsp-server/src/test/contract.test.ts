@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 // The cross-language contract (D-22): replay the SAME corpora the C++ automation suites run.
 // A case failing here while passing in C++ means the two scanners have drifted — fix the
 // PORT, never the fixture.

@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 // Code-point helpers (D-18): every offset in the .uetkx toolchain — compiler diagnostics,
 // sidecars, the shared corpora — is a UNICODE CODE POINT index, never a UTF-16 unit. The
 // scanner/parser/formatter therefore run over number[] code points, exactly like the C++

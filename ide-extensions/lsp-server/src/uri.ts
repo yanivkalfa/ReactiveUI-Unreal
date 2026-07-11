@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 // Minimal file-URI <-> fs-path conversion (avoids a vscode-uri dependency; Windows-aware).
 
 export const URI = {

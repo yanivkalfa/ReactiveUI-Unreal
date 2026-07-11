@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 // Cursor classification for completions — the markup-intelligence baseline. Deliberately
 // light: find the nearest unclosed `<` on the cursor's side to decide tag vs attribute
 // position; `@` at markup node-start offers directives; everything else offers hooks (setup).

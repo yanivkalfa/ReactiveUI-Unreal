@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 // The VS Code client: starts the bundled uetkx-language-server over IPC and exposes a
 // restart command. The server is self-contained JS (no native deps) — one .vsix serves
 // every platform.

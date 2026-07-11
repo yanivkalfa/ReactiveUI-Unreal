@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 // The .uetkx language server (stdio) — the markup-intelligence BASELINE, fully offline:
 // completions/hover from the compiler-exported schema, live parse diagnostics from the
 // TS front-end (corpus-locked to the C++ compiler), full compiler diagnostics from the

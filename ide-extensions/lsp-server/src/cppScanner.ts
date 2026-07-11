@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 // TypeScript port of the .uetkx C++-lexis scanner (FUetkxLexer, UetkxLexer.cpp) — byte-for-
 // byte semantics, pinned by the SHARED corpus test-fixtures/uetkx-scanner-cases.json that the
 // C++ automation suite also replays (D-22). All indices are CODE POINTS over number[].

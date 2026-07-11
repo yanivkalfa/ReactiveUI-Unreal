@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 // Replay the SHARED formatter golden corpus (the C++ ReactiveUI.Uetkx.Formatter suite runs
 // the same file) — byte-identical output required, every non-fellback case an idempotence pin.
 

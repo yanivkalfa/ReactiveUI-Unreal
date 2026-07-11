@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.Composition;
