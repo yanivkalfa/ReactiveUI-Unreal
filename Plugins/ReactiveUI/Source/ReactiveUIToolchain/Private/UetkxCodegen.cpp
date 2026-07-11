@@ -165,8 +165,10 @@ namespace
 	 *  (`Use<Upper>...` not in the built-in table, incl. `NS::Use...`) get `Ctx` injected as
 	 *  their first argument — user hooks are plain functions taking FRuiContext& first (the
 	 *  documented divergence from Unity's ambient statics). Member access (`.`/`->`) blocks
-	 *  both transforms. */
-	FString PrefixHookCalls(const FString& Code)
+	 *  both transforms. `Qualified` (M5) maps a same-file PRIVATE decl name to its detail-namespace
+	 *  prefix (`RuiPriv_<Basename>::`); a private hook call or a private `Module::` qual is rewritten
+	 *  to reach into that namespace. */
+	FString PrefixHookCalls(const FString& Code, const TMap<FString, FString>& Qualified = {})
 	{
 		const TArray<int32> Src = FUetkxLexer::ToCodePoints(Code);
 		FString Out;
@@ -250,9 +252,40 @@ namespace
 						++q;
 					}
 					const bool bEmptyArgs = (q < N && Src[q] == ')');
+					if (const FString* Prefix = Qualified.Find(Ident)) // private same-file hook
+					{
+						Out += *Prefix;
+					}
 					Out += Ident;
 					Out += bEmptyArgs ? TEXT("(Ctx") : TEXT("(Ctx, ");
 					i = p + 1;
+					bMatched = true;
+				}
+			}
+			// private same-file `Module::` qual → RuiPriv_<Basename>::Module:: (M5). Only fires for
+			// an identifier the file declares privately; ambient namespaces are untouched.
+			if (!bMatched && bWordStart && !Qualified.IsEmpty() && FUetkxLexer::IsIdentCode(Src[i]) &&
+				!(Src[i] >= '0' && Src[i] <= '9'))
+			{
+				int32 e = i;
+				while (e < N && FUetkxLexer::IsIdentCode(Src[e]))
+				{
+					++e;
+				}
+				int32 p = e;
+				while (p < N && (Src[p] == ' ' || Src[p] == '\t'))
+				{
+					++p;
+				}
+				bool bMember = false, bScope = false;
+				ScanBack(i, bMember, bScope);
+				const FString Ident = FUetkxLexer::FromCodePoints(Src, i, e - i);
+				const FString* Prefix = Qualified.Find(Ident);
+				if (Prefix && !bMember && !bScope && p + 1 < N && Src[p] == ':' && Src[p + 1] == ':')
+				{
+					Out += *Prefix;
+					Out += Ident;
+					i = e;
 					bMatched = true;
 				}
 			}
@@ -265,25 +298,47 @@ namespace
 		return Out;
 	}
 
+	/** The per-file detail namespace private declarations live in (A5e): `RuiPriv_<Basename>`, with
+	 *  any non-identifier characters in the basename (companion dots) folded to `_`. Two files' same-
+	 *  named private decls never collide in the aggregator TU (the compile-time half of privacy). */
+	FString PrivNamespaceFor(const FString& Basename)
+	{
+		FString S = Basename;
+		for (int32 i = 0; i < S.Len(); ++i)
+		{
+			if (!FUetkxLexer::IsIdentCode(S[i]))
+			{
+				S[i] = '_';
+			}
+		}
+		return TEXT("RuiPriv_") + S;
+	}
+
 	/** A `hook` declaration → an inline free function taking FRuiContext& first (built-in hook
 	 *  calls in the body Ctx.-prefixed, nested user hooks Ctx-injected). Plain C++ — no markup,
-	 *  no registration, no hook signature. */
-	FString EmitHookInl(const FUetkxHookDecl& Hook)
+	 *  no registration, no hook signature. A non-exported hook is wrapped in the detail namespace. */
+	FString EmitHookInl(const FUetkxHookDecl& Hook, const FString& PrivNs, const TMap<FString, FString>& Qualified)
 	{
 		const FString Ret = Hook.Ret.IsEmpty() ? FString(TEXT("void")) : Hook.Ret;
 		FString Out = FString::Printf(TEXT("inline %s %s(FRuiContext& Ctx%s%s)\n{\n"), *Ret, *Hook.Name,
 									  Hook.Params.IsEmpty() ? TEXT("") : TEXT(", "), *Hook.Params);
-		const FString Body = PrefixHookCalls(Hook.Body.TrimStartAndEnd());
+		const FString Body = PrefixHookCalls(Hook.Body.TrimStartAndEnd(), Qualified);
 		if (!Body.IsEmpty())
 		{
 			Out += TEXT("\t") + Body.Replace(TEXT("\n"), TEXT("\n\t")) + TEXT("\n");
 		}
-		Out += TEXT("}\n\n");
-		return Out;
+		Out += TEXT("}\n");
+		if (!Hook.bExported)
+		{
+			Out = FString::Printf(TEXT("namespace %s\n{\n"), *PrivNs) + Out +
+				  FString::Printf(TEXT("} // namespace %s\n"), *PrivNs);
+		}
+		return Out + TEXT("\n");
 	}
 
-	/** A `module` declaration → a namespace holding its verbatim C++ body. */
-	FString EmitModuleInl(const FUetkxModuleDecl& Module)
+	/** A `module` declaration → a namespace holding its verbatim C++ body. A non-exported module is
+	 *  nested inside the per-file detail namespace so same-named private modules never collide. */
+	FString EmitModuleInl(const FUetkxModuleDecl& Module, const FString& PrivNs)
 	{
 		FString Out = FString::Printf(TEXT("namespace %s\n{\n"), *Module.Name);
 		const FString Body = Module.Body.TrimStartAndEnd();
@@ -291,8 +346,13 @@ namespace
 		{
 			Out += TEXT("\t") + Body.Replace(TEXT("\n"), TEXT("\n\t")) + TEXT("\n");
 		}
-		Out += FString::Printf(TEXT("} // namespace %s\n\n"), *Module.Name);
-		return Out;
+		Out += FString::Printf(TEXT("} // namespace %s\n"), *Module.Name);
+		if (!Module.bExported)
+		{
+			Out = FString::Printf(TEXT("namespace %s\n{\n"), *PrivNs) + Out +
+				  FString::Printf(TEXT("} // namespace %s\n"), *PrivNs);
+		}
+		return Out + TEXT("\n");
 	}
 
 	/** The one emitter (per component). */
@@ -300,8 +360,8 @@ namespace
 	{
 	public:
 		FEmitter(const FString& InBasename, const FUetkxComponentDecl& InDecl, TArray<FUetkxDiag>& InDiags,
-				 TSet<FString>& InUses, TMap<FString, int32>& InUseAts)
-			: Basename(InBasename), Decl(InDecl), Diags(InDiags), Uses(InUses), UseAts(InUseAts)
+				 TSet<FString>& InUses, TMap<FString, int32>& InUseAts, const TMap<FString, FString>& InQualified)
+			: Basename(InBasename), Decl(InDecl), Diags(InDiags), Uses(InUses), UseAts(InUseAts), Qualified(InQualified)
 		{
 		}
 
@@ -326,9 +386,9 @@ namespace
 								   ++TextKeyCounter, *CppStringLiteral(Value));
 		}
 
-		/** Hook auto-prefix (built-in → Ctx.*, user hooks → Ctx first arg) — the shared
-		 *  PrefixHookCalls; kept as a member name so call sites read unchanged. */
-		FString PrefixHooks(const FString& Code) { return PrefixHookCalls(Code); }
+		/** Hook auto-prefix (built-in → Ctx.*, user hooks → Ctx first arg), plus same-file PRIVATE
+		 *  reference qualification (private hook calls + `Module::` quals → RuiPriv_<Basename>::…). */
+		FString PrefixHooks(const FString& Code) { return PrefixHookCalls(Code, Qualified); }
 
 		/** An embedded expression: rewrite nested markup ranges (jsx scan) to element exprs. */
 		FString EmitExpr(const FString& Expr, int32 AbsAt)
@@ -387,6 +447,7 @@ namespace
 		TArray<FUetkxDiag>& Diags;
 		TSet<FString>& Uses;			 // component tags this component references (aggregator topo order)
 		TMap<FString, int32>& UseAts; // tag -> first reference offset (strict-import diagnostics, M4)
+		const TMap<FString, FString>& Qualified; // private same-file decl name -> RuiPriv_<Basename>::name
 		int32 TextKeyCounter = 0;
 		bool bError = false;
 	};
@@ -531,8 +592,13 @@ namespace
 			return Out;
 		}
 
-		const FString PropsType = bComponent ? FString::Printf(TEXT("F%sUetkxProps"), *Node.Tag) : Tag->PropsType;
-		const FString Factory = bComponent ? Node.Tag : Tag->Factory;
+		// A same-file PRIVATE component lives in the per-file detail namespace, so its call site
+		// qualifies both the props struct and the wrapper (RuiPriv_<Basename>::…).
+		const FString* Priv = bComponent ? Qualified.Find(Node.Tag) : nullptr;
+		const FString Prefix = Priv ? *Priv : FString();
+		const FString PropsType =
+			bComponent ? FString::Printf(TEXT("%sF%sUetkxProps"), *Prefix, *Node.Tag) : Tag->PropsType;
+		const FString Factory = bComponent ? Prefix + Node.Tag : Tag->Factory;
 
 		FString Out = TEXT("[&]() -> FRuiNode {\n");
 		Out += FString::Printf(TEXT("\t\t%s P;\n"), *PropsType);
@@ -851,11 +917,22 @@ namespace
 				 "InKey = FRuiKey())\n{\n\treturn RUI::FC(&%s_UetkxImpl, MoveTemp(InProps), MoveTemp(InChildren), "
 				 "InKey);\n}\n"),
 			*Decl.Name, *PropsType, *PropsType, *Decl.Name);
-		// Cross-TU reach: the wrapper above is TU-local (the aggregator), so every component
-		// also self-registers a default-props factory under its name (gallery/preview/HMR).
-		Out += FString::Printf(TEXT("static const bool G%sUetkxFactoryReg = "
-									"RUI::RegisterNamedFactory(FName(TEXT(\"%s\")), []() { return %s(); });\n"),
-							   *Decl.Name, *Decl.Name, *Decl.Name);
+		// Cross-TU reach: the wrapper above is TU-local (the aggregator), so an EXPORTED component
+		// self-registers a default-props factory under its name (gallery/preview/HMR). A PRIVATE
+		// component is TREE-SHAKEN — no named factory, and the whole declaration is wrapped in the
+		// per-file detail namespace (A5e). RegisterComponentId is KEPT either way (HMR identity).
+		if (Decl.bExported)
+		{
+			Out += FString::Printf(TEXT("static const bool G%sUetkxFactoryReg = "
+										"RUI::RegisterNamedFactory(FName(TEXT(\"%s\")), []() { return %s(); });\n"),
+								   *Decl.Name, *Decl.Name, *Decl.Name);
+		}
+		else
+		{
+			const FString PrivNs = PrivNamespaceFor(Basename);
+			Out = FString::Printf(TEXT("namespace %s\n{\n"), *PrivNs) + Out +
+				  FString::Printf(TEXT("} // namespace %s\n"), *PrivNs);
+		}
 		return Out;
 	}
 } // namespace
@@ -882,6 +959,23 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 	}
 	Inl += TEXT("\n");
 
+	// Same-file PRIVATE decls (A5e) get a detail-namespace prefix so their same-file references
+	// reach into the wrapper: name -> `RuiPriv_<Basename>::`. Exported decls stay at file scope.
+	const FString PrivNs = PrivNamespaceFor(Basename);
+	TMap<FString, FString> Qualified;
+	for (const FUetkxComponentDecl& D : Scan.Components)
+	{
+		if (!D.bExported) { Qualified.Add(D.Name, PrivNs + TEXT("::")); }
+	}
+	for (const FUetkxHookDecl& D : Scan.Hooks)
+	{
+		if (!D.bExported) { Qualified.Add(D.Name, PrivNs + TEXT("::")); }
+	}
+	for (const FUetkxModuleDecl& D : Scan.Modules)
+	{
+		if (!D.bExported) { Qualified.Add(D.Name, PrivNs + TEXT("::")); }
+	}
+
 	// De-binarized emit (mixed-decl v1): lower each declaration in SOURCE order. A component emits
 	// a struct + impl + wrapper + registrations (FEmitter); a hook emits an inline free function; a
 	// module emits a namespace. One .inl holds them all in the order the author wrote them.
@@ -894,7 +988,7 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 		case EUetkxDeclKind::Component:
 		{
 			const FUetkxComponentDecl& Decl = Scan.Components[Entry.Value];
-			FEmitter Emitter(Basename, Decl, Out.Diags, Uses, UseAts);
+			FEmitter Emitter(Basename, Decl, Out.Diags, Uses, UseAts, Qualified);
 			const FString Body = Emitter.Emit();
 			if (Emitter.HasError())
 			{
@@ -909,11 +1003,11 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 			break;
 		}
 		case EUetkxDeclKind::Hook:
-			Inl += EmitHookInl(Scan.Hooks[Entry.Value]);
+			Inl += EmitHookInl(Scan.Hooks[Entry.Value], PrivNs, Qualified);
 			Out.ComponentNames.Add(Scan.Hooks[Entry.Value].Name);
 			break;
 		case EUetkxDeclKind::Module:
-			Inl += EmitModuleInl(Scan.Modules[Entry.Value]);
+			Inl += EmitModuleInl(Scan.Modules[Entry.Value], PrivNs);
 			Out.ComponentNames.Add(Scan.Modules[Entry.Value].Name);
 			break;
 		}
@@ -933,6 +1027,21 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 				return Out;
 			}
 		}
+	}
+
+	// EXPORTED decl names — the cross-file-addressable bindings the 2106 global ledger keys on
+	// (private decls may collide across files by construction, A5e).
+	for (const FUetkxComponentDecl& D : Scan.Components)
+	{
+		if (D.bExported) { Out.ExportedNames.Add(D.Name); }
+	}
+	for (const FUetkxHookDecl& D : Scan.Hooks)
+	{
+		if (D.bExported) { Out.ExportedNames.Add(D.Name); }
+	}
+	for (const FUetkxModuleDecl& D : Scan.Modules)
+	{
+		if (D.bExported) { Out.ExportedNames.Add(D.Name); }
 	}
 
 	// a component never depends on ITSELF for ordering (recursion is legal in one TU)

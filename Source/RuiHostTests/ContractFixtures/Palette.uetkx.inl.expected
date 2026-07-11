@@ -7,7 +7,10 @@ namespace Palette
 	inline const int32 Primary = 1;
 } // namespace Palette
 
+namespace RuiPriv_Palette
+{
 inline void UsePrivate(FRuiContext& Ctx)
 {
 }
+} // namespace RuiPriv_Palette
 

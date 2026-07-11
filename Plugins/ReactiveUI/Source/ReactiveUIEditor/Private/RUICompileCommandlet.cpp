@@ -51,19 +51,11 @@ int32 URUICompileCommandlet::Main(const FString& Params)
 		return Check.Passed() ? 0 : 1;
 	}
 
-	// Capture the fingerprint verdict ONCE — CompileAll refreshes it per root, and the second
-	// root must not lose the "codegen version changed" force.
+	// One sweep over all roots under a SINGLE ledger (A5e): the UETKX2106 exported-name table spans
+	// Source + Plugins so a name exported in both is a collision.
 	const bool bForce = HasSwitch(Switches, TEXT("full")) || FUetkxDriver::FingerprintMismatch();
-	int32 Compiled = 0, Errors = 0, Skipped = 0, Total = 0;
-	for (const FString& Root : Roots)
-	{
-		const FUetkxSweepResult Sweep = FUetkxDriver::CompileAll(Root, bForce);
-		Compiled += Sweep.Compiled;
-		Errors += Sweep.Errors;
-		Skipped += Sweep.Skipped;
-		Total += Sweep.Total;
-	}
-	UE_LOG(LogRUICompile, Display, TEXT("RUICompile: %d file(s) — %d compiled, %d up-to-date, %d error(s)"), Total,
-		   Compiled, Skipped, Errors);
-	return Errors == 0 ? 0 : 1;
+	const FUetkxSweepResult Sweep = FUetkxDriver::CompileAllRoots(Roots, bForce);
+	UE_LOG(LogRUICompile, Display, TEXT("RUICompile: %d file(s) — %d compiled, %d up-to-date, %d error(s)"),
+		   Sweep.Total, Sweep.Compiled, Sweep.Skipped, Sweep.Errors);
+	return Sweep.Errors == 0 ? 0 : 1;
 }

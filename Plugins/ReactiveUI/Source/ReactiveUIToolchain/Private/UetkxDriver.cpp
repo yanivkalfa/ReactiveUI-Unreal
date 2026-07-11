@@ -279,6 +279,7 @@ FUetkxFileResult FUetkxDriver::CompileFile(const FString& UetkxPath, bool bForce
 	FUetkxCompileOutput Compiled = FUetkxCodegen::CompileSource(Source, Basename, ProjectRelPathFor(UetkxPath));
 	Out.Diags = Compiled.Diags;
 	Out.ComponentNames = Compiled.ComponentNames;
+	Out.ExportedNames = Compiled.ExportedNames;
 	if (Compiled.bOk)
 	{
 		// Unconditional write: the fresh mtime IS the staleness ledger (see WriteIfChanged).
@@ -476,13 +477,13 @@ FUetkxCheckResult FUetkxDriver::CheckDrift(const TArray<FString>& Roots)
 		}
 		const FUetkxCompileOutput Compiled =
 			FUetkxCodegen::CompileSource(Source, FPaths::GetBaseFilename(Path), ProjectRelPathFor(Path));
-		for (const FString& Name : Compiled.ComponentNames)
+		for (const FString& Name : Compiled.ExportedNames)
 		{
 			if (const FString* Incumbent = NameToFile.Find(Name))
 			{
 				++Out.Errors;
-				Out.Messages.Add(FString::Printf(TEXT("%s: UETKX2106: component `%s` is already bound by %s"), *Path,
-												 *Name, **Incumbent));
+				Out.Messages.Add(FString::Printf(
+					TEXT("%s: UETKX2106: exported binding `%s` is already bound by %s"), *Path, *Name, **Incumbent));
 			}
 			else
 			{
@@ -548,23 +549,32 @@ void FUetkxDriver::RefreshFingerprint()
 
 FUetkxSweepResult FUetkxDriver::CompileAll(const FString& RootDir, bool bForce)
 {
+	return CompileAllRoots({RootDir}, bForce);
+}
+
+FUetkxSweepResult FUetkxDriver::CompileAllRoots(const TArray<FString>& Roots, bool bForce)
+{
 	FUetkxSweepResult Out;
 	const bool bFingerprintStale = FingerprintMismatch();
-	const TArray<FString> All = FindAll(RootDir);
+	TArray<FString> All;
+	for (const FString& Root : Roots)
+	{
+		All.Append(FindAll(Root));
+	}
 	Out.Total = All.Num();
 	bool bAnyHeld = false;
-	TMap<FString, FString> NameToFile; // duplicate-binding ledger (UETKX2106)
+	TMap<FString, FString> NameToFile; // SINGLE exported-name ledger across ALL roots (UETKX2106, A5e)
 	for (const FString& Path : All)
 	{
 		FUetkxFileResult R = CompileFile(Path, bForce || bFingerprintStale);
-		for (const FString& Name : R.ComponentNames)
+		for (const FString& Name : R.ExportedNames)
 		{
 			if (const FString* Incumbent = NameToFile.Find(Name))
 			{
 				++Out.Errors;
 				UE_LOG(LogRuiToolchain, Error,
-					   TEXT("%s: UETKX2106: component `%s` is already bound by %s (one name, one file)"), *Path, *Name,
-					   **Incumbent);
+					   TEXT("%s: UETKX2106: exported binding `%s` is already bound by %s (one exported name, one file)"),
+					   *Path, *Name, **Incumbent);
 			}
 			else
 			{
@@ -671,9 +681,10 @@ FUetkxSweepResult FUetkxDriver::CompileAll(const FString& RootDir, bool bForce)
 	// .inl with no source would otherwise keep BUILDING through the aggregator's next regen
 	// cycle... the aggregator drops the include (built from FindAll), but the stale file
 	// itself must not linger for a hand include or a future rename to resurrect.
+	for (const FString& Root : Roots)
 	{
 		TArray<FString> Inls;
-		IFileManager::Get().FindFilesRecursive(Inls, *RootDir, TEXT("*.uetkx.inl"), true, false);
+		IFileManager::Get().FindFilesRecursive(Inls, *Root, TEXT("*.uetkx.inl"), true, false);
 		for (const FString& Inl : Inls)
 		{
 			const FString SourcePath = Inl.LeftChop(4); // strip ".inl"

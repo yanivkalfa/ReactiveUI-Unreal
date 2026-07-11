@@ -23,6 +23,7 @@ struct REACTIVEUITOOLCHAIN_API FUetkxFileResult
 	FString InlPath;
 	TArray<FUetkxDiag> Diags;
 	TArray<FString> ComponentNames; // compiled: from codegen; skipped: from the sidecar refs
+	TArray<FString> ExportedNames;	// EXPORTED names only — the 2106 ledger key (A5e)
 };
 
 struct REACTIVEUITOOLCHAIN_API FUetkxSweepResult
@@ -78,6 +79,12 @@ public:
 	 *  binding check (UETKX2106: one component name, one file — the incumbent keeps the name)
 	 *  + regenerate aggregators + fingerprint. */
 	static FUetkxSweepResult CompileAll(const FString& RootDir, bool bForce = false);
+
+	/** Sweep every root under ONE ledger (A5e): a single UETKX2106 exported-name table spans all
+	 *  roots (a name exported in Source AND Plugins is a collision), and the aggregators + orphan
+	 *  sweep + fingerprint run over the combined file set. The commandlet calls this once instead
+	 *  of looping CompileAll per root. */
+	static FUetkxSweepResult CompileAllRoots(const TArray<FString>& Roots, bool bForce = false);
 
 	/** Regenerate `<ModuleDirName>.Uetkx.gen.cpp` beside each module's .uetkx set. Returns
 	 *  true when any aggregator changed on disk. */
