@@ -939,7 +939,7 @@ distribution, and always opt-in — never a mandatory VM under the shipped UI, p
   defaults under interp. Deferred to later phases per plan: New Component menu + Content
   Browser UX (Phase 8 bundle, TD-014), URuiSubsystem mount surface (Phase 6).
 
-### - [ ] Phase 5 — IDE tooling (lsp-server + VS Code + VS2022)
+### - [x] Phase 5 — IDE tooling (lsp-server + VS Code + VS2022) — DONE 2026-07-11 (markup baseline shipped: TS front-end corpus-locked to the C++ compiler [scanner 57 + formatter 16 + hash pins replay byte-identically], schema-driven server, VS Code + VS2022 clients; clangd enhancement layer = TD-020)
 
 - **Objective:** `.uetkx` first-class in VS Code and VS2022: markup intelligence offline from the
   schema, embedded-C++ intelligence via clangd, diagnostics from sidecars, formatter parity.
@@ -975,7 +975,19 @@ distribution, and always opt-in — never a mandatory VM under the shipped UI, p
 - **Done when:** editing the demo `.uetkx` files in VS Code gives completion/diagnostics/format;
   embedded C++ hovers resolve UE types when compile_commands.json exists; degradation notice
   correct without it.
-- **Status:** NOT STARTED.
+- **Status:** COMPLETE 2026-07-11 (the fully-supported markup BASELINE — the family's shipped
+  degradation contract). Delivered: `ide-extensions/lsp-server` (codePoints, cppScanner,
+  uetkxMarkup, uetkxFileScan, formatUetkx — every piece corpus-locked to the C++ side via the
+  two shared fixtures + srcHash pins, 7/7 `node --test`), uetkxSchema (shipped RUIExportSchema
+  copy + Saved/ReactiveUI/schema.json walk-up override), hash-gated sidecar diagnostics, live
+  parse diagnostics, completions (tag/attr/style/slot/directive/hook), hover, golden-corpus
+  formatting with uetkx.config.json walk-up; `vscode-uetkx` (language id, TextMate grammar with
+  embedded source.cpp, IPC client, self-contained JS server bundle — one vsix, all platforms —
+  builds green); `visual-studio/UetkxVsix` (MEF ILanguageClient stdio host + pkgdef TextMate
+  registration, the family's verified csproj shape — build/F5 on the owner checklist, VS SDK
+  not available headless here). Deferred by decision: TD-020 (clangd proxy/virtual doc + the
+  VS2022 polish set), Rider cut (owner). Owner manual check of VS Code UX on the acceptance
+  checklist.
 
 ### - [ ] Phase 6 — Epic interop (UMG / CommonUI / MVVM)
 

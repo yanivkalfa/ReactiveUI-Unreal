@@ -221,3 +221,19 @@ referenced from plans/PRs.
   path that migrates an exporting cell's value into the fresh FRuiValue cell when the hook
   signature matches. Numeric/string/bool/text state would then survive the FIRST save too.
 - **Status:** OPEN
+
+## TD-020 — Embedded-C++ intelligence (clangd proxy over a virtual document)
+- **Where:** `ide-extensions/lsp-server` (virtualDoc/sourceMap/clangdProxy modules)
+- **What/why deferred:** the Phase-5 enhancement layer — a length-preserving C++ virtual
+  document + source map forwarding hover/completion/definition inside `{expr}`/setup blocks
+  to a clangd child process (compile_commands.json walk-up). v1 ships the family's
+  fully-supported BASELINE instead: markup intelligence from the compiler-exported schema,
+  live parse diagnostics from the corpus-locked TS front-end, hash-gated sidecar compiler
+  diagnostics, and golden-corpus formatting. The proxy needs clangd present and is only
+  meaningfully verifiable interactively; the family precedent ("markup-only stays a fully-
+  supported baseline") is the shipped degradation contract.
+- **Production-grade resolution:** port virtualDoc.ts (third instantiation of the family
+  pattern; HookStubs.h parity test), sourceMap.ts spans, clangdProxy.ts child process with
+  graceful-degradation notice. The VS2022 polish set (options page, format-on-save, smart
+  indent, brace completion — present in the Godot sibling) rides the same follow-up.
+- **Status:** OPEN

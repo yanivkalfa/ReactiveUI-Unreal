@@ -11,9 +11,9 @@
     "node": ">=18"
   },
   "scripts": {
-    "build": "tsc -p ./",
+    "build": "tsc -p ./ && node scripts/copy-assets.mjs",
     "watch": "tsc -w -p ./",
-    "test": "tsc -p ./ && node --test out/test/*.test.js"
+    "test": "tsc -p ./ && node scripts/copy-assets.mjs && node --test out/test/*.test.js"
   },
   "dependencies": {
     "vscode-languageserver": "^9.0.1",
