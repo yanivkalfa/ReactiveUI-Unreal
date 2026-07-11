@@ -223,15 +223,15 @@ bool FRuiUetkxDriverTest::RunTest(const FString&)
 		FUetkxDriver::CompileAll(Scratch, /*bForce*/ true);
 		TestFalse(TEXT("A failed to resolve X -> no .inl"), FM.FileExists(*FUetkxDriver::InlPathFor(APath)));
 
-		// B gains X. A is NOT touched. The dep_hashes graph must un-poison A's error verdict — it
-		// recompiles by the second sweep (A sorts before B, so pass 1 settles B, pass 2 catches A).
+		// B gains X. A is NOT touched. The dep_hashes graph un-poisons A's error verdict, and the
+		// staleness FIXPOINT recompiles A in a SINGLE sweep even though A sorts before B (pass 1
+		// settles B, pass 2 catches A) — no external re-sweep needed.
 		FFileHelper::SaveStringToFile(
 			TEXT("export component Placeholder { return ( <Spacer /> ); }\nexport component X { return ( <Spacer /> "
 				 "); }\n"),
 			*BPath);
 		FUetkxDriver::CompileAll(Scratch);
-		FUetkxDriver::CompileAll(Scratch);
-		TestTrue(TEXT("A recompiled after B gained X (verdict un-poisoned, A untouched)"),
+		TestTrue(TEXT("A recompiled after B gained X in ONE sweep (verdict un-poisoned, fixpoint)"),
 				 FM.FileExists(*FUetkxDriver::InlPathFor(APath)));
 		FM.Delete(*APath);
 		FM.Delete(*BPath);

@@ -400,8 +400,15 @@ compiler fingerprint) — all fold into ONE CodegenVersion bump + one golden re-
   dep's current export_hash. Resolution diags (2300-2309) ALWAYS record dep_hashes (unresolved
   specifier records the RESOLVED-candidate path with hash 0 → any appearance of the file flips it).
 - Watcher (`ReactiveUIEditor/Private/UetkxWatcher.cpp`) sweeps via CompileAll — inherits both fixes.
-- Tests: driver test — the exact A/B retry scenario above goes green on the second sweep with no
-  touch of A; export-removal marks importer stale; fresh-clone (no sidecars) full compile ordering.
+- Tests: driver test — the exact A/B retry scenario above goes green in a **SINGLE sweep** with no
+  touch of A (the fixpoint's pass 2 catches A even though it sorts before B); export-removal marks
+  importer stale; fresh-clone (no sidecars) full compile ordering. **[LANDED TD-025]**: implemented
+  as `RunPass`/`ByPath`/`OldExport`+`bExportsMoved` in `CompileAllRoots` — pass 1 compiles
+  mtime/dep-stale files; if any `export_hash` moved, pass 2 re-sweeps and each importer's dep-hash
+  `IsStale` (reading the now-updated dep sidecar) recompiles it. `ByPath` keeps each file's compiled
+  result across passes so the tally + 2106 ledger reflect the converged state. Verified:
+  `ReactiveUI.Uetkx.Driver` "A recompiled after B gained X in ONE sweep (verdict un-poisoned,
+  fixpoint)".
 
 ### M9 — HMR: mixed-file per-decl + import-graph blast radius
 

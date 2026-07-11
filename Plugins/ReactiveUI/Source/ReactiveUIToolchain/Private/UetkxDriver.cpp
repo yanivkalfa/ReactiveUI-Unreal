@@ -669,13 +669,63 @@ FUetkxSweepResult FUetkxDriver::CompileAllRoots(const TArray<FString>& Roots, bo
 	}
 	Out.Total = All.Num();
 	bool bAnyHeld = false;
-	TMap<FString, FString> NameToFile; // SINGLE exported-name ledger across ALL roots (UETKX2106, A5e)
 	// STRICT enforcement (A1): the compiler resolves imports over the sweep roots. Migrated files
 	// resolve clean; a broken import fails the file (its .inl is deleted) — strict day one.
 	const FUetkxFsResolver Resolver(FPaths::ProjectDir(), Roots, /*bFixtureMode*/ false);
+	auto NormPath = [](FString P)
+	{
+		P = FPaths::ConvertRelativePathToFull(P);
+		FPaths::NormalizeFilename(P);
+		return P;
+	};
+
+	// One compile pass over every file. Each file's result is kept in ByPath: a real compile
+	// (non-skip) always overwrites, a skip is kept only when the file was never compiled — so a file
+	// compiled in pass 1 and skipped in pass 2 (up-to-date) still reports as COMPILED with its
+	// ExportedNames intact for the 2106 ledger.
+	TMap<FString, FUetkxFileResult> ByPath;
+	auto RunPass = [&](bool bForcePass)
+	{
+		for (const FString& Path : All)
+		{
+			FUetkxFileResult R = CompileFile(Path, bForcePass, &Resolver);
+			if (!R.bSkipped || !ByPath.Contains(Path))
+			{
+				ByPath.Add(Path, MoveTemp(R));
+			}
+		}
+	};
+
+	// Reverse-edge staleness FIXPOINT (M8/TD-025): snapshot each file's export_hash, run pass 1, and
+	// if any export shape MOVED, an importer that sorted BEFORE its dep saw the stale hash — re-sweep
+	// ONCE so its dep-hash IsStale check (now reading the updated dep sidecar) recompiles it. In
+	// practice this converges in 2 passes (an importer's own export_hash does not change from merely
+	// resolving, so there is no further cascade).
+	TMap<FString, uint32> OldExport;
 	for (const FString& Path : All)
 	{
-		FUetkxFileResult R = CompileFile(Path, bForce || bFingerprintStale, &Resolver);
+		OldExport.Add(NormPath(Path), ReadSidecarExportHash(SidecarPathFor(Path)));
+	}
+	RunPass(bForce || bFingerprintStale);
+	bool bExportsMoved = false;
+	for (const FString& Path : All)
+	{
+		if (ReadSidecarExportHash(SidecarPathFor(Path)) != OldExport.FindRef(NormPath(Path)))
+		{
+			bExportsMoved = true;
+			break;
+		}
+	}
+	if (bExportsMoved)
+	{
+		RunPass(false);
+	}
+
+	// Tally + the UETKX2106 exported-name ledger from the CONVERGED per-file state.
+	TMap<FString, FString> NameToFile;
+	for (const FString& Path : All)
+	{
+		const FUetkxFileResult& R = ByPath[Path];
 		for (const FString& Name : R.ExportedNames)
 		{
 			if (const FString* Incumbent = NameToFile.Find(Name))
@@ -718,7 +768,7 @@ FUetkxSweepResult FUetkxDriver::CompileAllRoots(const TArray<FString>& Roots, bo
 				}
 			}
 		}
-		Out.Files.Add(MoveTemp(R));
+		Out.Files.Add(R);
 	}
 	// UETKX2306: a VALUE-import cycle. Cross-file COMPONENT cycles are now legal (the two-phase decl
 	// pass forward-declares every wrapper — UETKX2107 retired). But HOOKS and MODULES load EAGERLY,
