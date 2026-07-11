@@ -160,7 +160,18 @@ referenced from plans/PRs.
   `RUI::Style().Opacity(0.5f).Color(...).FontSize(16)` and
   `RUI::Slot().Padding(8).HAlign(EH::Center).Fill(1.f)` — one method per registered key,
   generated from the same schema the markup compiler validates against (single source).
-- **Status:** OPEN
+- **Status:** RESOLVED 2026-07-12 — `RUI::Style()` (`FRuiStyleBuilder`) + `RUI::Slot()`
+  (`FRuiSlotBuilder`) in RuiStyle.h: one fluent method per registered v1 style key (RenderOpacity,
+  Visibility, Enabled, RenderTranslation/Scale/TransformAngle/TransformPivot, ColorAndOpacity,
+  FontSize, Justification, AutoWrapText, FillColorAndOpacity) and per slot key (Padding(FMargin|
+  float), HAlign(EHorizontalAlignment), VAlign(EVerticalAlignment), Fill) — each emitting the SAME
+  FName key + FRuiValue kind the .uetkx markup does (single vocabulary), with a `Set(Key,Value)`
+  forward-compat escape hatch. Implicitly convertible to `TSharedPtr<FRuiStyleDict>` for `Props.Style`
+  / `Props.SlotProps`; header-only (no runtime cost beyond the map). Test `ReactiveUI.Style.Builder`
+  applies a built style dict to a widget (RenderOpacity/Enabled + reset-on-removal) and a built slot
+  dict through the box adapter (padding + HAlign), and pins the stored value kinds. NOTE: enum-safe
+  authoring; the "codegen from schema" single-source is deferred — the key set is small, fixed for
+  v1, and cross-checked by this test against the markup path.
 
 ## TD-014 — Content-Browser presence for `.uetkx` files
 - **Where:** `ReactiveUIEditor` (would extend `FUetkxFileActions`)
