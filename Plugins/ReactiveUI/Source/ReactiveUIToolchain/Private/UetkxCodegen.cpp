@@ -7,6 +7,7 @@
 #include "Serialization/JsonWriter.h"
 #include "UetkxJsxScan.h"
 #include "UetkxLexer.h"
+#include "UetkxResolve.h"
 
 namespace
 {
@@ -299,8 +300,8 @@ namespace
 	{
 	public:
 		FEmitter(const FString& InBasename, const FUetkxComponentDecl& InDecl, TArray<FUetkxDiag>& InDiags,
-				 TSet<FString>& InUses)
-			: Basename(InBasename), Decl(InDecl), Diags(InDiags), Uses(InUses)
+				 TSet<FString>& InUses, TMap<FString, int32>& InUseAts)
+			: Basename(InBasename), Decl(InDecl), Diags(InDiags), Uses(InUses), UseAts(InUseAts)
 		{
 		}
 
@@ -384,7 +385,8 @@ namespace
 		const FString& Basename;
 		const FUetkxComponentDecl& Decl;
 		TArray<FUetkxDiag>& Diags;
-		TSet<FString>& Uses; // component tags this component references (aggregator topo order)
+		TSet<FString>& Uses;			 // component tags this component references (aggregator topo order)
+		TMap<FString, int32>& UseAts; // tag -> first reference offset (strict-import diagnostics, M4)
 		int32 TextKeyCounter = 0;
 		bool bError = false;
 	};
@@ -444,6 +446,10 @@ namespace
 		if (bComponent)
 		{
 			Uses.Add(Node.Tag);
+			if (!UseAts.Contains(Node.Tag))
+			{
+				UseAts.Add(Node.Tag, AbsAt + Node.At);
+			}
 		}
 
 		// TextBlock special case: single Text attr routes through the factory directly.
@@ -858,7 +864,6 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 												 const FString& ProjectRelPath, const IUetkxImportResolver* Resolver)
 {
 	(void)ProjectRelPath; // #line mapping (M7)
-	(void)Resolver;		  // import resolution + strict diagnostics (M4)
 
 	FUetkxCompileOutput Out;
 	FUetkxFileScanResult Scan = FUetkxFileScan::Scan(Source, Basename);
@@ -881,6 +886,7 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 	// a struct + impl + wrapper + registrations (FEmitter); a hook emits an inline free function; a
 	// module emits a namespace. One .inl holds them all in the order the author wrote them.
 	TSet<FString> Uses;
+	TMap<FString, int32> UseAts;
 	for (const TPair<EUetkxDeclKind, int32>& Entry : Scan.Order)
 	{
 		switch (Entry.Key)
@@ -888,7 +894,7 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 		case EUetkxDeclKind::Component:
 		{
 			const FUetkxComponentDecl& Decl = Scan.Components[Entry.Value];
-			FEmitter Emitter(Basename, Decl, Out.Diags, Uses);
+			FEmitter Emitter(Basename, Decl, Out.Diags, Uses, UseAts);
 			const FString Body = Emitter.Emit();
 			if (Emitter.HasError())
 			{
@@ -912,6 +918,23 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 			break;
 		}
 	}
+	// Import resolution + STRICT usage diagnostics (M4). Runs only when a resolver is supplied
+	// (driver / fixture harness); tests without one get syntax-only compilation. Resolution
+	// happens AFTER emit so the component-tag reference set (UseAts) is available; a resolution
+	// ERROR discards the .inl (bOk stays false) so no under-resolved code is committed.
+	if (Resolver != nullptr)
+	{
+		const FString ImporterPath = ProjectRelPath.IsEmpty() ? Basename + TEXT(".uetkx") : ProjectRelPath;
+		FUetkxResolve::Apply(Scan, UseAts, ImporterPath, *Resolver, Out.Diags, Out.DepHashes);
+		for (const FUetkxDiag& Diag : Out.Diags)
+		{
+			if (Diag.Severity == 0)
+			{
+				return Out;
+			}
+		}
+	}
+
 	// a component never depends on ITSELF for ordering (recursion is legal in one TU)
 	for (const FString& Name : Out.ComponentNames)
 	{

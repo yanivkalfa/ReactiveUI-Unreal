@@ -1,3 +1,5 @@
+import { StatusChip } from "./StatusChip"
+
 component Showcase {
 	auto [Mode, SetMode] = UseState<int32>(0);
 	TFunction<void(int32)> Set = SetMode;

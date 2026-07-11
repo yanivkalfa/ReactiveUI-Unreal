@@ -749,3 +749,126 @@ FUetkxFileScanResult FUetkxFileScan::Scan(const FString& Source, const FString& 
 	}
 	return Out;
 }
+
+FUetkxPreambleScan FUetkxFileScan::ScanPreamble(const FString& Source)
+{
+	FUetkxPreambleScan Out;
+	const TArray<int32> Src = FUetkxLexer::ToCodePoints(Source);
+	const int32 N = Src.Num();
+
+	// Preamble: imports only (reusing ParseImport; #include is irrelevant to resolution).
+	TMap<FString, FString> ImportedFrom;
+	FUetkxFileScanResult Tmp;
+	int32 i = 0;
+	while (i < N)
+	{
+		const int32 j = FUetkxLexer::SkipNoncode(Src, i);
+		if (j != i)
+		{
+			i = j;
+			continue;
+		}
+		if (FUetkxLexer::KeywordAt(Src, i, TEXT("import")))
+		{
+			i = ParseImport(Src, i, Tmp, ImportedFrom);
+			continue;
+		}
+		if (FUetkxLexer::KeywordAt(Src, i, TEXT("export")) || FUetkxLexer::KeywordAt(Src, i, TEXT("component")) ||
+			FUetkxLexer::KeywordAt(Src, i, TEXT("hook")) || FUetkxLexer::KeywordAt(Src, i, TEXT("module")))
+		{
+			break;
+		}
+		++i;
+	}
+	Out.Imports = MoveTemp(Tmp.Imports);
+
+	// Declarations: capture [export] component/hook/module Name and SKIP the body (no markup parse).
+	// Best-effort: stop at the first unparseable header (the target's real compile reports it).
+	while (i < N)
+	{
+		const int32 j = FUetkxLexer::SkipNoncode(Src, i);
+		if (j != i)
+		{
+			i = j;
+			continue;
+		}
+		const int32 C = Src[i];
+		if (C == C_SPACE || C == C_TAB || C == C_NL || C == C_CR)
+		{
+			++i;
+			continue;
+		}
+		bool bExported = false;
+		if (FUetkxLexer::KeywordAt(Src, i, TEXT("export")))
+		{
+			bExported = true;
+			i = SkipWsOnly(Src, i + 6);
+		}
+		FUetkxPreambleDecl D;
+		D.bExported = bExported;
+		int32 KeywordLen = 0;
+		if (FUetkxLexer::KeywordAt(Src, i, TEXT("component")))
+		{
+			D.Kind = EUetkxDeclKind::Component;
+			KeywordLen = 9;
+		}
+		else if (FUetkxLexer::KeywordAt(Src, i, TEXT("hook")))
+		{
+			D.Kind = EUetkxDeclKind::Hook;
+			KeywordLen = 4;
+		}
+		else if (FUetkxLexer::KeywordAt(Src, i, TEXT("module")))
+		{
+			D.Kind = EUetkxDeclKind::Module;
+			KeywordLen = 6;
+		}
+		else
+		{
+			break; // junk / import-after-decl / export-without-decl
+		}
+		int32 k = SkipWsOnly(Src, i + KeywordLen);
+		const int32 Ns = k;
+		while (k < N && FUetkxLexer::IsIdentCode(Src[k]))
+		{
+			++k;
+		}
+		D.Name = FUetkxLexer::FromCodePoints(Src, Ns, k - Ns);
+		k = SkipWsOnly(Src, k);
+		// component/hook take a `(...)` param list; skip it.
+		if (D.Kind != EUetkxDeclKind::Module && k < N && Src[k] == C_LPAREN)
+		{
+			const int32 Pc = FUetkxLexer::FindMatching(Src, k);
+			if (Pc == -1)
+			{
+				break;
+			}
+			k = SkipWsOnly(Src, Pc + 1);
+		}
+		// hooks may carry `-> Ret` before the body.
+		if (D.Kind == EUetkxDeclKind::Hook && k + 1 < N && Src[k] == '-' && Src[k + 1] == '>')
+		{
+			while (k < N && Src[k] != C_LBRACE)
+			{
+				++k;
+			}
+		}
+		k = SkipWsOnly(Src, k);
+		if (k >= N || Src[k] != C_LBRACE)
+		{
+			break;
+		}
+		// component bodies mix markup + C++ (FindMatchingMarkup); hooks/modules are pure C++.
+		const int32 Bclose = D.Kind == EUetkxDeclKind::Component ? FUetkxLexer::FindMatchingMarkup(Src, k)
+																 : FUetkxLexer::FindMatching(Src, k);
+		if (Bclose == -1)
+		{
+			break;
+		}
+		if (!D.Name.IsEmpty())
+		{
+			Out.Decls.Add(MoveTemp(D));
+		}
+		i = Bclose + 1;
+	}
+	return Out;
+}

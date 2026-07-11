@@ -1,0 +1,9 @@
+import { StatusChip } from "./Nope"
+import { UsePrivate } from "./Palette"
+
+component ImportError {
+	UsePrivate();
+	return (
+		<StatusChip />
+	);
+}

@@ -1,0 +1,144 @@
+// Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
+//
+// ReactiveUI.Uetkx.Resolve — the import resolver + strict-usage diagnostics (M4). Builds scratch
+// .uetkx trees under Saved/ and pins the resolution of `./ ../ ~/` specifiers plus every
+// CompileSource-level family diagnostic (2300-2309). The 2308 module-boundary case uses a second
+// tree with real `*.Build.cs` module roots.
+
+#include "HAL/FileManager.h"
+#include "Misc/AutomationTest.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+#include "UetkxCodegen.h"
+#include "UetkxResolve.h"
+
+#if WITH_DEV_AUTOMATION_TESTS
+
+namespace UetkxResolveTest
+{
+	static void Write(const FString& Path, const FString& Body)
+	{
+		FFileHelper::SaveStringToFile(Body, *Path, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+	}
+	static FString Norm(FString P)
+	{
+		P = FPaths::ConvertRelativePathToFull(P);
+		FPaths::NormalizeFilename(P);
+		return P;
+	}
+	static TArray<FString> Codes(const FString& Source, const FString& Rel, const IUetkxImportResolver& R)
+	{
+		const FString Base = FPaths::GetBaseFilename(Rel);
+		const FUetkxCompileOutput Out = FUetkxCodegen::CompileSource(Source, Base, Rel, &R);
+		TArray<FString> C;
+		for (const FUetkxDiag& D : Out.Diags)
+		{
+			C.Add(D.Code);
+		}
+		return C;
+	}
+} // namespace UetkxResolveTest
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRuiUetkxResolveTest, "ReactiveUI.Uetkx.Resolve",
+								 EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+bool FRuiUetkxResolveTest::RunTest(const FString&)
+{
+	using namespace UetkxResolveTest;
+	IFileManager& FM = IFileManager::Get();
+	auto Has = [this](const TArray<FString>& C, const TCHAR* Code)
+	{ return TestTrue(FString::Printf(TEXT("diags contain %s"), Code), C.Contains(FString(Code))); };
+	auto HasNot = [this](const TArray<FString>& C, const TCHAR* Code)
+	{ return TestFalse(FString::Printf(TEXT("diags do NOT contain %s"), Code), C.Contains(FString(Code))); };
+
+	// ── scratch tree (fixture-mode resolver: ~/ = root, flat, no module boundary) ─────────────
+	const FString Root = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("ReactiveUI"), TEXT("ResolveTest"));
+	FM.DeleteDirectory(*Root, false, true);
+	FM.MakeDirectory(*(Root / TEXT("Screens")), true);
+	FM.MakeDirectory(*(Root / TEXT("hooks")), true);
+	Write(Root / TEXT("Screens/Chip.uetkx"), TEXT("export component Chip {\n\treturn ( <Spacer /> );\n}\n"));
+	Write(Root / TEXT("Screens/Mixed.uetkx"),
+		  TEXT("export component Mixed {\n\treturn ( <Spacer /> );\n}\nhook UsePriv() {\n}\n"));
+	Write(Root / TEXT("hooks/Thing.uetkx"), TEXT("export hook UseThing() {\n}\n"));
+
+	const FUetkxFsResolver R(Root, {Root}, /*bFixtureMode*/ true);
+
+	// ── Resolve() specifier forms ─────────────────────────────────────────────────────────────
+	TestEqual(TEXT("./ resolves"), Norm(R.Resolve(TEXT("./Chip"), TEXT("Screens/App.uetkx"))),
+			  Norm(Root / TEXT("Screens/Chip.uetkx")));
+	TestEqual(TEXT("../ resolves"), Norm(R.Resolve(TEXT("../hooks/Thing"), TEXT("Screens/App.uetkx"))),
+			  Norm(Root / TEXT("hooks/Thing.uetkx")));
+	TestEqual(TEXT("~/ resolves at the fixture root"), Norm(R.Resolve(TEXT("~/hooks/Thing"), TEXT("Screens/App.uetkx"))),
+			  Norm(Root / TEXT("hooks/Thing.uetkx")));
+	TestTrue(TEXT("unknown specifier is unresolved"), R.Resolve(TEXT("./Nope"), TEXT("Screens/App.uetkx")).IsEmpty());
+	TestTrue(TEXT("bare/engine-native specifier is forbidden"),
+			 R.Resolve(TEXT("Chip"), TEXT("Screens/App.uetkx")).IsEmpty());
+	TestTrue(TEXT("res:// specifier is forbidden"),
+			 R.Resolve(TEXT("res://Chip"), TEXT("Screens/App.uetkx")).IsEmpty());
+
+	// ── strict diagnostics, one per case (rel = Screens/T.uetkx so ./ anchors in Screens) ─────
+	const FString Rel = TEXT("Screens/T.uetkx");
+	{ // clean: import a used component
+		const TArray<FString> C = Codes(
+			TEXT("import { Chip } from \"./Chip\"\ncomponent T {\n\treturn ( <Chip /> );\n}\n"), Rel, R);
+		TestEqual(TEXT("clean import has no diags"), C.Num(), 0);
+	}
+	{ // clean: ~/ hook import + use
+		const TArray<FString> C = Codes(
+			TEXT("import { UseThing } from \"~/hooks/Thing\"\ncomponent T {\n\tUseThing();\n\treturn ( <Spacer /> );\n}\n"),
+			Rel, R);
+		TestEqual(TEXT("~/ hook import + use is clean"), C.Num(), 0);
+	}
+	Has(Codes(TEXT("import { Chip } from \"./Nope\"\ncomponent T {\n\treturn ( <Spacer /> );\n}\n"), Rel, R),
+		TEXT("UETKX2300")); // unknown specifier
+	Has(Codes(TEXT("import { UsePriv } from \"./Mixed\"\ncomponent T {\n\tUsePriv();\n\treturn ( <Spacer /> );\n}\n"),
+			  Rel, R),
+		TEXT("UETKX2301")); // imported name is not exported
+	Has(Codes(TEXT("import { Ghost } from \"./Chip\"\ncomponent T {\n\treturn ( <Ghost /> );\n}\n"), Rel, R),
+		TEXT("UETKX2302")); // imported name is not declared
+	Has(Codes(TEXT("import { Chip } from \"./Chip\"\nimport { Chip } from \"./Chip\"\ncomponent T {\n\treturn ( "
+				   "<Chip /> );\n}\n"),
+			  Rel, R),
+		TEXT("UETKX2303")); // duplicate import
+	Has(Codes(TEXT("import { Chip } from \"./Chip\"\ncomponent T {\n\treturn ( <Spacer /> );\n}\n"), Rel, R),
+		TEXT("UETKX2304")); // unused import (warn)
+	Has(Codes(TEXT("component T {\n\treturn ( <Chip /> );\n}\n"), Rel, R),
+		TEXT("UETKX2305")); // used but not imported (exported elsewhere)
+	Has(Codes(TEXT("component T {\n\treturn ( <Nonexistent /> );\n}\n"), Rel, R),
+		TEXT("UETKX2307")); // used, exported by no file
+	Has(Codes(TEXT("component T {\n\treturn ( <Spacer /> );\n}\nimport { Chip } from \"./Chip\"\n"), Rel, R),
+		TEXT("UETKX2309")); // import after a declaration
+
+	// same-file references are exempt from the import requirement.
+	{
+		const TArray<FString> C = Codes(
+			TEXT("component T {\n\tUseLocal();\n\treturn ( <Spacer /> );\n}\nhook UseLocal() {\n}\n"), Rel, R);
+		HasNot(C, TEXT("UETKX2305"));
+		HasNot(C, TEXT("UETKX2307"));
+	}
+	// a hand-written C++ namespace qual (exported by no file) is ambient — never 2305/2307.
+	{
+		const TArray<FString> C =
+			Codes(TEXT("component T {\n\tint32 X = RuiDemo::Value;\n\treturn ( <Spacer /> );\n}\n"), Rel, R);
+		HasNot(C, TEXT("UETKX2305"));
+		HasNot(C, TEXT("UETKX2307"));
+	}
+
+	// ── 2308: module boundary (real-mode resolver with *.Build.cs module roots) ────────────────
+	const FString Root2 = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("ReactiveUI"), TEXT("ResolveTest2"));
+	FM.DeleteDirectory(*Root2, false, true);
+	FM.MakeDirectory(*(Root2 / TEXT("ModA")), true);
+	FM.MakeDirectory(*(Root2 / TEXT("ModB")), true);
+	Write(Root2 / TEXT("ModA/ModA.Build.cs"), TEXT("// stub"));
+	Write(Root2 / TEXT("ModB/ModB.Build.cs"), TEXT("// stub"));
+	Write(Root2 / TEXT("ModB/Chip.uetkx"), TEXT("export component Chip {\n\treturn ( <Spacer /> );\n}\n"));
+	const FUetkxFsResolver R2(Root2, {Root2}, /*bFixtureMode*/ false);
+	Has(Codes(TEXT("import { Chip } from \"../ModB/Chip\"\ncomponent App {\n\treturn ( <Chip /> );\n}\n"),
+			  TEXT("ModA/App.uetkx"), R2),
+		TEXT("UETKX2308")); // import crosses a module boundary
+
+	FM.DeleteDirectory(*Root, false, true);
+	FM.DeleteDirectory(*Root2, false, true);
+	return true;
+}
+
+#endif // WITH_DEV_AUTOMATION_TESTS

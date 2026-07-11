@@ -131,6 +131,23 @@ struct REACTIVEUIINTERP_API FUetkxFileScanResult
 	}
 };
 
+/** One declaration's identity, as seen by the cheap preamble scan (no markup parse). */
+struct REACTIVEUIINTERP_API FUetkxPreambleDecl
+{
+	FString Name;
+	EUetkxDeclKind Kind = EUetkxDeclKind::Component;
+	bool bExported = false;
+};
+
+/** The result of ScanPreamble: imports + declaration identities in source order, WITHOUT parsing
+ *  component markup. The import resolver reads this to build export tables + export hashes cheaply
+ *  and without tripping on a target file's markup errors (A2 source-truth graph). */
+struct REACTIVEUIINTERP_API FUetkxPreambleScan
+{
+	TArray<FUetkxImportDecl> Imports;
+	TArray<FUetkxPreambleDecl> Decls;
+};
+
 /** The (last) top-level markup `return ( ... )` inside a body — the ONE splitter shared by
  *  the file scan, the emitter, and the formatter (they must never disagree on the window). */
 struct REACTIVEUIINTERP_API FUetkxSplitReturn
@@ -153,6 +170,12 @@ public:
 
 	/** Scan a whole .uetkx source: preamble + every component declaration. */
 	static FUetkxFileScanResult Scan(const FString& Source, const FString& Basename);
+
+	/** Cheap scan: preamble imports + declaration identities (name/kind/exported) in source order,
+	 *  WITHOUT parsing component markup. Used by the import resolver for export tables + hashes; it
+	 *  never fails on a target's markup errors (best-effort — stops at the first unparseable decl
+	 *  header). */
+	static FUetkxPreambleScan ScanPreamble(const FString& Source);
 
 	/** Find the LAST top-level `return ( ... )` in a body (T1.4 semantics). With
 	 *  bRequireMarkupPeek the window must START like markup (`<`/`@`/`{`, after leading markup

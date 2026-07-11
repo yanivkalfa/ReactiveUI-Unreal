@@ -24,6 +24,7 @@ struct REACTIVEUITOOLCHAIN_API FUetkxCompileOutput
 	TArray<FString> Uses;			// component names REFERENCED by markup (aggregator topo order)
 	bool bSupportFile = false;		// no markup (only hooks/modules) — HMR rebuild, not interp swap
 	uint32 HookSig = 0;				// first component's hook signature (interp swap key)
+	TMap<FString, uint32> DepHashes; // resolved import label -> its export_hash (staleness graph, M8)
 };
 
 class REACTIVEUITOOLCHAIN_API FUetkxCodegen
