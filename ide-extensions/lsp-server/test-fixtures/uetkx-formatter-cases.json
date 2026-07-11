@@ -55,9 +55,9 @@
       "fellBack": true
     },
     {
-      "name": "a second component in one file falls back verbatim (one component per file)",
+      "name": "mixed-decl: two components format (one component per file is a LINT convention, not an error)",
       "input": "component Alpha {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n\n\n\ncomponent Beta {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n",
-      "fellBack": true
+      "expect": "component Alpha {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n\ncomponent Beta {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n"
     },
     {
       "name": "anonymous fragment",

@@ -31,10 +31,34 @@ struct REACTIVEUIINTERP_API FUetkxParam
 	FString Default; // empty = required
 };
 
+/** The three declaration kinds a .uetkx file may hold, in any number and any order (FULL
+ *  MIXED-DECL v1, A1). The scan records the source ORDER as (kind, index-into-its-array) pairs so
+ *  the emitter can lower declarations in the order the author wrote them. */
+enum class EUetkxDeclKind : uint8
+{
+	Component,
+	Hook,
+	Module
+};
+
+/** `import { A, B } from "specifier"` — a PREAMBLE-ONLY static import (A1): named bindings only
+ *  (no default, no `*`), string-literal specifier (extensionless; `./` `../` `~/` forms resolved
+ *  by the import resolver, M4). Names/NameAts are 1:1; SpecifierAt/At are code-point offsets into
+ *  the original source (D-18). */
+struct REACTIVEUIINTERP_API FUetkxImportDecl
+{
+	TArray<FString> Names;
+	TArray<int32> NameAts;
+	FString Specifier;
+	int32 SpecifierAt = -1; // offset of the opening quote
+	int32 At = -1;			// offset of the `import` keyword
+};
+
 struct REACTIVEUIINTERP_API FUetkxComponentDecl
 {
 	FString Name;
-	int32 At = -1; // the `component` keyword offset
+	bool bExported = false; // `export component` — cross-file addressable (privacy is opt-in, A3)
+	int32 At = -1;			// the `component` keyword offset (the `export`, if any, precedes it)
 	int32 NameAt = -1;
 	TArray<FUetkxParam> Params;
 	FString Setup; // body text before the chosen markup return (verbatim C++)
@@ -53,6 +77,7 @@ struct REACTIVEUIINTERP_API FUetkxComponentDecl
 struct REACTIVEUIINTERP_API FUetkxHookDecl
 {
 	FString Name;
+	bool bExported = false; // `export hook`
 	int32 At = -1;
 	int32 NameAt = -1;
 	FString Params; // verbatim C++ parameter list (may be empty)
@@ -66,6 +91,7 @@ struct REACTIVEUIINTERP_API FUetkxHookDecl
 struct REACTIVEUIINTERP_API FUetkxModuleDecl
 {
 	FString Name;
+	bool bExported = false; // `export module`
 	int32 At = -1;
 	int32 NameAt = -1;
 	FString Body; // verbatim C++
@@ -76,13 +102,20 @@ struct REACTIVEUIINTERP_API FUetkxModuleDecl
 struct REACTIVEUIINTERP_API FUetkxFileScanResult
 {
 	TArray<FString> PreambleIncludes; // verbatim `#include ...` lines from the preamble
+	TArray<FUetkxImportDecl> Imports;  // preamble `import { … } from "…"` declarations (A1)
+	// FULL MIXED-DECL v1 (A1): a file is a SEQUENCE of any number of components + hooks + modules
+	// in any order. Each array holds its own kind; `Order` records the source order across all
+	// three so the emitter lowers declarations exactly as written (>1 component is a LINT warn,
+	// UETKX2105, not an error).
 	TArray<FUetkxComponentDecl> Components;
-	// Support-file declarations (a file is EITHER one component OR a hook/module sequence —
-	// the family file grammar; mixing kinds or a second component is UETKX2105).
 	TArray<FUetkxHookDecl> Hooks;
 	TArray<FUetkxModuleDecl> Modules;
+	TArray<TPair<EUetkxDeclKind, int32>> Order; // (kind, index-into-that-kind's-array), source order
 	TArray<FUetkxDiag> Diags;
 
+	// TRANSITION helper (A1): "has no markup" — true when the file declares no component. Retires
+	// from dispatch decisions in M3 (codegen emits per `Order`); kept until the HMR rewrite (M9)
+	// still reads it. NOT a file-KIND classifier anymore — a mixed file has both markup and hooks.
 	bool IsSupportFile() const { return Components.IsEmpty() && (Hooks.Num() + Modules.Num()) > 0; }
 
 	bool HasError() const
@@ -126,8 +159,4 @@ public:
 	 *  comments) — the component scan's rule; without it any parenthesized return counts — the
 	 *  directive-body rule (EmitBody/formatter). */
 	static FUetkxSplitReturn SplitMarkupReturn(const TArray<int32>& Body, bool bRequireMarkupPeek);
-
-private:
-	/** Parse a support file (a `hook`/`module` declaration sequence) starting at `i`. */
-	static void ScanSupportDecls(const TArray<int32>& Src, int32 i, FUetkxFileScanResult& Out);
 };
