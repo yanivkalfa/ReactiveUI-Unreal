@@ -17,9 +17,17 @@ C++ here.
 - Saving compiles a **sibling committed `Foo.uetkx.inl`** (reflection-free C++ builder calls) —
   never write or edit it; the module's `<Module>.Uetkx.gen.cpp` aggregator includes it. The
   machine-local `Foo.uetkx.diags.json` sidecar is gitignored.
-- **One `component` per file**, named after it; sub-components as sibling files; shared custom
-  hooks in `hook` companion files (`score_card.hooks.uetkx` convention); `module` declarations
-  group shared hooks/components (the family's companion-file layout — D-03).
+- **One `component` per file** (convention; >1 is a lint), named after it; sub-components as
+  sibling files; shared custom hooks in `hook` companion files (`score_card.hooks.uetkx`
+  convention); `module` declarations group shared hooks/components (the family's companion-file
+  layout — D-03). A file MAY hold a free sequence of these declarations.
+- **Imports are strict, static, preamble-only** (before the first declaration): `import { A, B }
+  from "./x"` (relative) or `from "~/Screens/X"` (`~/` = the module root, or the config `root`),
+  extensionless, named-only (no `*`, no default). **`export`** a `component`/`hook`/`module` to
+  make it importable from other files; a non-exported declaration is file-private (tree-shaken).
+  Cross-file names MUST be imported — the compiler errors otherwise (UETKX2305). Migrating an
+  existing tree? `<Engine>\UnrealEditor-Cmd <proj>.uproject -run=RUIMigrateImports` adds every
+  `export` + the imports each file needs (idempotent), then `-run=RUICompile -check` must be clean.
 
 ## Anatomy (family grammar, C++ embedded)
 

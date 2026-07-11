@@ -1,3 +1,13 @@
 {
-  "entries": []
+  "entries": [
+    {
+      "date": "2026-07-11",
+      "versions": {
+        "vscode": "0.2.0"
+      },
+      "vscode": [
+        ".uetkx import/export intelligence: scanner recognizes import/export and mixed component/hook/module files; the formatter canonicalizes the import block and preserves export; the language config gains a `~/` root key; import/from/export keywords are highlighted. Corpus-locked to the C++ compiler."
+      ]
+    }
+  ]
 }

@@ -79,12 +79,15 @@ referenced from plans/PRs.
 - **Status:** OPEN
 
 ## TD-009 — Cross-repo corpus mirroring PRs (Godot + Unity)
-- **Where:** `grammar-contract` skill §cross-repo; sibling repos' corpus files
-- **What/why deferred:** Phase 3 creates this repo's corpus; the outbound mirrored-case PRs to
-  the siblings land then — tracked here until BOTH merge.
+- **Where:** `scripts/corpus-hash.mjs`, `plans/family-corpus.hash`; sibling repos' corpus files
+- **What/why deferred:** the import corpus is the FIRST mirrored set (A4). The mechanism SHIPPED in
+  leg 1 (feat/uetkx-imports): `_tiers.familyCore` partition + `corpus-hash.mjs` (sha256 over the
+  canonicalized family-core sections, `UETKX|GUITKX|UITKX->TKX`) + the committed hash + the CI gate.
+  The sibling repos adopt the same script + hash file in legs 2/3; the outbound mirrored-case PRs
+  land then.
 - **Production-grade resolution:** corpus sections hash-match across all three repos at a
   release-time check.
-- **Status:** OPEN (activates at Phase 3)
+- **Status:** OPEN — mechanism shipped leg 1; sibling adoption PRs pending (Godot leg 2, Unity leg 3)
 
 ## TD-010 — Reorder strategy: minimal-move (spike-decided) + slot-prop updates reinsert
 - **Where:** `ReactiveUISlate/Private/RuiCoreAdapters.cpp` (box panels + overlay)
@@ -271,3 +274,57 @@ referenced from plans/PRs.
   brushes first (unblocks real-game UIs), then SListView (the family item_list/tree port
   completes the ledger), then focus.
 - **Status:** OPEN
+
+## TD-023 — Two-phase fwd-decl aggregator + `#line` project-relative (uetkx-imports M6/M7)
+- **Where:** `UetkxCodegen.cpp` (emit), `UetkxDriver.cpp::BuildAggregators`, `UetkxDriver.h::CodegenVersion`
+- **What/why deferred:** cross-file COMPONENT cycles are a v1 locked decision (A1) but the current
+  single-phase per-file `.inl` + callee-before-caller aggregator ordering (uses/import edges) only
+  supports ACYCLIC cross-file references — a true cycle still errs (UETKX2107). Full parity needs
+  the two-phase emit (a DECL phase: complete props structs + defaulted wrapper decls + hook
+  fwd-decls + module bodies; a BODY phase: impls + default-free wrapper defs + registrations) with
+  the aggregator including each `.inl` twice, and `#line "<project-rel>"` directives for VS
+  debugger stepping into `.uetkx` (the M3 `ProjectRelPath` is already threaded for this). This is
+  the CodegenVersion 1->2 golden re-pin window. The migrated gallery has no cycles, so the current
+  emit ships correct; this is a self-contained enhancement.
+- **Production-grade resolution:** two-phase `.inl` (phase-guarded, defaults-on-decl-only,
+  test-pinned) + two-phase aggregator include + `#line`; CodegenVersion 2 with all goldens re-pinned.
+- **Status:** OPEN (uetkx-imports follow-up; cycle parity + `#line` DX)
+
+## TD-024 — LSP server import intelligence + support-file formatting + VS2022 vsix rebuild (M11 tail)
+- **Where:** `ide-extensions/lsp-server/src/server.ts` (+ new `uetkxWorkspace.ts`), `formatUetkx.ts`,
+  `ide-extensions/visual-studio`
+- **What/why deferred:** the load-bearing IDE mirrors shipped in leg 1 (scanner mirror for
+  imports/export/mixed-decl, formatter import canonicalization + `~/` config `root`, TextMate
+  import/export/from keywords). The additive editor features remain: import-list + specifier
+  completions, go-to-def (imported name -> decl, specifier -> file), workspace-index strict
+  resolution diagnostics (skew-gated on sidecar schema >= 3), `FmtHook`/`FmtModule` so support/mixed
+  files format instead of round-tripping verbatim, and rebuilding the VS2022 vsix.
+- **Production-grade resolution:** the completions/go-to-def/resolution-diag set + FmtHook/FmtModule
+  + a shipped vsix, covered by `server.test.ts`.
+- **Status:** OPEN (uetkx-imports follow-up; IDE intelligence)
+
+## TD-025 — Import staleness tail: value cycles (2306), source-truth aggregator, single-pass fixpoint
+- **Where:** `UetkxDriver.cpp` (`CompileAllRoots`, `BuildAggregators`)
+- **What/why deferred:** M8 shipped the correctness core (sidecar v3 export_hash/dep_hashes,
+  reverse-edge staleness, verdict-poisoning fix). Remaining: (a) UETKX2306 value-import cycles
+  (hook/module import edges consumed at load — a DFS that prints the chain, TDZ parity); (b) the
+  source-truth aggregator ORDER driven by declared import edges instead of the sidecar `uses` graph
+  (kills the fresh-clone divergence, A2) — the uses-graph order is correct for the migrated tree
+  today; (c) folding the max-2-pass reverse-recompile into ONE `CompileAllRoots` call (the editor's
+  repeated sweeps + CI `-check` fresh-compile converge today; the A/B retry is test-pinned as
+  green-on-second-sweep).
+- **Production-grade resolution:** 2306 emitted with the printed chain; aggregator ordered by import
+  edges; single-call fixpoint. All three test-pinned.
+- **Status:** OPEN (uetkx-imports follow-up)
+
+## TD-026 — Accepted v1 divergences: interp global-name scoping + private-FName last-swap-wins
+- **Where:** `RuiNode.cpp` (process-global name/factory registries), `RuiHmr.cpp`, `UetkxInterpComponent.cpp`
+- **What/why deferred:** privacy (A5e) is a COMPILE-TIME scoping (per-file detail namespace +
+  tree-shaken named factory). The RUNTIME registries (`RUI::Named`/`RegisterNamedFactory`,
+  `RegisterComponentId`) are process-global and name-keyed: the interpreter resolves a name it never
+  imported, and two files' private same-name decls collide last-swap-wins in the HMR registry. These
+  are accepted v1 divergences (compile-time scoping only) — the compiler still fences cross-file
+  reach and the aggregator TU still fences symbol collisions; only the live-reload registry is flat.
+- **Production-grade resolution:** file-scoped runtime component identity (qualified ids in the
+  registry) so private names never alias across files at runtime.
+- **Status:** OPEN (accepted caveat, documented in M5/M9)

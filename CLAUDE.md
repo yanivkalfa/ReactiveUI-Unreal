@@ -11,6 +11,12 @@ virtual tree; a fiber reconciler patches real **Slate** widgets. `.uetkx` markup
 byte-compatible with the family's `.guitkx`/`.uitkx`) compiles to C++ for shipping and
 interprets live in dev.
 
+`.uetkx` files use **static imports** (strict from day one): `import { A, B } from "./x"` /
+`~/root-alias`, extensionless, named-only, preamble-only; `export` on a `component`/`hook`/
+`module` makes it cross-file addressable (non-exported = private, tree-shaken). A file is a free
+sequence of components + hooks + modules. `-run=RUIMigrateImports` is the idempotent codemod that
+adds `export` + the needed imports to an existing tree (`RUICompile -check` enforces resolution).
+
 **The plans are the source of truth**: [plans/ROADMAP.md](plans/ROADMAP.md) (living status
 table) and [plans/MASTER_PLAN.md](plans/MASTER_PLAN.md) (locked decisions D-01..D-32, the 10
 phases, the v1 ship gate, the delegation matrix). Its §Resume-protocol says how to join

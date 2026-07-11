@@ -62,10 +62,13 @@ reversed ≈ **178 µs**; minimal-move single reorder ≈ **3 µs**.
 
 The reconciler with all 23 family hooks · 25 wrapped Slate widgets plus a virtualized list ·
 setter-based styling (a style tweak never rebuilds a widget) · the `.uetkx` compiler
-(compile-to-C++ for shipping, interpret-live for dev) · VS Code + VS2022 extensions on the shared
-family language server · the UMG/CommonUI/MVVM interop above · localization, focus preservation,
-portals, asset-safe brushes · a demo project (this repo — open and press Play) and a docs site,
-with every performance claim measured before it's printed.
+(compile-to-C++ for shipping, interpret-live for dev) · **static imports/exports** (`import { A }
+from "./x"` / `~/` root alias, `export` for cross-file reach with privacy-by-default, mixed
+component/hook/module files, strict resolution enforced by the compiler, and a one-command
+`-run=RUIMigrateImports` codemod to upgrade an existing project) · VS Code + VS2022 extensions on
+the shared family language server · the UMG/CommonUI/MVVM interop above · localization, focus
+preservation, portals, asset-safe brushes · a demo project (this repo — open and press Play) and
+a docs site, with every performance claim measured before it's printed.
 
 ## Repository layout
 
