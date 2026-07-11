@@ -142,3 +142,17 @@ referenced from plans/PRs.
   `RUI::Slot().Padding(8).HAlign(EH::Center).Fill(1.f)` — one method per registered key,
   generated from the same schema the markup compiler validates against (single source).
 - **Status:** OPEN
+
+## TD-014 — Content-Browser presence for `.uetkx` files
+- **Where:** `ReactiveUIEditor` (would extend `FUetkxFileActions`)
+- **What/why deferred:** `.uetkx` files live in SOURCE trees (`Source/`, `Plugins/`), which
+  the Content Browser does not browse — they are deliberately not imported assets (the
+  committed-generated-code design, D-19). v1 ships the real file actions instead:
+  `FUetkxFileActions::CreateComponentFile` (New Component template, compiler-validated by
+  `ReactiveUI.Uetkx.Schema`) and `OpenExternal` (OS default editor; wired to MessageLog
+  links in Phase 4). Browser visibility would need a `UAssetDefinition` + thin proxy-asset
+  design (import a pointer-asset per source file) — a real design decision, not glue.
+- **Production-grade resolution:** decide post-v1 whether proxy assets earn their keep
+  (Epic's Verse files ship WITHOUT Content-Browser presence; precedent says source stays in
+  the IDE). If yes: UAssetDefinition + factory + a sync pass in the Phase-4 watcher.
+- **Status:** OPEN

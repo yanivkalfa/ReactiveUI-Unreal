@@ -153,6 +153,42 @@ bool FRuiUetkxDriverTest::RunTest(const FString&)
 		TestTrue(TEXT("edit -> HasStale"), FUetkxDriver::HasStale(Scratch));
 	}
 
+	// ── CheckDrift: the CI gate is content-based, no mtimes, no writes ─────────────────────
+	{
+		// Deep.uetkx was just edited without recompiling -> exactly one drifted file.
+		FUetkxCheckResult Check = FUetkxDriver::CheckDrift({Scratch});
+		TestEqual(TEXT("check total"), Check.Total, 3);
+		TestEqual(TEXT("edited-not-recompiled drifts"), Check.Drift, 1);
+		TestEqual(TEXT("no errors"), Check.Errors, 0);
+		TestFalse(TEXT("gate fails"), Check.Passed());
+
+		FUetkxDriver::CompileFile(DeepPath);
+		TestTrue(TEXT("recompile settles the gate"), FUetkxDriver::CheckDrift({Scratch}).Passed());
+
+		// Hand-tampered .inl is NEWER than its source — mtime staleness would call it fresh;
+		// only the content compare catches it.
+		FString Inl;
+		FFileHelper::LoadFileToString(Inl, *FUetkxDriver::InlPathFor(BadgePath));
+		FFileHelper::SaveStringToFile(Inl + TEXT("// tampered\n"), *FUetkxDriver::InlPathFor(BadgePath));
+		TestFalse(TEXT("mtime says fresh"), FUetkxDriver::IsStale(BadgePath));
+		TestEqual(TEXT("content compare catches tampering"), FUetkxDriver::CheckDrift({Scratch}).Drift, 1);
+		FUetkxDriver::CompileFile(BadgePath, /*bForce*/ true);
+
+		// Aggregator drift: deleting it must fail the gate.
+		const FString AggPath = Scratch / TEXT("FakeModule/Private/FakeModule.Uetkx.gen.cpp");
+		FM.Delete(*AggPath);
+		TestEqual(TEXT("missing aggregator drifts"), FUetkxDriver::CheckDrift({Scratch}).Drift, 1);
+		FUetkxDriver::RegenerateAggregators(FUetkxDriver::FindAll(Scratch));
+
+		// Broken source: the gate reports an ERROR (CI must fail on uncompilable .uetkx).
+		FFileHelper::SaveStringToFile(BrokenSrc, *BrokenPath);
+		Check = FUetkxDriver::CheckDrift({Scratch});
+		TestEqual(TEXT("broken source is an error"), Check.Errors, 1);
+		TestFalse(TEXT("gate fails on errors"), Check.Passed());
+		TestTrue(TEXT("message names the file"),
+				 Check.Messages.ContainsByPredicate([](const FString& M) { return M.Contains(TEXT("Broken.uetkx")); }));
+	}
+
 	FM.DeleteDirectory(*Scratch, false, true);
 	return true;
 }

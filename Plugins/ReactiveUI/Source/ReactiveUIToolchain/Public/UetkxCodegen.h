@@ -27,4 +27,8 @@ class REACTIVEUITOOLCHAIN_API FUetkxCodegen
 public:
 	/** Compile one .uetkx source. Basename = file stem (binding + NSLOCTEXT namespace). */
 	static FUetkxCompileOutput CompileSource(const FString& Source, const FString& Basename);
+
+	/** The markup vocabulary as JSON — elements/attrs (typed), style keys, slot keys, hooks.
+	 *  RUIExportSchema writes this to Saved/ReactiveUI/schema.json for the LSP (Phase 5). */
+	static FString ExportSchemaJson();
 };

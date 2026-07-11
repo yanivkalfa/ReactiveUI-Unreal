@@ -246,7 +246,7 @@ bool FUetkxDriver::HasStale(const FString& RootDir)
 	return false;
 }
 
-bool FUetkxDriver::RegenerateAggregators(const TArray<FString>& UetkxPaths)
+TMap<FString, FString> FUetkxDriver::BuildAggregators(const TArray<FString>& UetkxPaths)
 {
 	// Group by MODULE directory: the nearest ancestor holding a *.Build.cs (dir name == module
 	// name by UBT convention). The aggregator is the one stable TU the build system sees — its
@@ -272,7 +272,7 @@ bool FUetkxDriver::RegenerateAggregators(const TArray<FString>& UetkxPaths)
 			Dir = Parent;
 		}
 	}
-	bool bChanged = false;
+	TMap<FString, FString> Out;
 	for (const TPair<FString, TArray<FString>>& Pair : ByModuleDir)
 	{
 		const FString ModuleName = FPaths::GetBaseFilename(Pair.Key);
@@ -296,9 +296,84 @@ bool FUetkxDriver::RegenerateAggregators(const TArray<FString>& UetkxPaths)
 			FPaths::MakePathRelativeTo(Rel, *(AggregatorDir + TEXT("/")));
 			Contents += FString::Printf(TEXT("#include \"%s\"\n"), *Rel);
 		}
-		bChanged |= WriteIfChanged(AggregatorPath, Contents);
+		Out.Add(AggregatorPath, MoveTemp(Contents));
+	}
+	return Out;
+}
+
+bool FUetkxDriver::RegenerateAggregators(const TArray<FString>& UetkxPaths)
+{
+	bool bChanged = false;
+	for (const TPair<FString, FString>& Pair : BuildAggregators(UetkxPaths))
+	{
+		bChanged |= WriteIfChanged(Pair.Key, Pair.Value);
 	}
 	return bChanged;
+}
+
+FUetkxCheckResult FUetkxDriver::CheckDrift(const TArray<FString>& Roots)
+{
+	auto Normalized = [](FString S)
+	{
+		S.ReplaceInline(TEXT("\r\n"), TEXT("\n")); // git autocrlf checkouts must not read as drift
+		return S;
+	};
+	FUetkxCheckResult Out;
+	TArray<FString> All;
+	for (const FString& Root : Roots)
+	{
+		All.Append(FindAll(Root));
+	}
+	Out.Total = All.Num();
+	for (const FString& Path : All)
+	{
+		FString Source;
+		if (!FFileHelper::LoadFileToString(Source, *Path))
+		{
+			++Out.Errors;
+			Out.Messages.Add(FString::Printf(TEXT("%s: unreadable"), *Path));
+			continue;
+		}
+		const FUetkxCompileOutput Compiled = FUetkxCodegen::CompileSource(Source, FPaths::GetBaseFilename(Path));
+		if (!Compiled.bOk)
+		{
+			++Out.Errors;
+			for (const FUetkxDiag& Diag : Compiled.Diags)
+			{
+				if (Diag.Severity == 0)
+				{
+					Out.Messages.Add(FString::Printf(TEXT("%s: %s: %s"), *Path, *Diag.Code, *Diag.Message));
+				}
+			}
+			continue;
+		}
+		FString OnDisk;
+		if (!FFileHelper::LoadFileToString(OnDisk, *InlPathFor(Path)))
+		{
+			++Out.Drift;
+			Out.Messages.Add(FString::Printf(TEXT("%s: generated output missing — run -run=RUICompile"), *Path));
+		}
+		else if (Normalized(OnDisk) != Normalized(Compiled.Inl))
+		{
+			++Out.Drift;
+			Out.Messages.Add(FString::Printf(TEXT("%s: stale — .inl differs from a fresh compile"), *Path));
+		}
+	}
+	for (const TPair<FString, FString>& Pair : BuildAggregators(All))
+	{
+		FString OnDisk;
+		if (!FFileHelper::LoadFileToString(OnDisk, *Pair.Key))
+		{
+			++Out.Drift;
+			Out.Messages.Add(FString::Printf(TEXT("%s: aggregator missing — run -run=RUICompile"), *Pair.Key));
+		}
+		else if (Normalized(OnDisk) != Normalized(Pair.Value))
+		{
+			++Out.Drift;
+			Out.Messages.Add(FString::Printf(TEXT("%s: aggregator stale — include set changed"), *Pair.Key));
+		}
+	}
+	return Out;
 }
 
 bool FUetkxDriver::FingerprintMismatch()

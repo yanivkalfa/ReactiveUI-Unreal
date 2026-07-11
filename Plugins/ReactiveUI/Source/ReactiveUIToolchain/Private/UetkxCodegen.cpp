@@ -2,6 +2,9 @@
 
 #include "UetkxCodegen.h"
 
+#include "Dom/JsonObject.h"
+#include "Serialization/JsonSerializer.h"
+#include "Serialization/JsonWriter.h"
 #include "UetkxJsxScan.h"
 #include "UetkxLexer.h"
 
@@ -20,7 +23,8 @@ namespace
 		Margin,	 // FMargin prop   -> expr-only for non-uniform; str "a" -> FMargin(a)
 		Vector2, // FVector2D prop -> expr-only recommended
 		Color,	 // FLinearColor   -> expr-only (hex parsing is post-v1)
-		Event	 // FRuiCallback   -> Set<Name>(FRuiCallback::Create([=]() { expr; }))
+		Event,	 // FRuiCallback   -> Set<Name>(FRuiCallback::Create([=]() { expr; }))
+		Expr	 // expression-only value (callable/brush/...) -> {expr} required
 	};
 
 	struct FTagDef
@@ -121,8 +125,7 @@ namespace
 				FTagDef T{TEXT("RUI::Slate::RuiCanvas"), TEXT("FRuiCanvasProps"), false, {}};
 				T.Attrs.Add(TEXT("RedrawKey"), EAttrType::Int);
 				T.Attrs.Add(TEXT("CanvasSize"), EAttrType::Vector2);
-				// DrawFn is expr-only (identity semantics) — handled by the Expr fall-through.
-				T.Attrs.Add(TEXT("DrawFn"), EAttrType::Vector2 /*unused for expr*/);
+				T.Attrs.Add(TEXT("DrawFn"), EAttrType::Expr); // identity semantics — {expr} only
 				M.Add(TEXT("RuiCanvas"), MoveTemp(T));
 			}
 			return M;
@@ -130,14 +133,19 @@ namespace
 		return Tags;
 	}
 
-	bool IsStyleKey(const FString& Name)
+	const TSet<FString>& StyleKeys()
 	{
 		static const TSet<FString> Keys = {
 			TEXT("RenderOpacity"),		  TEXT("Visibility"),	   TEXT("Enabled"),
 			TEXT("RenderTranslation"),	  TEXT("RenderScale"),	   TEXT("RenderTransformAngle"),
 			TEXT("RenderTransformPivot"), TEXT("ColorAndOpacity"), TEXT("Font.Size"),
 			TEXT("Justification"),		  TEXT("AutoWrapText"),	   TEXT("FillColorAndOpacity")};
-		return Keys.Contains(Name);
+		return Keys;
+	}
+
+	bool IsStyleKey(const FString& Name)
+	{
+		return StyleKeys().Contains(Name);
 	}
 
 	FString CppStringLiteral(const FString& S)
@@ -777,5 +785,93 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 	}
 	Out.bOk = true;
 	Out.Inl = MoveTemp(Inl);
+	return Out;
+}
+
+FString FUetkxCodegen::ExportSchemaJson()
+{
+	auto TypeName = [](EAttrType Type) -> const TCHAR*
+	{
+		switch (Type)
+		{
+		case EAttrType::Text:
+			return TEXT("text");
+		case EAttrType::Float:
+			return TEXT("float");
+		case EAttrType::Int:
+			return TEXT("int");
+		case EAttrType::Bool:
+			return TEXT("bool");
+		case EAttrType::Name:
+			return TEXT("name");
+		case EAttrType::Margin:
+			return TEXT("margin");
+		case EAttrType::Vector2:
+			return TEXT("vector2");
+		case EAttrType::Color:
+			return TEXT("color");
+		case EAttrType::Event:
+			return TEXT("event");
+		case EAttrType::Expr:
+			return TEXT("expr");
+		}
+		return TEXT("expr");
+	};
+
+	TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
+	Root->SetNumberField(TEXT("v"), 1);
+
+	TSharedRef<FJsonObject> Elements = MakeShared<FJsonObject>();
+	TArray<FName> TagNames;
+	HostTags().GetKeys(TagNames);
+	TagNames.Sort(FNameLexicalLess());
+	for (const FName& TagName : TagNames)
+	{
+		const FTagDef& Tag = HostTags()[TagName];
+		TSharedRef<FJsonObject> El = MakeShared<FJsonObject>();
+		El->SetStringField(TEXT("factory"), Tag.Factory);
+		El->SetBoolField(TEXT("children"), Tag.bChildren);
+		TSharedRef<FJsonObject> Attrs = MakeShared<FJsonObject>();
+		TArray<FName> AttrNames;
+		Tag.Attrs.GetKeys(AttrNames);
+		AttrNames.Sort(FNameLexicalLess());
+		for (const FName& AttrName : AttrNames)
+		{
+			Attrs->SetStringField(AttrName.ToString(), TypeName(Tag.Attrs[AttrName]));
+		}
+		El->SetObjectField(TEXT("attrs"), Attrs);
+		Elements->SetObjectField(TagName.ToString(), El);
+	}
+	Root->SetObjectField(TEXT("elements"), Elements);
+
+	TArray<FString> SortedStyleKeys = StyleKeys().Array();
+	SortedStyleKeys.Sort();
+	TArray<TSharedPtr<FJsonValue>> StyleArray;
+	for (const FString& Key : SortedStyleKeys)
+	{
+		StyleArray.Add(MakeShared<FJsonValueString>(Key));
+	}
+	Root->SetArrayField(TEXT("styleKeys"), StyleArray);
+
+	// Slot.* is an OPEN prefix (any name routes to the slot dict); these are the D-33 canon.
+	Root->SetStringField(TEXT("slotPrefix"), TEXT("Slot."));
+	TArray<TSharedPtr<FJsonValue>> SlotArray;
+	for (const TCHAR* Key :
+		 {TEXT("Slot.Padding"), TEXT("Slot.HAlign"), TEXT("Slot.VAlign"), TEXT("Slot.Fill"), TEXT("Slot.ZOrder")})
+	{
+		SlotArray.Add(MakeShared<FJsonValueString>(Key));
+	}
+	Root->SetArrayField(TEXT("slotKeys"), SlotArray);
+
+	TArray<TSharedPtr<FJsonValue>> HookArray;
+	for (const FString& Hook : FUetkxFileScan::HookNames())
+	{
+		HookArray.Add(MakeShared<FJsonValueString>(Hook));
+	}
+	Root->SetArrayField(TEXT("hooks"), HookArray);
+
+	FString Out;
+	const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);
+	FJsonSerializer::Serialize(Root, Writer);
 	return Out;
 }

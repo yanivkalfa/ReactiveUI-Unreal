@@ -34,6 +34,16 @@ struct REACTIVEUITOOLCHAIN_API FUetkxSweepResult
 	TArray<FUetkxFileResult> Files;
 };
 
+struct REACTIVEUITOOLCHAIN_API FUetkxCheckResult
+{
+	int32 Total = 0;
+	int32 Drift = 0;  // committed output missing or differing from a fresh in-memory compile
+	int32 Errors = 0; // sources that do not compile (or cannot be read)
+	TArray<FString> Messages;
+
+	bool Passed() const { return Drift == 0 && Errors == 0; }
+};
+
 class REACTIVEUITOOLCHAIN_API FUetkxDriver
 {
 public:
@@ -66,6 +76,15 @@ public:
 	/** Regenerate `<ModuleDirName>.Uetkx.gen.cpp` beside each module's .uetkx set. Returns
 	 *  true when any aggregator changed on disk. */
 	static bool RegenerateAggregators(const TArray<FString>& UetkxPaths);
+
+	/** Pure form of the above: aggregator path -> intended contents, no writes (the -check
+	 *  gate compares these against disk). */
+	static TMap<FString, FString> BuildAggregators(const TArray<FString>& UetkxPaths);
+
+	/** The CI drift gate (`RUICompile -check`): recompile every .uetkx under Roots IN MEMORY
+	 *  and compare against the committed outputs — content-based, mtime-independent (git does
+	 *  not preserve mtimes), no writes. Line endings are normalized before comparing. */
+	static FUetkxCheckResult CheckDrift(const TArray<FString>& Roots);
 
 	/** Fingerprint file check: mismatch/absent -> everything stale (returns true). Call
 	 *  RefreshFingerprint after a clean sweep. */

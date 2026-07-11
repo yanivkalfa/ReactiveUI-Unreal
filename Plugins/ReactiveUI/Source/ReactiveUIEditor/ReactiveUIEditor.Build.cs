@@ -19,5 +19,14 @@ public class ReactiveUIEditor : ModuleRules
 		{
 			"Core",
 		});
+
+		PrivateDependencyModuleNames.AddRange(new string[]
+		{
+			"CoreUObject",		 // commandlet UCLASSes
+			"Engine",			 // UCommandlet base
+			"Projects",			 // sweep roots
+			"ReactiveUIInterp",	 // diagnostics types (via the toolchain's public surface)
+			"ReactiveUIToolchain", // FUetkxDriver / FUetkxCodegen
+		});
 	}
 }
