@@ -48,8 +48,10 @@ Setup: editor open, PIE running, `Source/RuiDemo/Screens/SimpleCounter.uetkx` op
 ## D. VS Code extension (~10 min)
 
 - [ ] `cd ide-extensions/lsp-server && npm ci && npm test` → 7/7 (both shared corpora replay).
-- [ ] `cd ../vscode-uetkx && npm ci && npm run build`, then F5 (Extension Development Host)
-      or `npx @vscode/vsce package` + install the `.vsix`.
+- [ ] `cd ../vscode-uetkx && npm ci`, then open **the repo root** in VS Code and press **F5**
+      ("Run UETKX Extension") — the pre-launch task builds server + client and an Extension
+      Development Host opens on this repo. (Alternative: `npm run build` +
+      `npx @vscode/vsce package` in `vscode-uetkx` and install the `.vsix`.)
 - [ ] Open a gallery `.uetkx`: syntax colors (markup + embedded C++ tint), `<` completes
       element names, attr position completes typed attrs + style/slot keys, hover on
       `Button`/`UseState`/`RenderOpacity` shows docs.

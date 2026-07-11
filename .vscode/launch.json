@@ -1,0 +1,32 @@
+{
+	// F5 from the repo root = test the VS Code extension (Unity-sibling parity: the folder you
+	// already have open carries the config). The preLaunchTask rebuilds the language server AND
+	// the client (which re-bundles the server), then an Extension Development Host opens on THIS
+	// repo — the gallery screens under Source/RuiDemo/Screens are right there to poke.
+	// One-time prep on a fresh clone: `npm ci` in ide-extensions/lsp-server AND
+	// ide-extensions/vscode-uetkx (see .claude/skills/rebuild-ide-extensions).
+	// Client breakpoints work directly (outFiles below); for SERVER-side breakpoints run the
+	// "Attach to UETKX Language Server" config after the host is up (--inspect=6010 in debug).
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"name": "Run UETKX Extension",
+			"type": "extensionHost",
+			"request": "launch",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}/ide-extensions/vscode-uetkx",
+				"${workspaceFolder}"
+			],
+			"outFiles": ["${workspaceFolder}/ide-extensions/vscode-uetkx/out/**/*.js"],
+			"preLaunchTask": "Build UETKX Extension"
+		},
+		{
+			"name": "Attach to UETKX Language Server",
+			"type": "node",
+			"request": "attach",
+			"port": 6010,
+			"restart": true,
+			"outFiles": ["${workspaceFolder}/ide-extensions/vscode-uetkx/server/**/*.js"]
+		}
+	]
+}
