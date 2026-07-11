@@ -100,6 +100,18 @@ namespace RUI
 	/** The registered id for a fn pointer (NAME_None if unregistered — lambda components:
 	 *  documented always-re-render semantics via a per-call unique id). */
 	REACTIVEUICORE_API FName FindComponentId(void* FnPtr);
+
+	/** Name → zero-arg node factory (default props). Generated .uetkx code self-registers
+	 *  its components here; consumers in OTHER translation units (the gallery, previews,
+	 *  Phase-4 hot reload) instantiate by name — the generated wrappers themselves are
+	 *  TU-local to the aggregator by design. Re-registering a name replaces the factory
+	 *  (Live Coding / HMR). */
+	REACTIVEUICORE_API bool RegisterNamedFactory(FName Name, TFunction<FRuiNode()> Factory);
+
+	/** Instantiate a named component with default props (empty Fragment when unknown). */
+	REACTIVEUICORE_API FRuiNode Named(FName Name);
+
+	REACTIVEUICORE_API bool HasNamedFactory(FName Name);
 } // namespace RUI
 
 /**

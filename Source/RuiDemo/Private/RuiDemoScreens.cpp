@@ -10,17 +10,36 @@ using namespace RuiDemo;
 
 namespace RuiDemo
 {
+	// Every screen is a COMPILED .uetkx component (Screens/*.uetkx -> committed .uetkx.inl,
+	// built through RuiDemo.Uetkx.gen.cpp). The generated code self-registers named factories;
+	// entries resolve through RUI::Named — the wrappers themselves are TU-local by design.
 	const TArray<FRuiDemoEntry>& GetGalleryEntries()
 	{
 		static const TArray<FRuiDemoEntry> Entries = {
-			{TEXT("Hello World"), &HelloWorldScreen}, {TEXT("Counter"), &CounterScreen},
-			{TEXT("Text Field"), &TextFieldScreen},	  {TEXT("Use Effect"), &UseEffectScreen},
-			{TEXT("Signals"), &SignalCounterScreen},  {TEXT("Context"), &ContextScreen},
-			{TEXT("Keyed Diff"), &KeyedDiffScreen},	  {TEXT("Styled Panels"), &StyledPanelsScreen},
-			{TEXT("Tic Tac Toe"), &TicTacToeScreen},  {TEXT("Custom Draw"), &CustomDrawScreen},
-			{TEXT("Stress Test"), &StressTestScreen},
+			{TEXT("Hello World"), +[]() { return RUI::Named(FName(TEXT("HelloWorld"))); }},
+			{TEXT("Counter"), +[]() { return RUI::Named(FName(TEXT("SimpleCounter"))); }},
+			{TEXT("Text Field"), +[]() { return RUI::Named(FName(TEXT("SimpleTextField"))); }},
+			{TEXT("Use Effect"), +[]() { return RUI::Named(FName(TEXT("SimpleUseEffect"))); }},
+			{TEXT("Signals"), +[]() { return RUI::Named(FName(TEXT("SignalCounter"))); }},
+			{TEXT("Context"), +[]() { return RUI::Named(FName(TEXT("ContextDemo"))); }},
+			{TEXT("Keyed Diff"), +[]() { return RUI::Named(FName(TEXT("KeyedDiff"))); }},
+			{TEXT("Styled Panels"), +[]() { return RUI::Named(FName(TEXT("StyledPanels"))); }},
+			{TEXT("Tic Tac Toe"), +[]() { return RUI::Named(FName(TEXT("TicTacToe"))); }},
+			{TEXT("Custom Draw"), +[]() { return RUI::Named(FName(TEXT("CustomDraw"))); }},
+			{TEXT("Stress Test"), +[]() { return RUI::Named(FName(TEXT("StressTest"))); }},
 		};
 		return Entries;
+	}
+
+	const TArray<FName>& GetCompiledScreenNames()
+	{
+		static const TArray<FName> Names = {
+			FName(TEXT("HelloWorld")),		FName(TEXT("SimpleCounter")), FName(TEXT("SimpleTextField")),
+			FName(TEXT("SimpleUseEffect")), FName(TEXT("SignalCounter")), FName(TEXT("ContextDemo")),
+			FName(TEXT("KeyedDiff")),		FName(TEXT("StyledPanels")),  FName(TEXT("TicTacToe")),
+			FName(TEXT("CustomDraw")),		FName(TEXT("StressTest")),
+		};
+		return Names;
 	}
 } // namespace RuiDemo
 

@@ -156,3 +156,31 @@ referenced from plans/PRs.
   (Epic's Verse files ship WITHOUT Content-Browser presence; precedent says source stays in
   the IDE). If yes: UAssetDefinition + factory + a sync pass in the Phase-4 watcher.
 - **Status:** OPEN
+
+## TD-015 — `.uetkx` v1 grammar limits (deliberate cuts, family Phase-C class)
+- **Where:** `ReactiveUIToolchain` codegen / `ReactiveUIInterp` file scan
+- **What/why deferred:** four expressiveness gaps, each diagnosed rather than silently
+  miscompiled: (1) EARLY markup returns — only the LAST top-level `return ( ... )` in a
+  component body wins (T1.4); guard-style `if (x) { return ( <A/> ); }` at component level
+  lowers only via `@if` today (the family added early returns in its Phase C). (2) children
+  FORWARDING — `{children}` in markup has no splice form; components that wrap arbitrary
+  children stay hand-written (the gallery card is inlined markup per screen for this reason).
+  (3) `classes={ expr }` requires the expression to yield `TArray<FName>` — no string-form
+  conditional classes (static `classes="a b"` works; the StyledPanels screen shows the
+  `@if`-duplication workaround). (4) UETKX3002/3003 — short-circuit markup and spread attrs
+  (family post-v1 too).
+- **Production-grade resolution:** port the family's Phase-C early-return splitter; add a
+  `{children}` splice node lowered to `Ch.Append(children)`; classes ternary sugar can ride
+  the schema. Each lands with corpus + codegen-test pins.
+- **Status:** OPEN
+
+## TD-016 — Event payload surface is the single magic `Value` (FRuiValue)
+- **Where:** `ReactiveUIToolchain` codegen (event attr lowering)
+- **What/why deferred:** every event handler expression compiles into
+  `FRuiCallback::Create([=](const FRuiValue& Value) { expr; })` — text/bool/float payloads
+  arrive as `Value.TextValue` / `Value.BoolValue` / etc. (see SimpleTextField/StyledPanels).
+  Typed per-event payloads (the analyzer knowing OnTextChanged carries text) is LSP/schema
+  work, not codegen work.
+- **Production-grade resolution:** the Phase-5 schema already types attrs as `event`; extend
+  it with a payload-kind field so the LSP can complete `Value.TextValue` correctly.
+- **Status:** OPEN

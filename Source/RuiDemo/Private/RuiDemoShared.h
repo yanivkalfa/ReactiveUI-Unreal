@@ -73,16 +73,4 @@ namespace RuiDemo
 		return Node;
 	}
 
-	// Screen factories (one per gallery entry; defined across the RuiDemo*Screens.cpp files).
-	FRuiNode HelloWorldScreen();
-	FRuiNode CounterScreen();
-	FRuiNode TextFieldScreen();
-	FRuiNode UseEffectScreen();
-	FRuiNode SignalCounterScreen();
-	FRuiNode ContextScreen();
-	FRuiNode KeyedDiffScreen();
-	FRuiNode StyledPanelsScreen();
-	FRuiNode TicTacToeScreen();
-	FRuiNode CustomDrawScreen();
-	FRuiNode StressTestScreen();
 } // namespace RuiDemo

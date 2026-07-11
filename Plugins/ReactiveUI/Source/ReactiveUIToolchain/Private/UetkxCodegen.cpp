@@ -370,6 +370,7 @@ namespace
 			FString Key = TEXT("FRuiKey()");
 			bool bStyled = false;
 			FString StyleStmts;
+			FString ClassStmts;
 			for (const FUetkxAttr& Attr : Node.Attrs)
 			{
 				if (Attr.Kind == EUetkxAttrKind::Comment)
@@ -387,6 +388,24 @@ namespace
 					Key = Attr.Kind == EUetkxAttrKind::Expr
 							  ? FString::Printf(TEXT("FRuiKey(%s)"), *EmitExpr(Attr.Value, AbsAt))
 							  : FString::Printf(TEXT("FRuiKey(FName(TEXT(\"%s\")))"), *CppStringLiteral(Attr.Value));
+				}
+				else if (Attr.Name == TEXT("classes"))
+				{
+					bStyled = true;
+					if (Attr.Kind == EUetkxAttrKind::Expr)
+					{
+						ClassStmts += FString::Printf(TEXT("\t\t__P->Classes = (%s);\n"), *EmitExpr(Attr.Value, AbsAt));
+					}
+					else
+					{
+						TArray<FString> ClassNames;
+						Attr.Value.ParseIntoArrayWS(ClassNames);
+						for (const FString& ClassName : ClassNames)
+						{
+							ClassStmts += FString::Printf(TEXT("\t\t__P->Classes.Add(FName(TEXT(\"%s\")));\n"),
+														  *CppStringLiteral(ClassName));
+						}
+					}
 				}
 				else if (IsStyleKey(Attr.Name) || Attr.Name.StartsWith(TEXT("Slot.")))
 				{
@@ -415,6 +434,7 @@ namespace
 						"MakeShared<FRuiTextBlockProps>(static_cast<const FRuiTextBlockProps&>(*__N.Props));\n");
 			Out += TEXT("\t\tTSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();\n");
 			Out += TEXT("\t\tTSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();\n");
+			Out += ClassStmts;
 			Out += StyleStmts;
 			Out += TEXT("\t\tif (!__Style->IsEmpty()) { __P->Style = __Style; }\n");
 			Out += TEXT("\t\tif (!__Slot->IsEmpty()) { __P->SlotProps = __Slot; }\n");
@@ -445,6 +465,26 @@ namespace
 			if (Attr.Kind == EUetkxAttrKind::Spread)
 			{
 				Fail(TEXT("UETKX3003"), TEXT("spread attributes are post-v1 in .uetkx"), AbsAt + Attr.At);
+				continue;
+			}
+			if (Attr.Name == TEXT("classes"))
+			{
+				// universal reserved prop: `classes="a b"` (static) or `classes={ expr }`
+				// where the expression yields a TArray<FName>.
+				if (Attr.Kind == EUetkxAttrKind::Expr)
+				{
+					Out += FString::Printf(TEXT("\t\tP.Classes = (%s);\n"), *EmitExpr(Attr.Value, AbsAt));
+				}
+				else
+				{
+					TArray<FString> ClassNames;
+					Attr.Value.ParseIntoArrayWS(ClassNames);
+					for (const FString& ClassName : ClassNames)
+					{
+						Out += FString::Printf(TEXT("\t\tP.Classes.Add(FName(TEXT(\"%s\")));\n"),
+											   *CppStringLiteral(ClassName));
+					}
+				}
 				continue;
 			}
 			if (IsStyleKey(Attr.Name) || Attr.Name.StartsWith(TEXT("Slot.")))
@@ -478,8 +518,11 @@ namespace
 			FString Value;
 			if (Attr.Kind == EUetkxAttrKind::Expr)
 			{
+				// Events: the handler body sees the payload as `Value` (FRuiValue — text/bool/
+				// float of the widget event); zero-payload events simply ignore it.
 				Value = *AttrType == EAttrType::Event
-							? FString::Printf(TEXT("FRuiCallback::Create([=]() { %s; })"), *PrefixHooks(Attr.Value))
+							? FString::Printf(TEXT("FRuiCallback::Create([=](const FRuiValue& Value) { %s; })"),
+											  *PrefixHooks(Attr.Value))
 							: FString::Printf(TEXT("(%s)"), *EmitExpr(Attr.Value, AbsAt));
 			}
 			else if (Attr.Kind == EUetkxAttrKind::Bool)
@@ -523,6 +566,23 @@ namespace
 			Out += StyleStmts;
 			Out += TEXT("\t\tif (!__Style->IsEmpty()) { P.Style = __Style; }\n");
 			Out += TEXT("\t\tif (!__Slot->IsEmpty()) { P.SlotProps = __Slot; }\n");
+		}
+		// Leaf widgets take (Props, Key) — no children argument (the factory arity is the
+		// vocabulary's bChildren flag; components always take children via their wrapper).
+		if (!bComponent && !Tag->bChildren)
+		{
+			for (const TSharedPtr<FUetkxNode>& Child : Node.Children)
+			{
+				if (Child.IsValid() && Child->Type != EUetkxNodeType::Comment)
+				{
+					Fail(TEXT("UETKX3005"),
+						 FString::Printf(TEXT("<%s> is a leaf widget and does not accept children"), *Node.Tag),
+						 AbsAt + Node.At);
+					break;
+				}
+			}
+			Out += FString::Printf(TEXT("\t\treturn %s(MoveTemp(P), %s);\n\t}()"), *Factory, *Key);
+			return Out;
 		}
 		Out += TEXT("\t\tTArray<FRuiNode> Ch;\n");
 		EmitChildren(Out, Node.Children, TEXT("\t\t"), AbsAt);
@@ -702,6 +762,11 @@ namespace
 				 "InKey = FRuiKey())\n{\n\treturn RUI::FC(&%s_UetkxImpl, MoveTemp(InProps), MoveTemp(InChildren), "
 				 "InKey);\n}\n"),
 			*Decl.Name, *PropsType, *PropsType, *Decl.Name);
+		// Cross-TU reach: the wrapper above is TU-local (the aggregator), so every component
+		// also self-registers a default-props factory under its name (gallery/preview/HMR).
+		Out += FString::Printf(TEXT("static const bool G%sUetkxFactoryReg = "
+									"RUI::RegisterNamedFactory(FName(TEXT(\"%s\")), []() { return %s(); });\n"),
+							   *Decl.Name, *Decl.Name, *Decl.Name);
 		return Out;
 	}
 } // namespace

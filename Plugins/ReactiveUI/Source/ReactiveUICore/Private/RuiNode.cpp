@@ -36,6 +36,18 @@ namespace
 			return Instance;
 		}
 	};
+
+	struct FRuiNamedFactoryRegistry
+	{
+		TMap<FName, TFunction<FRuiNode()>> Factories;
+		FCriticalSection Lock;
+
+		static FRuiNamedFactoryRegistry& Get()
+		{
+			static FRuiNamedFactoryRegistry Instance;
+			return Instance;
+		}
+	};
 } // namespace
 
 namespace RUI
@@ -57,6 +69,35 @@ namespace RUI
 			return *Found;
 		}
 		return NAME_None;
+	}
+
+	bool RegisterNamedFactory(FName Name, TFunction<FRuiNode()> Factory)
+	{
+		FRuiNamedFactoryRegistry& Reg = FRuiNamedFactoryRegistry::Get();
+		FScopeLock Guard(&Reg.Lock);
+		Reg.Factories.Add(Name, MoveTemp(Factory)); // replace-on-re-register (Live Coding/HMR)
+		return true;
+	}
+
+	FRuiNode Named(FName Name)
+	{
+		TFunction<FRuiNode()> Factory;
+		{
+			FRuiNamedFactoryRegistry& Reg = FRuiNamedFactoryRegistry::Get();
+			FScopeLock Guard(&Reg.Lock);
+			if (const TFunction<FRuiNode()>* Found = Reg.Factories.Find(Name))
+			{
+				Factory = *Found;
+			}
+		}
+		return Factory ? Factory() : Fragment({});
+	}
+
+	bool HasNamedFactory(FName Name)
+	{
+		FRuiNamedFactoryRegistry& Reg = FRuiNamedFactoryRegistry::Get();
+		FScopeLock Guard(&Reg.Lock);
+		return Reg.Factories.Contains(Name);
 	}
 
 	FRuiElementTypeId InternElementType(FName Tag)

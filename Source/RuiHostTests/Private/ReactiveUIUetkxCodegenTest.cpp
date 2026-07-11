@@ -56,11 +56,15 @@ component Counter(StartAt: int32 = 0) {
 			Out.Inl.Contains(TEXT("RUI::RegisterComponentId((void*)&Counter_UetkxImpl, FName(TEXT(\"Counter\")))")));
 		TestTrue(TEXT("hook sig baked"), Out.Inl.Contains(TEXT("Counter_RUI_HOOK_SIG = 0x")));
 		TestTrue(TEXT("wrapper for cross-component refs"), Out.Inl.Contains(TEXT("inline FRuiNode Counter(")));
-		TestTrue(TEXT("event lowered to FRuiCallback"),
-				 Out.Inl.Contains(TEXT("P.SetOnClicked(FRuiCallback::Create([=]() { Set(Now + 1); }))")));
+		TestTrue(TEXT("event lowered with the Value payload"),
+				 Out.Inl.Contains(
+					 TEXT("P.SetOnClicked(FRuiCallback::Create([=](const FRuiValue& Value) { Set(Now + 1); }))")));
 		TestTrue(TEXT("text child NSLOCTEXT"), Out.Inl.Contains(TEXT("NSLOCTEXT(\"Uetkx.Counter\"")));
 		TestTrue(TEXT("@if lowered to if"), Out.Inl.Contains(TEXT("if (Count > 3)")));
 		TestTrue(TEXT("factory targeted"), Out.Inl.Contains(TEXT("RUI::Slate::VerticalBox(MoveTemp(P), MoveTemp(Ch)")));
+		TestTrue(
+			TEXT("named factory self-registers"),
+			Out.Inl.Contains(TEXT("RUI::RegisterNamedFactory(FName(TEXT(\"Counter\")), []() { return Counter(); })")));
 		TestEqual(TEXT("hook sig from one UseState"), Out.HookSig, FUetkxFileScan::HookSignature({TEXT("UseState")}));
 	}
 
@@ -91,6 +95,27 @@ component RowList(Names: TArray<FString>) {
 				 Out.Inl.Contains(TEXT("__Slot->Add(FName(TEXT(\"Slot.Padding\")), FRuiValue(TEXT(\"0,4,0,0\")))")));
 		TestTrue(TEXT("cross-component call emitted"), Out.Inl.Contains(TEXT("FStatusPanelUetkxProps P;")));
 		TestTrue(TEXT("component prop assigned"), Out.Inl.Contains(TEXT("P.Label = TEXT(\"footer\");")));
+	}
+
+	// ── leaf widgets: (Props, Key) arity, no children; classes is a universal attr ────────
+	{
+		FUetkxCompileOutput Leaf = FUetkxCodegen::CompileSource(
+			TEXT(
+				"component Leafy { return ( <VerticalBox classes=\"card dim\"> <Spacer Size={ FVector2D(1.f, 6.f) } /> "
+				"</VerticalBox> ); }"),
+			TEXT("Leafy"));
+		if (TestTrue(TEXT("leafy compiles"), Leaf.bOk))
+		{
+			TestTrue(TEXT("leaf factory takes no children"),
+					 Leaf.Inl.Contains(TEXT("return RUI::Slate::Spacer(MoveTemp(P), FRuiKey());")));
+			TestTrue(TEXT("classes lowered"), Leaf.Inl.Contains(TEXT("P.Classes.Add(FName(TEXT(\"card\")));")) &&
+												  Leaf.Inl.Contains(TEXT("P.Classes.Add(FName(TEXT(\"dim\")));")));
+		}
+		FUetkxCompileOutput Bad = FUetkxCodegen::CompileSource(
+			TEXT("component Nope { return ( <Spacer><TextBlock Text=\"x\" /></Spacer> ); }"), TEXT("Nope"));
+		TestTrue(TEXT("children on a leaf widget fail (3005)"),
+				 !Bad.bOk &&
+					 Bad.Diags.ContainsByPredicate([](const FUetkxDiag& D) { return D.Code == TEXT("UETKX3005"); }));
 	}
 
 	// ── diagnostics that fail the compile ─────────────────────────────────────────────────

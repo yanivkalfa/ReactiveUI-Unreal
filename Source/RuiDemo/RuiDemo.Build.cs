@@ -2,8 +2,12 @@
 
 using UnrealBuildTool;
 
-// The demo gallery game module (host project; NOT shipped with the plugin). Phase 2 mounts the
-// first hooks-driven screen here; Phase 8 grows it into the full gallery.
+// The demo gallery game module (host project; NOT shipped with the plugin). The screens are
+// COMPILED .uetkx (Screens/*.uetkx -> committed .uetkx.inl) built through the stable
+// aggregator Private/RuiDemo.Uetkx.gen.cpp — the compiled-file SET stays constant while
+// RUICompile rewrites contents (D-19.1). NOTE: a module gaining its FIRST .uetkx needs its
+// Build.cs touched once (or project files regenerated) so UBT's cached makefile sees the new
+// aggregator; after that it never changes again.
 public class RuiDemo : ModuleRules
 {
 	public RuiDemo(ReadOnlyTargetRules Target) : base(Target)
