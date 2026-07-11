@@ -264,6 +264,36 @@ namespace
 		return Out;
 	}
 
+	/** A `hook` declaration → an inline free function taking FRuiContext& first (built-in hook
+	 *  calls in the body Ctx.-prefixed, nested user hooks Ctx-injected). Plain C++ — no markup,
+	 *  no registration, no hook signature. */
+	FString EmitHookInl(const FUetkxHookDecl& Hook)
+	{
+		const FString Ret = Hook.Ret.IsEmpty() ? FString(TEXT("void")) : Hook.Ret;
+		FString Out = FString::Printf(TEXT("inline %s %s(FRuiContext& Ctx%s%s)\n{\n"), *Ret, *Hook.Name,
+									  Hook.Params.IsEmpty() ? TEXT("") : TEXT(", "), *Hook.Params);
+		const FString Body = PrefixHookCalls(Hook.Body.TrimStartAndEnd());
+		if (!Body.IsEmpty())
+		{
+			Out += TEXT("\t") + Body.Replace(TEXT("\n"), TEXT("\n\t")) + TEXT("\n");
+		}
+		Out += TEXT("}\n\n");
+		return Out;
+	}
+
+	/** A `module` declaration → a namespace holding its verbatim C++ body. */
+	FString EmitModuleInl(const FUetkxModuleDecl& Module)
+	{
+		FString Out = FString::Printf(TEXT("namespace %s\n{\n"), *Module.Name);
+		const FString Body = Module.Body.TrimStartAndEnd();
+		if (!Body.IsEmpty())
+		{
+			Out += TEXT("\t") + Body.Replace(TEXT("\n"), TEXT("\n\t")) + TEXT("\n");
+		}
+		Out += FString::Printf(TEXT("} // namespace %s\n\n"), *Module.Name);
+		return Out;
+	}
+
 	/** The one emitter (per component). */
 	class FEmitter
 	{
@@ -824,8 +854,12 @@ namespace
 	}
 } // namespace
 
-FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FString& Basename)
+FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FString& Basename,
+												 const FString& ProjectRelPath, const IUetkxImportResolver* Resolver)
 {
+	(void)ProjectRelPath; // #line mapping (M7)
+	(void)Resolver;		  // import resolution + strict diagnostics (M4)
+
 	FUetkxCompileOutput Out;
 	FUetkxFileScanResult Scan = FUetkxFileScan::Scan(Source, Basename);
 	Out.Diags = Scan.Diags;
@@ -843,55 +877,39 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 	}
 	Inl += TEXT("\n");
 
-	// Support file: hooks emit as inline free functions taking FRuiContext& first (built-in
-	// calls in the body Ctx.-prefixed, nested user hooks Ctx-injected); modules emit VERBATIM
-	// inside a namespace. Both are plain C++ — no markup, no registration, no hook signature.
-	if (Scan.IsSupportFile())
-	{
-		for (const FUetkxHookDecl& Hook : Scan.Hooks)
-		{
-			const FString Ret = Hook.Ret.IsEmpty() ? FString(TEXT("void")) : Hook.Ret;
-			Inl += FString::Printf(TEXT("inline %s %s(FRuiContext& Ctx%s%s)\n{\n"), *Ret, *Hook.Name,
-								   Hook.Params.IsEmpty() ? TEXT("") : TEXT(", "), *Hook.Params);
-			const FString Body = PrefixHookCalls(Hook.Body.TrimStartAndEnd());
-			if (!Body.IsEmpty())
-			{
-				Inl += TEXT("\t") + Body.Replace(TEXT("\n"), TEXT("\n\t")) + TEXT("\n");
-			}
-			Inl += TEXT("}\n\n");
-			Out.ComponentNames.Add(Hook.Name);
-		}
-		for (const FUetkxModuleDecl& Module : Scan.Modules)
-		{
-			Inl += FString::Printf(TEXT("namespace %s\n{\n"), *Module.Name);
-			const FString Body = Module.Body.TrimStartAndEnd();
-			if (!Body.IsEmpty())
-			{
-				Inl += TEXT("\t") + Body.Replace(TEXT("\n"), TEXT("\n\t")) + TEXT("\n");
-			}
-			Inl += FString::Printf(TEXT("} // namespace %s\n\n"), *Module.Name);
-			Out.ComponentNames.Add(Module.Name);
-		}
-		Out.bSupportFile = true;
-		Out.bOk = true;
-		Out.Inl = MoveTemp(Inl);
-		return Out;
-	}
-
+	// De-binarized emit (mixed-decl v1): lower each declaration in SOURCE order. A component emits
+	// a struct + impl + wrapper + registrations (FEmitter); a hook emits an inline free function; a
+	// module emits a namespace. One .inl holds them all in the order the author wrote them.
 	TSet<FString> Uses;
-	for (const FUetkxComponentDecl& Decl : Scan.Components)
+	for (const TPair<EUetkxDeclKind, int32>& Entry : Scan.Order)
 	{
-		FEmitter Emitter(Basename, Decl, Out.Diags, Uses);
-		const FString Body = Emitter.Emit();
-		if (Emitter.HasError())
+		switch (Entry.Key)
 		{
-			return Out;
+		case EUetkxDeclKind::Component:
+		{
+			const FUetkxComponentDecl& Decl = Scan.Components[Entry.Value];
+			FEmitter Emitter(Basename, Decl, Out.Diags, Uses);
+			const FString Body = Emitter.Emit();
+			if (Emitter.HasError())
+			{
+				return Out;
+			}
+			Inl += Body + TEXT("\n");
+			Out.ComponentNames.Add(Decl.Name);
+			if (Out.HookSig == 0)
+			{
+				Out.HookSig = FUetkxFileScan::HookSignature(Decl.HookCalls);
+			}
+			break;
 		}
-		Inl += Body + TEXT("\n");
-		Out.ComponentNames.Add(Decl.Name);
-		if (Out.HookSig == 0)
-		{
-			Out.HookSig = FUetkxFileScan::HookSignature(Decl.HookCalls);
+		case EUetkxDeclKind::Hook:
+			Inl += EmitHookInl(Scan.Hooks[Entry.Value]);
+			Out.ComponentNames.Add(Scan.Hooks[Entry.Value].Name);
+			break;
+		case EUetkxDeclKind::Module:
+			Inl += EmitModuleInl(Scan.Modules[Entry.Value]);
+			Out.ComponentNames.Add(Scan.Modules[Entry.Value].Name);
+			break;
 		}
 	}
 	// a component never depends on ITSELF for ordering (recursion is legal in one TU)
@@ -901,6 +919,7 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 	}
 	Out.Uses = Uses.Array();
 	Out.Uses.Sort();
+	Out.bSupportFile = Scan.Components.IsEmpty(); // no markup → HMR rebuild note, not interp swap
 	Out.bOk = true;
 	Out.Inl = MoveTemp(Inl);
 	return Out;

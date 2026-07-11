@@ -48,7 +48,10 @@ FUetkxContractResult FUetkxContract::Run(const FString& FixtureDir, bool bWrite)
 			Out.Messages.Add(FString::Printf(TEXT("%s: unreadable"), *Fixture));
 			continue;
 		}
-		const FUetkxCompileOutput Compiled = FUetkxCodegen::CompileSource(Source, FPaths::GetBaseFilename(Fixture));
+		// Fixtures pass a machine-independent project-rel path (Basename + ".uetkx") so the M7
+		// `#line` directives are stable across machines (the fixture tree is not project-relative).
+		const FString Basename = FPaths::GetBaseFilename(Fixture);
+		const FUetkxCompileOutput Compiled = FUetkxCodegen::CompileSource(Source, Basename, Basename + TEXT(".uetkx"));
 		const FString GoldenPath = Compiled.bOk ? Fixture + TEXT(".inl.expected") : Fixture + TEXT(".diags.expected");
 		const FString StalePath = Compiled.bOk ? Fixture + TEXT(".diags.expected") : Fixture + TEXT(".inl.expected");
 		const FString Actual = Compiled.bOk ? Compiled.Inl : SerializeDiags(Compiled);

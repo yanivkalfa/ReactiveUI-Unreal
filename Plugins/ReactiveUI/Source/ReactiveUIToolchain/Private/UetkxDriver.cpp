@@ -146,6 +146,16 @@ namespace
 		return Path.Replace(TEXT("\\"), TEXT("/")).Contains(TEXT("/ContractFixtures/"));
 	}
 
+	/** A .uetkx source path relative to the project dir, forward-slashed — the stable, machine-
+	 *  independent form emitted into `#line` directives (M7) and stored in the sidecar. */
+	FString ProjectRelPathFor(const FString& UetkxPath)
+	{
+		FString Rel = UetkxPath;
+		FPaths::MakePathRelativeTo(Rel, *FPaths::ProjectDir());
+		Rel.ReplaceInline(TEXT("\\"), TEXT("/"));
+		return Rel;
+	}
+
 	/** A sidecar's ordering fields (absent on pre-uses sidecars → component kind, no uses). */
 	void ReadSidecarOrdering(const FString& SidecarPath, bool& bOutSupport, TArray<FString>& OutUses)
 	{
@@ -266,7 +276,7 @@ FUetkxFileResult FUetkxDriver::CompileFile(const FString& UetkxPath, bool bForce
 	}
 	const FString Basename = FPaths::GetBaseFilename(UetkxPath);
 	const uint32 Hash = SrcHash(Source);
-	FUetkxCompileOutput Compiled = FUetkxCodegen::CompileSource(Source, Basename);
+	FUetkxCompileOutput Compiled = FUetkxCodegen::CompileSource(Source, Basename, ProjectRelPathFor(UetkxPath));
 	Out.Diags = Compiled.Diags;
 	Out.ComponentNames = Compiled.ComponentNames;
 	if (Compiled.bOk)
@@ -464,7 +474,8 @@ FUetkxCheckResult FUetkxDriver::CheckDrift(const TArray<FString>& Roots)
 			Out.Messages.Add(FString::Printf(TEXT("%s: unreadable"), *Path));
 			continue;
 		}
-		const FUetkxCompileOutput Compiled = FUetkxCodegen::CompileSource(Source, FPaths::GetBaseFilename(Path));
+		const FUetkxCompileOutput Compiled =
+			FUetkxCodegen::CompileSource(Source, FPaths::GetBaseFilename(Path), ProjectRelPathFor(Path));
 		for (const FString& Name : Compiled.ComponentNames)
 		{
 			if (const FString* Incumbent = NameToFile.Find(Name))

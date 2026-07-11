@@ -13,22 +13,32 @@
 #include "CoreMinimal.h"
 #include "UetkxFileScan.h"
 
+class IUetkxImportResolver; // UetkxResolve.h (M4) — resolution runs inside CompileSource when set
+
 struct REACTIVEUITOOLCHAIN_API FUetkxCompileOutput
 {
 	bool bOk = false;
 	FString Inl; // the generated .uetkx.inl text ("" on failure)
 	TArray<FUetkxDiag> Diags;
-	TArray<FString> ComponentNames; // bindings (component/hook/module names -> this file); 2106 + refs
+	TArray<FString> ComponentNames; // ALL decl bindings (component/hook/module names) -> this file; 2106 + refs
 	TArray<FString> Uses;			// component names REFERENCED by markup (aggregator topo order)
-	bool bSupportFile = false;		// hook/module file (no markup — HMR rebuild, not interp swap)
+	bool bSupportFile = false;		// no markup (only hooks/modules) — HMR rebuild, not interp swap
 	uint32 HookSig = 0;				// first component's hook signature (interp swap key)
 };
 
 class REACTIVEUITOOLCHAIN_API FUetkxCodegen
 {
 public:
-	/** Compile one .uetkx source. Basename = file stem (binding + NSLOCTEXT namespace). */
-	static FUetkxCompileOutput CompileSource(const FString& Source, const FString& Basename);
+	/** Compile one .uetkx source into its sibling .inl. Basename = file stem (binding + NSLOCTEXT
+	 *  namespace). ProjectRelPath = the source path relative to the project (forward slashes) for
+	 *  `#line` mapping (M7); "" = the fixtures/tests default (Basename + ".uetkx"). Resolver, when
+	 *  non-null (driver/fixture harness), runs import resolution + strict diagnostics AFTER scan
+	 *  and BEFORE emit (M4); null = resolution skipped (syntax-only). Declarations lower in SOURCE
+	 *  order (mixed-decl v1): hook -> inline free function, module -> namespace, component ->
+	 *  struct + impl + wrapper. */
+	static FUetkxCompileOutput CompileSource(const FString& Source, const FString& Basename,
+											 const FString& ProjectRelPath = FString(),
+											 const IUetkxImportResolver* Resolver = nullptr);
 
 	/** The markup vocabulary as JSON — elements/attrs (typed), style keys, slot keys, hooks.
 	 *  RUIExportSchema writes this to Saved/ReactiveUI/schema.json for the LSP (Phase 5). */
