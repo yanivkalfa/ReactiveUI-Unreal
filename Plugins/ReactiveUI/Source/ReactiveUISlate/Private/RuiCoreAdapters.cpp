@@ -263,18 +263,19 @@ public:
 	virtual void UpdateChildSlotProps(SWidget& Parent, const TSharedRef<SWidget>& Child,
 									  const FRuiStyleDict* SlotProps) override
 	{
-		// v1: reinsert at the same index with the new slot config (in-place FSlot setters
-		// are a Phase 2 step 5 refinement — plans/TECH_DEBT.md).
+		// TD-010(a): mutate the LIVE FSlot in place — no detach/reinsert churn on hot slot-prop
+		// animation paths (e.g. an animated Slot.Padding). GetSlotAt returns a const ref; the slot
+		// is engine-mutable, so we cast to the concrete box FSlot and drive its runtime setters.
 		TBox& Box = static_cast<TBox&>(Parent);
 		FChildren* Children = Box.GetChildren();
 		for (int32 i = 0; i < Children->Num(); ++i)
 		{
 			if (&Children->GetChildAt(i).Get() == &Child.Get())
 			{
-				Box.RemoveSlot(Child);
-				typename TBox::FScopedWidgetSlotArguments Slot = Box.InsertSlot(i);
-				Slot.AttachWidget(Child);
-				ConfigureSlot(Slot, SlotProps);
+				typename TBox::FSlot& Slot =
+					const_cast<typename TBox::FSlot&>(static_cast<const typename TBox::FSlot&>(Children->GetSlotAt(i)));
+				ConfigureSlotLive(Slot, SlotProps);
+				Box.Invalidate(EInvalidateWidgetReason::Layout);
 				return;
 			}
 		}
@@ -318,6 +319,33 @@ private:
 	static void SetFill(SHorizontalBox::FScopedWidgetSlotArguments& Slot, float Fill) { Slot.FillWidth(Fill); }
 	static void SetAuto(SVerticalBox::FScopedWidgetSlotArguments& Slot) { Slot.AutoHeight(); }
 	static void SetAuto(SHorizontalBox::FScopedWidgetSlotArguments& Slot) { Slot.AutoWidth(); }
+
+	// Live-FSlot counterparts (TD-010(a) in-place update).
+	static void SetFillLive(SVerticalBox::FSlot& Slot, float Fill) { Slot.SetFillHeight(Fill); }
+	static void SetFillLive(SHorizontalBox::FSlot& Slot, float Fill) { Slot.SetFillWidth(Fill); }
+	static void SetAutoLive(SVerticalBox::FSlot& Slot) { Slot.SetAutoHeight(); }
+	static void SetAutoLive(SHorizontalBox::FSlot& Slot) { Slot.SetAutoWidth(); }
+
+	/** Apply the full slot config to a LIVE FSlot. Absent keys RESET to the box slot defaults
+	 *  (padding 0, HAlign/VAlign Fill) so an update mirrors the fresh-reinsert result exactly. */
+	static void ConfigureSlotLive(typename TBox::FSlot& Slot, const FRuiStyleDict* SlotProps)
+	{
+		const float Fill = SlotFillOf(SlotProps);
+		if (Fill > 0.0f)
+		{
+			SetFillLive(Slot, Fill);
+		}
+		else
+		{
+			SetAutoLive(Slot);
+		}
+		const FRuiValue* Padding = SlotProps ? SlotProps->Find(SlotPaddingKey) : nullptr;
+		Slot.SetPadding(Padding ? ParsePadding(*Padding) : FMargin(0.0f));
+		const FRuiValue* H = SlotProps ? SlotProps->Find(SlotHAlignKey) : nullptr;
+		Slot.SetHorizontalAlignment(H ? ParseHAlign(*H) : HAlign_Fill);
+		const FRuiValue* V = SlotProps ? SlotProps->Find(SlotVAlignKey) : nullptr;
+		Slot.SetVerticalAlignment(V ? ParseVAlign(*V) : VAlign_Fill);
+	}
 };
 
 class FRuiVerticalBoxAdapter final : public TRuiBoxPanelAdapter<SVerticalBox>

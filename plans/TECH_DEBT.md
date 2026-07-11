@@ -102,8 +102,15 @@ referenced from plans/PRs.
   downcast for (a) if profiling ever shows reinsert churn on hot slot-prop animation paths; a
   hybrid "rebuild when moves > N/2" switch only if a real workload surfaces where reverse-heavy
   reorders dominate.
-- **Status:** OPEN (decision RECORDED — minimal-move ships; this entry tracks the two
-  accepted imperfections, not the strategy)
+- **Status:** RESOLVED 2026-07-12 (imperfection (a)) — `UpdateChildSlotProps` on the box-panel
+  adapter now mutates the LIVE FSlot in place: `const_cast<TBox::FSlot&>(GetSlotAt(i))` +
+  `ConfigureSlotLive` (SetFillHeight/Width, SetAutoHeight/Width, SetPadding, SetHorizontal/
+  VerticalAlignment; absent keys reset to the slot defaults), then `Invalidate(Layout)` — no more
+  detach/reinsert on hot slot-prop animation. Test `ReactiveUI.Slate.SlotInPlace` proves the SAME
+  FSlot object survives the update (address unchanged) while its padding retargets 10→20→reset.
+  (b) SOverlay index-reorder rebuild + the hybrid "rebuild when moves > N/2" switch remain the
+  documented-accepted design — both are gated on a profiling workload that has not surfaced; the
+  minimal-move box-panel strategy (spike-decided) is unchanged.
 
 ## TD-011 — Construct-only prop changes don't replace widgets yet
 - **Where:** `FRuiSlateHost::CommitUpdate` (warns via the adapter reconstruct mask)
