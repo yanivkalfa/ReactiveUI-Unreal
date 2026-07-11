@@ -288,7 +288,15 @@ referenced from plans/PRs.
   emit ships correct; this is a self-contained enhancement.
 - **Production-grade resolution:** two-phase `.inl` (phase-guarded, defaults-on-decl-only,
   test-pinned) + two-phase aggregator include + `#line`; CodegenVersion 2 with all goldens re-pinned.
-- **Status:** OPEN (uetkx-imports follow-up; cycle parity + `#line` DX)
+- **Status:** RESOLVED 2026-07-11 (uetkx-imports) — two-phase emit shipped (`FEmittedDecl`
+  DECL/BODY split in `UetkxCodegen.cpp`: complete props structs + defaulted wrapper fwd-decls + hook
+  fwd-decls + module bodies in DECL; impls + default-free wrapper defs + registrations in BODY);
+  `BuildAggregators` includes every `.inl` twice (decl phase for all, then body). Cross-file
+  COMPONENT cycles now COMPILE — **UETKX2107 retired**; a `CycleProof/CycleA.uetkx`↔`CycleB.uetkx`
+  fixture compiles + renders (`ReactiveUI.Uetkx.Cycle`). `#line <n> "<project-rel .uetkx>"` directives
+  wrap every top-level verbatim region (`WithLine`/`BuildLineStarts`/`LineOf`); M7.1 spike verdict
+  recorded in the plan (project-relative; interactive VS bind is the one human check). CodegenVersion
+  1->2, all goldens re-pinned. battery 55/55, -check 0 drift.
 
 ## TD-024 — LSP server import intelligence + support-file formatting + VS2022 vsix rebuild (M11 tail)
 - **Where:** `ide-extensions/lsp-server/src/server.ts` (+ new `uetkxWorkspace.ts`), `formatUetkx.ts`,
@@ -301,7 +309,16 @@ referenced from plans/PRs.
   files format instead of round-tripping verbatim, and rebuilding the VS2022 vsix.
 - **Production-grade resolution:** the completions/go-to-def/resolution-diag set + FmtHook/FmtModule
   + a shipped vsix, covered by `server.test.ts`.
-- **Status:** OPEN (uetkx-imports follow-up; IDE intelligence)
+- **Status:** RESOLVED 2026-07-11 (uetkx-imports) — new `uetkxWorkspace.ts` mirrors
+  `FUetkxFsResolver` + `FUetkxResolve::Apply` (resolveSpecifier ./ ../ ~/, getDecls mtime-cache,
+  moduleRootFor/workspaceRootFor walk-ups, findExporter index, suggestSpecifier, resolveDiagnostics
+  emitting live 2300/2301/2302/2308). `server.ts` wires import-name + specifier completions,
+  `onDefinition` (name->export, specifier->file, bare ref->workspace exporter), and live resolution
+  diags de-duped against the hash-gated sidecar. `FmtHook`/`FmtModule` land in BOTH the C++
+  `UetkxFormatter.cpp` and the TS `formatUetkx.ts` (Scan.Order-driven loop; hook/module gain
+  `ExportAt`) with 4 new shared golden-corpus cases. VS2022 vsix rebuilt green via
+  `build-local.ps1` (8.6 MB, bundles the updated server). 7 new `server.test.ts` cases (15/15) +
+  extended smoke round-trip (SMOKE PASSED).
 
 ## TD-025 — Import staleness tail: value cycles (2306), source-truth aggregator, single-pass fixpoint
 - **Where:** `UetkxDriver.cpp` (`CompileAllRoots`, `BuildAggregators`)
@@ -315,7 +332,16 @@ referenced from plans/PRs.
   green-on-second-sweep).
 - **Production-grade resolution:** 2306 emitted with the printed chain; aggregator ordered by import
   edges; single-call fixpoint. All three test-pinned.
-- **Status:** OPEN (uetkx-imports follow-up)
+- **Status:** RESOLVED 2026-07-11 (uetkx-imports) — (a) **UETKX2306**: `CompileAllRoots` builds the
+  value-import graph (hook/module import edges only; component edges exempt now that the two-phase
+  pass fwd-declares wrappers) from fresh preamble scans and DFS-detects a cycle, printing the chain
+  (module↔module test-pinned in `ReactiveUI.Uetkx.Driver`). (b) **Source-truth order**:
+  `BuildAggregators` orders by RESOLVED preamble import edges (Kahn topo, alpha ties, cycle
+  remainder), sidecars demoted to cache — `ReadSidecarOrdering` deleted. (c) **Single-sweep
+  fixpoint**: `RunPass`/`ByPath`/`OldExport`+`bExportsMoved` — pass 1 compiles stale files; if any
+  `export_hash` moved, pass 2 re-sweeps so an importer that sorted before its changed dep recompiles
+  in ONE `CompileAll` (the A/B verdict-poisoning test now asserts single-sweep). battery 55/55,
+  -check 0 drift; plan M8 test row updated.
 
 ## TD-026 — Accepted v1 divergences: interp global-name scoping + private-FName last-swap-wins
 - **Where:** `RuiNode.cpp` (process-global name/factory registries), `RuiHmr.cpp`, `UetkxInterpComponent.cpp`
