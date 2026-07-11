@@ -50,24 +50,35 @@ export function formatUetkx(source: string, opts?: Partial<UetkxFormatOptions>):
   const srcCp = toCodePoints(source);
   let out = "";
 
-  // preamble (T1.3): canonical ONLY when whitespace + #include lines
-  const pre = fromCodePoints(srcCp, 0, scan.components[0].at);
+  // preamble (T1.3 + M11): canonical ONLY when whitespace + #include + `import` lines.
+  // Canonical order: #include block, blank, import block, blank.
+  const declStartOf = (d: (typeof scan.components)[number]) => (d.exported && d.exportAt >= 0 ? d.exportAt : d.at);
+  const pre = fromCodePoints(srcCp, 0, declStartOf(scan.components[0]));
   let preCanonical = true;
   for (const line of pre.split("\n")) {
     const t = line.trim();
-    if (t && !t.startsWith("#include")) {
+    if (t && !t.startsWith("#include") && !t.startsWith("import ")) {
       preCanonical = false;
       break;
     }
   }
-  if (!preCanonical) out += pre;
-  else if (scan.preambleIncludes.length > 0) out += scan.preambleIncludes.join("\n") + "\n\n";
+  if (!preCanonical) {
+    out += pre;
+  } else {
+    let block = "";
+    if (scan.preambleIncludes.length > 0) block += scan.preambleIncludes.join("\n") + "\n";
+    if (scan.imports.length > 0) {
+      if (block) block += "\n";
+      for (const imp of scan.imports) block += `import { ${imp.names.join(", ")} } from "${imp.specifier}"\n`;
+    }
+    if (block) out += block + "\n";
+  }
 
   let cursor = -1;
   for (let k = 0; k < scan.components.length; k++) {
     const decl = scan.components[k];
     if (k > 0) {
-      if (fromCodePoints(srcCp, cursor, decl.at - cursor).trim()) return verbatim(true); // never delete user text
+      if (fromCodePoints(srcCp, cursor, declStartOf(decl) - cursor).trim()) return verbatim(true); // never delete user text
       out += "\n";
     }
     out += fmtComponent(decl, state);
@@ -446,7 +457,7 @@ function fmtParams(params: readonly UetkxParam[]): string {
 }
 
 function fmtComponent(decl: UetkxComponentDecl, state: FmtState): string {
-  let out = `component ${decl.name}${fmtParams(decl.params)} {\n`;
+  let out = `${decl.exported ? "export " : ""}component ${decl.name}${fmtParams(decl.params)} {\n`;
   const setup = reanchor(decl.setup, 1, state.o);
   if (setup) {
     if (hasLeadingBlank(decl.setup)) out += "\n";

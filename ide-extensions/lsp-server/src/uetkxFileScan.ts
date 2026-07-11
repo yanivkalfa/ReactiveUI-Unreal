@@ -50,6 +50,7 @@ export interface UetkxComponentDecl {
   name: string;
   exported: boolean; // `export component`
   at: number; // the `component` keyword offset
+  exportAt: number; // the `export` keyword offset when exported, else -1 (the decl's true start)
   nameAt: number;
   params: UetkxParam[];
   setup: string;
@@ -428,6 +429,7 @@ function parseComponent(src: number[], ci: number, exported: boolean, out: Uetkx
     name,
     exported,
     at: ci,
+    exportAt: -1, // set by scanFile once the `export` offset is known (the decl's true start)
     nameAt: ns,
     params,
     setup,
@@ -572,8 +574,10 @@ export function scanFile(source: string, basename: string): UetkxFileScanResult 
       i = skipWsOnly(src, i + 6);
     }
     let next = -1;
-    if (keywordAt(src, i, "component")) next = parseComponent(src, i, exported, out);
-    else if (keywordAt(src, i, "hook")) next = parseHook(src, i, exported, out);
+    if (keywordAt(src, i, "component")) {
+      next = parseComponent(src, i, exported, out);
+      if (next >= 0 && exported) out.components[out.components.length - 1].exportAt = declStart; // the decl's true start
+    } else if (keywordAt(src, i, "hook")) next = parseHook(src, i, exported, out);
     else if (keywordAt(src, i, "module")) next = parseModule(src, i, exported, out);
     else {
       pushDiag(

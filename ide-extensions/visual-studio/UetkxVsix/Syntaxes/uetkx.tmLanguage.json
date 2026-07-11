@@ -6,6 +6,8 @@
   "patterns": [
     { "include": "#markup-comment" },
     { "include": "#preprocessor" },
+    { "include": "#import-decl" },
+    { "include": "#export-keyword" },
     { "include": "#component-decl" },
     { "include": "#hook-decl" },
     { "include": "#module-decl" },
@@ -25,6 +27,18 @@
       "name": "meta.preprocessor.uetkx",
       "match": "^\\s*#\\s*(include|pragma|define|if|ifdef|ifndef|endif|else)\\b.*$",
       "captures": { "1": { "name": "keyword.control.directive.uetkx" } }
+    },
+    "import-decl": {
+      "match": "\\b(import)\\b(.*?)\\b(from)\\b\\s*(\"[^\"]*\")",
+      "captures": {
+        "1": { "name": "keyword.control.import.uetkx" },
+        "3": { "name": "keyword.control.import.uetkx" },
+        "4": { "name": "string.quoted.double.uetkx" }
+      }
+    },
+    "export-keyword": {
+      "match": "\\b(export)\\s+(?=component|hook|module)",
+      "captures": { "1": { "name": "keyword.control.export.uetkx" } }
     },
     "component-decl": {
       "match": "\\b(component)\\s+([A-Za-z_][A-Za-z0-9_]*)",

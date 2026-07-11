@@ -92,6 +92,16 @@
       "name": "support files (hook/module) round-trip verbatim without fallback",
       "input": "hook UseThing(int32 A) -> int32 {\n\tauto [V, SetV] = UseState<int32>(A);\n\treturn V;\n}\n\nmodule ThingStyle {\n\tinline const float Pad = 4.0f;\n}\n",
       "expect": "hook UseThing(int32 A) -> int32 {\n\tauto [V, SetV] = UseState<int32>(A);\n\treturn V;\n}\n\nmodule ThingStyle {\n\tinline const float Pad = 4.0f;\n}\n"
+    },
+    {
+      "name": "M11: import + export component is already canonical (idempotent)",
+      "input": "import { StatusChip } from \"./StatusChip\"\n\nexport component Screen {\n\treturn (\n\t\t<StatusChip />\n\t);\n}\n",
+      "expect": "import { StatusChip } from \"./StatusChip\"\n\nexport component Screen {\n\treturn (\n\t\t<StatusChip />\n\t);\n}\n"
+    },
+    {
+      "name": "M11: preamble canonicalizes to #include block, blank, import block, blank",
+      "input": "#include \"X.h\"\n\n\nimport { A } from \"./A\"\nexport component S {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n",
+      "expect": "#include \"X.h\"\n\nimport { A } from \"./A\"\n\nexport component S {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n"
     }
   ]
 }

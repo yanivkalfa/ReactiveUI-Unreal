@@ -685,7 +685,8 @@ namespace
 
 	FString FmtComponent(const FUetkxComponentDecl& Decl, FFmtState& State)
 	{
-		FString Out = FString::Printf(TEXT("component %s%s {\n"), *Decl.Name, *FmtParams(Decl.Params));
+		FString Out = FString::Printf(TEXT("%scomponent %s%s {\n"), Decl.bExported ? TEXT("export ") : TEXT(""),
+									  *Decl.Name, *FmtParams(Decl.Params));
 		const FString Setup = Reanchor(Decl.Setup, 1, State.O);
 		if (!Setup.IsEmpty())
 		{
@@ -735,10 +736,12 @@ FUetkxFormatResult FUetkxFormatter::Format(const FString& Source, const FUetkxFo
 	// code-point array, or a non-BMP char in a comment shifts all later slices.
 	const TArray<int32> SrcCp = FUetkxLexer::ToCodePoints(Source);
 
-	// Preamble (T1.3): canonicalized ONLY when it is nothing but whitespace + #include lines.
-	// Leading comments or stray text are preserved byte-for-byte — Format Document must never
-	// delete user content.
-	const FString Pre = FUetkxLexer::FromCodePoints(SrcCp, 0, Scan.Components[0].At);
+	// Preamble (T1.3 + M11): canonicalized ONLY when it is nothing but whitespace + #include +
+	// `import` lines. Leading comments or stray text are preserved byte-for-byte — Format Document
+	// must never delete user content. Canonical order: #include block, blank, import block, blank.
+	auto DeclStartOf = [](const FUetkxComponentDecl& D)
+	{ return D.bExported && D.ExportAt >= 0 ? D.ExportAt : D.At; };
+	const FString Pre = FUetkxLexer::FromCodePoints(SrcCp, 0, DeclStartOf(Scan.Components[0]));
 	bool bPreCanonical = true;
 	{
 		TArray<FString> PreLines;
@@ -746,7 +749,7 @@ FUetkxFormatResult FUetkxFormatter::Format(const FString& Source, const FUetkxFo
 		for (const FString& Line : PreLines)
 		{
 			const FString T = Line.TrimStartAndEnd();
-			if (!T.IsEmpty() && !T.StartsWith(TEXT("#include")))
+			if (!T.IsEmpty() && !T.StartsWith(TEXT("#include")) && !T.StartsWith(TEXT("import ")))
 			{
 				bPreCanonical = false;
 				break;
@@ -757,9 +760,29 @@ FUetkxFormatResult FUetkxFormatter::Format(const FString& Source, const FUetkxFo
 	{
 		Out += Pre;
 	}
-	else if (!Scan.PreambleIncludes.IsEmpty())
+	else
 	{
-		Out += FString::Join(Scan.PreambleIncludes, TEXT("\n")) + TEXT("\n\n");
+		FString Block;
+		if (!Scan.PreambleIncludes.IsEmpty())
+		{
+			Block += FString::Join(Scan.PreambleIncludes, TEXT("\n")) + TEXT("\n");
+		}
+		if (!Scan.Imports.IsEmpty())
+		{
+			if (!Block.IsEmpty())
+			{
+				Block += TEXT("\n"); // blank between the #include block and the import block
+			}
+			for (const FUetkxImportDecl& Imp : Scan.Imports)
+			{
+				Block += FString::Printf(TEXT("import { %s } from \"%s\"\n"), *FString::Join(Imp.Names, TEXT(", ")),
+										 *Imp.Specifier);
+			}
+		}
+		if (!Block.IsEmpty())
+		{
+			Out += Block + TEXT("\n"); // blank before the first declaration
+		}
 	}
 
 	int32 Cursor = -1;
@@ -770,7 +793,7 @@ FUetkxFormatResult FUetkxFormatter::Format(const FString& Source, const FUetkxFo
 		{
 			// content between declarations would be silently dropped by a re-emit — never
 			// delete user text (T1.3): fall back verbatim.
-			if (!FUetkxLexer::FromCodePoints(SrcCp, Cursor, Decl.At - Cursor).TrimStartAndEnd().IsEmpty())
+			if (!FUetkxLexer::FromCodePoints(SrcCp, Cursor, DeclStartOf(Decl) - Cursor).TrimStartAndEnd().IsEmpty())
 			{
 				return Verbatim(true);
 			}

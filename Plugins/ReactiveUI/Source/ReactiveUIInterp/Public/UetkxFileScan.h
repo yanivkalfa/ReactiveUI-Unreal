@@ -59,6 +59,7 @@ struct REACTIVEUIINTERP_API FUetkxComponentDecl
 	FString Name;
 	bool bExported = false; // `export component` — cross-file addressable (privacy is opt-in, A3)
 	int32 At = -1;			// the `component` keyword offset (the `export`, if any, precedes it)
+	int32 ExportAt = -1;	// the `export` keyword offset when bExported, else -1 (the decl's true start)
 	int32 NameAt = -1;
 	TArray<FUetkxParam> Params;
 	FString Setup; // body text before the chosen markup return (verbatim C++)

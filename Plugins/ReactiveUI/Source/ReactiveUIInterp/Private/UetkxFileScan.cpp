@@ -684,6 +684,10 @@ FUetkxFileScanResult FUetkxFileScan::Scan(const FString& Source, const FString& 
 		if (FUetkxLexer::KeywordAt(Src, i, TEXT("component")))
 		{
 			Next = ParseComponent(Src, i, bExported, Out);
+			if (Next >= 0 && bExported)
+			{
+				Out.Components.Last().ExportAt = DeclStart; // the decl's true start (the `export`)
+			}
 		}
 		else if (FUetkxLexer::KeywordAt(Src, i, TEXT("hook")))
 		{
