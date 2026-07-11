@@ -22,6 +22,7 @@ struct REACTIVEUITOOLCHAIN_API FUetkxFileResult
 	FString UetkxPath;
 	FString InlPath;
 	TArray<FUetkxDiag> Diags;
+	TArray<FString> ComponentNames; // compiled: from codegen; skipped: from the sidecar refs
 };
 
 struct REACTIVEUITOOLCHAIN_API FUetkxSweepResult
@@ -64,13 +65,18 @@ public:
 	/** True when UetkxPath needs a compile (missing/older .inl; error verdicts honored). */
 	static bool IsStale(const FString& UetkxPath);
 
-	/** Find every *.uetkx under RootDir (recursive). */
+	/** Find every *.uetkx under RootDir (recursive). Paths under a `ContractFixtures`
+	 *  directory are excluded — those are the D-22 harness's inputs, compiled only by
+	 *  RUIContractDump/ReactiveUI.Contract, never by the sweep. */
 	static TArray<FString> FindAll(const FString& RootDir);
 
 	/** Cheap poll: does anything under RootDir need work? */
 	static bool HasStale(const FString& RootDir);
 
-	/** Sweep-compile all (stale unless bForce) + regenerate aggregators + fingerprint. */
+	/** Sweep-compile all (stale unless bForce) + orphan sweep (a deleted Foo.uetkx takes its
+	 *  committed Foo.uetkx.inl with it — stale generated code must never build) + duplicate-
+	 *  binding check (UETKX2106: one component name, one file — the incumbent keeps the name)
+	 *  + regenerate aggregators + fingerprint. */
 	static FUetkxSweepResult CompileAll(const FString& RootDir, bool bForce = false);
 
 	/** Regenerate `<ModuleDirName>.Uetkx.gen.cpp` beside each module's .uetkx set. Returns

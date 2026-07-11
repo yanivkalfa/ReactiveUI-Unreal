@@ -1,0 +1,5 @@
+component BadAttr {
+	return (
+		<Button Bogus="x">hm</Button>
+	);
+}

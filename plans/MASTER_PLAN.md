@@ -823,7 +823,7 @@ distribution, and always opt-in — never a mandatory VM under the shipped UI, p
   cheap-path benchmarked vs SNew.
 - **Status:** CODE-COMPLETE 2026-07-10 (owner PIE playtest pending — the field-test touchpoint): 15 widgets + style v1 (pointer-identity test green) + GO-05 pool (same-pointer reuse test) + focus fences + STATGROUP; 38/38 suites incl. ReactiveUI.{Slate,Widgets,Style,Demos}; reorder spike decided (TD-010, rows in BENCH_BASELINES.md). Header-sweep audit mapped remaining widget surface to TD-012.
 
-### - [ ] Phase 3 — `.uetkx` compiler + build integration (`ReactiveUIToolchain` + parser in `ReactiveUIInterp`)
+### - [x] Phase 3 — `.uetkx` compiler + build integration (`ReactiveUIToolchain` + parser in `ReactiveUIInterp`) — DONE 2026-07-11 (battery 46/46 incl. ReactiveUI.Uetkx.* + Contract; gallery's 11 screens run from committed codegen; RUICompile -check + RUIContractDump -check exit 0)
 
 - **Objective:** `Foo.uetkx` → committed `Foo.uetkx.inl` + stable aggregator TU, byte-compatible
   grammar, sidecar diagnostics, staleness machinery, commandlets — CI-gated for drift. (Steps 1–8
@@ -873,7 +873,18 @@ distribution, and always opt-in — never a mandatory VM under the shipped UI, p
   green through the compiled path.
 - **Done when:** demos run from committed codegen; drift gate is a required CI check; corpus is
   the compiler's regression suite.
-- **Status:** NOT STARTED.
+- **Status:** COMPLETE 2026-07-11. Milestones M3.1–M3.9 on `feat/uetkx-compiler`: lexer +
+  57-case scanner corpus (D-22), markup parser + jsx scan (UETKX#### catalog), file scan +
+  codegen (props/hook-prefix/hook-sig/NSLOCTEXT/named-factory self-registration; leaf arity;
+  event payload `Value`; `classes`), driver (sidecars v2, error-verdict + mtime-tie + env-hold
+  staleness, orphan sweep, UETKX2106 duplicate binding, fingerprint, stable aggregators),
+  RUICompile/-full/-check + RUIExportSchema + RUIContractDump commandlets, formatter + 16-case
+  golden corpus + uetkx.config.json walk-up, contract harness (4 fixtures incl. an error
+  fixture + non-BMP pin), all 11 gallery screens converted (committed .inl; Demos battery
+  drives the compiled path incl. registration coverage). Deliberate deferrals recorded:
+  TD-015 (grammar v1 limits), TD-016 (typed event payloads), TD-017 (hook/module companion
+  decls — UE hooks are plain C++ functions), TD-018 (Godot-repo corpus-mirror PR). Post-write
+  parse verification subsumed by CI compiling the committed .inl for real.
 
 ### - [ ] Phase 4 — Interpreter + hot reload (`ReactiveUIInterp` + watcher)
 

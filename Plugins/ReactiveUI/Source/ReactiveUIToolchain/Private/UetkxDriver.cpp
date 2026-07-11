@@ -102,6 +102,38 @@ namespace
 		}
 		return true;
 	}
+
+	/** The component names a sidecar recorded (its refs keys) — how a SKIPPED file still
+	 *  contributes to the duplicate-binding check without recompiling. */
+	TArray<FString> ReadSidecarRefs(const FString& SidecarPath)
+	{
+		TArray<FString> Out;
+		FString Json;
+		if (!FFileHelper::LoadFileToString(Json, *SidecarPath))
+		{
+			return Out;
+		}
+		TSharedPtr<FJsonObject> Root;
+		const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Json);
+		if (!FJsonSerializer::Deserialize(Reader, Root) || !Root.IsValid())
+		{
+			return Out;
+		}
+		const TSharedPtr<FJsonObject>* Refs = nullptr;
+		if (Root->TryGetObjectField(TEXT("refs"), Refs))
+		{
+			for (const TPair<FString, TSharedPtr<FJsonValue>>& Pair : (*Refs)->Values)
+			{
+				Out.Add(Pair.Key);
+			}
+		}
+		return Out;
+	}
+
+	bool IsContractFixturePath(const FString& Path)
+	{
+		return Path.Replace(TEXT("\\"), TEXT("/")).Contains(TEXT("/ContractFixtures/"));
+	}
 } // namespace
 
 uint32 FUetkxDriver::SrcHash(const FString& Source)
@@ -177,6 +209,7 @@ FUetkxFileResult FUetkxDriver::CompileFile(const FString& UetkxPath, bool bForce
 	{
 		Out.bOk = true;
 		Out.bSkipped = true;
+		Out.ComponentNames = ReadSidecarRefs(SidecarPathFor(UetkxPath));
 		return Out;
 	}
 	FString Source;
@@ -193,6 +226,7 @@ FUetkxFileResult FUetkxDriver::CompileFile(const FString& UetkxPath, bool bForce
 	const uint32 Hash = SrcHash(Source);
 	FUetkxCompileOutput Compiled = FUetkxCodegen::CompileSource(Source, Basename);
 	Out.Diags = Compiled.Diags;
+	Out.ComponentNames = Compiled.ComponentNames;
 	if (Compiled.bOk)
 	{
 		// Unconditional write: the fresh mtime IS the staleness ledger (see WriteIfChanged).
@@ -225,6 +259,7 @@ TArray<FString> FUetkxDriver::FindAll(const FString& RootDir)
 {
 	TArray<FString> Out;
 	IFileManager::Get().FindFilesRecursive(Out, *RootDir, TEXT("*.uetkx"), /*Files*/ true, /*Dirs*/ false);
+	Out.RemoveAll(IsContractFixturePath);
 	Out.Sort();
 	return Out;
 }
@@ -324,6 +359,7 @@ FUetkxCheckResult FUetkxDriver::CheckDrift(const TArray<FString>& Roots)
 		All.Append(FindAll(Root));
 	}
 	Out.Total = All.Num();
+	TMap<FString, FString> NameToFile; // duplicate-binding ledger (UETKX2106)
 	for (const FString& Path : All)
 	{
 		FString Source;
@@ -334,6 +370,19 @@ FUetkxCheckResult FUetkxDriver::CheckDrift(const TArray<FString>& Roots)
 			continue;
 		}
 		const FUetkxCompileOutput Compiled = FUetkxCodegen::CompileSource(Source, FPaths::GetBaseFilename(Path));
+		for (const FString& Name : Compiled.ComponentNames)
+		{
+			if (const FString* Incumbent = NameToFile.Find(Name))
+			{
+				++Out.Errors;
+				Out.Messages.Add(FString::Printf(TEXT("%s: UETKX2106: component `%s` is already bound by %s"), *Path,
+												 *Name, **Incumbent));
+			}
+			else
+			{
+				NameToFile.Add(Name, Path);
+			}
+		}
 		if (!Compiled.bOk)
 		{
 			++Out.Errors;
@@ -398,9 +447,24 @@ FUetkxSweepResult FUetkxDriver::CompileAll(const FString& RootDir, bool bForce)
 	const TArray<FString> All = FindAll(RootDir);
 	Out.Total = All.Num();
 	bool bAnyHeld = false;
+	TMap<FString, FString> NameToFile; // duplicate-binding ledger (UETKX2106)
 	for (const FString& Path : All)
 	{
 		FUetkxFileResult R = CompileFile(Path, bForce || bFingerprintStale);
+		for (const FString& Name : R.ComponentNames)
+		{
+			if (const FString* Incumbent = NameToFile.Find(Name))
+			{
+				++Out.Errors;
+				UE_LOG(LogRuiToolchain, Error,
+					   TEXT("%s: UETKX2106: component `%s` is already bound by %s (one name, one file)"), *Path, *Name,
+					   **Incumbent);
+			}
+			else
+			{
+				NameToFile.Add(Name, Path);
+			}
+		}
 		if (R.bSkipped)
 		{
 			++Out.Skipped;
@@ -429,6 +493,24 @@ FUetkxSweepResult FUetkxDriver::CompileAll(const FString& RootDir, bool bForce)
 			}
 		}
 		Out.Files.Add(MoveTemp(R));
+	}
+	// Orphan sweep: a deleted Foo.uetkx takes its generated siblings with it — a committed
+	// .inl with no source would otherwise keep BUILDING through the aggregator's next regen
+	// cycle... the aggregator drops the include (built from FindAll), but the stale file
+	// itself must not linger for a hand include or a future rename to resurrect.
+	{
+		TArray<FString> Inls;
+		IFileManager::Get().FindFilesRecursive(Inls, *RootDir, TEXT("*.uetkx.inl"), true, false);
+		for (const FString& Inl : Inls)
+		{
+			const FString SourcePath = Inl.LeftChop(4); // strip ".inl"
+			if (!IsContractFixturePath(Inl) && !IFileManager::Get().FileExists(*SourcePath))
+			{
+				IFileManager::Get().Delete(*Inl, false, true, true);
+				IFileManager::Get().Delete(*SidecarPathFor(SourcePath), false, true, true);
+				UE_LOG(LogRuiToolchain, Display, TEXT("orphan swept: %s (source gone)"), *Inl);
+			}
+		}
 	}
 	Out.bAggregatorsChanged = RegenerateAggregators(All);
 	if (!bAnyHeld)

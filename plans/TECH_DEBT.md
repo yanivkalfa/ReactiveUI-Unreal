@@ -184,3 +184,27 @@ referenced from plans/PRs.
 - **Production-grade resolution:** the Phase-5 schema already types attrs as `event`; extend
   it with a payload-kind field so the LSP can complete `Value.TextValue` correctly.
 - **Status:** OPEN
+
+## TD-017 — `hook` / `module` companion declarations in `.uetkx`
+- **Where:** `ReactiveUIInterp` file scan + `ReactiveUIToolchain` codegen
+- **What/why deferred:** the family grammar also has `hook Name(params) { ... }` and
+  `module Name { ... }` declarations (D-03's declaration inventory); the Phase-3 plan listed
+  their codegen shapes. v1 ships `component` only: in UE a custom hook is ALREADY a plain
+  C++ free function taking `FRuiContext&` (no sugar needed for capability — see the demo
+  support-header pattern), and modules are C++ namespaces. The decls add family-parity
+  authoring sugar, not capability.
+- **Production-grade resolution:** port `_parse_hook_at`/module member loops from guitkx.gd
+  into FUetkxFileScan, emit free functions in the `.inl`, corpus + contract fixtures. Do it
+  when the docs site (Phase 8) starts teaching cross-family authoring, or on user demand.
+- **Status:** OPEN
+
+## TD-018 — Cross-repo grammar-corpus mirroring (Godot follow-up PR)
+- **Where:** `ide-extensions/lsp-server/test-fixtures/uetkx-*.json` ↔ the Godot repo's
+  `guitkx` corpus
+- **What/why deferred:** Phase 3 step 7 calls for the host-language-agnostic corpus cases to
+  be mirrored INTO the Godot repo (its scanner corpus gains our markup-mode cases) via a
+  follow-up PR there. Our corpus already contains the family-shared cases + C++-lexis cases;
+  the Godot-side PR is out of this repo's branch scope.
+- **Production-grade resolution:** open the Godot-repo PR copying the markup-mode/nonBmp case
+  sections + the `grammar-contract` sync note; drop this entry when merged.
+- **Status:** OPEN

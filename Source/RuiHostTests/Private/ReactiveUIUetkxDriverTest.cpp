@@ -189,6 +189,26 @@ bool FRuiUetkxDriverTest::RunTest(const FString&)
 				 Check.Messages.ContainsByPredicate([](const FString& M) { return M.Contains(TEXT("Broken.uetkx")); }));
 	}
 
+	// ── duplicate binding (UETKX2106) + the orphan sweep ───────────────────────────────────
+	{
+		// the sweep REPORTS the duplicate via UE_LOG(Error) — expected here, not a failure
+		AddExpectedError(TEXT("UETKX2106"), EAutomationExpectedErrorFlags::Contains, 0);
+		FFileHelper::SaveStringToFile(FixedSrc, *BrokenPath); // settle the previous block
+		const FString DupPath = Scratch / TEXT("Loose/BadgeCopy.uetkx");
+		FFileHelper::SaveStringToFile(TEXT("component Badge { return ( <Spacer /> ); }\n"), *DupPath);
+		const FUetkxSweepResult Dup = FUetkxDriver::CompileAll(Scratch, /*bForce*/ true);
+		TestTrue(TEXT("duplicate binding is a sweep error"), Dup.Errors >= 1);
+		TestTrue(TEXT("the drift gate flags duplicates too"),
+				 FUetkxDriver::CheckDrift({Scratch}).Messages.ContainsByPredicate(
+					 [](const FString& M) { return M.Contains(TEXT("UETKX2106")); }));
+
+		FM.Delete(*DupPath);
+		TestTrue(TEXT("orphan .inl lingers pre-sweep"), FM.FileExists(*FUetkxDriver::InlPathFor(DupPath)));
+		FUetkxDriver::CompileAll(Scratch);
+		TestFalse(TEXT("orphan .inl swept with its source"), FM.FileExists(*FUetkxDriver::InlPathFor(DupPath)));
+		TestFalse(TEXT("orphan sidecar swept"), FM.FileExists(*FUetkxDriver::SidecarPathFor(DupPath)));
+	}
+
 	FM.DeleteDirectory(*Scratch, false, true);
 	return true;
 }
