@@ -1,65 +1,100 @@
-# feat(uetkx): import/export + strict resolution + codemod (imports leg 1 of 3)
+# feat: `.uetkx` compiler + imports, IDE/LSP, Epic interop, HMR v2 — the full authoring stack
 
-> Paste into the GitHub compare page. **Base:** `feat/uetkx-compiler` (this stacks on PR #14 —
-> rebase onto `dev` once #14 merges; `dev` is a clean ancestor). Delete this file after merge.
+> Paste into the GitHub compare page. **Base:** `dev` (clean ancestor — 97 commits ahead, 0 behind).
 > Compare: https://github.com/yanivkalfa/ReactiveUI-Unreal/pull/new/feat/uetkx-imports
+> Delete this file after merge.
 
 ## What this is
 
-The Unreal leg of the family import/export feature (`plans/IMPORT_EXPORT_PLAN.md`). `.uetkx` gains
-**static imports/exports, strict from day one**, **full mixed-decl files**, **privacy-by-default**,
-and a **one-command codemod** that migrates an existing project in place — with the whole gallery
-migrated strict-clean in this PR.
+The branch that takes ReactiveUI-Unreal from "runtime + reconciler" to a **complete authoring stack**:
+the `.uetkx` markup language (compile-to-C++), static imports/exports, the IDE tooling, the Epic-interop
+layer, the full runtime feature set (router, stylesheets, animation, widgets, DnD), and **HMR v2** — a
+Live-Coding-driven hot reload with its own editor menu/window. 97 commits, 313 files
+(+38.3k / −1.0k), all against `dev`.
 
-## Highlights
+## The `.uetkx` compiler (M3.x)
 
-- **Grammar (M2):** `import { A, B } from "./x"` / `~/root-alias`, extensionless, named-only,
-  preamble-only. `export` on any `component`/`hook`/`module` makes it cross-file addressable. A
-  file is now a free SEQUENCE of components + hooks + modules (one-per-file is a lint, not an
-  error). Scanner rewritten and mirrored 1:1 in the TS LSP; +17 corpus cases run in both languages.
-- **Strict resolution (M4):** a new `IUetkxImportResolver` + `FUetkxFsResolver` + `FUetkxResolve`
-  emit the family diagnostics **UETKX2300–2309** (unknown specifier, not-exported, not-declared,
-  duplicate/unused/misplaced import, used-not-imported *with a fix-it import line*, module-boundary).
-  Hand-written C++ namespaces/hooks stay ambient (A4). Run inside `CompileSource`; **enforced by the
-  driver** (`RUICompile -check` is the CI strict gate).
-- **Codemod (M10a):** `-run=RUIMigrateImports` — idempotent, re-runnable. Adds `export` to every
-  decl (export-everything, A3) + inserts the imports each file needs from a fresh reference scan,
-  then requires a zero-diagnostic compile. Migrated the 15-file gallery: 15 exports, 4 imports, 0
-  cross-module, 0 errors; re-run is a no-op.
-- **Privacy (M5):** non-exported decls emit into a per-file `RuiPriv_<Basename>` detail namespace
-  and are tree-shaken (no named factory); same-file references qualify. `UETKX2106` keys exported
-  names only; `CompileAllRoots` is a single ledger across Source + Plugins.
-- **Staleness (M8):** sidecar v3 (`export_hash` + `dep_hashes`); reverse-edge staleness re-stales
-  importers when an exported decl changes; the A5d verdict-poisoning bug is fixed and test-pinned.
-- **HMR (M9):** mixed files swap their components AND note the rebuild, naming the import blast
-  radius (`FUetkxDriver::ImportersOf`).
-- **Config (M1):** shared `FUetkxConfig` walk-up (formatter + resolver); new `"root"` key for `~/`.
-- **IDE (M11):** formatter canonicalizes the import block + preserves `export` (C++ + TS mirror);
-  TextMate `import`/`export`/`from` keywords (vscode + VS2022). vscode/lsp `0.1.0 → 0.2.0`.
-- **Family gate (M0):** `scripts/corpus-hash.mjs` + `plans/family-corpus.hash` + CI job — the
-  import corpus is the first mirrored set (A4/TD-009). Diagnostic-block audit: 2300–2315 free.
+- **Lexer + parser + codegen:** `FUetkxLexer` (C++ lexis), `FUetkxMarkup` (byte-compatible family
+  grammar), `FUetkxJsxScan` (markup-inside-expression), and the C++ **codegen** (`source → .uetkx.inl`).
+- **Driver + commandlets:** `FUetkxDriver` (sidecars, staleness graph, aggregators, fingerprint);
+  `RUICompile` (`-full`/`-check` drift gate), `RUIExportSchema`; the canonical **formatter** + golden
+  corpus; the contract harness (57 cases). The demo gallery runs on compiled `.uetkx` with committed
+  `.inl`.
+
+## Static imports / exports (M1–M11)
+
+- **Grammar:** `import { A, B } from "./x"` / `~/root-alias`, extensionless, named-only, preamble-only;
+  `export` makes a `component`/`hook`/`module` cross-file addressable; a file is a free sequence of
+  decls. Scanner mirrored 1:1 in the TS LSP.
+- **Strict resolution (day one):** `IUetkxImportResolver` + diagnostics **UETKX2300–2309** (unknown/
+  not-exported/not-declared/duplicate/unused/misplaced/used-not-imported with a fix-it), enforced by
+  `RUICompile -check`.
+- **Codemod:** `-run=RUIMigrateImports` — idempotent; adds `export` + inserts needed imports, requires a
+  zero-diagnostic compile. Migrated the gallery strict-clean.
+- **Privacy + staleness:** non-exported decls tree-shaken into `RuiPriv_<Basename>`; sidecar v3 with
+  reverse-edge staleness (an importer re-stales when its dep's export changes).
+
+## IDE / LSP (Phase 5, TD-016, TD-020, TD-024)
+
+- `.uetkx` **language server** + **VS Code** and **VS2022** clients: schema-driven completions/hover,
+  hash-gated sidecar diagnostics, golden-corpus formatting, TextMate grammar with embedded `source.cpp`.
+- **Import intelligence:** specifier/name completions, go-to-def, live resolution diagnostics; typed
+  event-payload completion (`Value.<Field>`); the embedded-C++ intelligence core (virtualDoc + sourceMap
+  + clangd proxy). VS2022 options page + format-on-save.
+
+## Runtime features
+
+- **Router** (TD-001): 17 hooks + matching engine. **Stylesheets** (TD-002): `@theme` tokens + `@uss`
+  third layer. **Exit animations** (TD-003): `<Presence>` delayed-unmount. **Drag & drop** (TD-004):
+  typed DnD over `FDragDropOperation` + `UseShortcut`.
+- **Widgets:** batch-2 (WidgetSwitcher/ScaleBox/Throbber/WrapBox, MultiLine/Search text, SafeZone/
+  DPIScaler/Separator, SpinBox/UniformWrapPanel/RichText/Grid) + specials (ExpandableArea,
+  SegmentedControl, NumericEntryBox, ComboBox, SuggestionTextBox); typed fluent builders (TD-013);
+  `{children}` forwarding (TD-015).
+- **Item-model views** (TD-022): virtualized `ListView`/`TileView` with per-row sub-roots; focus
+  extensions (`UseFocus`); GC-rooted asset brushes.
+- **Hooks Phase 7:** `UseTween`/`UseAnimate`/`UseTweenValue` (host-clock, easing, retarget-from-current)
+  + `UseSfx` — every hook is now stub-free.
+- **Read-only `.uetkx` preview** (TD-006): in-editor tab + panel + `FUetkxPreview`.
+
+## Epic interop (Phase 6, TD-021)
+
+- **UMG:** `URuiHostWidget` (ours-inside-theirs), `RUI::Umg::UserWidget` (theirs-inside-ours),
+  `URuiWorldSubsystem` teardown contract, `UseField` over FieldNotify.
+- **CommonUI + MVVM:** activatables, MVVM global collection, UMG prop-map bridge, `URuiSignalViewModel`
+  (ours feeding theirs). Enabled as optional plugin refs.
+
+## HMR v2 — Live-Coding-driven hot reload
+
+- **Engine:** deleted the single-file interpreter (couldn't resolve imports or run user hooks);
+  `FUetkxHmrController` drives **Unreal Live Coding** — save → recompile → patch → refresh, state
+  preserved (hook cells are heap-resident). Watcher debounce/coalesce, all event kinds.
+- **UI:** top-level **`ReactiveUetkx`** menu + a **Hot Reload window** (Start/Stop, ACTIVE/Idle, swaps/
+  errors/last/RAM, recent errors); read-only preview reworked to the compiled component.
+- **Shortcuts + settings:** two rebindable, default-unbound commands + a global key processor +
+  `UDeveloperSettings` + an in-window chord recorder; **Follow Play** (start HMR on Play, release the
+  Live Coding session on Stop so external builds work); event-driven hiding of Epic's Live Coding
+  console while HMR is active.
+- **Platform:** live HMR is **Windows-only** (Live Coding is), documented in README + **TD-HMR-XPLAT**,
+  which also tracks a legacy-Hot-Reload cross-platform spike. The library itself builds/runs on every UE
+  platform; only the live-reload DX is Windows.
+
+## Hardening
+
+- Two adversarial bug hunts fully resolved: round 1 (17 confirmed + 2 plausible) and round 2 (51
+  findings), each with regression tests.
 
 ## Verification (all green)
 
-- `RUICompile -full` (15/15 compiled, 0 err) and `RUICompile -check` (0 drift, 0 err, strict).
-- Full headless automation battery: **54 / 54**.
-- LSP `node --test` **9/9** + `scripts/smoke.js` PASSED.
-- Engine-free gates (mirror, headers, skills, docs-drift, **corpus-hash**, changelog) green.
-- Docs site build + lint green.
-
-## Deferred (tracked, not dropped)
-
-Self-contained follow-ups documented in `plans/TECH_DEBT.md`:
-- **TD-023** — two-phase fwd-decl aggregator + `#line` (cross-file *component*-cycle parity +
-  debugger stepping; CodegenVersion-2 golden re-pin). The gallery has no cycles, so today's
-  single-phase emit ships correct.
-- **TD-024** — LSP import completions / go-to-def / workspace resolution diags, `FmtHook`/
-  `FmtModule`, VS2022 vsix rebuild.
-- **TD-025** — UETKX2306 value cycles, source-truth aggregator ordering, one-call staleness fixpoint.
-- **TD-026** — accepted v1 caveats (interp global-name scoping; private-FName last-swap-wins).
+- Build: `ReactiveUIUnrealDemoEditor` Development OK. Markup drift: `RUICompile -check` — 23 files,
+  0 drifted, 0 errors.
+- Headless automation suite: **99 / 99**. LSP `node --test` + smoke green.
+- Engine-free CI gates (headers, changelog mirror, docs-drift, skills, corpus-hash) green. Docs site
+  build + lint green.
+- The live Live-Coding loop is owner-verified in-editor (no headless test can drive Live Coding).
 
 ## Notes
 
-- Sidecars (`*.uetkx.diags.json`) are git-ignored per-machine cache (A2) — not in the diff.
-- Sequencing: leg 2 (Godot) branches after this merges AND `feat/doom-guitkx-port` merges; leg 3
-  (Unity) after leg 2.
+- Sidecars (`*.uetkx.diags.json`) are git-ignored per-machine cache — not in the diff.
+- Deferred items are tracked in `plans/TECH_DEBT.md` (TD-HMR-DEMOS, TD-HMR-XPLAT, and the accepted v1
+  caveats); nothing dropped.
