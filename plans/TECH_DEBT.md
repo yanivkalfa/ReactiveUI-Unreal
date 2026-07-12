@@ -213,7 +213,14 @@ referenced from plans/PRs.
   work, not codegen work.
 - **Production-grade resolution:** the Phase-5 schema already types attrs as `event`; extend
   it with a payload-kind field so the LSP can complete `Value.TextValue` correctly.
-- **Status:** OPEN
+- **Status:** RESOLVED 2026-07-12 — `ExportSchemaJson` emits `eventPayloads` (event attr -> payload
+  kind: OnTextChanged/OnTextCommitted=text, OnCheckStateChanged=bool, OnValueChanged=float,
+  OnClicked=void); the shipped `uetkx-schema.json` was regenerated (Acceptance schema-sync green).
+  The LSP (new `eventPayload.ts`) completes `Value.<Field>` typed by the ENCLOSING event — inside
+  `OnTextChanged={ … Value.| }` it offers `TextValue` first (marked as the OnTextChanged payload) —
+  and hovers an event attr with the exact `Value.<Field>` (`FText`/…) it carries; `enclosingAttrName`
+  balances nested braces to find the owning attr. Tests: schema pins + enclosingAttrName/fieldForKind
+  (server.test 16/16) + smoke `Value.` round-trip.
 
 ## TD-017 — `hook` / `module` companion declarations in `.uetkx`
 - **Where:** `ReactiveUIInterp` file scan + `ReactiveUIToolchain` codegen
