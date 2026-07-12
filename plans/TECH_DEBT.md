@@ -22,7 +22,18 @@ referenced from plans/PRs.
   list) — scope valve; the family's `router_match`/`router_spine` suites port when it lands.
 - **Production-grade resolution:** full port of the family router (+17 hooks), both suites, docs
   page, gate entry in a v1.x plan.
-- **Status:** OPEN
+- **Status:** RESOLVED 2026-07-12 — ported engine-blind into ReactiveUICore (`RuiRouter.h/.cpp`),
+  a React-Router-shaped in-memory router. **Matching engine:** `MatchPath` (literal / `:param` /
+  `*` splat, leaf-vs-prefix), `ParseLocation`, `ParseSearch`/`BuildSearch`, `ResolvePath`
+  (absolute / append-relative / `..`). **Components:** `RUI::Router` (in-memory history w/ back +
+  forward stacks + a blocker registry), `RUI::Routes` (specificity-ranked nested matching →
+  outlet-wrapped element chain), `RUI::Link`, and Outlet nesting via a per-route context.
+  **The 17 hooks:** UseInRouterContext, UseLocation, UsePathname, UseSearch, UseNavigationType,
+  UseNavigate, UseGo, UseBackStack, UseParams, UseSearchParams, UseMatch, UseIsActive,
+  UseResolvedPath, UseHref, UseOutlet, UseRoutes, UseBlocker. Both family suites ported:
+  `ReactiveUI.Router.Match` (the pure primitives) and `ReactiveUI.Router.Spine` (end-to-end:
+  history, nested layout+index outlets, params, search-param read/write, back-stack, blocker
+  interception). Full suite 67/67. Docs page + a demo screen remain as docs-sync follow-ons.
 
 ## TD-002 — Stylesheet third style layer (`@uss`/`@theme`)
 - **Where:** grammar recognizes both directives (D-03) and diagnoses "post-v1"
