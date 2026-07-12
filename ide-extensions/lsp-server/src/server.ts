@@ -16,7 +16,9 @@ import {
   type CompletionItem,
   type Definition,
   type Diagnostic,
+  type Hover,
   type InitializeParams,
+  type Location,
 } from "vscode-languageserver/node";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import { URI } from "./uri";
@@ -39,9 +41,25 @@ import {
   suggestSpecifier,
   workspaceRootFor,
 } from "./uetkxWorkspace";
+import { ClangdProxy } from "./clangdProxy";
+import { buildEmbeddedView, embeddedPositionRequest, isEmbeddedOffset, virtualUriOf } from "./embeddedIntel";
 
 const connection = createConnection(ProposedFeatures.all);
 const documents = new TextDocuments(TextDocument);
+
+// ── embedded-C++ intelligence: one clangd proxy per server, started lazily on the first request
+//    that lands inside a setup/hook/module body. start() is idempotent and resolves false when
+//    clangd is absent — every embedded path then returns null and falls back to the markup baseline
+//    (the family's documented degradation), so the server never hard-depends on clangd.
+let clangd: ClangdProxy | null = null;
+async function embeddedProxy(doc: TextDocument): Promise<ClangdProxy | null> {
+  if (!clangd) {
+    const root = workspaceRootFor(fsPathOf(doc)) ?? path.dirname(fsPathOf(doc));
+    clangd = new ClangdProxy("clangd", root);
+  }
+  await clangd.start();
+  return clangd.isAvailable() ? clangd : null;
+}
 
 connection.onInitialize((_params: InitializeParams) => ({
   capabilities: {
@@ -229,11 +247,23 @@ connection.onCompletion((params): CompletionItem[] => {
 
 // ── hover ──────────────────────────────────────────────────────────────────────────────────
 
-connection.onHover((params) => {
+connection.onHover(async (params) => {
   const doc = documents.get(params.textDocument.uri);
   if (!doc) return null;
   const text = doc.getText();
   const offset = doc.offsetAt(params.position);
+
+  // Embedded C++ takes precedence when the cursor is inside a setup/hook/module body: forward to
+  // clangd over the virtual document. A null (not embedded, clangd absent, or no hover) falls
+  // through to the markup baseline below.
+  if (isEmbeddedOffset(text, offset)) {
+    const proxy = await embeddedProxy(doc);
+    if (proxy) {
+      const hover = await embeddedPositionRequest(proxy, "textDocument/hover", doc.uri, text, offset);
+      if (hover) return hover as Hover;
+    }
+  }
+
   let start = offset;
   let end = offset;
   const isWord = (c: string) => /[A-Za-z0-9_.]/.test(c);
@@ -271,9 +301,56 @@ connection.onHover((params) => {
 
 // ── go-to-definition (imports + workspace-exported references) ───────────────────────────────
 
-connection.onDefinition((params): Definition | null => {
+connection.onDefinition(async (params): Promise<Definition | null> => {
   const doc = documents.get(params.textDocument.uri);
   if (!doc) return null;
+  const markup = markupDefinition(doc, params);
+  if (markup) return markup;
+
+  // Fallback: a cursor inside embedded C++ that the markup index could not resolve — forward to
+  // clangd. Locations clangd returns INTO the virtual doc are translated back to .uetkx; real
+  // engine-header locations pass through. Null (not embedded / clangd absent / no result) is fine.
+  const text = doc.getText();
+  const offset = doc.offsetAt(params.position);
+  if (isEmbeddedOffset(text, offset)) {
+    const proxy = await embeddedProxy(doc);
+    if (proxy) {
+      const result = await embeddedPositionRequest(proxy, "textDocument/definition", doc.uri, text, offset);
+      const translated = translateEmbeddedDefinition(result, doc, text);
+      if (translated) return translated;
+    }
+  }
+  return null;
+});
+
+/** Translate a clangd definition result: locations pointing back into THIS document's virtual C++
+ *  are mapped to .uetkx ranges; locations in real files (engine headers) pass through unchanged;
+ *  anything landing in the prelude scaffolding is dropped. */
+function translateEmbeddedDefinition(result: unknown, doc: TextDocument, source: string): Definition | null {
+  if (!result) return null;
+  const virtualUri = virtualUriOf(doc.uri);
+  const view = buildEmbeddedView(source);
+  const locs = (Array.isArray(result) ? result : [result]) as Location[];
+  const out: Location[] = [];
+  for (const loc of locs) {
+    if (!loc || typeof loc.uri !== "string") continue;
+    if (loc.uri !== virtualUri) {
+      out.push(loc); // a real file (engine header) — pass through
+      continue;
+    }
+    const startOff = view.sourceOffsetOf(loc.range.start);
+    const endOff = view.sourceOffsetOf(loc.range.end);
+    if (startOff === null || endOff === null) continue; // in the prelude — not addressable in .uetkx
+    out.push({
+      uri: doc.uri,
+      range: { start: doc.positionAt(startOff), end: doc.positionAt(endOff) },
+    });
+  }
+  if (out.length === 0) return null;
+  return out.length === 1 ? out[0] : out;
+}
+
+function markupDefinition(doc: TextDocument, params: { position: { line: number; character: number } }): Definition | null {
   const text = doc.getText();
   const fsPath = fsPathOf(doc);
   const cpOff = utf16ToCodePoint(text, doc.offsetAt(params.position));
@@ -327,7 +404,7 @@ connection.onDefinition((params): Definition | null => {
   for (const m of scan.modules) if (m.name === word) return locAtDecl(fsPath, m.nameAt, word.length);
   const hit = findExporter(word, fsPath);
   return hit ? locAtDecl(hit.file, hit.nameAt, word.length) : null;
-});
+}
 
 // ── formatting (uetkx.config.json walk-up, tab default) ────────────────────────────────────
 

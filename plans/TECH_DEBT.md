@@ -379,9 +379,21 @@ referenced from plans/PRs.
   Test `embeddedCpp.test.ts`: source-map round-trips, position conversions, a lifted hook body +
   component setup mapped back to source, markup offsets → null, and the clangd-absent degradation
   path. LSP suite 22/22 (server.test.ts host-tag count updated 15 → 29 for the TD-012 widgets).
-  **REMAINING:** wiring `server.ts` to consult the proxy for hover/completion/definition when the
-  caret is inside a mapped region (the request handlers), and the VS2022 polish set — both
-  meaningfully verifiable only interactively with clangd present.
+  - **`server.ts` wiring: DONE 2026-07-12.** New `embeddedIntel.ts` is the routing layer:
+    `isEmbeddedOffset` gates whether a caret is inside a setup/hook/module body; `buildEmbeddedView`
+    gives build-once bidirectional position mapping (source utf16 ↔ virtual-doc position);
+    `embeddedPositionRequest` forwards to the proxy over the virtual document and returns null (→
+    markup baseline) whenever the caret is NOT embedded OR the proxy is unavailable. `server.ts`
+    holds one lazily-started `ClangdProxy` (idempotent `start()`; resolves false without clangd) and
+    wires it in: **hover** consults the embedded layer first (C++ symbol hover wins inside a body,
+    else falls to the schema baseline); **definition** consults it as a fallback after the markup
+    index misses, with `translateEmbeddedDefinition` mapping clangd locations that point back into
+    the virtual doc to `.uetkx` ranges (engine-header locations pass through). Test
+    `embeddedServer.test.ts` (a stub `PositionResponder`): embedded-vs-markup gating, source↔virtual
+    round-trip, forward-to-proxy-over-virtual-uri, markup positions never forwarded, and the
+    unavailable-proxy degradation (never queries). LSP suite **27/27**.
+  **REMAINING:** the VS2022 polish set (options page, format-on-save, smart indent, brace
+  completion) — meaningfully verifiable only interactively.
 
 ## TD-021 — CommonUI activatables + MVVM-plugin glue + UMG prop-map bridge
 - **Where:** `ReactiveUICommonUI`, `ReactiveUIMVVMBridge`, `ReactiveUIUMG`
