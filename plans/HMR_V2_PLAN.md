@@ -4,6 +4,17 @@
 > (this campaign). Build OK; drift 23/0/0; suite 99/99; gates green. Owner still verifies the live
 > Live-Coding loop in-editor (the one leg no headless test can cover) per the acceptance checklist.
 >
+> **DX follow-ups (post-ship, owner-requested):**
+> - **Hide Epic's Live Coding console** — steer Live Coding's startup mode to `AutomaticButHidden` (the
+>   console still runs as the compile server, no window; our HMR window is the status UI). Setting
+>   `bHideLiveCodingConsole` (default on); written to `EditorPerProjectUserSettings.ini`, takes effect on
+>   restart. Respects a user who chose `Manual`.
+> - **Follow Play** — `bFollowPie` (default off): `FEditorDelegates::PostPIEStarted` starts HMR on Play,
+>   `EndPIE` stops it AND disables the Live Coding session (frees external builds while you edit). The
+>   Unity-sibling model: Live Coding only holds the build while you are actually playing.
+> - HMR window opens ~600×500; demo `DefaultEngine.ini` sets `CommonGameViewportClient` (unrelated red
+>   CommonUI-on-Play error).
+>
 > **Two implementation deviations from the plan's names, both deliberate:**
 > - The controller is **`FUetkxHmrController`** (editor module), not `FRuiHmr` — the old `FRuiHmr` was
 >   the deleted interpreter swapper; a new name avoids implying continuity with it.

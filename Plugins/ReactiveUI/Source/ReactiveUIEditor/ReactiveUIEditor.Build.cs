@@ -33,6 +33,7 @@ public class ReactiveUIEditor : ModuleRules
 			"WorkspaceMenuStructure", // group the preview/HMR tabs under Window > Tools (grouped entries)
 			"ToolMenus",			  // the top-level ReactiveUetkx main-menu (HMR v2 Phase 2)
 			"DeveloperSettings",	  // UReactiveUetkxEditorSettings (HMR v2 Phase 3)
+			"UnrealEd",				  // FEditorDelegates PIE hooks for "Follow Play" (HMR v2)
 			"DirectoryWatcher",		 // watcher trigger 1
 			"Slate",			 // window-activation trigger
 			"SlateCore",

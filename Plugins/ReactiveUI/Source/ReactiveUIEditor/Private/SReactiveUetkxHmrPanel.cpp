@@ -5,6 +5,7 @@
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Commands/InputBindingManager.h"
 #include "Framework/Commands/UICommandInfo.h"
+#include "Framework/Notifications/NotificationManager.h"
 #include "HAL/PlatformMemory.h"
 #include "Logging/LogMacros.h"
 #include "ReactiveUetkxCommands.h"
@@ -17,6 +18,7 @@
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SScrollBox.h"
+#include "Widgets/Notifications/SNotificationList.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
 
@@ -106,6 +108,20 @@ void SReactiveUetkxHmrPanel::Construct(const FArguments&)
 								 [SNew(STextBlock)
 									  .Font(StatFont)
 									  .Text(LOCTEXT("Verbose", "Verbose watcher trace"))]]
+				  + SVerticalBox::Slot().AutoHeight().Padding(0, 1)
+						[SNew(SCheckBox)
+							 .IsChecked(this, &SReactiveUetkxHmrPanel::IsHideConsoleChecked)
+							 .OnCheckStateChanged(this, &SReactiveUetkxHmrPanel::OnHideConsoleChanged)
+								 [SNew(STextBlock)
+									  .Font(StatFont)
+									  .Text(LOCTEXT("HideConsole", "Hide the Live Coding console (restart to apply)"))]]
+				  + SVerticalBox::Slot().AutoHeight().Padding(0, 1)
+						[SNew(SCheckBox)
+							 .IsChecked(this, &SReactiveUetkxHmrPanel::IsFollowPieChecked)
+							 .OnCheckStateChanged(this, &SReactiveUetkxHmrPanel::OnFollowPieChanged)
+								 [SNew(STextBlock)
+									  .Font(StatFont)
+									  .Text(LOCTEXT("FollowPie", "Follow Play: start HMR on Play, stop on Stop"))]]
 				  // ── rebindable shortcuts (default unbound) ─────────────────────────────────
 				  + SVerticalBox::Slot().AutoHeight().Padding(0, 6, 0, 1)
 						[BuildShortcutRow(0, LOCTEXT("ToggleHmrShort", "Toggle HMR"))]
@@ -232,6 +248,37 @@ void SReactiveUetkxHmrPanel::OnVerboseChanged(ECheckBoxState NewState)
 {
 	UReactiveUetkxEditorSettings* Settings = GetMutableDefault<UReactiveUetkxEditorSettings>();
 	Settings->bVerboseWatcher = (NewState == ECheckBoxState::Checked);
+	Settings->SaveConfig();
+}
+
+ECheckBoxState SReactiveUetkxHmrPanel::IsHideConsoleChecked() const
+{
+	return GetDefault<UReactiveUetkxEditorSettings>()->bHideLiveCodingConsole ? ECheckBoxState::Checked
+																			  : ECheckBoxState::Unchecked;
+}
+
+void SReactiveUetkxHmrPanel::OnHideConsoleChanged(ECheckBoxState NewState)
+{
+	UReactiveUetkxEditorSettings* Settings = GetMutableDefault<UReactiveUetkxEditorSettings>();
+	Settings->bHideLiveCodingConsole = (NewState == ECheckBoxState::Checked);
+	Settings->SaveConfig();
+	FUetkxHmrController::Get().ApplyConsoleVisibilitySetting(); // writes the Live Coding startup mode
+	FNotificationInfo Info(LOCTEXT("RestartToApply",
+								   "Live Coding console visibility changed — restart the editor to apply."));
+	Info.ExpireDuration = 4.0f;
+	FSlateNotificationManager::Get().AddNotification(Info);
+}
+
+ECheckBoxState SReactiveUetkxHmrPanel::IsFollowPieChecked() const
+{
+	return GetDefault<UReactiveUetkxEditorSettings>()->bFollowPie ? ECheckBoxState::Checked
+																 : ECheckBoxState::Unchecked;
+}
+
+void SReactiveUetkxHmrPanel::OnFollowPieChanged(ECheckBoxState NewState)
+{
+	UReactiveUetkxEditorSettings* Settings = GetMutableDefault<UReactiveUetkxEditorSettings>();
+	Settings->bFollowPie = (NewState == ECheckBoxState::Checked);
 	Settings->SaveConfig();
 }
 

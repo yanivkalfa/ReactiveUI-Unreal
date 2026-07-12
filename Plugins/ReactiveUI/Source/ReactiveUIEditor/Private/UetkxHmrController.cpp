@@ -2,8 +2,10 @@
 
 #include "UetkxHmrController.h"
 
+#include "Editor.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "ILiveCodingModule.h"
+#include "Misc/ConfigCacheIni.h"
 #include "Modules/ModuleManager.h"
 #include "ReactiveUetkxEditorSettings.h"
 #include "RuiReconciler.h"
@@ -68,19 +70,24 @@ bool FUetkxHmrController::Start(FString& OutError)
 
 void FUetkxHmrController::Stop()
 {
+	// Honour the current setting (the window checkbox / Project Settings drive this).
+	StopInternal(GetDefault<UReactiveUetkxEditorSettings>()->bDisableSessionOnStop);
+}
+
+void FUetkxHmrController::StopInternal(bool bForceDisableSession)
+{
 	if (!bActive)
 	{
 		return;
 	}
-	// Honour the current setting (the window checkbox / Project Settings drive this).
-	bDisableSessionOnStop = GetDefault<UReactiveUetkxEditorSettings>()->bDisableSessionOnStop;
+	bDisableSessionOnStop = bForceDisableSession;
 	if (ILiveCodingModule* LC = LiveCoding())
 	{
 		if (PatchCompleteHandle.IsValid())
 		{
 			LC->GetOnPatchCompleteDelegate().Remove(PatchCompleteHandle);
 		}
-		if (bDisableSessionOnStop && LC->IsEnabledForSession())
+		if (bForceDisableSession && LC->IsEnabledForSession())
 		{
 			LC->EnableForSession(false); // restore normal external builds
 		}
@@ -88,14 +95,92 @@ void FUetkxHmrController::Stop()
 	PatchCompleteHandle.Reset();
 	bActive = false;
 	bDirtyAgain = false;
-	UE_LOG(LogUetkxHmr, Display, TEXT("[RUI HMR] stopped"));
+	UE_LOG(LogUetkxHmr, Display, TEXT("[RUI HMR] stopped%s"),
+		   bForceDisableSession ? TEXT(" (Live Coding session disabled — external builds restored)") : TEXT(""));
 	OnStatusChanged.Broadcast();
 }
 
 void FUetkxHmrController::Shutdown()
 {
+	UnregisterPieHooks();
 	Stop();
 	OnStatusChanged.Clear();
+}
+
+void FUetkxHmrController::ApplyConsoleVisibilitySetting()
+{
+	// Live Coding's console window is governed by its Startup mode (EditorPerProjectUserSettings, and
+	// ConfigRestartRequired). We can't call the engine's private HideConsole(), so we steer that config:
+	//   AutomaticButHidden → the console runs as the compile server but shows no window (our window is UI).
+	//   Automatic          → Epic's console shows (the stock behaviour).
+	// A user who deliberately chose "Manual" is left untouched.
+	static const TCHAR* Section = TEXT("/Script/LiveCoding.LiveCodingSettings");
+	FString Current;
+	GConfig->GetString(Section, TEXT("Startup"), Current, GEditorPerProjectIni);
+	if (Current == TEXT("Manual"))
+	{
+		return;
+	}
+	const bool bHide = GetDefault<UReactiveUetkxEditorSettings>()->bHideLiveCodingConsole;
+	const FString Desired = bHide ? TEXT("AutomaticButHidden") : TEXT("Automatic");
+	if (Current != Desired)
+	{
+		GConfig->SetString(Section, TEXT("Startup"), *Desired, GEditorPerProjectIni);
+		GConfig->Flush(false, GEditorPerProjectIni);
+		UE_LOG(LogUetkxHmr, Display,
+			   TEXT("[RUI HMR] Live Coding console startup set to '%s' — restart the editor for it to take effect."),
+			   *Desired);
+	}
+}
+
+void FUetkxHmrController::RegisterPieHooks()
+{
+	// FEditorDelegates are static multicasts — safe to subscribe at module load (before GEditor is up).
+	if (PiePostStartedHandle.IsValid())
+	{
+		return;
+	}
+	PiePostStartedHandle =
+		FEditorDelegates::PostPIEStarted.AddRaw(this, &FUetkxHmrController::OnPiePostStarted);
+	PieEndedHandle = FEditorDelegates::EndPIE.AddRaw(this, &FUetkxHmrController::OnPieEnded);
+}
+
+void FUetkxHmrController::UnregisterPieHooks()
+{
+	if (PiePostStartedHandle.IsValid())
+	{
+		FEditorDelegates::PostPIEStarted.Remove(PiePostStartedHandle);
+		PiePostStartedHandle.Reset();
+	}
+	if (PieEndedHandle.IsValid())
+	{
+		FEditorDelegates::EndPIE.Remove(PieEndedHandle);
+		PieEndedHandle.Reset();
+	}
+}
+
+void FUetkxHmrController::OnPiePostStarted(bool /*bSimulating*/)
+{
+	if (!GetDefault<UReactiveUetkxEditorSettings>()->bFollowPie || bActive)
+	{
+		return;
+	}
+	FString Error;
+	if (!Start(Error))
+	{
+		UE_LOG(LogUetkxHmr, Warning, TEXT("[RUI HMR] Follow Play: could not start on PIE — %s"), *Error);
+	}
+}
+
+void FUetkxHmrController::OnPieEnded(bool /*bSimulating*/)
+{
+	if (!GetDefault<UReactiveUetkxEditorSettings>()->bFollowPie || !bActive)
+	{
+		return;
+	}
+	// Leaving Play: fully release Live Coding so external builds work again while you edit (the point of
+	// Follow Play). This overrides bDisableSessionOnStop for the PIE-driven stop.
+	StopInternal(/*bForceDisableSession*/ true);
 }
 
 void FUetkxHmrController::NotifyCodegen(int32 NumChanged, int32 NumErrors, const FString& Reason)

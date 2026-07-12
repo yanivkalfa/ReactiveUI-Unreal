@@ -46,6 +46,10 @@ private:
 	void OnNotificationsChanged(ECheckBoxState NewState);
 	ECheckBoxState IsVerboseChecked() const;
 	void OnVerboseChanged(ECheckBoxState NewState);
+	ECheckBoxState IsHideConsoleChecked() const;
+	void OnHideConsoleChanged(ECheckBoxState NewState);
+	ECheckBoxState IsFollowPieChecked() const;
+	void OnFollowPieChanged(ECheckBoxState NewState);
 
 	// --- shortcut recorder (RecordIndex: 0 = Toggle HMR, 1 = Toggle Window) ---
 	TSharedRef<class SWidget> BuildShortcutRow(int32 RecordIndex, const FText& Label);

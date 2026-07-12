@@ -32,6 +32,18 @@ public:
 	UPROPERTY(config, EditAnywhere, Category = "Hot Reload", meta = (DisplayName = "Verbose watcher trace"))
 	bool bVerboseWatcher = false;
 
+	/** Hide Epic's Live Coding console window (it keeps running as the compile server; our HMR window is
+	 *  the status UI). Maps to Live Coding's "AutomaticButHidden" startup mode — takes effect on restart. */
+	UPROPERTY(config, EditAnywhere, Category = "Hot Reload",
+			  meta = (DisplayName = "Hide the Live Coding console (restart to apply)"))
+	bool bHideLiveCodingConsole = true;
+
+	/** Follow PIE: start HMR when you press Play, stop it (and free external builds) when you Stop —
+	 *  so Live Coding only holds the build while you are actually playing (the Unity-sibling model). */
+	UPROPERTY(config, EditAnywhere, Category = "Hot Reload",
+			  meta = (DisplayName = "Follow Play: start HMR on Play, stop on Stop"))
+	bool bFollowPie = false;
+
 	/** When HMR stops, also disable the Live Coding session so external builds work again immediately.
 	 *  Off by default: keeping the session on makes the next Start instant. */
 	UPROPERTY(config, EditAnywhere, Category = "Hot Reload",

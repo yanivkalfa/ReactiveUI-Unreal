@@ -44,6 +44,11 @@ public:
 		RegisterPreviewTab();
 		RegisterHmrWindowTab();
 
+		// HMR v2 DX: keep Epic's Live Coding console windowless (our HMR window is the status UI), and
+		// let "Follow Play" drive the session from the PIE Play/Stop buttons.
+		FUetkxHmrController::Get().ApplyConsoleVisibilitySetting();
+		FUetkxHmrController::Get().RegisterPieHooks();
+
 		// Rebindable, default-unbound shortcuts (D-HMR-6) + a global key preprocessor to fire them.
 		FReactiveUetkxCommands::Register();
 		if (FSlateApplication::IsInitialized())

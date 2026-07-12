@@ -50,6 +50,14 @@ public:
 	/** STOP the mode: unsubscribe; per bDisableSessionOnStop, leave or disable the Live Coding session. */
 	void Stop();
 
+	/** Apply the ReactiveUetkx "Hide the Live Coding console" setting to Live Coding's startup-mode config
+	 *  (AutomaticButHidden ↔ Automatic). Respects a user who chose Manual. Takes effect next editor start. */
+	void ApplyConsoleVisibilitySetting();
+
+	/** Subscribe / unsubscribe the PIE begin+end hooks that drive "Follow Play" (bFollowPie). */
+	void RegisterPieHooks();
+	void UnregisterPieHooks();
+
 	bool IsActive() const { return bActive; }
 	const FUetkxHmrStatus& GetStatus() const { return Status; }
 	const TArray<FUetkxHmrError>& GetRecentErrors() const { return RecentErrors; }
@@ -68,9 +76,12 @@ public:
 private:
 	FUetkxHmrController() = default;
 
+	void StopInternal(bool bForceDisableSession); // Stop() core; PIE end forces the session off (frees builds)
 	void TriggerCompile();
 	void OnPatchComplete();	 // Live Coding finished a patch → refresh the live UI
 	void RefreshLiveRoots(); // ForEachLive → HmrRefreshAll + FlushSync (re-render with patched code)
+	void OnPiePostStarted(bool bSimulating);
+	void OnPieEnded(bool bSimulating);
 
 	bool bActive = false;
 	bool bDirtyAgain = false; // a change arrived mid-compile → run one more cycle on completion
@@ -78,4 +89,6 @@ private:
 	FUetkxHmrStatus Status;
 	TArray<FUetkxHmrError> RecentErrors; // newest-first, capped (see NotifyCodegen)
 	FDelegateHandle PatchCompleteHandle;
+	FDelegateHandle PiePostStartedHandle;
+	FDelegateHandle PieEndedHandle;
 };
