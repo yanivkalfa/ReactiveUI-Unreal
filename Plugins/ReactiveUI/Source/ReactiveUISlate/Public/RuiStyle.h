@@ -41,6 +41,32 @@ namespace RUI::Slate
 	 *  handles widget-specific keys first (may be null). */
 	REACTIVEUISLATE_API void ApplyStyleDiff(SWidget& Widget, IRuiElementAdapter* Adapter, const FRuiStyleDict* Old,
 											const FRuiStyleDict* New);
+
+	// ── TD-002: the THIRD layer — @theme tokens + @uss stylesheets ─────────────────────────
+	//
+	// Cascade (lowest -> highest): theme tokens (resolved into values) < class rules < inline
+	// style. A style value that is a String beginning with `$` is a TOKEN REFERENCE, resolved
+	// against the ACTIVE theme when the effective style is built (missing token -> warn + kept).
+
+	/** Register/replace a named theme (a token name -> FRuiValue map). */
+	REACTIVEUISLATE_API void RegisterTheme(FName ThemeName, FRuiStyleDict Tokens);
+
+	/** Select the active theme used to resolve `$token` references. NAME_None = no theme. */
+	REACTIVEUISLATE_API void SetActiveTheme(FName ThemeName);
+	REACTIVEUISLATE_API FName GetActiveTheme();
+
+	/** Resolve a token against the active theme (null if unknown / no active theme). */
+	REACTIVEUISLATE_API const FRuiValue* ResolveThemeToken(FName TokenName);
+
+	/** Parse a `.uss`-style stylesheet source and register its `@theme <name> { ... }` blocks
+	 *  and `.<class> { key: value; }` rules. Values: `#rrggbb[aa]` color, numbers (int/float),
+	 *  true/false, `$token` refs, "quoted" strings, else a bare Name. Returns the count of
+	 *  (themes + classes) registered. Idempotent — re-loading replaces. */
+	REACTIVEUISLATE_API int32 LoadStylesheet(const FString& Source);
+
+	/** Parse one style value literal into an FRuiValue (the stylesheet grammar; also handy for
+	 *  the markup codegen's @uss lowering). */
+	REACTIVEUISLATE_API FRuiValue ParseStyleValue(const FString& Literal);
 } // namespace RUI::Slate
 
 namespace RUI

@@ -40,7 +40,21 @@ referenced from plans/PRs.
 - **What/why deferred:** v1 ships inline `style` dicts + `classes` (D-13); the stylesheet layer
   is family parity work with real design surface.
 - **Production-grade resolution:** family-compatible stylesheet layer; the diagnostic retires.
-- **Status:** OPEN
+- **Status:** RESOLVED (runtime + loader) 2026-07-12 — the THIRD layer landed in `RuiStyle.h/.cpp`
+  on top of the v1 class registry. **@theme tokens:** `RegisterTheme(name, tokens)` +
+  `SetActiveTheme`/`GetActiveTheme` + `ResolveThemeToken`; a style value that is a `$name` String
+  is a token reference, resolved against the active theme when `BuildEffectiveStyle` runs — so the
+  cascade is theme tokens < class rules < inline (each higher layer wins; the token supplies the
+  VALUE a class/inline key referenced). **@uss stylesheets:** `LoadStylesheet(source)` parses a
+  `.uss`-style text (`@theme <name> { token: value; }` + `.<class> { key: value; }`, `/* */` and
+  `//` comments) and registers themes + classes; `ParseStyleValue` is the value grammar
+  (`#rrggbb[aa]` color, int/float, true/false, `$token`, "quoted", `x,y` vector2, bare Name) and
+  is reusable by the future markup lowering. Test `ReactiveUI.Style.Stylesheet`: the value grammar,
+  a loaded theme+class, token resolution to a real applied RenderOpacity, the theme on/off states,
+  and the inline-wins cascade. Full suite 68/68. **REMAINING:** wiring the `.uetkx` compiler's
+  preamble `@uss`/`@theme` directives to emit `LoadStylesheet`/`RegisterTheme` calls (the grammar
+  already lexes them) — a thin toolchain hook over this now-shipped runtime; the "post-v1"
+  diagnostic stays until that codegen lands.
 
 ## TD-003 — Exit-animation protocol (delayed unmount)
 - **Where:** reconciler-level (designed in Phase 7 item 5, shipped v1.x per the gate)

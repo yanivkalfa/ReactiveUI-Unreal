@@ -10,6 +10,16 @@ namespace
 	FCriticalSection GClassLock;
 	TMap<FName, FRuiStyleDict> GStyleClasses;
 
+	// TD-002: theme registry + active theme (guarded by GClassLock alongside the classes).
+	TMap<FName, FRuiStyleDict> GThemes;
+	FName GActiveTheme = NAME_None;
+
+	/** A style value that references a theme token: a String starting with '$'. */
+	bool IsTokenRef(const FRuiValue& V)
+	{
+		return V.Kind == FRuiValue::EKind::String && V.StringValue.StartsWith(TEXT("$"));
+	}
+
 	float AsFloat(const FRuiValue& V)
 	{
 		return V.Kind == FRuiValue::EKind::Int ? static_cast<float>(V.IntValue) : static_cast<float>(V.FloatValue);
@@ -165,6 +175,32 @@ namespace RUI::Slate
 				Out->Add(Pair.Key, Pair.Value); // inline wins
 			}
 		}
+		// TD-002 third layer: resolve `$token` references against the active theme (lowest
+		// priority — the token supplies the VALUE a class/inline key referenced).
+		{
+			FScopeLock Lock(&GClassLock);
+			if (GActiveTheme != NAME_None)
+			{
+				if (const FRuiStyleDict* Theme = GThemes.Find(GActiveTheme))
+				{
+					for (TPair<FName, FRuiValue>& Pair : *Out)
+					{
+						if (IsTokenRef(Pair.Value))
+						{
+							const FName Token(*Pair.Value.StringValue.RightChop(1));
+							if (const FRuiValue* Resolved = Theme->Find(Token))
+							{
+								Pair.Value = *Resolved;
+							}
+							else
+							{
+								WarnUnknownKey(FName(*(TEXT("token:") + Token.ToString())));
+							}
+						}
+					}
+				}
+			}
+		}
 		return Out->IsEmpty() ? TSharedPtr<FRuiStyleDict>() : Out;
 	}
 
@@ -225,5 +261,178 @@ namespace RUI::Slate
 		{
 			ApplyRenderTransform(Widget, New); // recompose from the NEW dict (absent -> identity)
 		}
+	}
+
+	// ── TD-002: @theme tokens + @uss stylesheet loading ────────────────────────────────────
+
+	void RegisterTheme(FName ThemeName, FRuiStyleDict Tokens)
+	{
+		FScopeLock Lock(&GClassLock);
+		GThemes.Add(ThemeName, MoveTemp(Tokens));
+	}
+
+	void SetActiveTheme(FName ThemeName)
+	{
+		FScopeLock Lock(&GClassLock);
+		GActiveTheme = ThemeName;
+	}
+
+	FName GetActiveTheme()
+	{
+		FScopeLock Lock(&GClassLock);
+		return GActiveTheme;
+	}
+
+	const FRuiValue* ResolveThemeToken(FName TokenName)
+	{
+		FScopeLock Lock(&GClassLock);
+		if (GActiveTheme == NAME_None)
+		{
+			return nullptr;
+		}
+		const FRuiStyleDict* Theme = GThemes.Find(GActiveTheme);
+		return Theme ? Theme->Find(TokenName) : nullptr;
+	}
+
+	FRuiValue ParseStyleValue(const FString& Literal)
+	{
+		FString S = Literal;
+		S.TrimStartAndEndInline();
+		if (S.IsEmpty())
+		{
+			return FRuiValue();
+		}
+		// Token reference: keep as a '$'-prefixed String (resolved at effective-style build time).
+		if (S.StartsWith(TEXT("$")))
+		{
+			return FRuiValue(S);
+		}
+		// Hex color: #rrggbb or #rrggbbaa.
+		if (S.StartsWith(TEXT("#")))
+		{
+			return FRuiValue(FLinearColor(FColor::FromHex(S)));
+		}
+		// Quoted string.
+		if (S.Len() >= 2 && S.StartsWith(TEXT("\"")) && S.EndsWith(TEXT("\"")))
+		{
+			return FRuiValue(S.Mid(1, S.Len() - 2));
+		}
+		if (S == TEXT("true"))
+		{
+			return FRuiValue(true);
+		}
+		if (S == TEXT("false"))
+		{
+			return FRuiValue(false);
+		}
+		// Vector2: "x,y" (two numbers).
+		{
+			TArray<FString> Parts;
+			S.ParseIntoArray(Parts, TEXT(","), true);
+			if (Parts.Num() == 2 && Parts[0].IsNumeric() && Parts[1].IsNumeric())
+			{
+				return FRuiValue(FVector2D(FCString::Atod(*Parts[0]), FCString::Atod(*Parts[1])));
+			}
+		}
+		// Numbers: integer vs float.
+		if (S.IsNumeric())
+		{
+			if (S.Contains(TEXT(".")))
+			{
+				return FRuiValue(static_cast<double>(FCString::Atod(*S)));
+			}
+			return FRuiValue(static_cast<int64>(FCString::Atoi64(*S)));
+		}
+		// Bare identifier -> Name (enum-ish values: visible, center, ...).
+		return FRuiValue(FName(*S));
+	}
+
+	int32 LoadStylesheet(const FString& Source)
+	{
+		int32 Registered = 0;
+		// Strip /* ... */ and // line comments, then walk `header { body }` blocks.
+		FString Src = Source;
+		{
+			// Strip /* ... */ block comments.
+			int32 Start;
+			while ((Start = Src.Find(TEXT("/*"))) != INDEX_NONE)
+			{
+				const int32 End = Src.Find(TEXT("*/"), ESearchCase::CaseSensitive, ESearchDir::FromStart, Start);
+				if (End == INDEX_NONE)
+				{
+					break;
+				}
+				Src = Src.Left(Start) + Src.RightChop(End + 2);
+			}
+			// Strip // line comments (to end of line) — done GLOBALLY so a trailing comment never
+			// eats the next declaration once the body is split on ';'.
+			int32 P;
+			while ((P = Src.Find(TEXT("//"))) != INDEX_NONE)
+			{
+				const int32 NL = Src.Find(TEXT("\n"), ESearchCase::CaseSensitive, ESearchDir::FromStart, P);
+				if (NL == INDEX_NONE)
+				{
+					Src = Src.Left(P);
+					break;
+				}
+				Src = Src.Left(P) + Src.RightChop(NL);
+			}
+		}
+
+		int32 Cursor = 0;
+		while (Cursor < Src.Len())
+		{
+			const int32 BraceOpen = Src.Find(TEXT("{"), ESearchCase::CaseSensitive, ESearchDir::FromStart, Cursor);
+			if (BraceOpen == INDEX_NONE)
+			{
+				break;
+			}
+			const int32 BraceClose = Src.Find(TEXT("}"), ESearchCase::CaseSensitive, ESearchDir::FromStart, BraceOpen);
+			if (BraceClose == INDEX_NONE)
+			{
+				break;
+			}
+			FString Header = Src.Mid(Cursor, BraceOpen - Cursor);
+			Header.TrimStartAndEndInline();
+			const FString Body = Src.Mid(BraceOpen + 1, BraceClose - BraceOpen - 1);
+			Cursor = BraceClose + 1;
+
+			// Parse the body into a dict (comments already stripped globally above).
+			FRuiStyleDict Dict;
+			TArray<FString> Decls;
+			Body.ParseIntoArray(Decls, TEXT(";"), true);
+			for (const FString& Decl : Decls)
+			{
+				FString Key, Value;
+				if (Decl.Split(TEXT(":"), &Key, &Value))
+				{
+					Key.TrimStartAndEndInline();
+					if (!Key.IsEmpty())
+					{
+						Dict.Add(FName(*Key), ParseStyleValue(Value));
+					}
+				}
+			}
+
+			if (Header.StartsWith(TEXT("@theme")))
+			{
+				FString Name = Header.RightChop(6);
+				Name.TrimStartAndEndInline();
+				RegisterTheme(FName(*Name), MoveTemp(Dict));
+				++Registered;
+			}
+			else if (Header.StartsWith(TEXT(".")))
+			{
+				RegisterStyleClass(FName(*Header.RightChop(1).TrimStartAndEnd()), MoveTemp(Dict));
+				++Registered;
+			}
+			else if (!Header.IsEmpty())
+			{
+				// bare selector -> treat as a class name (loyal to inline `classes` names)
+				RegisterStyleClass(FName(*Header), MoveTemp(Dict));
+				++Registered;
+			}
+		}
+		return Registered;
 	}
 } // namespace RUI::Slate
