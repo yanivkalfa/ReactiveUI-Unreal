@@ -15,10 +15,11 @@
     <RootNamespace>UetkxVsix</RootNamespace>
     <AssemblyName>UetkxVsix</AssemblyName>
     <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
-    <!-- false: this VSIX has no Package class/registration attributes (pure MEF client) —
-         CreatePkgDef hard-errors on such an assembly. Registration is the HAND-WRITTEN
-         uetkx.pkgdef (manifest VsPackage asset), same as the Unity sibling. -->
-    <GeneratePkgDefFile>false</GeneratePkgDefFile>
+    <!-- true: UetkxPackage (options page + format-on-save) carries [PackageRegistration] +
+         [ProvideOptionPage] + [ProvideAutoLoad], so CreatePkgDef generates UetkxVsix.pkgdef from
+         them. The hand-written uetkx.pkgdef (TextMate grammar registration) is kept alongside it —
+         VS merges every .pkgdef in the extension. -->
+    <GeneratePkgDefFile>true</GeneratePkgDefFile>
     <IncludeAssemblyInVSIXContainer>true</IncludeAssemblyInVSIXContainer>
     <IncludeDebugSymbolsInVSIXContainer>false</IncludeDebugSymbolsInVSIXContainer>
     <CopyBuildOutputToOutputDirectory>true</CopyBuildOutputToOutputDirectory>
@@ -50,6 +51,8 @@
   <ItemGroup>
     <Compile Include="UetkxContentDefinition.cs" />
     <Compile Include="UetkxLanguageClient.cs" />
+    <Compile Include="UetkxOptionsPage.cs" />
+    <Compile Include="UetkxPackage.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="source.extension.vsixmanifest">

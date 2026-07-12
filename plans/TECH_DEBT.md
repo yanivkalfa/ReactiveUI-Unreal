@@ -445,8 +445,16 @@ referenced from plans/PRs.
     `embeddedServer.test.ts` (a stub `PositionResponder`): embedded-vs-markup gating, source↔virtual
     round-trip, forward-to-proxy-over-virtual-uri, markup positions never forwarded, and the
     unavailable-proxy degradation (never queries). LSP suite **27/27**.
-  **REMAINING:** the VS2022 polish set (options page, format-on-save, smart indent, brace
-  completion) — meaningfully verifiable only interactively.
+  - **VS2022 polish set: DONE 2026-07-12.** `UetkxPackage` (an `AsyncPackage`, background-loaded on
+    solution-exists) + `UetkxOptionsPage` (`DialogPage`) add **Tools > Options > ReactiveUI > UETKX**
+    with a **Format on Save** setting; the package's Running-Document-Table `OnBeforeSave` hook runs
+    `Edit.FormatDocument` on a saved `.uetkx` (the golden-corpus formatter over LSP) when enabled.
+    Brace completion + smart indent ride the shipped `language-configuration.json` (brackets /
+    autoClosingPairs / indentationRules). `GeneratePkgDefFile` flipped on now that a registered package
+    exists; the hand-written grammar `uetkx.pkgdef` is kept alongside the generated one. Version bumped
+    to **vs2022 0.2.0** with a Lane-B changelog entry (`changelog verify` green). Compile-verified: the
+    VSIX builds into `UetkxVsix.vsix` with MSBuild + the VSSDK workload; the editor UX (options page
+    present, format-on-save fires) is owner-verified by installing the VSIX in VS2022.
 
 ## TD-021 — CommonUI activatables + MVVM-plugin glue + UMG prop-map bridge
 - **Where:** `ReactiveUICommonUI`, `ReactiveUIMVVMBridge`, `ReactiveUIUMG`
