@@ -17,11 +17,12 @@
 
 struct REACTIVEUIINTERP_API FRuiHmrStatus
 {
-	int32 Reloaded = 0;	 // definitions swapped
-	int32 Refreshed = 0; // live roots re-rendered
-	int32 Reset = 0;	 // components whose hook state was deliberately reset
-	int32 Linked = 0;	 // components hot-LINKED (name unseen before this session swap)
-	bool bGlobal = true; // v1 refresh granularity is global (HmrRefreshAll)
+	int32 Reloaded = 0;		// definitions swapped
+	int32 Refreshed = 0;	// live roots re-rendered
+	int32 Reset = 0;		// components whose hook state was deliberately reset
+	int32 Linked = 0;		// components hot-LINKED (name unseen before this session swap)
+	int32 KeptCompiled = 0; // components NOT swapped — interp can't run them; compiled kept, rebuild needed
+	bool bGlobal = true;	// v1 refresh granularity is global (HmrRefreshAll)
 	double Ms = 0.0;
 	TArray<FString> Errors;
 	TArray<FString> Notes; // interp fallback notes ("rebuild required for full behavior")

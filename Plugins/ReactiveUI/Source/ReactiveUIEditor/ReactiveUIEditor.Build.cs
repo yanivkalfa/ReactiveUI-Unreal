@@ -29,9 +29,9 @@ public class ReactiveUIEditor : ModuleRules
 			"ReactiveUISlate",	 // FRuiRoot mount surface (the preview panel, TD-006)
 			"ReactiveUIInterp",	 // FRuiHmr + FUetkxInterpDef (editor-only module — Interp linkage rule allows it)
 			"ReactiveUIToolchain", // FUetkxDriver / FUetkxCodegen
-			"InputCore",		 // SEditableTextBox in the preview panel
-			"ToolMenus",		 // the Tools-menu entry for the preview tab
-			"DirectoryWatcher",	 // watcher trigger 1
+			"InputCore",			 // SEditableTextBox in the preview panel
+			"WorkspaceMenuStructure", // group the preview tab under Window > Tools (single, grouped entry)
+			"DirectoryWatcher",		 // watcher trigger 1
 			"Slate",			 // window-activation trigger
 			"SlateCore",
 			"MessageLog",  // the "ReactiveUI" dock listing

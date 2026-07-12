@@ -86,6 +86,12 @@ void FUetkxInterpDef::Note(const FString& Message)
 	Notes.AddUnique(Message);
 }
 
+void FUetkxInterpDef::NoteRebuild(const FString& Message)
+{
+	bNeedsRebuild = true; // an interactivity-breaking gap — HMR must not swap over a working compiled version
+	Notes.AddUnique(Message);
+}
+
 FUetkxInterpDef::FInterpEvent FUetkxInterpDef::PrepareEvent(const FString& ExprText)
 {
 	FInterpEvent Event;
@@ -94,14 +100,15 @@ FUetkxInterpDef::FInterpEvent FUetkxInterpDef::PrepareEvent(const FString& ExprT
 	int32 ParenAt = INDEX_NONE;
 	if (!Trimmed.FindChar('(', ParenAt) || !Trimmed.EndsWith(TEXT(")")))
 	{
-		Note(FString::Printf(TEXT("event `%s` is not a setter call — rebuild required for full behavior"), *Trimmed));
+		NoteRebuild(
+			FString::Printf(TEXT("event `%s` is not a setter call — rebuild required for full behavior"), *Trimmed));
 		return Event;
 	}
 	const FString Callee = Trimmed.Left(ParenAt).TrimStartAndEnd();
 	if (!KnownSetters.Contains(Callee))
 	{
-		Note(FString::Printf(TEXT("event handler `%s` is not a state setter — rebuild required for full behavior"),
-							 *Callee));
+		NoteRebuild(FString::Printf(
+			TEXT("event handler `%s` is not a state setter — rebuild required for full behavior"), *Callee));
 		return Event;
 	}
 	const FString ArgText = Trimmed.Mid(ParenAt + 1, Trimmed.Len() - ParenAt - 2).TrimStartAndEnd();
@@ -111,7 +118,7 @@ FUetkxInterpDef::FInterpEvent FUetkxInterpDef::PrepareEvent(const FString& ExprT
 		Event.Arg = FUetkxExprVm::Parse(ArgText, &Why);
 		if (!Event.Arg.IsValid())
 		{
-			Note(FString::Printf(TEXT("event arg `%s`: %s — rebuild required"), *ArgText, *Why));
+			NoteRebuild(FString::Printf(TEXT("event arg `%s`: %s — rebuild required"), *ArgText, *Why));
 			return Event;
 		}
 	}
@@ -165,7 +172,7 @@ void FUetkxInterpDef::ParseBindings(const FString& Code, TArray<FAliasOp>& OutOp
 					HookPlan.Add(MoveTemp(Op));
 					continue;
 				}
-				Note(FString::Printf(TEXT("hook binding `%s` not interpreted"), *Statement));
+				NoteRebuild(FString::Printf(TEXT("hook binding `%s` not interpreted"), *Statement));
 				continue;
 			}
 		}
@@ -223,7 +230,7 @@ void FUetkxInterpDef::ParseBindings(const FString& Code, TArray<FAliasOp>& OutOp
 				}
 			}
 		}
-		Note(FString::Printf(TEXT("setup statement not interpreted: `%s`"), *Statement.Left(60)));
+		NoteRebuild(FString::Printf(TEXT("setup statement not interpreted: `%s`"), *Statement.Left(60)));
 	}
 }
 

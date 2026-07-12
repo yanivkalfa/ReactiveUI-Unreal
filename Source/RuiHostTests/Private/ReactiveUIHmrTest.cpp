@@ -259,6 +259,60 @@ bool FRuiHmrTest::RunTest(const FString&)
 		RUI::ClearComponentOverride(FName(TEXT("MigrateDemo")));
 	}
 
+	// ── Round-2 HMR fix: a save the interpreter CAN'T faithfully run (imported/user hook + a non-setter
+	// event handler) must NOT swap over a working compiled version — it would reset state and break the
+	// button until a rebuild. HMR keeps the compiled version and reports KeptCompiled instead. ─────────
+	{
+		FRuiHmr::ResetSession();
+		RUI::RegisterNamedFactory(FName(TEXT("MigrateDemo")), []() { return RUI::FC(&MigrateDemo); });
+		RUI::RegisterHookSignature(FName(TEXT("MigrateDemo")),
+								   FUetkxFileScan::HookSignature({FString(TEXT("UseState"))}));
+
+		TSharedRef<FRuiRoot> Root3 = FRuiRoot::Create(RUI::Named(FName(TEXT("MigrateDemo"))));
+		Root3->FlushSync();
+		if (SButton* Plus = HmrTest::FindFirstButton(Root3->GetWidget().Get()))
+		{
+			for (int32 k = 0; k < 3; ++k)
+			{
+				Plus->SimulateClick();
+				Root3->FlushSync();
+			}
+		}
+		TestTrue(TEXT("compiled advanced to 3"), HmrTest::ContainsText(Root3->GetWidget().Get(), TEXT("Count: 3")));
+
+		// A save whose interactivity lives in an imported hook (UseCounter) driving a non-setter event
+		// handler (Inc()) — the interpreter can't run either, so the swap would be a dead counter.
+		const FString Unrunnable =
+			TEXT("component MigrateDemo {\n"
+				 "\tauto [Count, Inc] = UseCounter(0);\n"
+				 "\treturn (\n"
+				 "\t\t<VerticalBox>\n"
+				 "\t\t\t<TextBlock Text={ FText::FromString(FString::Printf(TEXT(\"Count: %d\"), Count)) } />\n"
+				 "\t\t\t<Button OnClicked={ Inc() }>+</Button>\n"
+				 "\t\t</VerticalBox>\n"
+				 "\t);\n"
+				 "}\n");
+		const FRuiHmrStatus Status = FRuiHmr::ApplySource(Unrunnable, TEXT("MigrateDemo"));
+		TestEqual(TEXT("did NOT swap the un-runnable interp version"), Status.Reloaded, 0);
+		TestEqual(TEXT("kept the compiled version instead"), Status.KeptCompiled, 1);
+		TestTrue(
+			TEXT("status note names the kept-compiled decision"),
+			Status.Notes.ContainsByPredicate([](const FString& N) { return N.Contains(TEXT("kept the COMPILED")); }));
+		Root3->FlushSync();
+		TestTrue(TEXT("compiled state PRESERVED (not reset to 0)"),
+				 HmrTest::ContainsText(Root3->GetWidget().Get(), TEXT("Count: 3")));
+		if (SButton* Plus = HmrTest::FindFirstButton(Root3->GetWidget().Get()))
+		{
+			Plus->SimulateClick();
+			Root3->FlushSync();
+		}
+		TestTrue(TEXT("compiled button STILL works after the skipped swap"),
+				 HmrTest::ContainsText(Root3->GetWidget().Get(), TEXT("Count: 4")));
+
+		RUI::ClearComponentOverride(FName(TEXT("MigrateDemo")));
+		Root3->Unmount();
+	}
+
 	FRuiHmr::ResetSession();
 	return true;
 }

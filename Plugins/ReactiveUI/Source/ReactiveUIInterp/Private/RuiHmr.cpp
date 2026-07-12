@@ -29,8 +29,10 @@ namespace
 FString FRuiHmrStatus::ToString() const
 {
 	return FString::Printf(
-		TEXT("[RUI HMR] reloaded %d | refreshed %d session(s) | reset %d | linked %d | %s | %.0f ms%s"), Reloaded,
-		Refreshed, Reset, Linked, bGlobal ? TEXT("global") : TEXT("targeted"), Ms,
+		TEXT("[RUI HMR] reloaded %d | refreshed %d session(s) | reset %d | linked %d%s | %s | %.0f ms%s"), Reloaded,
+		Refreshed, Reset, Linked,
+		KeptCompiled > 0 ? *FString::Printf(TEXT(" | kept-compiled %d (rebuild to apply)"), KeptCompiled) : TEXT(""),
+		bGlobal ? TEXT("global") : TEXT("targeted"), Ms,
 		Errors.IsEmpty() ? TEXT("") : *FString::Printf(TEXT(" | %d error(s)"), Errors.Num()));
 }
 
@@ -68,6 +70,28 @@ FRuiHmrStatus FRuiHmr::ApplySource(const FString& Source, const FString& Basenam
 		for (const FString& Note : Def->Notes)
 		{
 			Status.Notes.Add(FString::Printf(TEXT("%s: %s"), *Decl.Name, *Note));
+		}
+
+		// The interpreter cannot faithfully run this component (an imported/user hook it can't execute, or
+		// a non-setter event handler — e.g. `auto [C, Inc] = UseCounter(0)` + a button calling `Inc()`).
+		// If a WORKING compiled version exists, DO NOT swap over it: a dead interp version would reset state
+		// and break buttons until a rebuild (the exact break the owner hit). Instead RESTORE the compiled
+		// version (clear any prior override) and tell the user a rebuild applies the edit — the honest,
+		// non-destructive behavior. A brand-new component (no compiled factory) has nothing to preserve, so
+		// it still swaps best-effort. Effects/memo-only gaps do NOT set bNeedsRebuild (those swaps proceed).
+		if (Def->bNeedsRebuild && RUI::HasNamedFactory(ComponentId))
+		{
+			RUI::ClearComponentOverride(ComponentId);
+			{
+				FScopeLock Guard(&Session.Lock);
+				Session.InterpSigs.Remove(ComponentId);
+			}
+			Status.Notes.Add(FString::Printf(
+				TEXT("%s: kept the COMPILED version (state + buttons keep working) — the live interpreter can't "
+					 "run this component's hooks/handlers; press Ctrl+Alt+F11 (Live Coding) to apply this edit."),
+				*Decl.Name));
+			++Status.KeptCompiled;
+			continue;
 		}
 
 		bool bReset = false;

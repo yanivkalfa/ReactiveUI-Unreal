@@ -22,6 +22,19 @@ TSharedRef<FUetkxPreview> FUetkxPreview::FromSource(const FString& Source, const
 		Preview->Messages.Add(FString::Printf(TEXT("[%s %s] %s"), Sev, *Diag.Code, *Diag.Message));
 	}
 
+	// The live preview INTERPRETS this single file and runs inline `UseState` only — it does not resolve
+	// imports or execute user/imported hooks. So a component whose interactivity lives in an imported
+	// hook (e.g. `auto [Count, Inc] = UseCounter(0)`) RENDERS but its buttons/state won't respond here.
+	// Surface that up front so a dead "+" is understood, not mistaken for a broken preview. Full behavior
+	// (imported hooks, effects, compiled logic) is the PIE path.
+	if (Scan.Imports.Num() > 0)
+	{
+		Preview->Messages.Add(
+			TEXT("[preview] limited interactivity: this file imports from other files, which the "
+				 "preview does NOT run. Buttons/state driven by an imported hook (e.g. UseCounter) "
+				 "won't respond here — use PIE for full behavior. Inline `UseState` IS interactive."));
+	}
+
 	if (Scan.Components.Num() == 0)
 	{
 		Preview->Messages.Add(TEXT("[preview] no component declaration to render."));

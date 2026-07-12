@@ -28,6 +28,14 @@ public:
 	uint32 HookSig = 0;
 	TArray<FString> Notes; // fallback notes (collected at build; reported by HMR)
 
+	/** TRUE when the interpreter hit something that makes the swap UNFAITHFUL — an imported/user hook it
+	 *  cannot run, or an event handler it cannot execute (e.g. `auto [C, Inc] = UseCounter(0)` + a button
+	 *  calling `Inc()`). HMR uses this to REFUSE the swap when a working compiled version exists: replacing
+	 *  it with a dead interp version would reset state and break buttons until a rebuild (the bug the round-2
+	 *  hunt's HMR notes warned about). Effects/memo-only gaps do NOT set this — those are the accepted interp
+	 *  limitation (the markup + inline UseState still work), so those swaps still proceed. */
+	bool bNeedsRebuild = false;
+
 	/** Edit-time preview safety (bughunt P2): when set, a referenced COMPILED child component
 	 *  (`<Child/>`) renders as an inert `<Child/>` placeholder instead of resolving to the live
 	 *  compiled factory — so its UseEffect/UseLayoutEffect bodies never run in the editor (mirrors
@@ -146,6 +154,8 @@ private:
 	TSharedPtr<FPrepBody> PrepareBody(const FString& BodyMarkup);
 	FInterpEvent PrepareEvent(const FString& ExprText);
 	void Note(const FString& Message);
+	/** Note + flag the def as unfaithful-to-swap (bNeedsRebuild) — for a hook/event the interp can't run. */
+	void NoteRebuild(const FString& Message);
 
 	// render
 	struct FRenderCtx

@@ -8,9 +8,10 @@
 #include "RuiHmr.h"
 #include "SUetkxPreviewPanel.h"
 #include "Styling/AppStyle.h"
-#include "ToolMenus.h"
 #include "UetkxWatcher.h"
 #include "Widgets/Docking/SDockTab.h"
+#include "WorkspaceMenuStructure.h"
+#include "WorkspaceMenuStructureModule.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogRuiEditor, Log, All);
 
@@ -64,7 +65,6 @@ public:
 		{
 			FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(GRuiPreviewTabId);
 		}
-		UToolMenus::UnRegisterStartupCallback(this);
 		if (FModuleManager::Get().IsModuleLoaded(TEXT("MessageLog")))
 		{
 			FModuleManager::GetModuleChecked<FMessageLogModule>(TEXT("MessageLog"))
@@ -80,6 +80,10 @@ private:
 		{
 			return; // headless (commandlet) — no tab UI
 		}
+		// ONE registration only: a nomad tab grouped under Window ▸ Tools. Previously it was ALSO added
+		// via a separate LevelEditor.MainMenu.Tools entry, and — with no WorkspaceMenu group — the
+		// ungrouped Enabled tab floated to the top of the Window menu and double-listed. Grouping it
+		// lists it exactly once, in the conventional place, and the redundant Tools-menu entry is gone.
 		FGlobalTabmanager::Get()
 			->RegisterNomadTabSpawner(GRuiPreviewTabId,
 									  FOnSpawnTab::CreateRaw(this, &FReactiveUIEditorModule::SpawnPreviewTab))
@@ -87,24 +91,8 @@ private:
 			.SetTooltipText(
 				NSLOCTEXT("ReactiveUI", "PreviewTabTooltip", "Read-only live preview of a .uetkx component"))
 			.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Viewports"))
+			.SetGroup(WorkspaceMenu::GetMenuStructure().GetToolsCategory())
 			.SetMenuType(ETabSpawnerMenuType::Enabled);
-
-		UToolMenus::RegisterStartupCallback(
-			FSimpleMulticastDelegate::FDelegate::CreateRaw(this, &FReactiveUIEditorModule::RegisterToolsMenu));
-	}
-
-	void RegisterToolsMenu()
-	{
-		if (UToolMenu* Menu = UToolMenus::Get()->ExtendMenu(TEXT("LevelEditor.MainMenu.Tools")))
-		{
-			FToolMenuSection& Section = Menu->FindOrAddSection(TEXT("Tools"));
-			Section.AddMenuEntry(TEXT("OpenReactiveUIPreview"),
-								 NSLOCTEXT("ReactiveUI", "OpenPreview", "ReactiveUI Preview"),
-								 NSLOCTEXT("ReactiveUI", "OpenPreviewTip", "Open the read-only .uetkx preview tab"),
-								 FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Viewports"),
-								 FUIAction(FExecuteAction::CreateLambda(
-									 []() { FGlobalTabmanager::Get()->TryInvokeTab(GRuiPreviewTabId); })));
-		}
 	}
 
 	TSharedRef<SDockTab> SpawnPreviewTab(const FSpawnTabArgs&)
