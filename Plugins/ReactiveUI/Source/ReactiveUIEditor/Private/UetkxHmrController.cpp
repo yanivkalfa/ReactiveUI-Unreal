@@ -5,10 +5,10 @@
 #include "Editor.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "ILiveCodingModule.h"
-#include "Misc/ConfigCacheIni.h"
 #include "Modules/ModuleManager.h"
 #include "ReactiveUetkxEditorSettings.h"
 #include "RuiReconciler.h"
+#include "UObject/UnrealType.h"
 #include "Widgets/Notifications/SNotificationList.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogUetkxHmr, Log, All);
@@ -102,34 +102,55 @@ void FUetkxHmrController::StopInternal(bool bForceDisableSession)
 
 void FUetkxHmrController::Shutdown()
 {
+	// Module shutdown runs AFTER the UObject system has exited at editor close — so touch NO UObjects here.
+	// Stop() reads the settings CDO (GetDefault<...>), which is gone by now → crash. Call the core directly
+	// with a literal (we only need to detach our patch-complete delegate; Live Coding tears its own session
+	// down on exit — no need to disable the session here).
 	UnregisterPieHooks();
-	Stop();
+	StopInternal(/*bForceDisableSession*/ false);
 	OnStatusChanged.Clear();
 }
 
 void FUetkxHmrController::ApplyConsoleVisibilitySetting()
 {
-	// Live Coding's console window is governed by its Startup mode (EditorPerProjectUserSettings, and
-	// ConfigRestartRequired). We can't call the engine's private HideConsole(), so we steer that config:
+	// Live Coding's console window is governed by its Startup mode (ULiveCodingSettings::Startup,
+	// EditorPerProjectUserSettings, ConfigRestartRequired). We can't include its private header or call
+	// its private HideConsole(), so we set the enum on its CDO via reflection and SaveConfig() — the
+	// authoritative path (a raw GConfig write gets clobbered when the settings object re-saves on close):
 	//   AutomaticButHidden → the console runs as the compile server but shows no window (our window is UI).
 	//   Automatic          → Epic's console shows (the stock behaviour).
-	// A user who deliberately chose "Manual" is left untouched.
-	static const TCHAR* Section = TEXT("/Script/LiveCoding.LiveCodingSettings");
-	FString Current;
-	GConfig->GetString(Section, TEXT("Startup"), Current, GEditorPerProjectIni);
-	if (Current == TEXT("Manual"))
+	// A user who deliberately chose "Manual" is left untouched. Takes effect on the next editor start.
+	UClass* SettingsClass = FindObject<UClass>(nullptr, TEXT("/Script/LiveCoding.LiveCodingSettings"));
+	if (SettingsClass == nullptr)
+	{
+		return; // Live Coding not available in this build
+	}
+	FEnumProperty* StartupProp = CastField<FEnumProperty>(SettingsClass->FindPropertyByName(TEXT("Startup")));
+	UObject* SettingsCDO = SettingsClass->GetDefaultObject();
+	if (StartupProp == nullptr || SettingsCDO == nullptr)
 	{
 		return;
 	}
-	const bool bHide = GetDefault<UReactiveUetkxEditorSettings>()->bHideLiveCodingConsole;
-	const FString Desired = bHide ? TEXT("AutomaticButHidden") : TEXT("Automatic");
-	if (Current != Desired)
+	UEnum* Enum = StartupProp->GetEnum();
+	FNumericProperty* Underlying = StartupProp->GetUnderlyingProperty();
+	void* ValuePtr = StartupProp->ContainerPtrToValuePtr<void>(SettingsCDO);
+	const int64 ManualVal = Enum->GetValueByNameString(TEXT("Manual"));
+	const int64 HiddenVal = Enum->GetValueByNameString(TEXT("AutomaticButHidden"));
+	const int64 AutoVal = Enum->GetValueByNameString(TEXT("Automatic"));
+	const int64 CurrentVal = Underlying->GetSignedIntPropertyValue(ValuePtr);
+	if (CurrentVal == ManualVal)
 	{
-		GConfig->SetString(Section, TEXT("Startup"), *Desired, GEditorPerProjectIni);
-		GConfig->Flush(false, GEditorPerProjectIni);
+		return; // respect a user who chose Manual
+	}
+	const int64 DesiredVal =
+		GetDefault<UReactiveUetkxEditorSettings>()->bHideLiveCodingConsole ? HiddenVal : AutoVal;
+	if (CurrentVal != DesiredVal)
+	{
+		Underlying->SetIntPropertyValue(ValuePtr, DesiredVal);
+		SettingsCDO->SaveConfig();
 		UE_LOG(LogUetkxHmr, Display,
 			   TEXT("[RUI HMR] Live Coding console startup set to '%s' — restart the editor for it to take effect."),
-			   *Desired);
+			   DesiredVal == HiddenVal ? TEXT("AutomaticButHidden") : TEXT("Automatic"));
 	}
 }
 
