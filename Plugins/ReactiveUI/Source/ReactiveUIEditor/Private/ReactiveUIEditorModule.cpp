@@ -1,13 +1,13 @@
 // Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 
 #include "Framework/Docking/TabManager.h"
-#include "ILiveCodingModule.h"
+#include "HAL/IConsoleManager.h"
 #include "Logging/LogMacros.h"
 #include "MessageLogModule.h"
 #include "Modules/ModuleManager.h"
-#include "RuiHmr.h"
 #include "SUetkxPreviewPanel.h"
 #include "Styling/AppStyle.h"
+#include "UetkxHmrController.h"
 #include "UetkxWatcher.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "WorkspaceMenuStructure.h"
@@ -34,28 +34,16 @@ public:
 		Watcher = MakeUnique<FUetkxWatcher>();
 		Watcher->Start();
 
-		// After a Live Coding patch, the RECOMPILED compiled components carry the user's edits — clear the
-		// interp overrides that would otherwise permanently shadow them, so "rebuild for full behavior"
-		// actually takes effect within the session (bughunt HMR-2).
-		if (ILiveCodingModule* LiveCoding = FModuleManager::GetModulePtr<ILiveCodingModule>(TEXT("LiveCoding")))
-		{
-			LiveCodingPatchHandle = LiveCoding->GetOnPatchCompleteDelegate().AddStatic(&FRuiHmr::ResetSession);
-		}
-
+		RegisterHmrConsoleCommands();
 		RegisterPreviewTab();
-		UE_LOG(LogRuiEditor, Display, TEXT("ReactiveUIEditor started — .uetkx watcher armed, preview tab registered"));
+		UE_LOG(LogRuiEditor, Display,
+			   TEXT("ReactiveUIEditor started — .uetkx watcher armed; HMR via ReactiveUetkx.HMR.Start/Stop/Toggle"));
 	}
 
 	virtual void ShutdownModule() override
 	{
-		if (LiveCodingPatchHandle.IsValid())
-		{
-			if (ILiveCodingModule* LiveCoding = FModuleManager::GetModulePtr<ILiveCodingModule>(TEXT("LiveCoding")))
-			{
-				LiveCoding->GetOnPatchCompleteDelegate().Remove(LiveCodingPatchHandle);
-			}
-			LiveCodingPatchHandle.Reset();
-		}
+		FUetkxHmrController::Get().Shutdown();
+		HmrCommands.Reset();
 		if (Watcher.IsValid())
 		{
 			Watcher->Stop();
@@ -100,8 +88,47 @@ private:
 		return SNew(SDockTab).TabRole(ETabRole::NomadTab)[SNew(SUetkxPreviewPanel)];
 	}
 
+	/** Start/Stop/Toggle the HMR mode from the console (the Phase-2 window + shortcuts drive the same
+	 *  FUetkxHmrController; these keep it usable/scriptable meanwhile). */
+	void RegisterHmrConsoleCommands()
+	{
+		HmrCommands.Add(MakeUnique<FAutoConsoleCommand>(
+			TEXT("ReactiveUetkx.HMR.Start"), TEXT("Start ReactiveUetkx HMR (enables Live Coding mode)."),
+			FConsoleCommandDelegate::CreateLambda(
+				[]()
+				{
+					FString Error;
+					if (!FUetkxHmrController::Get().Start(Error))
+					{
+						UE_LOG(LogRuiEditor, Warning, TEXT("[RUI HMR] start failed: %s"), *Error);
+					}
+				})));
+		HmrCommands.Add(MakeUnique<FAutoConsoleCommand>(
+			TEXT("ReactiveUetkx.HMR.Stop"), TEXT("Stop ReactiveUetkx HMR."),
+			FConsoleCommandDelegate::CreateLambda([]() { FUetkxHmrController::Get().Stop(); })));
+		HmrCommands.Add(MakeUnique<FAutoConsoleCommand>(
+			TEXT("ReactiveUetkx.HMR.Toggle"), TEXT("Toggle ReactiveUetkx HMR on/off."),
+			FConsoleCommandDelegate::CreateLambda(
+				[]()
+				{
+					FUetkxHmrController& Controller = FUetkxHmrController::Get();
+					if (Controller.IsActive())
+					{
+						Controller.Stop();
+					}
+					else
+					{
+						FString Error;
+						if (!Controller.Start(Error))
+						{
+							UE_LOG(LogRuiEditor, Warning, TEXT("[RUI HMR] start failed: %s"), *Error);
+						}
+					}
+				})));
+	}
+
 	TUniquePtr<FUetkxWatcher> Watcher;
-	FDelegateHandle LiveCodingPatchHandle; // clears interp overrides on a Live Coding rebuild (HMR-2)
+	TArray<TUniquePtr<FAutoConsoleCommand>> HmrCommands; // ReactiveUetkx.HMR.Start/Stop/Toggle
 };
 
 IMPLEMENT_MODULE(FReactiveUIEditorModule, ReactiveUIEditor)

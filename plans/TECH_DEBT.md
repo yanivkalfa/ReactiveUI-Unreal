@@ -643,3 +643,24 @@ referenced from plans/PRs.
 - **Production-grade resolution:** file-scoped runtime component identity (qualified ids in the
   registry) so private names never alias across files at runtime.
 - **Status:** OPEN (accepted caveat, documented in M5/M9)
+
+## TD-027 — HMR v2: Live-Coding-driven whole-project HMR + `ReactiveUetkx` menu/window
+- **Where:** `ReactiveUIInterp` (the interpreter executor), `RuiHmr.*`, `UetkxWatcher.cpp`,
+  `ReactiveUIEditor` (new menu/window/commands/settings). Full design: `plans/HMR_V2_PLAN.md`.
+- **What/why deferred:** the shipped HMR makes a single-file INTERPRETER the default path — it can't
+  resolve imports or run user hooks/effects, so a component using an imported hook (e.g. the
+  `.hooks.uetkx` pattern) can't be hot-reloaded and (pre-fix) was swapped to a dead version. That is
+  not React parity. The interim `aabec60` fix makes the interpreter fail SAFELY (keeps the compiled
+  version, "rebuild to apply"), but the interpreter path is the wrong architecture for a compiled-C++
+  library.
+- **Production-grade resolution (planned, owner-approved):** DELETE the interpreter executor; make
+  **Unreal Live Coding** the HMR engine — a Start/Stop mode (family parity with the Unity sibling's
+  `UITKX Hot Reload` window) that, while active, recompiles + Live-Coding-patches on ANY `.uetkx` event
+  (save / new / delete / rename / copy), automatically (no keystroke), state preserved, whole project.
+  Adds the `ReactiveUetkx` main-menu + the HMR window + two rebindable shortcuts. `ReactiveUIInterp`
+  shrinks to parser-only.
+- **Sub-item deferred within v2:** the `Demos/…` submenu (port of the sibling's demo launchers under
+  `ReactiveUetkx`) is NOT in the v2 scope — the PIE gallery already covers the demos; a menu launcher
+  is a later nicety.
+- **Status:** OPEN — plan FINALIZED (`plans/HMR_V2_PLAN.md`, decisions D-HMR-1..9), ready to build on
+  the owner's go.

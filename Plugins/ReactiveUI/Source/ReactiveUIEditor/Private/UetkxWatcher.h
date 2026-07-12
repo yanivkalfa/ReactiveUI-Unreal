@@ -37,4 +37,6 @@ private:
 	bool bBusy = false;
 	double BusySince = 0.0;
 	bool bFirstSweepDone = false;
+	double LastChangeSeconds = 0.0;		// last .uetkx FS event — debounce anchor (HMR v2 D-HMR-4)
+	double LastStaleCheckSeconds = 0.0; // throttles the (file-I/O) HasStale fallback poll
 };
