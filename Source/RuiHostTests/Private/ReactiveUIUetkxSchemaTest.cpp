@@ -44,7 +44,13 @@ bool FRuiUetkxSchemaTest::RunTest(const FString&)
 		TestEqual(TEXT("schema v1"), (int32)Schema->GetNumberField(TEXT("v")), 1);
 
 		const TSharedPtr<FJsonObject> Elements = Schema->GetObjectField(TEXT("elements"));
-		TestEqual(TEXT("15 host tags"), Elements->Values.Num(), 15);
+		// 15 Phase-2 widgets + 4 Batch-2 (Phase 7): WidgetSwitcher, ScaleBox, Throbber, WrapBox.
+		TestEqual(TEXT("19 host tags"), Elements->Values.Num(), 19);
+		const TSharedPtr<FJsonObject> Switcher = Elements->GetObjectField(TEXT("WidgetSwitcher"));
+		TestEqual(TEXT("WidgetSwitcher factory"), Switcher->GetStringField(TEXT("factory")),
+				  FString(TEXT("RUI::Slate::WidgetSwitcher")));
+		TestEqual(TEXT("WidgetIndex is int"),
+				  Switcher->GetObjectField(TEXT("attrs"))->GetStringField(TEXT("WidgetIndex")), FString(TEXT("int")));
 		const TSharedPtr<FJsonObject> Button = Elements->GetObjectField(TEXT("Button"));
 		TestEqual(TEXT("Button factory"), Button->GetStringField(TEXT("factory")), FString(TEXT("RUI::Slate::Button")));
 		TestTrue(TEXT("Button takes children"), Button->GetBoolField(TEXT("children")));

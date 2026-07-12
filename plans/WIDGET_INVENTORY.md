@@ -38,6 +38,15 @@ to wrap) · `SPECIAL` (covered by a dedicated mechanism, not a plain adapter).
 | SProgressBar | `ProgressBar` | + fillColor style key |
 | SRuiCanvas *(ours)* | `RuiCanvas` | the draw_fn paint trampoline (D-12); `Canvas` reserved for SCanvas |
 
+## Shipped (Phase 7 — batch 2, rolling) — 4
+
+| Widget | Element tag | Notes |
+|---|---|---|
+| SWidgetSwitcher | `WidgetSwitcher` | index-switched panel; WidgetIndex runtime setter; test `ReactiveUI.Widgets.Batch2` |
+| SScaleBox | `ScaleBox` | Stretch + StretchDirection |
+| SThrobber | `Throbber` | NumPieces + Animate |
+| SWrapBox | `WrapBox` | Orientation/WrapSize/InnerSlotPadding/UseAllottedSize |
+
 ## Batch 2 (Phase 7 step 8) — the everyday game set
 
 | Widget | Notes |
@@ -48,14 +57,13 @@ to wrap) · `SPECIAL` (covered by a dedicated mechanism, not a plain adapter).
 | SMultiLineEditableTextBox / SMultiLineEditableText | multi-line controlled input (same caret rule) |
 | SRichTextBlock | rich text (+ decorator story later) |
 | SSegmentedControl | templated |
-| SWrapBox / SUniformWrapPanel | wrap layout |
+| SUniformWrapPanel | wrap layout (SWrapBox ✅ shipped) |
 | SGridPanel / SUniformGridPanel | grid layout (slot.row/slot.column props) |
-| SScaleBox / SSafeZone / SDPIScaler | scale/safe-area containers |
-| SWidgetSwitcher | index-switched panel |
+| SSafeZone / SDPIScaler | safe-area / DPI containers (SScaleBox ✅ shipped) |
 | SSeparator | trivial leaf |
 | SExpandableArea | header+body container |
-| SThrobber / SSpinningImage | busy indicators |
-| SListView / STileView / STreeView | **the big one** — the family's item-model treatment (declarative `items` → widget-generating delegates), NOT a plain adapter |
+| SSpinningImage | busy indicator (SThrobber ✅ shipped) |
+| SListView / STileView / STreeView | **the big one** — the family's item-model treatment (declarative `items` → widget-generating delegates), NOT a plain adapter (TD-022) |
 | SHeaderRow | column headers for the item views |
 
 ## Batch 3 (v1.x long tail — target: all official)

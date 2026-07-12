@@ -430,4 +430,74 @@ void FUetkxInterpElements::RegisterBuiltins()
 				 ApplyBase(P, In);
 				 return RUI::Slate::RuiCanvas(MoveTemp(P), In.Key);
 			 });
+
+	// ── Batch 2 (Phase 7 step 8) — the everyday game set ───────────────────────────────────
+
+	Register(TEXT("WidgetSwitcher"),
+			 [](FUetkxInterpElementInputs&& In)
+			 {
+				 FRuiWidgetSwitcherProps P;
+				 if (const FRuiValue* Index = Attr(In, TEXT("WidgetIndex")))
+				 {
+					 P.SetWidgetIndex(static_cast<int32>(AsFloat(*Index)));
+				 }
+				 ApplyBase(P, In);
+				 return RUI::Slate::WidgetSwitcher(MoveTemp(P), MoveTemp(In.Children), In.Key);
+			 });
+
+	Register(TEXT("ScaleBox"),
+			 [](FUetkxInterpElementInputs&& In)
+			 {
+				 FRuiScaleBoxProps P;
+				 if (const FRuiValue* Stretch = Attr(In, TEXT("Stretch")))
+				 {
+					 P.SetStretch(AsName(*Stretch));
+				 }
+				 if (const FRuiValue* Dir = Attr(In, TEXT("StretchDirection")))
+				 {
+					 P.SetStretchDirection(AsName(*Dir));
+				 }
+				 ApplyBase(P, In);
+				 return RUI::Slate::ScaleBox(MoveTemp(P), MoveTemp(In.Children), In.Key);
+			 });
+
+	Register(TEXT("Throbber"),
+			 [](FUetkxInterpElementInputs&& In)
+			 {
+				 FRuiThrobberProps P;
+				 if (const FRuiValue* Num = Attr(In, TEXT("NumPieces")))
+				 {
+					 P.SetNumPieces(static_cast<int32>(AsFloat(*Num)));
+				 }
+				 if (const FRuiValue* Animate = Attr(In, TEXT("Animate")))
+				 {
+					 P.SetAnimate(AsName(*Animate));
+				 }
+				 ApplyBase(P, In);
+				 return RUI::Slate::Throbber(MoveTemp(P), In.Key);
+			 });
+
+	Register(TEXT("WrapBox"),
+			 [](FUetkxInterpElementInputs&& In)
+			 {
+				 FRuiWrapBoxProps P;
+				 if (const FRuiValue* Orientation = Attr(In, TEXT("Orientation")))
+				 {
+					 P.SetOrientation(AsName(*Orientation));
+				 }
+				 if (const FRuiValue* WrapSize = Attr(In, TEXT("WrapSize")))
+				 {
+					 P.SetWrapSize(AsFloat(*WrapSize));
+				 }
+				 if (const FRuiValue* Padding = Attr(In, TEXT("InnerSlotPadding")))
+				 {
+					 P.SetInnerSlotPadding(AsVector2(*Padding));
+				 }
+				 if (const FRuiValue* UseAllotted = Attr(In, TEXT("bUseAllottedSize")))
+				 {
+					 P.SetbUseAllottedSize(AsBool(*UseAllotted));
+				 }
+				 ApplyBase(P, In);
+				 return RUI::Slate::WrapBox(MoveTemp(P), MoveTemp(In.Children), In.Key);
+			 });
 }

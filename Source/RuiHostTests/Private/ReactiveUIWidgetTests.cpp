@@ -16,6 +16,7 @@
 #include "Widgets/Input/SSlider.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
+#include "Widgets/Layout/SWidgetSwitcher.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -274,6 +275,78 @@ bool FRuiWidgetsScrollCanvasTest::RunTest(const FString&)
 
 	Canvas->SlatePrepass(1.0f);
 	TestTrue(TEXT("canvas desired size"), Canvas->GetDesiredSize() == FVector2D(64.0f, 48.0f));
+	return true;
+}
+
+// ── batch 2 (Phase 7): WidgetSwitcher + ScaleBox + Throbber + WrapBox ──────────────────────
+
+static FRuiNodeArray WidgetsBatch2Comp(FRuiContext& Ctx, const FRuiEmptyProps&, const TArray<FRuiNode>&)
+{
+	auto [Page, SetPage] = Ctx.UseState<int32>(0);
+	WidgetTest::IntSetter = SetPage;
+
+	FRuiWidgetSwitcherProps SwitcherProps;
+	SwitcherProps.SetWidgetIndex(Page);
+
+	FRuiScaleBoxProps ScaleProps;
+	ScaleProps.SetStretch(FName(TEXT("scaleToFit")));
+	ScaleProps.SetStretchDirection(FName(TEXT("downOnly")));
+
+	FRuiThrobberProps ThrobProps;
+	ThrobProps.SetNumPieces(5);
+	ThrobProps.SetAnimate(FName(TEXT("verticalAndOpacity")));
+
+	FRuiWrapBoxProps WrapProps;
+	WrapProps.SetOrientation(FName(TEXT("horizontal")));
+	WrapProps.SetWrapSize(120.0f);
+
+	return {RUI::Slate::VerticalBox(
+		FRuiVerticalBoxProps(),
+		{RUI::Slate::WidgetSwitcher(
+			 MoveTemp(SwitcherProps),
+			 {RUI::TextBlock(TEXT("page A")), RUI::TextBlock(TEXT("page B")), RUI::TextBlock(TEXT("page C"))}),
+		 RUI::Slate::ScaleBox(MoveTemp(ScaleProps), {RUI::TextBlock(TEXT("scaled"))}),
+		 RUI::Slate::Throbber(MoveTemp(ThrobProps)),
+		 RUI::Slate::WrapBox(MoveTemp(WrapProps),
+							 {RUI::TextBlock(TEXT("w0")), RUI::TextBlock(TEXT("w1")), RUI::TextBlock(TEXT("w2"))})})};
+}
+RUI_COMPONENT(WidgetsBatch2Comp)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRuiWidgetsBatch2Test, "ReactiveUI.Widgets.Batch2", RUI_WIDGET_TEST_FLAGS)
+bool FRuiWidgetsBatch2Test::RunTest(const FString&)
+{
+	WidgetTest::Reset();
+	TSharedRef<FRuiRoot> Root = FRuiRoot::Create(RUI::FC(&WidgetsBatch2Comp));
+	TSharedPtr<SWidget> Panel = WidgetTest::RootChild(*Root);
+	if (!TestTrue(TEXT("panel mounted"), Panel.IsValid()))
+	{
+		return false;
+	}
+	TSharedRef<SWidget> SwitcherW = Panel->GetChildren()->GetChildAt(0);
+	TSharedRef<SWidget> ScaleW = Panel->GetChildren()->GetChildAt(1);
+	TSharedRef<SWidget> ThrobW = Panel->GetChildren()->GetChildAt(2);
+	TSharedRef<SWidget> WrapW = Panel->GetChildren()->GetChildAt(3);
+
+	// Right Slate types mounted.
+	TestEqual(TEXT("switcher type"), SwitcherW->GetType(), FName(TEXT("SWidgetSwitcher")));
+	TestEqual(TEXT("scalebox type"), ScaleW->GetType(), FName(TEXT("SScaleBox")));
+	TestEqual(TEXT("throbber type"), ThrobW->GetType(), FName(TEXT("SThrobber")));
+	TestEqual(TEXT("wrapbox type"), WrapW->GetType(), FName(TEXT("SWrapBox")));
+
+	// WidgetSwitcher: three pages, index prop applied.
+	SWidgetSwitcher& Switcher = static_cast<SWidgetSwitcher&>(*SwitcherW);
+	TestEqual(TEXT("switcher has 3 pages"), Switcher.GetNumWidgets(), 3);
+	TestEqual(TEXT("active index applied"), Switcher.GetActiveWidgetIndex(), 0);
+
+	// ScaleBox wraps one child; WrapBox flowed three children.
+	TestEqual(TEXT("scalebox has content"), ScaleW->GetChildren()->Num(), 1);
+	TestEqual(TEXT("wrapbox has 3 children"), WrapW->GetChildren()->Num(), 3);
+
+	// State flip drives the switcher index (runtime setter path).
+	AddInfo(TEXT("[switcher] state flip retargets the active page"));
+	WidgetTest::IntSetter(2);
+	Root->FlushSync();
+	TestEqual(TEXT("active index retargeted"), Switcher.GetActiveWidgetIndex(), 2);
 	return true;
 }
 

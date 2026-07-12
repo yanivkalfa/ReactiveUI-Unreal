@@ -568,8 +568,9 @@ namespace RUI::Slate
 
 	namespace Detail
 	{
-		void RegisterBatch2Adapters(); // RuiWidgetAdapters.cpp
-	}
+		void RegisterBatch2Adapters();		 // RuiWidgetAdapters.cpp
+		void RegisterBatch2WidgetAdapters(); // RuiWidgetAdaptersB2.cpp (Phase 7 batch-2 set)
+	} // namespace Detail
 
 	void RegisterBuiltinAdapters()
 	{
@@ -579,5 +580,6 @@ namespace RUI::Slate
 		RegisterAdapter(ButtonType(), MakeUnique<FRuiButtonAdapter>());
 		RegisterAdapter(OverlayType(), MakeUnique<FRuiOverlayAdapter>());
 		Detail::RegisterBatch2Adapters();
+		Detail::RegisterBatch2WidgetAdapters();
 	}
 } // namespace RUI::Slate

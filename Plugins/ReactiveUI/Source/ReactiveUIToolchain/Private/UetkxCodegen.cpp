@@ -129,6 +129,32 @@ namespace
 				T.Attrs.Add(TEXT("DrawFn"), EAttrType::Expr); // identity semantics — {expr} only
 				M.Add(TEXT("RuiCanvas"), MoveTemp(T));
 			}
+			// ── Batch 2 (Phase 7 step 8) — the everyday game set ────────────────────────────
+			{
+				FTagDef T{TEXT("RUI::Slate::WidgetSwitcher"), TEXT("FRuiWidgetSwitcherProps"), true, {}};
+				T.Attrs.Add(TEXT("WidgetIndex"), EAttrType::Int);
+				M.Add(TEXT("WidgetSwitcher"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::ScaleBox"), TEXT("FRuiScaleBoxProps"), true, {}};
+				T.Attrs.Add(TEXT("Stretch"), EAttrType::Name);
+				T.Attrs.Add(TEXT("StretchDirection"), EAttrType::Name);
+				M.Add(TEXT("ScaleBox"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::Throbber"), TEXT("FRuiThrobberProps"), false, {}};
+				T.Attrs.Add(TEXT("NumPieces"), EAttrType::Int);
+				T.Attrs.Add(TEXT("Animate"), EAttrType::Name);
+				M.Add(TEXT("Throbber"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::WrapBox"), TEXT("FRuiWrapBoxProps"), true, {}};
+				T.Attrs.Add(TEXT("Orientation"), EAttrType::Name);
+				T.Attrs.Add(TEXT("WrapSize"), EAttrType::Float);
+				T.Attrs.Add(TEXT("InnerSlotPadding"), EAttrType::Vector2);
+				T.Attrs.Add(TEXT("bUseAllottedSize"), EAttrType::Bool);
+				M.Add(TEXT("WrapBox"), MoveTemp(T));
+			}
 			return M;
 		}();
 		return Tags;

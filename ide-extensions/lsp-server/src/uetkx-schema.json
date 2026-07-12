@@ -111,6 +111,16 @@
 				"RedrawKey": "int"
 			}
 		},
+		"ScaleBox":
+		{
+			"factory": "RUI::Slate::ScaleBox",
+			"children": true,
+			"attrs":
+			{
+				"Stretch": "name",
+				"StretchDirection": "name"
+			}
+		},
 		"ScrollBox":
 		{
 			"factory": "RUI::Slate::ScrollBox",
@@ -151,12 +161,43 @@
 				"Text": "text"
 			}
 		},
+		"Throbber":
+		{
+			"factory": "RUI::Slate::Throbber",
+			"children": false,
+			"attrs":
+			{
+				"Animate": "name",
+				"NumPieces": "int"
+			}
+		},
 		"VerticalBox":
 		{
 			"factory": "RUI::Slate::VerticalBox",
 			"children": true,
 			"attrs":
 			{
+			}
+		},
+		"WidgetSwitcher":
+		{
+			"factory": "RUI::Slate::WidgetSwitcher",
+			"children": true,
+			"attrs":
+			{
+				"WidgetIndex": "int"
+			}
+		},
+		"WrapBox":
+		{
+			"factory": "RUI::Slate::WrapBox",
+			"children": true,
+			"attrs":
+			{
+				"bUseAllottedSize": "bool",
+				"InnerSlotPadding": "vector2",
+				"Orientation": "name",
+				"WrapSize": "float"
 			}
 		}
 	},

@@ -156,6 +156,46 @@ struct REACTIVEUISLATE_API FRuiCanvasProps final : public FRuiPropsBase
 	RUI_PROPS_BODY(FRuiCanvasProps, RUI_EQ(DrawFn) RUI_EQ(RedrawKey) RUI_EQ(CanvasSize))
 };
 
+// ── Batch 2 (Phase 7 step 8) — the everyday game set (WIDGET_INVENTORY.md) ─────────────────
+
+/** SWidgetSwitcher (MultiSlot): shows exactly one child by index. WidgetIndex is a runtime
+ *  setter (SetActiveWidgetIndex) — the classic tab/page panel. */
+struct REACTIVEUISLATE_API FRuiWidgetSwitcherProps final : public FRuiPropsBase
+{
+	RUI_PROP(int32, WidgetIndex, 0)
+	RUI_PROPS_BODY(FRuiWidgetSwitcherProps, RUI_EQ(WidgetIndex))
+};
+
+/** SScaleBox (SingleContent): scales its content. Stretch = none|fill|scaleToFit|scaleToFitX|
+ *  scaleToFitY|scaleToFill|scaleBySafeZone; StretchDirection = both|downOnly|upOnly. */
+struct REACTIVEUISLATE_API FRuiScaleBoxProps final : public FRuiPropsBase
+{
+	RUI_PROP(FName, Stretch, 0)
+	RUI_PROP(FName, StretchDirection, 1)
+	RUI_PROPS_BODY(FRuiScaleBoxProps, RUI_EQ(Stretch) RUI_EQ(StretchDirection))
+};
+
+/** SThrobber (Leaf): a busy indicator. Animate = all|vertical|horizontal|opacity|
+ *  verticalAndOpacity|none. */
+struct REACTIVEUISLATE_API FRuiThrobberProps final : public FRuiPropsBase
+{
+	RUI_PROP(int32, NumPieces, 0)
+	RUI_PROP(FName, Animate, 1)
+	RUI_PROPS_BODY(FRuiThrobberProps, RUI_EQ(NumPieces) RUI_EQ(Animate))
+};
+
+/** SWrapBox (MultiSlot): flows children onto new lines. Orientation = horizontal (default) |
+ *  vertical. WrapSize is the wrap threshold (ignored while bUseAllottedSize). */
+struct REACTIVEUISLATE_API FRuiWrapBoxProps final : public FRuiPropsBase
+{
+	RUI_PROP(FName, Orientation, 0)
+	RUI_PROP(float, WrapSize, 1)
+	RUI_PROP(FVector2D, InnerSlotPadding, 2)
+	RUI_PROP(bool, bUseAllottedSize, 3)
+	RUI_PROPS_BODY(FRuiWrapBoxProps,
+				   RUI_EQ(Orientation) RUI_EQ(WrapSize) RUI_EQ(InnerSlotPadding) RUI_EQ(bUseAllottedSize))
+};
+
 namespace RUI::Slate
 {
 	REACTIVEUISLATE_API FRuiElementTypeId VerticalBoxType();
@@ -188,6 +228,16 @@ namespace RUI::Slate
 	REACTIVEUISLATE_API FRuiNode ProgressBar(FRuiProgressBarProps Props = FRuiProgressBarProps(),
 											 FRuiKey Key = FRuiKey());
 	REACTIVEUISLATE_API FRuiNode RuiCanvas(FRuiCanvasProps Props = FRuiCanvasProps(), FRuiKey Key = FRuiKey());
+
+	// ── Batch 2 (Phase 7 step 8) factories ────────────────────────────────────────────────
+	REACTIVEUISLATE_API FRuiNode WidgetSwitcher(FRuiWidgetSwitcherProps Props = FRuiWidgetSwitcherProps(),
+												TArray<FRuiNode> Children = TArray<FRuiNode>(),
+												FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode ScaleBox(FRuiScaleBoxProps Props = FRuiScaleBoxProps(),
+										  TArray<FRuiNode> Children = TArray<FRuiNode>(), FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode Throbber(FRuiThrobberProps Props = FRuiThrobberProps(), FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode WrapBox(FRuiWrapBoxProps Props = FRuiWrapBoxProps(),
+										 TArray<FRuiNode> Children = TArray<FRuiNode>(), FRuiKey Key = FRuiKey());
 
 	/** Wrap a paint lambda ONCE (UseMemo/UseRef it) — the canvas repaints on identity change. */
 	REACTIVEUISLATE_API TSharedPtr<FRuiDrawFn> MakeDrawFn(FRuiDrawFn Fn);
