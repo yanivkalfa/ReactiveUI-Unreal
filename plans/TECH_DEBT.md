@@ -416,7 +416,7 @@ referenced from plans/PRs.
 - **Production-grade resolution:** each lands as its own production line with suites; asset
   brushes first (unblocks real-game UIs), then SListView (the family item_list/tree port
   completes the ledger), then focus.
-- **Status:** PARTIAL — 2 of 3 sub-surfaces delivered 2026-07-12:
+- **Status:** RESOLVED 2026-07-12 — all 3 sub-surfaces delivered:
   - **Asset brushes (D-17): DONE.** `RUI::Umg::MakeAssetBrush(UObject*, size, tint, drawAs)`
     (ReactiveUIUMG) builds an FSlateBrush and registers it with a process-wide FGCObject
     (`FRuiAssetBrushRoot`) that keeps every live brush's resource object referenced against GC;
@@ -428,11 +428,30 @@ referenced from plans/PRs.
     (a UseRef weak-widget box the ref lifecycle syncs) + imperative `FocusWidget(handle)` /
     `ClearFocus()`. Test `ReactiveUI.Slate.Focus` drives the full round-trip through a real
     SWindow.
-  - **Item-model views (SListView/STileView/STreeView): REMAINING.** The virtualized
-    item-model adapter is the one genuinely large sub-surface here — each generated/recycled
-    row must host its own reconciler subtree (per-row sub-root over SListView's
-    generate/recycle lifecycle). Tracked as the follow-on; the declarative `items`-delegate
-    shape is designed but not yet built.
+  - **Item-model views (SListView/STileView): DONE 2026-07-12.** The virtualized item-model
+    adapter — the one genuinely large sub-surface — ships as `RUI::Slate::ListView` /
+    `TileView` (`RuiListView.h/.cpp`, exported `SRuiListView`). Each generated/recycled row is
+    an `SRuiListRow : STableRow<TSharedPtr<FRuiValue>>` that OWNS a per-row detached `FRuiRoot`
+    sub-root rendering `RenderItem(item, index)` — an independent little reconciler per row over
+    SListView's native generate/recycle lifecycle. The declarative shape is a **render prop**:
+    a stable `Items` array (identity-keyed for row reuse, SListView's native contract) + a
+    `TSharedPtr<FRuiItemRenderer>` closure (`MakeItemRenderer`, identity-compared like
+    `MakeDrawFn`). **Reactive path:** re-handing a fresh `RenderItem` closure re-runs it against
+    every LIVE row's sub-root in place (no widget churn — the SListView row is reused, only its
+    content re-reconciles); a changed item set regenerates only the affected rows. Selection
+    (`SelectionMode` none/single/singleToggle/multi + `OnSelectionChanged` forwarding the
+    selected index) is wired. TileView adds construct-time `ItemWidth`/`ItemHeight` (reconstruct
+    mask). **C++-FIRST by design** (the render closure is not markup-expressible, like
+    `MakeDrawFn`/`MakeAssetBrush` — so NO `.uetkx` tag / schema entry; markup uses the
+    non-virtualized `<VerticalBox>{Items.map(...)}` form). Rows generate only under an arranged
+    geometry, so `SRuiListView::ForceGenerateRows(size)` drives deterministic headless generation
+    (ticks the inner list measure→generate). Test `ReactiveUI.Widgets.ListView` proves generation
+    (3 items → 3 sub-roots, renderer once per row), the reactive rebuild (renderer swap re-runs
+    each row, zero churn), teardown (rows unmount with the root), selection-index forwarding, and
+    TileView generation. **Note:** STreeView is NOT included — it needs a hierarchical item model
+    (per-item child accessor) that the flat `FRuiValue` item type does not carry; that is a
+    separate data-shape design (tracked, not blocking — the flat ListView/TileView complete the
+    §4 virtualized-list parity target).
 
 ## TD-023 — Two-phase fwd-decl aggregator + `#line` project-relative (uetkx-imports M6/M7)
 - **Where:** `UetkxCodegen.cpp` (emit), `UetkxDriver.cpp::BuildAggregators`, `UetkxDriver.h::CodegenVersion`

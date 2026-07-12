@@ -570,6 +570,7 @@ namespace RUI::Slate
 	{
 		void RegisterBatch2Adapters();		 // RuiWidgetAdapters.cpp
 		void RegisterBatch2WidgetAdapters(); // RuiWidgetAdaptersB2.cpp (Phase 7 batch-2 set)
+		void RegisterItemViewAdapters();	 // RuiListView.cpp (TD-022 virtualized ListView/TileView)
 	} // namespace Detail
 
 	void RegisterBuiltinAdapters()
@@ -581,5 +582,6 @@ namespace RUI::Slate
 		RegisterAdapter(OverlayType(), MakeUnique<FRuiOverlayAdapter>());
 		Detail::RegisterBatch2Adapters();
 		Detail::RegisterBatch2WidgetAdapters();
+		Detail::RegisterItemViewAdapters();
 	}
 } // namespace RUI::Slate

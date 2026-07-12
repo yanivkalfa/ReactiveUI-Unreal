@@ -66,7 +66,8 @@ to wrap) · `SPECIAL` (covered by a dedicated mechanism, not a plain adapter).
 | SSuggestionTextBox | text-input family (SSearchBox ✅ shipped) |
 | SSegmentedControl | templated selector |
 | SExpandableArea | header+body — needs a two-named-slot design |
-| SListView / STileView / STreeView | **the big one** — the family's item-model treatment (declarative `items` → widget-generating delegates), NOT a plain adapter (TD-022) |
+| SListView / STileView | ✅ **shipped** (TD-022) as `RUI::Slate::ListView` / `TileView` — the family's item-model treatment (declarative `Items` + `RenderItem` render-prop → per-row `FRuiRoot` sub-roots over SListView's virtualized generate/recycle). C++-first (render closure not markup-expressible). |
+| STreeView | item-model with a hierarchical data shape — needs a per-item child accessor the flat `FRuiValue` item type doesn't carry; separate design (TD-022 note) |
 | SHeaderRow | column headers for the item views (TD-022) |
 
 ## Batch 3 (v1.x long tail — target: all official)
