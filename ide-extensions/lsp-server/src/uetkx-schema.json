@@ -52,6 +52,15 @@
 				"OnCheckStateChanged": "event"
 			}
 		},
+		"DPIScaler":
+		{
+			"factory": "RUI::Slate::DPIScaler",
+			"children": true,
+			"attrs":
+			{
+				"DPIScale": "float"
+			}
+		},
 		"EditableTextBox":
 		{
 			"factory": "RUI::Slate::EditableTextBox",
@@ -83,6 +92,19 @@
 				"DesiredSizeOverride": "vector2"
 			}
 		},
+		"MultiLineEditableTextBox":
+		{
+			"factory": "RUI::Slate::MultiLineEditableTextBox",
+			"children": false,
+			"attrs":
+			{
+				"bIsReadOnly": "bool",
+				"HintText": "text",
+				"OnTextChanged": "event",
+				"OnTextCommitted": "event",
+				"Text": "text"
+			}
+		},
 		"Overlay":
 		{
 			"factory": "RUI::Slate::Overlay",
@@ -111,6 +133,19 @@
 				"RedrawKey": "int"
 			}
 		},
+		"SafeZone":
+		{
+			"factory": "RUI::Slate::SafeZone",
+			"children": true,
+			"attrs":
+			{
+				"bIsTitleSafe": "bool",
+				"bPadBottom": "bool",
+				"bPadLeft": "bool",
+				"bPadRight": "bool",
+				"bPadTop": "bool"
+			}
+		},
 		"ScaleBox":
 		{
 			"factory": "RUI::Slate::ScaleBox",
@@ -128,6 +163,29 @@
 			"attrs":
 			{
 				"Orientation": "name"
+			}
+		},
+		"SearchBox":
+		{
+			"factory": "RUI::Slate::SearchBox",
+			"children": false,
+			"attrs":
+			{
+				"HintText": "text",
+				"OnTextChanged": "event",
+				"OnTextCommitted": "event",
+				"Text": "text"
+			}
+		},
+		"Separator":
+		{
+			"factory": "RUI::Slate::Separator",
+			"children": false,
+			"attrs":
+			{
+				"ColorAndOpacity": "color",
+				"Orientation": "name",
+				"Thickness": "float"
 			}
 		},
 		"Slider":

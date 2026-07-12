@@ -2,8 +2,9 @@
 //
 // Batch 2 (Phase 7 step 8) — the everyday game widget set (WIDGET_INVENTORY.md), on the same
 // production-line shape RuiWidgetAdapters.cpp established (props struct → adapter rows → factory →
-// codegen tag + interp builder → contract/test). Each widget maps only header-verified RUNTIME
-// setters (no reconstruct masks — every prop here is live-settable).
+// codegen tag + interp builder → contract/test). Setters are header-verified RUNTIME setters
+// wherever Slate exposes them; SSeparator is the exception — its Orientation/Thickness bake at
+// construction, so it declares a reconstruct mask (the first shipped widget to exercise TD-011).
 
 #include "RuiElementAdapter.h"
 #include "RuiEventProxy.h"
@@ -11,7 +12,12 @@
 #include "RuiSlateLog.h"
 
 #include "Widgets/Images/SThrobber.h"
+#include "Widgets/Input/SMultiLineEditableTextBox.h"
+#include "Widgets/Input/SSearchBox.h"
+#include "Widgets/Layout/SDPIScaler.h"
+#include "Widgets/Layout/SSafeZone.h"
 #include "Widgets/Layout/SScaleBox.h"
+#include "Widgets/Layout/SSeparator.h"
 #include "Widgets/Layout/SWidgetSwitcher.h"
 #include "Widgets/Layout/SWrapBox.h"
 #include "Widgets/SNullWidget.h"
@@ -353,6 +359,199 @@ public:
 };
 
 // ─────────────────────────────────────────────────────────────────────────────────────────
+// SMultiLineEditableTextBox — multi-line controlled input (D-16 caret rule)
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+class FRuiMultiLineEditableTextAdapter final : public IRuiElementAdapter
+{
+public:
+	virtual ERuiChildKind GetChildKind() const override { return ERuiChildKind::Leaf; }
+	virtual bool HasEvents() const override { return true; }
+
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase&, const TSharedPtr<FRuiEventProxy>& Proxy) override
+	{
+		return SNew(SMultiLineEditableTextBox)
+			.OnTextChanged(
+				FOnTextChanged::CreateSP(Proxy.ToSharedRef(), &FRuiEventProxy::HandleText,
+										 static_cast<int32>(FRuiMultiLineEditableTextBoxProps::OnTextChanged_Bit)))
+			.OnTextCommitted(
+				FOnTextCommitted::CreateSP(Proxy.ToSharedRef(), &FRuiEventProxy::HandleTextCommit,
+										   static_cast<int32>(FRuiMultiLineEditableTextBoxProps::OnTextCommitted_Bit)));
+	}
+
+	virtual void ApplyDiff(SWidget& Widget, const FRuiPropsBase* Old, const FRuiPropsBase& New) override
+	{
+		SMultiLineEditableTextBox& W = static_cast<SMultiLineEditableTextBox&>(Widget);
+		const FRuiMultiLineEditableTextBoxProps& N = static_cast<const FRuiMultiLineEditableTextBoxProps&>(New);
+		const FRuiMultiLineEditableTextBoxProps* O = static_cast<const FRuiMultiLineEditableTextBoxProps*>(Old);
+		// The D-16 caret rule: compare against the WIDGET's live text (survives the typing round-trip).
+		if (N.HasText() && !W.GetText().EqualTo(N.Text))
+		{
+			W.SetText(N.Text);
+		}
+		if (N.HasHintText() && (O == nullptr || !O->HasHintText() || !N.HintText.EqualTo(O->HintText)))
+		{
+			W.SetHintText(N.HintText);
+		}
+		RUI_ROW(bIsReadOnly, W.SetIsReadOnly(N.bIsReadOnly))
+	}
+
+	virtual void SyncEventHandlers(FRuiEventProxy& Proxy, const FRuiPropsBase& New) override
+	{
+		const FRuiMultiLineEditableTextBoxProps& N = static_cast<const FRuiMultiLineEditableTextBoxProps&>(New);
+		Proxy.SetHandler(static_cast<int32>(FRuiMultiLineEditableTextBoxProps::OnTextChanged_Bit), N.OnTextChanged);
+		Proxy.SetHandler(static_cast<int32>(FRuiMultiLineEditableTextBoxProps::OnTextCommitted_Bit), N.OnTextCommitted);
+	}
+};
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// SSearchBox — SEditableTextBox specialization (controlled text; D-16 caret rule)
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+class FRuiSearchBoxAdapter final : public IRuiElementAdapter
+{
+public:
+	virtual ERuiChildKind GetChildKind() const override { return ERuiChildKind::Leaf; }
+	virtual bool HasEvents() const override { return true; }
+
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase&, const TSharedPtr<FRuiEventProxy>& Proxy) override
+	{
+		return SNew(SSearchBox)
+			.OnTextChanged(FOnTextChanged::CreateSP(Proxy.ToSharedRef(), &FRuiEventProxy::HandleText,
+													static_cast<int32>(FRuiSearchBoxProps::OnTextChanged_Bit)))
+			.OnTextCommitted(FOnTextCommitted::CreateSP(Proxy.ToSharedRef(), &FRuiEventProxy::HandleTextCommit,
+														static_cast<int32>(FRuiSearchBoxProps::OnTextCommitted_Bit)));
+	}
+
+	virtual void ApplyDiff(SWidget& Widget, const FRuiPropsBase* Old, const FRuiPropsBase& New) override
+	{
+		SSearchBox& W = static_cast<SSearchBox&>(Widget);
+		const FRuiSearchBoxProps& N = static_cast<const FRuiSearchBoxProps&>(New);
+		const FRuiSearchBoxProps* O = static_cast<const FRuiSearchBoxProps*>(Old);
+		if (N.HasText() && !W.GetText().EqualTo(N.Text))
+		{
+			W.SetText(N.Text);
+		}
+		if (N.HasHintText() && (O == nullptr || !O->HasHintText() || !N.HintText.EqualTo(O->HintText)))
+		{
+			W.SetHintText(N.HintText);
+		}
+	}
+
+	virtual void SyncEventHandlers(FRuiEventProxy& Proxy, const FRuiPropsBase& New) override
+	{
+		const FRuiSearchBoxProps& N = static_cast<const FRuiSearchBoxProps&>(New);
+		Proxy.SetHandler(static_cast<int32>(FRuiSearchBoxProps::OnTextChanged_Bit), N.OnTextChanged);
+		Proxy.SetHandler(static_cast<int32>(FRuiSearchBoxProps::OnTextCommitted_Bit), N.OnTextCommitted);
+	}
+};
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// SSafeZone (SingleContent)
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+class FRuiSafeZoneAdapter final : public IRuiElementAdapter
+{
+public:
+	virtual ERuiChildKind GetChildKind() const override { return ERuiChildKind::SingleContent; }
+
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase&, const TSharedPtr<FRuiEventProxy>&) override
+	{
+		return SNew(SSafeZone);
+	}
+
+	virtual void ApplyDiff(SWidget& Widget, const FRuiPropsBase* Old, const FRuiPropsBase& New) override
+	{
+		SSafeZone& W = static_cast<SSafeZone&>(Widget);
+		const FRuiSafeZoneProps& N = static_cast<const FRuiSafeZoneProps&>(New);
+		const FRuiSafeZoneProps* O = static_cast<const FRuiSafeZoneProps*>(Old);
+		RUI_ROW(bIsTitleSafe, W.SetTitleSafe(N.bIsTitleSafe))
+		// The four pad-side bools apply together (single Slate setter).
+		if ((N.HasbPadLeft() || N.HasbPadRight() || N.HasbPadTop() || N.HasbPadBottom()) &&
+			(O == nullptr || !(O->bPadLeft == N.bPadLeft) || !(O->bPadRight == N.bPadRight) ||
+			 !(O->bPadTop == N.bPadTop) || !(O->bPadBottom == N.bPadBottom)))
+		{
+			W.SetSidesToPad(N.HasbPadLeft() ? N.bPadLeft : true, N.HasbPadRight() ? N.bPadRight : true,
+							N.HasbPadTop() ? N.bPadTop : true, N.HasbPadBottom() ? N.bPadBottom : true);
+		}
+	}
+
+	virtual void SetContent(SWidget& Parent, const TSharedPtr<SWidget>& Child) override
+	{
+		static_cast<SSafeZone&>(Parent).SetContent(Child.IsValid() ? Child.ToSharedRef() : SNullWidget::NullWidget);
+	}
+};
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// SDPIScaler (SingleContent)
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+class FRuiDPIScalerAdapter final : public IRuiElementAdapter
+{
+public:
+	virtual ERuiChildKind GetChildKind() const override { return ERuiChildKind::SingleContent; }
+
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase&, const TSharedPtr<FRuiEventProxy>&) override
+	{
+		return SNew(SDPIScaler);
+	}
+
+	virtual void ApplyDiff(SWidget& Widget, const FRuiPropsBase* Old, const FRuiPropsBase& New) override
+	{
+		SDPIScaler& W = static_cast<SDPIScaler&>(Widget);
+		const FRuiDPIScalerProps& N = static_cast<const FRuiDPIScalerProps&>(New);
+		const FRuiDPIScalerProps* O = static_cast<const FRuiDPIScalerProps*>(Old);
+		RUI_ROW(DPIScale, W.SetDPIScale(N.DPIScale))
+	}
+
+	virtual void SetContent(SWidget& Parent, const TSharedPtr<SWidget>& Child) override
+	{
+		static_cast<SDPIScaler&>(Parent).SetContent(Child.IsValid() ? Child.ToSharedRef() : SNullWidget::NullWidget);
+	}
+};
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// SSeparator (Leaf) — Orientation + Thickness are CONSTRUCT-ONLY (the first shipped widget to
+// exercise the TD-011 reconstruct mask); ColorAndOpacity is a live setter (inherited SBorder).
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+class FRuiSeparatorAdapter final : public IRuiElementAdapter
+{
+public:
+	virtual ERuiChildKind GetChildKind() const override { return ERuiChildKind::Leaf; }
+
+	// Orientation (bit 0) + Thickness (bit 1) bake at construction — a change replaces the widget.
+	virtual uint64 GetReconstructMask() const override
+	{
+		return (1ull << FRuiSeparatorProps::Orientation_Bit) | (1ull << FRuiSeparatorProps::Thickness_Bit);
+	}
+
+	virtual bool ConstructOnlyChanged(const FRuiPropsBase& Old, const FRuiPropsBase& New) const override
+	{
+		const FRuiSeparatorProps& O = static_cast<const FRuiSeparatorProps&>(Old);
+		const FRuiSeparatorProps& N = static_cast<const FRuiSeparatorProps&>(New);
+		return !(O.Orientation == N.Orientation) || !(O.Thickness == N.Thickness);
+	}
+
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase& Props, const TSharedPtr<FRuiEventProxy>&) override
+	{
+		const FRuiSeparatorProps& P = static_cast<const FRuiSeparatorProps&>(Props);
+		return SNew(SSeparator)
+			.Orientation(P.HasOrientation() && P.Orientation == FName(TEXT("vertical")) ? Orient_Vertical
+																						: Orient_Horizontal)
+			.Thickness(P.HasThickness() ? P.Thickness : 3.0f);
+	}
+
+	virtual void ApplyDiff(SWidget& Widget, const FRuiPropsBase* Old, const FRuiPropsBase& New) override
+	{
+		SSeparator& W = static_cast<SSeparator&>(Widget);
+		const FRuiSeparatorProps& N = static_cast<const FRuiSeparatorProps&>(New);
+		const FRuiSeparatorProps* O = static_cast<const FRuiSeparatorProps*>(Old);
+		RUI_ROW(ColorAndOpacity, W.SetColorAndOpacity(N.ColorAndOpacity))
+	}
+};
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
 // Types, factories, registration
 // ─────────────────────────────────────────────────────────────────────────────────────────
 
@@ -388,6 +587,26 @@ namespace RUI::Slate
 		{
 			return RUI::InternElementType(FName(TEXT("WrapBox")));
 		}
+		FRuiElementTypeId MultiLineEditableTextBoxType()
+		{
+			return RUI::InternElementType(FName(TEXT("MultiLineEditableTextBox")));
+		}
+		FRuiElementTypeId SearchBoxType()
+		{
+			return RUI::InternElementType(FName(TEXT("SearchBox")));
+		}
+		FRuiElementTypeId SafeZoneType()
+		{
+			return RUI::InternElementType(FName(TEXT("SafeZone")));
+		}
+		FRuiElementTypeId DPIScalerType()
+		{
+			return RUI::InternElementType(FName(TEXT("DPIScaler")));
+		}
+		FRuiElementTypeId SeparatorType()
+		{
+			return RUI::InternElementType(FName(TEXT("Separator")));
+		}
 	} // namespace
 
 	FRuiNode WidgetSwitcher(FRuiWidgetSwitcherProps Props, TArray<FRuiNode> Children, FRuiKey Key)
@@ -406,6 +625,26 @@ namespace RUI::Slate
 	{
 		return MakeHostNodeB2(WrapBoxType(), MoveTemp(Props), MoveTemp(Children), Key);
 	}
+	FRuiNode MultiLineEditableTextBox(FRuiMultiLineEditableTextBoxProps Props, FRuiKey Key)
+	{
+		return MakeHostNodeB2(MultiLineEditableTextBoxType(), MoveTemp(Props), TArray<FRuiNode>(), Key);
+	}
+	FRuiNode SearchBox(FRuiSearchBoxProps Props, FRuiKey Key)
+	{
+		return MakeHostNodeB2(SearchBoxType(), MoveTemp(Props), TArray<FRuiNode>(), Key);
+	}
+	FRuiNode SafeZone(FRuiSafeZoneProps Props, TArray<FRuiNode> Children, FRuiKey Key)
+	{
+		return MakeHostNodeB2(SafeZoneType(), MoveTemp(Props), MoveTemp(Children), Key);
+	}
+	FRuiNode DPIScaler(FRuiDPIScalerProps Props, TArray<FRuiNode> Children, FRuiKey Key)
+	{
+		return MakeHostNodeB2(DPIScalerType(), MoveTemp(Props), MoveTemp(Children), Key);
+	}
+	FRuiNode Separator(FRuiSeparatorProps Props, FRuiKey Key)
+	{
+		return MakeHostNodeB2(SeparatorType(), MoveTemp(Props), TArray<FRuiNode>(), Key);
+	}
 
 	namespace Detail
 	{
@@ -415,6 +654,11 @@ namespace RUI::Slate
 			RegisterAdapter(ScaleBoxType(), MakeUnique<FRuiScaleBoxAdapter>());
 			RegisterAdapter(ThrobberType(), MakeUnique<FRuiThrobberAdapter>());
 			RegisterAdapter(WrapBoxType(), MakeUnique<FRuiWrapBoxAdapter>());
+			RegisterAdapter(MultiLineEditableTextBoxType(), MakeUnique<FRuiMultiLineEditableTextAdapter>());
+			RegisterAdapter(SearchBoxType(), MakeUnique<FRuiSearchBoxAdapter>());
+			RegisterAdapter(SafeZoneType(), MakeUnique<FRuiSafeZoneAdapter>());
+			RegisterAdapter(DPIScalerType(), MakeUnique<FRuiDPIScalerAdapter>());
+			RegisterAdapter(SeparatorType(), MakeUnique<FRuiSeparatorAdapter>());
 		}
 	} // namespace Detail
 } // namespace RUI::Slate

@@ -14,8 +14,11 @@
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Input/SSlider.h"
+#include "Widgets/Input/SMultiLineEditableTextBox.h"
+#include "Widgets/Input/SSearchBox.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
+#include "Widgets/Layout/SSeparator.h"
 #include "Widgets/Layout/SWidgetSwitcher.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -347,6 +350,81 @@ bool FRuiWidgetsBatch2Test::RunTest(const FString&)
 	WidgetTest::IntSetter(2);
 	Root->FlushSync();
 	TestEqual(TEXT("active index retargeted"), Switcher.GetActiveWidgetIndex(), 2);
+	return true;
+}
+
+// ── batch 2b: text inputs + safe containers + Separator (TD-011 reconstruct mask) ─────────
+
+static FRuiNodeArray WidgetsBatch2bComp(FRuiContext& Ctx, const FRuiEmptyProps&, const TArray<FRuiNode>&)
+{
+	// state 0: thin/white · 1: thin/red (runtime color only) · 2: thick/red (construct change)
+	auto [Phase, SetPhase] = Ctx.UseState<int32>(0);
+	WidgetTest::IntSetter = SetPhase;
+
+	FRuiMultiLineEditableTextBoxProps MultiProps;
+	MultiProps.SetText(FText::FromString(TEXT("line one")));
+	MultiProps.SetHintText(FText::FromString(TEXT("notes")));
+
+	FRuiSearchBoxProps SearchProps;
+	SearchProps.SetHintText(FText::FromString(TEXT("search")));
+
+	FRuiSafeZoneProps SafeProps;
+	SafeProps.SetbIsTitleSafe(true);
+
+	FRuiDPIScalerProps DpiProps;
+	DpiProps.SetDPIScale(1.5f);
+
+	FRuiSeparatorProps SepProps;
+	SepProps.SetThickness(Phase >= 2 ? 6.0f : 2.0f);
+	SepProps.SetColorAndOpacity(Phase >= 1 ? FLinearColor::Red : FLinearColor::White);
+
+	return {RUI::Slate::VerticalBox(FRuiVerticalBoxProps(),
+									{RUI::Slate::MultiLineEditableTextBox(MoveTemp(MultiProps)),
+									 RUI::Slate::SearchBox(MoveTemp(SearchProps)),
+									 RUI::Slate::SafeZone(MoveTemp(SafeProps), {RUI::TextBlock(TEXT("safe"))}),
+									 RUI::Slate::DPIScaler(MoveTemp(DpiProps), {RUI::TextBlock(TEXT("scaled"))}),
+									 RUI::Slate::Separator(MoveTemp(SepProps))})};
+}
+RUI_COMPONENT(WidgetsBatch2bComp)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRuiWidgetsBatch2bTest, "ReactiveUI.Widgets.Batch2b", RUI_WIDGET_TEST_FLAGS)
+bool FRuiWidgetsBatch2bTest::RunTest(const FString&)
+{
+	WidgetTest::Reset();
+	TSharedRef<FRuiRoot> Root = FRuiRoot::Create(RUI::FC(&WidgetsBatch2bComp));
+	TSharedPtr<SWidget> Panel = WidgetTest::RootChild(*Root);
+	if (!TestTrue(TEXT("panel mounted"), Panel.IsValid()))
+	{
+		return false;
+	}
+	TSharedRef<SWidget> MultiW = Panel->GetChildren()->GetChildAt(0);
+	TSharedRef<SWidget> SearchW = Panel->GetChildren()->GetChildAt(1);
+	TSharedRef<SWidget> SafeW = Panel->GetChildren()->GetChildAt(2);
+	TSharedRef<SWidget> DpiW = Panel->GetChildren()->GetChildAt(3);
+
+	TestEqual(TEXT("multiline type"), MultiW->GetType(), FName(TEXT("SMultiLineEditableTextBox")));
+	TestEqual(TEXT("searchbox type"), SearchW->GetType(), FName(TEXT("SSearchBox")));
+	TestEqual(TEXT("safezone type"), SafeW->GetType(), FName(TEXT("SSafeZone")));
+	TestEqual(TEXT("dpiscaler type"), DpiW->GetType(), FName(TEXT("SDPIScaler")));
+	TestEqual(TEXT("multiline initial text"), static_cast<SMultiLineEditableTextBox&>(*MultiW).GetText().ToString(),
+			  FString(TEXT("line one")));
+
+	// ── TD-011 in production: the Separator's Thickness is construct-only ────────────────────
+	SWidget* Sep0 = &Panel->GetChildren()->GetChildAt(4).Get();
+	TestEqual(TEXT("separator type"), Sep0->GetType(), FName(TEXT("SSeparator")));
+
+	AddInfo(TEXT("[reconstruct] a runtime-only change (ColorAndOpacity) must NOT replace the widget"));
+	WidgetTest::IntSetter(1);
+	Root->FlushSync();
+	SWidget* Sep1 = &Panel->GetChildren()->GetChildAt(4).Get();
+	TestEqual(TEXT("color-only change reused the same SSeparator"), (void*)Sep1, (void*)Sep0);
+
+	AddInfo(TEXT("[reconstruct] a construct-only change (Thickness) MUST replace the widget"));
+	WidgetTest::IntSetter(2);
+	Root->FlushSync();
+	SWidget* Sep2 = &Panel->GetChildren()->GetChildAt(4).Get();
+	TestNotEqual(TEXT("thickness change replaced the SSeparator"), (void*)Sep2, (void*)Sep1);
+	TestEqual(TEXT("replacement is still an SSeparator"), Sep2->GetType(), FName(TEXT("SSeparator")));
 	return true;
 }
 

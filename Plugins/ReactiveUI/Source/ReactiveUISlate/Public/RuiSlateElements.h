@@ -196,6 +196,77 @@ struct REACTIVEUISLATE_API FRuiWrapBoxProps final : public FRuiPropsBase
 				   RUI_EQ(Orientation) RUI_EQ(WrapSize) RUI_EQ(InnerSlotPadding) RUI_EQ(bUseAllottedSize))
 };
 
+/** SMultiLineEditableTextBox (Leaf) — multi-line controlled input; same D-16 caret rule as
+ *  SEditableTextBox (Text applied skip-when-equal against the WIDGET's live text). */
+struct REACTIVEUISLATE_API FRuiMultiLineEditableTextBoxProps final : public FRuiPropsBase
+{
+	RUI_PROP(FText, Text, 0)
+	RUI_PROP(FText, HintText, 1)
+	RUI_PROP(bool, bIsReadOnly, 2)
+	RUI_PROP_EVENT(OnTextChanged, 3)
+	RUI_PROP_EVENT(OnTextCommitted, 4)
+
+	virtual bool Equals(const FRuiPropsBase& OtherBase) const override
+	{
+		const FRuiMultiLineEditableTextBoxProps& Other =
+			static_cast<const FRuiMultiLineEditableTextBoxProps&>(OtherBase);
+		auto TextEq = [](const FText& A, const FText& B) { return A.IdenticalTo(B) || A.ToString() == B.ToString(); };
+		return SetBits == Other.SetBits && BaseFieldsEqual(Other) && TextEq(Text, Other.Text) &&
+			   TextEq(HintText, Other.HintText) && bIsReadOnly == Other.bIsReadOnly &&
+			   OnTextChanged == Other.OnTextChanged && OnTextCommitted == Other.OnTextCommitted;
+	}
+};
+
+/** SSearchBox (Leaf) — an SEditableTextBox specialization with a search affordance. The search
+ *  text flows through OnTextChanged/OnTextCommitted (SSearchBox::OnSearch is up/down navigation,
+ *  not a text callback). Text is the same controlled-input caret rule (D-16). */
+struct REACTIVEUISLATE_API FRuiSearchBoxProps final : public FRuiPropsBase
+{
+	RUI_PROP(FText, Text, 0)
+	RUI_PROP(FText, HintText, 1)
+	RUI_PROP_EVENT(OnTextChanged, 2)
+	RUI_PROP_EVENT(OnTextCommitted, 3)
+
+	virtual bool Equals(const FRuiPropsBase& OtherBase) const override
+	{
+		const FRuiSearchBoxProps& Other = static_cast<const FRuiSearchBoxProps&>(OtherBase);
+		auto TextEq = [](const FText& A, const FText& B) { return A.IdenticalTo(B) || A.ToString() == B.ToString(); };
+		return SetBits == Other.SetBits && BaseFieldsEqual(Other) && TextEq(Text, Other.Text) &&
+			   TextEq(HintText, Other.HintText) && OnTextChanged == Other.OnTextChanged &&
+			   OnTextCommitted == Other.OnTextCommitted;
+	}
+};
+
+/** SSafeZone (SingleContent): pads content into the device title/action safe area. */
+struct REACTIVEUISLATE_API FRuiSafeZoneProps final : public FRuiPropsBase
+{
+	RUI_PROP(bool, bIsTitleSafe, 0)
+	RUI_PROP(bool, bPadLeft, 1)
+	RUI_PROP(bool, bPadRight, 2)
+	RUI_PROP(bool, bPadTop, 3)
+	RUI_PROP(bool, bPadBottom, 4)
+	RUI_PROPS_BODY(FRuiSafeZoneProps,
+				   RUI_EQ(bIsTitleSafe) RUI_EQ(bPadLeft) RUI_EQ(bPadRight) RUI_EQ(bPadTop) RUI_EQ(bPadBottom))
+};
+
+/** SDPIScaler (SingleContent): scales its content by a DPI factor. */
+struct REACTIVEUISLATE_API FRuiDPIScalerProps final : public FRuiPropsBase
+{
+	RUI_PROP(float, DPIScale, 0)
+	RUI_PROPS_BODY(FRuiDPIScalerProps, RUI_EQ(DPIScale))
+};
+
+/** SSeparator (Leaf): a styled line. Orientation (horizontal|vertical) + Thickness are
+ *  CONSTRUCT-ONLY (Slate bakes them at build) — a change replaces the widget (TD-011 reconstruct
+ *  mask, the first shipped widget to exercise it). ColorAndOpacity is a live setter. */
+struct REACTIVEUISLATE_API FRuiSeparatorProps final : public FRuiPropsBase
+{
+	RUI_PROP(FName, Orientation, 0)			   // construct-only
+	RUI_PROP(float, Thickness, 1)			   // construct-only
+	RUI_PROP(FLinearColor, ColorAndOpacity, 2) // runtime
+	RUI_PROPS_BODY(FRuiSeparatorProps, RUI_EQ(Orientation) RUI_EQ(Thickness) RUI_EQ(ColorAndOpacity))
+};
+
 namespace RUI::Slate
 {
 	REACTIVEUISLATE_API FRuiElementTypeId VerticalBoxType();
@@ -238,6 +309,14 @@ namespace RUI::Slate
 	REACTIVEUISLATE_API FRuiNode Throbber(FRuiThrobberProps Props = FRuiThrobberProps(), FRuiKey Key = FRuiKey());
 	REACTIVEUISLATE_API FRuiNode WrapBox(FRuiWrapBoxProps Props = FRuiWrapBoxProps(),
 										 TArray<FRuiNode> Children = TArray<FRuiNode>(), FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode MultiLineEditableTextBox(
+		FRuiMultiLineEditableTextBoxProps Props = FRuiMultiLineEditableTextBoxProps(), FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode SearchBox(FRuiSearchBoxProps Props = FRuiSearchBoxProps(), FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode SafeZone(FRuiSafeZoneProps Props = FRuiSafeZoneProps(),
+										  TArray<FRuiNode> Children = TArray<FRuiNode>(), FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode DPIScaler(FRuiDPIScalerProps Props = FRuiDPIScalerProps(),
+										   TArray<FRuiNode> Children = TArray<FRuiNode>(), FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode Separator(FRuiSeparatorProps Props = FRuiSeparatorProps(), FRuiKey Key = FRuiKey());
 
 	/** Wrap a paint lambda ONCE (UseMemo/UseRef it) — the canvas repaints on identity change. */
 	REACTIVEUISLATE_API TSharedPtr<FRuiDrawFn> MakeDrawFn(FRuiDrawFn Fn);

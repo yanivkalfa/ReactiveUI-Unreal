@@ -38,7 +38,7 @@ to wrap) · `SPECIAL` (covered by a dedicated mechanism, not a plain adapter).
 | SProgressBar | `ProgressBar` | + fillColor style key |
 | SRuiCanvas *(ours)* | `RuiCanvas` | the draw_fn paint trampoline (D-12); `Canvas` reserved for SCanvas |
 
-## Shipped (Phase 7 — batch 2, rolling) — 4
+## Shipped (Phase 7 — batch 2, rolling) — 9
 
 | Widget | Element tag | Notes |
 |---|---|---|
@@ -46,6 +46,11 @@ to wrap) · `SPECIAL` (covered by a dedicated mechanism, not a plain adapter).
 | SScaleBox | `ScaleBox` | Stretch + StretchDirection |
 | SThrobber | `Throbber` | NumPieces + Animate |
 | SWrapBox | `WrapBox` | Orientation/WrapSize/InnerSlotPadding/UseAllottedSize |
+| SMultiLineEditableTextBox | `MultiLineEditableTextBox` | multi-line controlled input (D-16 caret rule) |
+| SSearchBox | `SearchBox` | controlled search text (OnTextChanged/Committed); test `ReactiveUI.Widgets.Batch2b` |
+| SSafeZone | `SafeZone` | title-safe + per-side padding |
+| SDPIScaler | `DPIScaler` | DPIScale |
+| SSeparator | `Separator` | Orientation/Thickness (construct-only, TD-011 reconstruct mask) + ColorAndOpacity |
 
 ## Batch 2 (Phase 7 step 8) — the everyday game set
 
@@ -53,14 +58,11 @@ to wrap) · `SPECIAL` (covered by a dedicated mechanism, not a plain adapter).
 |---|---|
 | SComboBox / SComboButton | templated items → item-model treatment shares SListView design |
 | SSpinBox / SNumericEntryBox | numeric inputs (templated — adapter per common instantiation) |
-| SSearchBox / SSuggestionTextBox | text-input family |
-| SMultiLineEditableTextBox / SMultiLineEditableText | multi-line controlled input (same caret rule) |
+| SSuggestionTextBox | text-input family (SSearchBox ✅ shipped) |
 | SRichTextBlock | rich text (+ decorator story later) |
 | SSegmentedControl | templated |
 | SUniformWrapPanel | wrap layout (SWrapBox ✅ shipped) |
 | SGridPanel / SUniformGridPanel | grid layout (slot.row/slot.column props) |
-| SSafeZone / SDPIScaler | safe-area / DPI containers (SScaleBox ✅ shipped) |
-| SSeparator | trivial leaf |
 | SExpandableArea | header+body container |
 | SSpinningImage | busy indicator (SThrobber ✅ shipped) |
 | SListView / STileView / STreeView | **the big one** — the family's item-model treatment (declarative `items` → widget-generating delegates), NOT a plain adapter (TD-022) |

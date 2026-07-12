@@ -500,4 +500,116 @@ void FUetkxInterpElements::RegisterBuiltins()
 				 ApplyBase(P, In);
 				 return RUI::Slate::WrapBox(MoveTemp(P), MoveTemp(In.Children), In.Key);
 			 });
+
+	Register(TEXT("MultiLineEditableTextBox"),
+			 [](FUetkxInterpElementInputs&& In)
+			 {
+				 FRuiMultiLineEditableTextBoxProps P;
+				 if (const FRuiValue* Text = Attr(In, TEXT("Text")))
+				 {
+					 P.SetText(AsText(*Text));
+				 }
+				 if (const FRuiValue* Hint = Attr(In, TEXT("HintText")))
+				 {
+					 P.SetHintText(AsText(*Hint));
+				 }
+				 if (const FRuiValue* ReadOnly = Attr(In, TEXT("bIsReadOnly")))
+				 {
+					 P.SetbIsReadOnly(AsBool(*ReadOnly));
+				 }
+				 if (const FRuiCallback* Changed = Event(In, TEXT("OnTextChanged")))
+				 {
+					 P.SetOnTextChanged(*Changed);
+				 }
+				 if (const FRuiCallback* Committed = Event(In, TEXT("OnTextCommitted")))
+				 {
+					 P.SetOnTextCommitted(*Committed);
+				 }
+				 ApplyBase(P, In);
+				 return RUI::Slate::MultiLineEditableTextBox(MoveTemp(P), In.Key);
+			 });
+
+	Register(TEXT("SearchBox"),
+			 [](FUetkxInterpElementInputs&& In)
+			 {
+				 FRuiSearchBoxProps P;
+				 if (const FRuiValue* Text = Attr(In, TEXT("Text")))
+				 {
+					 P.SetText(AsText(*Text));
+				 }
+				 if (const FRuiValue* Hint = Attr(In, TEXT("HintText")))
+				 {
+					 P.SetHintText(AsText(*Hint));
+				 }
+				 if (const FRuiCallback* Changed = Event(In, TEXT("OnTextChanged")))
+				 {
+					 P.SetOnTextChanged(*Changed);
+				 }
+				 if (const FRuiCallback* Committed = Event(In, TEXT("OnTextCommitted")))
+				 {
+					 P.SetOnTextCommitted(*Committed);
+				 }
+				 ApplyBase(P, In);
+				 return RUI::Slate::SearchBox(MoveTemp(P), In.Key);
+			 });
+
+	Register(TEXT("SafeZone"),
+			 [](FUetkxInterpElementInputs&& In)
+			 {
+				 FRuiSafeZoneProps P;
+				 if (const FRuiValue* Title = Attr(In, TEXT("bIsTitleSafe")))
+				 {
+					 P.SetbIsTitleSafe(AsBool(*Title));
+				 }
+				 if (const FRuiValue* L = Attr(In, TEXT("bPadLeft")))
+				 {
+					 P.SetbPadLeft(AsBool(*L));
+				 }
+				 if (const FRuiValue* R = Attr(In, TEXT("bPadRight")))
+				 {
+					 P.SetbPadRight(AsBool(*R));
+				 }
+				 if (const FRuiValue* T = Attr(In, TEXT("bPadTop")))
+				 {
+					 P.SetbPadTop(AsBool(*T));
+				 }
+				 if (const FRuiValue* B = Attr(In, TEXT("bPadBottom")))
+				 {
+					 P.SetbPadBottom(AsBool(*B));
+				 }
+				 ApplyBase(P, In);
+				 return RUI::Slate::SafeZone(MoveTemp(P), MoveTemp(In.Children), In.Key);
+			 });
+
+	Register(TEXT("DPIScaler"),
+			 [](FUetkxInterpElementInputs&& In)
+			 {
+				 FRuiDPIScalerProps P;
+				 if (const FRuiValue* Scale = Attr(In, TEXT("DPIScale")))
+				 {
+					 P.SetDPIScale(AsFloat(*Scale));
+				 }
+				 ApplyBase(P, In);
+				 return RUI::Slate::DPIScaler(MoveTemp(P), MoveTemp(In.Children), In.Key);
+			 });
+
+	Register(TEXT("Separator"),
+			 [](FUetkxInterpElementInputs&& In)
+			 {
+				 FRuiSeparatorProps P;
+				 if (const FRuiValue* Orientation = Attr(In, TEXT("Orientation")))
+				 {
+					 P.SetOrientation(AsName(*Orientation));
+				 }
+				 if (const FRuiValue* Thickness = Attr(In, TEXT("Thickness")))
+				 {
+					 P.SetThickness(AsFloat(*Thickness));
+				 }
+				 if (const FRuiValue* Color = Attr(In, TEXT("ColorAndOpacity")))
+				 {
+					 P.SetColorAndOpacity(AsColor(*Color));
+				 }
+				 ApplyBase(P, In);
+				 return RUI::Slate::Separator(MoveTemp(P), In.Key);
+			 });
 }

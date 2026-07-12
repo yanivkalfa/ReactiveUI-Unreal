@@ -155,6 +155,45 @@ namespace
 				T.Attrs.Add(TEXT("bUseAllottedSize"), EAttrType::Bool);
 				M.Add(TEXT("WrapBox"), MoveTemp(T));
 			}
+			{
+				FTagDef T{
+					TEXT("RUI::Slate::MultiLineEditableTextBox"), TEXT("FRuiMultiLineEditableTextBoxProps"), false, {}};
+				T.Attrs.Add(TEXT("Text"), EAttrType::Text);
+				T.Attrs.Add(TEXT("HintText"), EAttrType::Text);
+				T.Attrs.Add(TEXT("bIsReadOnly"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("OnTextChanged"), EAttrType::Event);
+				T.Attrs.Add(TEXT("OnTextCommitted"), EAttrType::Event);
+				M.Add(TEXT("MultiLineEditableTextBox"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::SearchBox"), TEXT("FRuiSearchBoxProps"), false, {}};
+				T.Attrs.Add(TEXT("Text"), EAttrType::Text);
+				T.Attrs.Add(TEXT("HintText"), EAttrType::Text);
+				T.Attrs.Add(TEXT("OnTextChanged"), EAttrType::Event);
+				T.Attrs.Add(TEXT("OnTextCommitted"), EAttrType::Event);
+				M.Add(TEXT("SearchBox"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::SafeZone"), TEXT("FRuiSafeZoneProps"), true, {}};
+				for (const TCHAR* P :
+					 {TEXT("bIsTitleSafe"), TEXT("bPadLeft"), TEXT("bPadRight"), TEXT("bPadTop"), TEXT("bPadBottom")})
+				{
+					T.Attrs.Add(P, EAttrType::Bool);
+				}
+				M.Add(TEXT("SafeZone"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::DPIScaler"), TEXT("FRuiDPIScalerProps"), true, {}};
+				T.Attrs.Add(TEXT("DPIScale"), EAttrType::Float);
+				M.Add(TEXT("DPIScaler"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::Separator"), TEXT("FRuiSeparatorProps"), false, {}};
+				T.Attrs.Add(TEXT("Orientation"), EAttrType::Name);
+				T.Attrs.Add(TEXT("Thickness"), EAttrType::Float);
+				T.Attrs.Add(TEXT("ColorAndOpacity"), EAttrType::Color);
+				M.Add(TEXT("Separator"), MoveTemp(T));
+			}
 			return M;
 		}();
 		return Tags;
