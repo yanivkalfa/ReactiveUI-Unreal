@@ -52,7 +52,10 @@ void SReactiveUetkxHmrPanel::Construct(const FArguments&)
 	};
 
 	ChildSlot
-		[SNew(SBorder)
+		[SNew(SBox)
+			 .MinDesiredWidth(600)   // opens at ~600x500 when floating; still user-resizable
+			 .MinDesiredHeight(500)
+				 [SNew(SBorder)
 			 .BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
 			 .Padding(12)
 				 [SNew(SVerticalBox)
@@ -123,7 +126,7 @@ void SReactiveUetkxHmrPanel::Construct(const FArguments&)
 						[SNew(SBox)
 							 .MinDesiredHeight(60)
 								 [SNew(SScrollBox)
-								  + SScrollBox::Slot()[SAssignNew(ErrorListBox, SVerticalBox)]]]]];
+								  + SScrollBox::Slot()[SAssignNew(ErrorListBox, SVerticalBox)]]]]]];
 
 	RebuildErrorList();
 }
