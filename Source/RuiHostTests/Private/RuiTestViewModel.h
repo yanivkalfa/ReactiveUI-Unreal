@@ -75,9 +75,26 @@ private:
 	::UE::FieldNotification::FFieldMulticastDelegate Delegates;
 };
 
-/** Concrete UUserWidget for the theirs-inside-ours test (UUserWidget itself is abstract). */
+/** Concrete UUserWidget for the theirs-inside-ours test (UUserWidget itself is abstract). The typed
+ *  properties are the targets the TD-021 prop-map bridge sets by reflection. */
 UCLASS()
 class URuiTestUserWidget : public UUserWidget
 {
 	GENERATED_BODY()
+
+public:
+	UPROPERTY()
+	int32 IntValue = 0;
+
+	UPROPERTY()
+	float FloatValue = 0.0f;
+
+	UPROPERTY()
+	bool BoolValue = false;
+
+	UPROPERTY()
+	FText TextValue;
+
+	UPROPERTY()
+	FString StringValue;
 };

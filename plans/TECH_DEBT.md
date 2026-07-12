@@ -458,11 +458,36 @@ referenced from plans/PRs.
   "ours feeding theirs" direction, complementing the shipped UseField "theirs feeding ours". Test
   `ReactiveUI.Mvvm.ReverseBridge`: broadcast-on-change + equal-set skip + FRuiValue routing + a
   full round-trip (Rui writes VM → VM broadcasts → a UseField consumer re-renders). Full suite
-  68/68. **REMAINING (owner-gated):** (1) CommonUI activatables (URuiActivatableScreen/
-  UseActivation/UseInputMethod) and (3) per-class UMG prop maps + delegate trampolines both need
-  the CommonUI plugin enabled in the shipped demo `.uproject` + the D-27 optional-plugin-gating
-  decision exercised (a project-config change that is owner-territory); the MVVM plugin's
-  global-collection registration for URuiSignalViewModel likewise waits on enabling that plugin.
+  68/68.
+- **Status:** RESOLVED 2026-07-12 — all three plugin-coupled layers shipped after enabling CommonUI
+  + ModelViewViewModel (optional plugin refs in `ReactiveUI.uplugin` per D-27; build deps; both on in
+  the demo host `.uproject`; enablement verified non-destabilizing — full suite stayed 75/75, then
+  79/79 with the new suites).
+  - **CommonUI activatables: DONE.** `RuiActivation.h/.cpp` is the Rui-side seam — a plain context
+    (`FRuiActivationState{bActive, InputMethod}`) an `ActivationProvider` publishes and the tree reads
+    via `UseActivation`/`UseIsActive`/`UseInputMethod` (no UObject dependency → unit-testable headless).
+    `URuiActivatableScreen` (`RuiActivatableScreen.h/.cpp`) is the UObject: a `UCommonActivatableWidget`
+    that hosts a named component wrapped in ActivationProvider and re-renders on activation
+    (`NativeOnActivated/Deactivated`) + input-method change (best-effort `UCommonInputSubsystem` read,
+    guarded for player-less contexts). Tests: `ReactiveUI.CommonUI.Activation` (headless context
+    re-render) + `ReactiveUI.CommonUI.Screen` (a standalone game instance → `CreateWidget` → real
+    `ActivateWidget/DeactivateWidget` re-renders the hosted tree ACTIVE↔INACTIVE).
+  - **MVVM global-collection registration: DONE.** `URuiMvvmViewModel` (`RuiMvvmViewModel.h/.cpp`,
+    ReactiveUIMVVMBridge) is the MVVM-plugin sibling of `URuiSignalViewModel` — a `UMVVMViewModelBase`
+    (Int/Float/Bool/Text FieldNotify props, `UE_MVVM_SET_PROPERTY_VALUE` skip+broadcast, `Set(FRuiValue)`
+    routing) so it can be REGISTERED in the MVVM global viewmodel collection. `RUI::Mvvm::RegisterGlobalViewModel`
+    / `FindGlobalViewModel` add/resolve by context name via `UMVVMGameSubsystem→GetViewModelCollection`.
+    Test `ReactiveUI.Mvvm.GlobalCollection`: register → resolve-back-same-instance, unknown → null, Set
+    routing + fire-once broadcast + equal-set skip.
+  - **Per-class UMG prop maps: DONE.** `RUI::Umg::ApplyPropMap(UUserWidget*, FRuiStyleDict)` sets a
+    hosted widget's UPROPERTYs by reflection (int/int64/float/double/bool/string/text/name, type-matched
+    to the FRuiValue kind; unknown/mismatch skipped; `SynchronizeProperties` once the widget is
+    constructed). The `UserWidget` element carries a `WidgetProps` map applied at construction and
+    re-applied on diff (recovering the hosted widget via `SObjectWidget::GetWidgetObject`). Test
+    `ReactiveUI.Umg.PropMap`: direct reflection application (5 typed props + string→FText coercion +
+    unknown-skipped) and the end-to-end mounted element. **Note:** delegate TRAMPOLINES (binding Rui
+    callbacks to a hosted widget's dynamic multicast delegates) remain a follow-on — they need
+    per-signature UFUNCTION generation, a genuinely separate codegen effort.
 
 ## TD-022 — Asset brushes (D-17) + focus extensions + item-model list views
 - **Where:** `ReactiveUISlate` (+ `ReactiveUIUMG` for the GC root)

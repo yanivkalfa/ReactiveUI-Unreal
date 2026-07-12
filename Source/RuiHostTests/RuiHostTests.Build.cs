@@ -30,6 +30,10 @@ public class RuiHostTests : ModuleRules
 			"ReactiveUIInterp", // the .uetkx scanner/parser suites + VM/Hmr
 			"ReactiveUIToolchain", // the codegen suites
 			"ReactiveUIUMG",    // the Phase-6 interop suites (Umg/Mvvm)
+			"ReactiveUICommonUI", // the TD-021 CommonUI activatable suite
+			"CommonUI",         // UCommonActivatableWidget + ActivateWidget in the suite
+			"ReactiveUIMVVMBridge", // the TD-021 MVVM global-collection suite
+			"ModelViewViewModel",   // UMVVMViewModelBase + the global collection in the suite
 			"UMG",
 			"FieldNotification",
 			"Json",             // contract-corpus loading

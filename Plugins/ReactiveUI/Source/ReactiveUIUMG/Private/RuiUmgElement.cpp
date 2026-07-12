@@ -5,8 +5,83 @@
 #include "Blueprint/UserWidget.h"
 #include "RuiElementAdapter.h"
 #include "RuiSlateHost.h"
+#include "Slate/SObjectWidget.h"
+#include "UObject/UnrealType.h"
 #include "Widgets/SNullWidget.h"
 #include "Widgets/Text/STextBlock.h"
+
+int32 RUI::Umg::ApplyPropMap(UUserWidget* Widget, const FRuiStyleDict& WidgetProps)
+{
+	if (Widget == nullptr || WidgetProps.Num() == 0)
+	{
+		return 0;
+	}
+	UClass* Class = Widget->GetClass();
+	int32 Applied = 0;
+	for (const TPair<FName, FRuiValue>& Pair : WidgetProps)
+	{
+		FProperty* Prop = Class->FindPropertyByName(Pair.Key);
+		if (Prop == nullptr)
+		{
+			continue;
+		}
+		void* ValuePtr = Prop->ContainerPtrToValuePtr<void>(Widget);
+		const FRuiValue& V = Pair.Value;
+		bool bSet = true;
+
+		if (FIntProperty* IntProp = CastField<FIntProperty>(Prop))
+		{
+			IntProp->SetPropertyValue(ValuePtr, static_cast<int32>(V.IntValue));
+		}
+		else if (FInt64Property* Int64Prop = CastField<FInt64Property>(Prop))
+		{
+			Int64Prop->SetPropertyValue(ValuePtr, V.IntValue);
+		}
+		else if (FFloatProperty* FloatProp = CastField<FFloatProperty>(Prop))
+		{
+			FloatProp->SetPropertyValue(ValuePtr, static_cast<float>(V.FloatValue));
+		}
+		else if (FDoubleProperty* DoubleProp = CastField<FDoubleProperty>(Prop))
+		{
+			DoubleProp->SetPropertyValue(ValuePtr, V.FloatValue);
+		}
+		else if (FBoolProperty* BoolProp = CastField<FBoolProperty>(Prop))
+		{
+			BoolProp->SetPropertyValue(ValuePtr, V.BoolValue);
+		}
+		else if (FStrProperty* StrProp = CastField<FStrProperty>(Prop))
+		{
+			StrProp->SetPropertyValue(ValuePtr,
+									  V.Kind == FRuiValue::EKind::Text ? V.TextValue.ToString() : V.StringValue);
+		}
+		else if (FTextProperty* TextProp = CastField<FTextProperty>(Prop))
+		{
+			TextProp->SetPropertyValue(ValuePtr, V.Kind == FRuiValue::EKind::Text ? V.TextValue
+																				  : FText::FromString(V.StringValue));
+		}
+		else if (FNameProperty* NameProp = CastField<FNameProperty>(Prop))
+		{
+			NameProp->SetPropertyValue(ValuePtr,
+									   V.Kind == FRuiValue::EKind::Name ? V.NameValue : FName(*V.StringValue));
+		}
+		else
+		{
+			bSet = false; // an unsupported property type — skipped, not an error
+		}
+
+		if (bSet)
+		{
+			++Applied;
+		}
+	}
+	// Push the new values into the widget's Slate representation — only once it has one (a hosted
+	// widget after TakeWidget). Skips safely for a bare, un-constructed widget (direct tool/test use).
+	if (Applied > 0 && Widget->GetCachedWidget().IsValid())
+	{
+		Widget->SynchronizeProperties();
+	}
+	return Applied;
+}
 
 namespace
 {
@@ -30,19 +105,44 @@ namespace
 			{
 				return SNew(STextBlock).Text(NSLOCTEXT("ReactiveUI", "UmgFailed", "<UMG: CreateWidget failed>"));
 			}
-			// TakeWidget -> SObjectWidget, which holds the strong UObject reference: the hosted
-			// widget lives exactly as long as its Slate representation (UMG's own contract).
+			// Apply the initial prop map, then TakeWidget -> SObjectWidget (holds the strong UObject
+			// ref: the hosted widget lives exactly as long as its Slate representation, UMG's contract).
+			RUI::Umg::ApplyPropMap(Widget, Props.WidgetProps);
 			return Widget->TakeWidget();
 		}
 
-		virtual void ApplyDiff(SWidget&, const FRuiPropsBase*, const FRuiPropsBase&) override
+		virtual void ApplyDiff(SWidget& Widget, const FRuiPropsBase* Old, const FRuiPropsBase& New) override
 		{
-			// The hosted widget manages its own state; class/world changes reconstruct instead.
+			// Re-apply the prop map on change: recover the hosted UUserWidget from its SObjectWidget.
+			const FRuiUmgProps& N = static_cast<const FRuiUmgProps&>(New);
+			const FRuiUmgProps* O = static_cast<const FRuiUmgProps*>(Old);
+			if (!N.HasWidgetProps())
+			{
+				return;
+			}
+			if (O != nullptr && O->HasWidgetProps() && N.WidgetProps.OrderIndependentCompareEqual(O->WidgetProps))
+			{
+				return;
+			}
+			if (Widget.GetType() == FName(TEXT("SObjectWidget")))
+			{
+				if (UUserWidget* Hosted = static_cast<SObjectWidget&>(Widget).GetWidgetObject())
+				{
+					RUI::Umg::ApplyPropMap(Hosted, N.WidgetProps);
+				}
+			}
 		}
 
 		virtual uint64 GetReconstructMask() const override
 		{
-			return 0b11; // WidgetClass + World are construct-only
+			return 0b11; // WidgetClass + World are construct-only; WidgetProps applies in place
+		}
+
+		virtual bool ConstructOnlyChanged(const FRuiPropsBase& Old, const FRuiPropsBase& New) const override
+		{
+			const FRuiUmgProps& O = static_cast<const FRuiUmgProps&>(Old);
+			const FRuiUmgProps& N = static_cast<const FRuiUmgProps&>(New);
+			return !(O.WidgetClass == N.WidgetClass) || !(O.World == N.World);
 		}
 
 		virtual bool IsPoolable() const override { return false; } // carries a live UObject
@@ -68,17 +168,32 @@ namespace RUI::Umg
 		RUI::Slate::RegisterAdapter(UmgElementType(), MakeUnique<FRuiUmgAdapter>());
 	}
 
-	FRuiNode UserWidget(TSubclassOf<UUserWidget> WidgetClass, UWorld* World, FRuiKey Key)
+	static FRuiNode MakeUmgNode(TSubclassOf<UUserWidget> WidgetClass, UWorld* World, FRuiStyleDict WidgetProps,
+								FRuiKey Key)
 	{
 		RegisterUmgAdapters();
 		FRuiUmgProps Props;
 		Props.SetWidgetClass(MoveTemp(WidgetClass));
 		Props.SetWorld(World);
+		if (WidgetProps.Num() > 0)
+		{
+			Props.SetWidgetProps(MoveTemp(WidgetProps));
+		}
 		FRuiNode Node;
 		Node.Kind = ERuiNodeKind::Host;
 		Node.ElementType = UmgElementType();
 		Node.Props = MakeShared<FRuiUmgProps>(MoveTemp(Props));
 		Node.Key = Key;
 		return Node;
+	}
+
+	FRuiNode UserWidget(TSubclassOf<UUserWidget> WidgetClass, UWorld* World, FRuiKey Key)
+	{
+		return MakeUmgNode(MoveTemp(WidgetClass), World, FRuiStyleDict(), Key);
+	}
+
+	FRuiNode UserWidget(TSubclassOf<UUserWidget> WidgetClass, UWorld* World, FRuiStyleDict WidgetProps, FRuiKey Key)
+	{
+		return MakeUmgNode(MoveTemp(WidgetClass), World, MoveTemp(WidgetProps), Key);
 	}
 } // namespace RUI::Umg
