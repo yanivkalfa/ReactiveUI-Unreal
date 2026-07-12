@@ -661,6 +661,19 @@ referenced from plans/PRs.
   shrinks to parser-only.
 - **Sub-item deferred within v2:** the `Demos/…` submenu (port of the sibling's demo launchers under
   `ReactiveUetkx`) is NOT in the v2 scope — the PIE gallery already covers the demos; a menu launcher
-  is a later nicety.
-- **Status:** OPEN — plan FINALIZED (`plans/HMR_V2_PLAN.md`, decisions D-HMR-1..9), ready to build on
-  the owner's go.
+  is a later nicety. Tracked as **TD-HMR-DEMOS** (below).
+- **Status:** ✅ RESOLVED — shipped across `67f7035` (controller + watcher debounce), `1253510`
+  (interpreter deleted; `ReactiveUIInterp` now parser-only; preview + acceptance §5 reworked to the
+  compiled component), `fa819dc` (`ReactiveUetkx` menu + `SReactiveUetkxHmrPanel` window), `95db6ac`
+  (commands + settings + in-window rebinding), `b02390f` (repeat-key bughunt). Build OK; drift 23/0/0;
+  suite 99/99; gates green. Two deliberate naming deviations recorded in `plans/HMR_V2_PLAN.md`'s
+  status banner (controller is `FUetkxHmrController` not `FRuiHmr`; shortcut chords live only in the
+  input binding manager, not the settings object). The live Live-Coding loop is owner-verified
+  in-editor (no headless test can drive Live Coding).
+
+## TD-HMR-DEMOS — `ReactiveUetkx ▸ Demos` launcher submenu
+- **Where:** `ReactiveUetkxMenu.cpp` (a new `Demos` submenu next to HMR Mode / Preview / Debug).
+- **What/why deferred:** the Unity sibling's `ReactiveUITK` menu launches each demo scene from the menu;
+  ours could invoke the PIE gallery screens by name. Out of HMR v2 scope — the PIE gallery already
+  exercises every demo, so a menu launcher is a convenience, not a gap.
+- **Status:** OPEN — low priority; pick up when the gallery grows enough that a jump-list earns its keep.

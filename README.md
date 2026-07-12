@@ -16,8 +16,8 @@ update in under a second, no C++ recompile, no script VM in your shipped game.
 > stub-free), 35+ wrapped Slate widgets with setter styling (the core set + the batch-2 everyday
 > widgets + specials — ExpandableArea/SegmentedControl/NumericEntryBox/ComboBox/SuggestionTextBox)
 > plus **virtualized `ListView`/`TileView`**, the `.uetkx` compiler (committed codegen +
-> `RUICompile`/drift-gate/contract commandlets), live hot reload mid-session (expression VM +
-> interpreter + editor watcher), the full **router** subsystem (17 hooks), **`@theme`/`@uss`
+> `RUICompile`/drift-gate/contract commandlets), live hot reload mid-session (Unreal Live Coding +
+> editor watcher, whole-project, state preserved), the full **router** subsystem (17 hooks), **`@theme`/`@uss`
 > stylesheets**, **exit animations** (`<Presence>`), **drag-and-drop** + keyboard shortcuts,
 > first-class **CommonUI/MVVM citizenship** (activatable screens, MVVM global collection, UMG
 > prop-map bridge), an **in-editor `.uetkx` live preview**, and VS Code/VS2022 language tooling
@@ -67,7 +67,7 @@ reversed ≈ **178 µs**; minimal-move single reorder ≈ **3 µs**.
 
 The reconciler with all 23 family hooks · 25 wrapped Slate widgets plus a virtualized list ·
 setter-based styling (a style tweak never rebuilds a widget) · the `.uetkx` compiler
-(compile-to-C++ for shipping, interpret-live for dev) · **static imports/exports** (`import { A }
+(compile-to-C++ for shipping, Live-Coding hot reload for dev) · **static imports/exports** (`import { A }
 from "./x"` / `~/` root alias, `export` for cross-file reach with privacy-by-default, mixed
 component/hook/module files, strict resolution enforced by the compiler, and a one-command
 `-run=RUIMigrateImports` codemod to upgrade an existing project) · VS Code + VS2022 extensions on
