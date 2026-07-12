@@ -13,6 +13,7 @@
 
 #pragma once
 
+#include "Containers/Ticker.h"
 #include "CoreMinimal.h"
 
 /** One HMR reload's outcome — surfaced to the Message Log and (Phase 2) the HMR window. */
@@ -50,13 +51,12 @@ public:
 	/** STOP the mode: unsubscribe; per bDisableSessionOnStop, leave or disable the Live Coding session. */
 	void Stop();
 
-	/** Apply the ReactiveUetkx "Hide the Live Coding console" setting to Live Coding's startup-mode config
-	 *  (AutomaticButHidden ↔ Automatic). Respects a user who chose Manual. Takes effect next editor start. */
-	void ApplyConsoleVisibilitySetting();
-
 	/** Subscribe / unsubscribe the PIE begin+end hooks that drive "Follow Play" (bFollowPie). */
 	void RegisterPieHooks();
 	void UnregisterPieHooks();
+
+	/** The window checkbox toggled bHideLiveCodingConsole while HMR is active → start/stop the hider now. */
+	void RefreshConsoleHiderState();
 
 	bool IsActive() const { return bActive; }
 	const FUetkxHmrStatus& GetStatus() const { return Status; }
@@ -83,6 +83,15 @@ private:
 	void OnPiePostStarted(bool bSimulating);
 	void OnPieEnded(bool bSimulating);
 
+	// Epic's Live Coding console can't be suppressed by config (AutomaticButHidden still re-shows on every
+	// compile — a known, unfixed engine limitation). While HMR is active + bHideLiveCodingConsole, a short
+	// ticker finds that external window and keeps it hidden (SW_HIDE), so our HMR window is the only UI.
+	// Scoped to HMR-active so we never touch Epic's console when the user isn't using our HMR. Windows-only
+	// (Live Coding itself is Windows-only). Non-invasive: no config/engine changes, window visibility only.
+	void StartConsoleHider();
+	void StopConsoleHider();
+	bool ConsoleHiderTick(float);
+
 	bool bActive = false;
 	bool bDirtyAgain = false; // a change arrived mid-compile → run one more cycle on completion
 	double CycleStartSeconds = 0.0;
@@ -91,4 +100,6 @@ private:
 	FDelegateHandle PatchCompleteHandle;
 	FDelegateHandle PiePostStartedHandle;
 	FDelegateHandle PieEndedHandle;
+	FTSTicker::FDelegateHandle ConsoleHiderHandle;
+	void* CachedConsoleHwnd = nullptr; // HWND of Epic's "<Project> - Live Coding" window, once found
 };

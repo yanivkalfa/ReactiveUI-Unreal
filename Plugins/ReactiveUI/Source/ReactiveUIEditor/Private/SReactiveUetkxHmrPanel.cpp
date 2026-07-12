@@ -5,7 +5,6 @@
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Commands/InputBindingManager.h"
 #include "Framework/Commands/UICommandInfo.h"
-#include "Framework/Notifications/NotificationManager.h"
 #include "HAL/PlatformMemory.h"
 #include "Logging/LogMacros.h"
 #include "ReactiveUetkxCommands.h"
@@ -18,7 +17,6 @@
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SScrollBox.h"
-#include "Widgets/Notifications/SNotificationList.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
 
@@ -114,7 +112,7 @@ void SReactiveUetkxHmrPanel::Construct(const FArguments&)
 							 .OnCheckStateChanged(this, &SReactiveUetkxHmrPanel::OnHideConsoleChanged)
 								 [SNew(STextBlock)
 									  .Font(StatFont)
-									  .Text(LOCTEXT("HideConsole", "Hide the Live Coding console (restart to apply)"))]]
+									  .Text(LOCTEXT("HideConsole", "Hide the Live Coding console while HMR is active"))]]
 				  + SVerticalBox::Slot().AutoHeight().Padding(0, 1)
 						[SNew(SCheckBox)
 							 .IsChecked(this, &SReactiveUetkxHmrPanel::IsFollowPieChecked)
@@ -262,11 +260,7 @@ void SReactiveUetkxHmrPanel::OnHideConsoleChanged(ECheckBoxState NewState)
 	UReactiveUetkxEditorSettings* Settings = GetMutableDefault<UReactiveUetkxEditorSettings>();
 	Settings->bHideLiveCodingConsole = (NewState == ECheckBoxState::Checked);
 	Settings->SaveConfig();
-	FUetkxHmrController::Get().ApplyConsoleVisibilitySetting(); // writes the Live Coding startup mode
-	FNotificationInfo Info(LOCTEXT("RestartToApply",
-								   "Live Coding console visibility changed — restart the editor to apply."));
-	Info.ExpireDuration = 4.0f;
-	FSlateNotificationManager::Get().AddNotification(Info);
+	FUetkxHmrController::Get().RefreshConsoleHiderState(); // start/stop the window hider immediately if active
 }
 
 ECheckBoxState SReactiveUetkxHmrPanel::IsFollowPieChecked() const

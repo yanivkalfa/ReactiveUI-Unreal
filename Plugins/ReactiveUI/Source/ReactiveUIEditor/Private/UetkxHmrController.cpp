@@ -8,8 +8,13 @@
 #include "Modules/ModuleManager.h"
 #include "ReactiveUetkxEditorSettings.h"
 #include "RuiReconciler.h"
-#include "UObject/UnrealType.h"
 #include "Widgets/Notifications/SNotificationList.h"
+
+#if PLATFORM_WINDOWS
+#include "Windows/AllowWindowsPlatformTypes.h"
+#include <Windows.h>
+#include "Windows/HideWindowsPlatformTypes.h"
+#endif
 
 DEFINE_LOG_CATEGORY_STATIC(LogUetkxHmr, Log, All);
 
@@ -19,6 +24,22 @@ namespace
 	{
 		return FModuleManager::GetModulePtr<ILiveCodingModule>(TEXT("LiveCoding"));
 	}
+
+#if PLATFORM_WINDOWS
+	// Epic's Live Coding console is a separate process; its window title is "<Project> - Live Coding".
+	HWND GFoundLiveCodingConsole = nullptr;
+	BOOL CALLBACK FindLiveCodingConsoleProc(HWND Hwnd, LPARAM)
+	{
+		WCHAR Title[256] = {};
+		::GetWindowTextW(Hwnd, Title, UE_ARRAY_COUNT(Title));
+		if (FString(Title).EndsWith(TEXT(" - Live Coding")))
+		{
+			GFoundLiveCodingConsole = Hwnd;
+			return 0; // found it — stop enumerating (FALSE)
+		}
+		return 1; // keep enumerating (TRUE)
+	}
+#endif
 } // namespace
 
 FUetkxHmrController& FUetkxHmrController::Get()
@@ -63,6 +84,7 @@ bool FUetkxHmrController::Start(FString& OutError)
 	PatchCompleteHandle = LC->GetOnPatchCompleteDelegate().AddRaw(this, &FUetkxHmrController::OnPatchComplete);
 	bActive = true;
 	bDirtyAgain = false;
+	StartConsoleHider(); // keep Epic's console window hidden while HMR drives the compiles (opt-out setting)
 	UE_LOG(LogUetkxHmr, Display, TEXT("[RUI HMR] started (Live Coding mode ON — external builds pause while active)"));
 	OnStatusChanged.Broadcast();
 	return true;
@@ -93,6 +115,7 @@ void FUetkxHmrController::StopInternal(bool bForceDisableSession)
 		}
 	}
 	PatchCompleteHandle.Reset();
+	StopConsoleHider();
 	bActive = false;
 	bDirtyAgain = false;
 	UE_LOG(LogUetkxHmr, Display, TEXT("[RUI HMR] stopped%s"),
@@ -111,46 +134,64 @@ void FUetkxHmrController::Shutdown()
 	OnStatusChanged.Clear();
 }
 
-void FUetkxHmrController::ApplyConsoleVisibilitySetting()
+void FUetkxHmrController::StartConsoleHider()
 {
-	// Live Coding's console window is governed by its Startup mode (ULiveCodingSettings::Startup,
-	// EditorPerProjectUserSettings, ConfigRestartRequired). We can't include its private header or call
-	// its private HideConsole(), so we set the enum on its CDO via reflection and SaveConfig() — the
-	// authoritative path (a raw GConfig write gets clobbered when the settings object re-saves on close):
-	//   AutomaticButHidden → the console runs as the compile server but shows no window (our window is UI).
-	//   Automatic          → Epic's console shows (the stock behaviour).
-	// A user who deliberately chose "Manual" is left untouched. Takes effect on the next editor start.
-	UClass* SettingsClass = FindObject<UClass>(nullptr, TEXT("/Script/LiveCoding.LiveCodingSettings"));
-	if (SettingsClass == nullptr)
-	{
-		return; // Live Coding not available in this build
-	}
-	FEnumProperty* StartupProp = CastField<FEnumProperty>(SettingsClass->FindPropertyByName(TEXT("Startup")));
-	UObject* SettingsCDO = SettingsClass->GetDefaultObject();
-	if (StartupProp == nullptr || SettingsCDO == nullptr)
+	if (ConsoleHiderHandle.IsValid() || !GetDefault<UReactiveUetkxEditorSettings>()->bHideLiveCodingConsole)
 	{
 		return;
 	}
-	UEnum* Enum = StartupProp->GetEnum();
-	FNumericProperty* Underlying = StartupProp->GetUnderlyingProperty();
-	void* ValuePtr = StartupProp->ContainerPtrToValuePtr<void>(SettingsCDO);
-	const int64 ManualVal = Enum->GetValueByNameString(TEXT("Manual"));
-	const int64 HiddenVal = Enum->GetValueByNameString(TEXT("AutomaticButHidden"));
-	const int64 AutoVal = Enum->GetValueByNameString(TEXT("Automatic"));
-	const int64 CurrentVal = Underlying->GetSignedIntPropertyValue(ValuePtr);
-	if (CurrentVal == ManualVal)
+	CachedConsoleHwnd = nullptr;
+	// A light poll (every ~0.2s) is needed because Live Coding re-shows its console (BringToFront) on
+	// every compile — a config setting cannot stop that (known engine limitation). Only runs while active.
+	ConsoleHiderHandle = FTSTicker::GetCoreTicker().AddTicker(
+		FTickerDelegate::CreateRaw(this, &FUetkxHmrController::ConsoleHiderTick), 0.2f);
+	ConsoleHiderTick(0.0f); // hide immediately if it's already up
+}
+
+void FUetkxHmrController::StopConsoleHider()
+{
+	if (ConsoleHiderHandle.IsValid())
 	{
-		return; // respect a user who chose Manual
+		FTSTicker::GetCoreTicker().RemoveTicker(ConsoleHiderHandle);
+		ConsoleHiderHandle.Reset();
 	}
-	const int64 DesiredVal =
-		GetDefault<UReactiveUetkxEditorSettings>()->bHideLiveCodingConsole ? HiddenVal : AutoVal;
-	if (CurrentVal != DesiredVal)
+	CachedConsoleHwnd = nullptr;
+	// We do NOT restore the window: Live Coding re-shows it (BringToFront) on the user's next compile, so
+	// stopping the hider is enough — their own C++ builds get Epic's console back with no action from us.
+}
+
+bool FUetkxHmrController::ConsoleHiderTick(float)
+{
+#if PLATFORM_WINDOWS
+	HWND Hwnd = static_cast<HWND>(CachedConsoleHwnd);
+	if (Hwnd == nullptr || !::IsWindow(Hwnd))
 	{
-		Underlying->SetIntPropertyValue(ValuePtr, DesiredVal);
-		SettingsCDO->SaveConfig();
-		UE_LOG(LogUetkxHmr, Display,
-			   TEXT("[RUI HMR] Live Coding console startup set to '%s' — restart the editor for it to take effect."),
-			   DesiredVal == HiddenVal ? TEXT("AutomaticButHidden") : TEXT("Automatic"));
+		GFoundLiveCodingConsole = nullptr;
+		::EnumWindows(&FindLiveCodingConsoleProc, 0);
+		Hwnd = GFoundLiveCodingConsole;
+		CachedConsoleHwnd = Hwnd;
+	}
+	if (Hwnd != nullptr && ::IsWindowVisible(Hwnd))
+	{
+		::ShowWindow(Hwnd, SW_HIDE);
+	}
+#endif
+	return true; // keep ticking while active
+}
+
+void FUetkxHmrController::RefreshConsoleHiderState()
+{
+	if (!bActive)
+	{
+		return; // only manage the console while HMR is running
+	}
+	if (GetDefault<UReactiveUetkxEditorSettings>()->bHideLiveCodingConsole)
+	{
+		StartConsoleHider();
+	}
+	else
+	{
+		StopConsoleHider();
 	}
 }
 

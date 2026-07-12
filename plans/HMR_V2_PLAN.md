@@ -5,10 +5,13 @@
 > Live-Coding loop in-editor (the one leg no headless test can cover) per the acceptance checklist.
 >
 > **DX follow-ups (post-ship, owner-requested):**
-> - **Hide Epic's Live Coding console** — steer Live Coding's startup mode to `AutomaticButHidden` (the
->   console still runs as the compile server, no window; our HMR window is the status UI). Setting
->   `bHideLiveCodingConsole` (default on); written to `EditorPerProjectUserSettings.ini`, takes effect on
->   restart. Respects a user who chose `Manual`.
+> - **Hide Epic's Live Coding console** — Epic offers NO supported way: `AutomaticButHidden` only hides it
+>   at idle and Live Coding re-shows it (`BringToFront`) on every compile (known, unfixed engine bug; the
+>   only "clean" fix is patching + recompiling `LiveCodingConsole.exe`, which we can't ship). So while HMR
+>   is active (+ `bHideLiveCodingConsole`, default on) a 0.2s ticker finds the `"<Project> - Live Coding"`
+>   window and `SW_HIDE`s it — Win32, scoped to HMR-active, no config/engine writes (the earlier
+>   config-rewrite approach was reverted as invasive AND ineffective). Brief per-compile flicker is
+>   unavoidable without patching Epic's exe.
 > - **Follow Play** — `bFollowPie` (default off): `FEditorDelegates::PostPIEStarted` starts HMR on Play,
 >   `EndPIE` stops it AND disables the Live Coding session (frees external builds while you edit). The
 >   Unity-sibling model: Live Coding only holds the build while you are actually playing.

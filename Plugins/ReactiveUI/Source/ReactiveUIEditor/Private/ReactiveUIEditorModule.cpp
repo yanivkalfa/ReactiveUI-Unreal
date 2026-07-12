@@ -44,9 +44,9 @@ public:
 		RegisterPreviewTab();
 		RegisterHmrWindowTab();
 
-		// HMR v2 DX: keep Epic's Live Coding console windowless (our HMR window is the status UI), and
-		// let "Follow Play" drive the session from the PIE Play/Stop buttons.
-		FUetkxHmrController::Get().ApplyConsoleVisibilitySetting();
+		// HMR v2 DX: let "Follow Play" drive the session from the PIE Play/Stop buttons. (Epic's Live
+		// Coding console is hidden only while HMR is active — see FUetkxHmrController's console hider —
+		// so the plugin never rewrites the user's Live Coding config.)
 		FUetkxHmrController::Get().RegisterPieHooks();
 
 		// Rebindable, default-unbound shortcuts (D-HMR-6) + a global key preprocessor to fire them.
