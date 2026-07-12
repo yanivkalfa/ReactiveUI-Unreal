@@ -120,7 +120,17 @@ referenced from plans/PRs.
   list).
 - **Production-grade resolution:** preview panel rendering a mounted component per open
   `.uetkx`, then (maybe) an editing tab.
-- **Status:** OPEN
+- **Status:** RESOLVED 2026-07-12 — the read-only live preview shipped. `FUetkxPreview`
+  (`ReactiveUIEditor/UetkxPreview.h/.cpp`) is the headless-testable core: scan (`FUetkxFileScan::Scan`)
+  → pick a component (first or by name) → build the dev-loop interpreter def (`FUetkxInterpDef::Build`)
+  → mount it as a live `FRuiRoot`, collecting parse diagnostics + interpreter fallback notes. Always
+  returns a preview — on failure a placeholder widget + messages, never a crash. `SUetkxPreviewPanel`
+  is the Slate shell (path box + Load, a live preview area, a scrolling message list); the editor
+  module registers it as a **nomad tab** (`ReactiveUIPreview`) with a Tools-menu entry (guarded to the
+  Slate-app path, so commandlets skip it). Test `ReactiveUI.Editor.Preview`: a valid component mounts a
+  real widget, named-component selection (+ missing-name message), no-component and unterminated-parse
+  sources yield a placeholder + surfaced diagnostics. The interactive tab UX is owner-verified in the
+  editor; the mount/diagnostic pipeline is automated. (An editing tab remains the someday-step.)
 
 ## TD-007 — On-device remote reload (Phase-4-style, over TCP)
 - **Where:** `ReactiveUIInterp` + a device transport
@@ -297,7 +307,12 @@ referenced from plans/PRs.
 - **Production-grade resolution:** decide post-v1 whether proxy assets earn their keep
   (Epic's Verse files ship WITHOUT Content-Browser presence; precedent says source stays in
   the IDE). If yes: UAssetDefinition + factory + a sync pass in the Phase-4 watcher.
-- **Status:** OPEN
+- **Status:** OPEN — **owner design decision, deliberately not built.** This is not glue: it needs a
+  proxy-asset design (a `UAssetDefinition` + factory importing a pointer-asset per `.uetkx` source
+  file) whose value is genuinely in question — Epic's own Verse files ship WITHOUT Content-Browser
+  presence (source stays in the IDE). Building speculative proxy assets against that precedent would be
+  the wrong call; the in-editor preview tab (TD-006) now covers the "see a `.uetkx` inside the editor"
+  need without importing anything. Left for the owner to decide if proxy assets earn their keep.
 
 ## TD-015 — `.uetkx` v1 grammar limits (deliberate cuts, family Phase-C class)
 - **Where:** `ReactiveUIToolchain` codegen / `ReactiveUIInterp` file scan

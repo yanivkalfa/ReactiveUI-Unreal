@@ -25,8 +25,12 @@ public class ReactiveUIEditor : ModuleRules
 			"CoreUObject",		 // commandlet UCLASSes
 			"Engine",			 // UCommandlet base
 			"Projects",			 // sweep roots
-			"ReactiveUIInterp",	 // FRuiHmr (editor-only module — the Interp linkage rule allows it)
+			"ReactiveUICore",	 // FRuiNode / FRuiRoot (the preview panel, TD-006)
+			"ReactiveUISlate",	 // FRuiRoot mount surface (the preview panel, TD-006)
+			"ReactiveUIInterp",	 // FRuiHmr + FUetkxInterpDef (editor-only module — Interp linkage rule allows it)
 			"ReactiveUIToolchain", // FUetkxDriver / FUetkxCodegen
+			"InputCore",		 // SEditableTextBox in the preview panel
+			"ToolMenus",		 // the Tools-menu entry for the preview tab
 			"DirectoryWatcher",	 // watcher trigger 1
 			"Slate",			 // window-activation trigger
 			"SlateCore",

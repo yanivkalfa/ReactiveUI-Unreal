@@ -29,6 +29,7 @@ public class RuiHostTests : ModuleRules
 			"RuiDemo",          // the Demos suite mounts the gallery
 			"ReactiveUIInterp", // the .uetkx scanner/parser suites + VM/Hmr
 			"ReactiveUIToolchain", // the codegen suites
+			"ReactiveUIEditor", // the TD-006 .uetkx preview suite (FUetkxPreview)
 			"ReactiveUIUMG",    // the Phase-6 interop suites (Umg/Mvvm)
 			"ReactiveUICommonUI", // the TD-021 CommonUI activatable suite
 			"CommonUI",         // UCommonActivatableWidget + ActivateWidget in the suite
