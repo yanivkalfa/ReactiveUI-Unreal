@@ -297,6 +297,14 @@ export function importCursorAt(text: string, off: number): ImportCursor | null {
     const q = before.lastIndexOf('"');
     return { kind: "import-specifier", partial: before.slice(q + 1) };
   }
+  // A COMPLETE `from "…"` before the cursor means the import statement is already closed; the cursor is
+  // in later code, so a subsequent `{` (e.g. a `component App {` body brace) must NOT be read as an open
+  // import name-list. Without this, <Tag> completion inside a component that follows an import dropped all
+  // host elements (routed to the import-name branch). Multi-line imports still work: their `from` is after
+  // the cursor, so this does not match while the name list is being typed.
+  if (/\bfrom\s*"[^"]*"/.test(before)) {
+    return null;
+  }
   // inside the `{ … }` name list (open brace with no matching close before the cursor)?
   if (before.lastIndexOf("{") > before.lastIndexOf("}")) {
     // The specifier may be on a LATER line — search the whole statement, not just `before`.

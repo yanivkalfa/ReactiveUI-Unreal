@@ -221,6 +221,10 @@ test("importCursorAt: name-list vs specifier vs not-an-import", () => {
   assert.strictEqual((specCtx as { partial: string }).partial, "./B");
   // a component body line is not an import (kept below the multi-line case)
   assert.strictEqual(importCursorAt("component App { return ( <Badge\n", 30), null);
+  // regression: a component body FOLLOWING an import — the component's `{` must not be read as an open
+  // import name-list (this dropped host elements from <Tag> completion). Cursor in the `<Badge>` tag.
+  const importThenBody = 'import { Badge } from "./B"\ncomponent App {\n\treturn ( <Badge /> );\n}\n';
+  assert.strictEqual(importCursorAt(importThenBody, importThenBody.indexOf("<Badge") + 4), null);
   // LSP-3 (LSW): a MULTI-LINE import statement — a cursor on a continuation line still classifies
   const multi = "import {\n  Alpha,\n  Be\n} from \"./B\"\n";
   const multiCtx = importCursorAt(multi, multi.indexOf("Be") + 2);
