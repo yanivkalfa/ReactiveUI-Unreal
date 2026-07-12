@@ -7,6 +7,7 @@
 #include "Input/Events.h"
 #include "RuiContext.h"
 #include "RuiHooksInternal.h"
+#include "RuiSlateHost.h"
 
 bool RUI::Slate::FRuiShortcut::Matches(const FKeyEvent& Event) const
 {
@@ -81,4 +82,73 @@ void RUI::Slate::UseShortcut(FRuiContext& Ctx, const FRuiShortcut& Chord, TFunct
 			};
 		},
 		RUI::Deps(Chord.DepKey()));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// TD-022 — focus extensions
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+namespace
+{
+	/** The SWidget behind a host handle (null-safe). */
+	TSharedPtr<SWidget> WidgetOf(const FRuiHostHandle& Handle)
+	{
+		if (FRuiSlateNode* Node = FRuiSlateHost::Resolve(Handle))
+		{
+			return Node->Widget;
+		}
+		return nullptr;
+	}
+} // namespace
+
+void RUI::Slate::FocusWidget(const FRuiHostHandle& Handle)
+{
+	if (!FSlateApplication::IsInitialized())
+	{
+		return;
+	}
+	if (TSharedPtr<SWidget> Widget = WidgetOf(Handle))
+	{
+		FSlateApplication::Get().SetUserFocus(FSlateApplication::CursorUserIndex, Widget, EFocusCause::SetDirectly);
+	}
+}
+
+void RUI::Slate::ClearFocus()
+{
+	if (FSlateApplication::IsInitialized())
+	{
+		FSlateApplication::Get().ClearUserFocus(FSlateApplication::CursorUserIndex, EFocusCause::SetDirectly);
+	}
+}
+
+RUI::Slate::FRuiFocusHandle RUI::Slate::UseFocus(FRuiContext& Ctx)
+{
+	// A stable weak box the ref keeps in sync (attach -> widget, detach -> null); Focus/IsFocused
+	// read it. Ref/Focus/IsFocused capture the same box, so they stay valid for the component's life.
+	TSharedRef<TRuiRef<TWeakPtr<SWidget>>> Box = Ctx.UseRef<TWeakPtr<SWidget>>();
+
+	FRuiFocusHandle Handle;
+	Handle.Ref = [Box](const FRuiHostHandle& H) { Box->Current = WidgetOf(H); };
+	Handle.Focus = [Box]()
+	{
+		if (!FSlateApplication::IsInitialized())
+		{
+			return;
+		}
+		if (TSharedPtr<SWidget> Widget = Box->Current.Pin())
+		{
+			FSlateApplication::Get().SetUserFocus(FSlateApplication::CursorUserIndex, Widget, EFocusCause::SetDirectly);
+		}
+	};
+	Handle.IsFocused = [Box]() -> bool
+	{
+		if (!FSlateApplication::IsInitialized())
+		{
+			return false;
+		}
+		const TSharedPtr<SWidget> Widget = Box->Current.Pin();
+		return Widget.IsValid() &&
+			   FSlateApplication::Get().GetUserFocusedWidget(FSlateApplication::CursorUserIndex) == Widget;
+	};
+	return Handle;
 }

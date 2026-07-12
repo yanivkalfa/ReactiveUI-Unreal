@@ -31,7 +31,7 @@ namespace
 {
 	// ── shared parsers (batch-2-local; the box-panel set lives in RuiCoreAdapters.cpp) ─────
 
-	EHorizontalAlignment HAlignOf(FName Value)
+	EHorizontalAlignment HAlignB2(FName Value)
 	{
 		if (Value == FName(TEXT("left")))
 		{
@@ -48,7 +48,7 @@ namespace
 		return HAlign_Fill;
 	}
 
-	EVerticalAlignment VAlignOf(FName Value)
+	EVerticalAlignment VAlignB2(FName Value)
 	{
 		if (Value == FName(TEXT("top")))
 		{
@@ -147,11 +147,11 @@ namespace
 		}
 		if (const FRuiValue* H = SlotProps->Find(FName(TEXT("slot.halign"))))
 		{
-			Slot.HAlign(HAlignOf(H->Kind == FRuiValue::EKind::Name ? H->NameValue : FName(*H->StringValue)));
+			Slot.HAlign(HAlignB2(H->Kind == FRuiValue::EKind::Name ? H->NameValue : FName(*H->StringValue)));
 		}
 		if (const FRuiValue* V = SlotProps->Find(FName(TEXT("slot.valign"))))
 		{
-			Slot.VAlign(VAlignOf(V->Kind == FRuiValue::EKind::Name ? V->NameValue : FName(*V->StringValue)));
+			Slot.VAlign(VAlignB2(V->Kind == FRuiValue::EKind::Name ? V->NameValue : FName(*V->StringValue)));
 		}
 	}
 
@@ -630,7 +630,7 @@ public:
 		const FRuiUniformWrapPanelProps& N = static_cast<const FRuiUniformWrapPanelProps&>(New);
 		const FRuiUniformWrapPanelProps* O = static_cast<const FRuiUniformWrapPanelProps*>(Old);
 		RUI_ROW(SlotPadding, W.SetSlotPadding(FMargin(N.SlotPadding)))
-		RUI_ROW(HAlign, W.SetHorizontalAlignment(HAlignOf(N.HAlign)))
+		RUI_ROW(HAlign, W.SetHorizontalAlignment(HAlignB2(N.HAlign)))
 	}
 
 	virtual void InsertChild(SWidget& Parent, const TSharedRef<SWidget>& Child, int32, const FRuiStyleDict*) override
