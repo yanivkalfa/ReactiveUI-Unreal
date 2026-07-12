@@ -35,6 +35,7 @@ public class RuiHostTests : ModuleRules
 			"Json",             // contract-corpus loading
 			"SlateCore",
 			"Slate",
+			"InputCore",        // EKeys / FKeyEvent for the shortcut suite
 		});
 	}
 }

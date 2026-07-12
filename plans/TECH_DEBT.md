@@ -45,7 +45,13 @@ referenced from plans/PRs.
   (Phase 2/6); DnD + shortcuts are additive APIs (critique gap 15 tail).
 - **Production-grade resolution:** typed DnD props over Slate's drag-drop ops + shortcut
   registration hook, with demos.
-- **Status:** OPEN
+- **Status:** PARTIAL — the KEYBOARD-SHORTCUT half RESOLVED 2026-07-12: `RUI::Slate::UseShortcut(Ctx,
+  FRuiShortcut{Key,Ctrl/Shift/Alt/Cmd}, OnTrigger)` registers a Slate input pre-processor for the
+  component's lifetime (UseEffect keyed on the chord; a stable ref box fires the LATEST callback;
+  unregistered on unmount). `FRuiShortcut::Matches` exact-matches key+modifiers. Test
+  `ReactiveUI.Slate.Shortcut`: matcher truth table + end-to-end mount → ProcessKeyDownEvent(Ctrl+S)
+  fires once → non-match no-op → unmount stops firing. REMAINING: drag-and-drop (typed DnD props
+  over Slate's FDragDropOperation + drop targets) — a larger event-layer feature, tracked here.
 
 ## TD-005 — Rider support (skipped ENTIRELY for v1 — owner 2026-07-11)
 - **Where:** `ide-extensions/` (nothing ships for Rider in v1 — no TextMate bundle, no plugin)
