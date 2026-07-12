@@ -86,13 +86,25 @@ referenced from plans/PRs.
   (Phase 2/6); DnD + shortcuts are additive APIs (critique gap 15 tail).
 - **Production-grade resolution:** typed DnD props over Slate's drag-drop ops + shortcut
   registration hook, with demos.
-- **Status:** PARTIAL — the KEYBOARD-SHORTCUT half RESOLVED 2026-07-12: `RUI::Slate::UseShortcut(Ctx,
-  FRuiShortcut{Key,Ctrl/Shift/Alt/Cmd}, OnTrigger)` registers a Slate input pre-processor for the
-  component's lifetime (UseEffect keyed on the chord; a stable ref box fires the LATEST callback;
-  unregistered on unmount). `FRuiShortcut::Matches` exact-matches key+modifiers. Test
-  `ReactiveUI.Slate.Shortcut`: matcher truth table + end-to-end mount → ProcessKeyDownEvent(Ctrl+S)
-  fires once → non-match no-op → unmount stops firing. REMAINING: drag-and-drop (typed DnD props
-  over Slate's FDragDropOperation + drop targets) — a larger event-layer feature, tracked here.
+- **Status:** RESOLVED 2026-07-12 — both halves shipped.
+  - **Keyboard shortcut:** `RUI::Slate::UseShortcut(Ctx, FRuiShortcut{Key,Ctrl/Shift/Alt/Cmd},
+    OnTrigger)` registers a Slate input pre-processor for the component's lifetime (UseEffect keyed
+    on the chord; a stable ref box fires the LATEST callback; unregistered on unmount).
+    `FRuiShortcut::Matches` exact-matches key+modifiers. Test `ReactiveUI.Slate.Shortcut`: matcher
+    truth table + end-to-end mount → ProcessKeyDownEvent(Ctrl+S) fires once → non-match no-op →
+    unmount stops firing.
+  - **Drag-and-drop:** typed DnD over Slate's `FDragDropOperation` (`RuiDragDrop.h/.cpp`). Slate DnD
+    is an event-OVERRIDE surface (not props/delegates), so the API is a pair of wrapper ELEMENTS:
+    `RUI::Slate::DragSource` (carries an `FRuiValue` Payload + `DragType` tag; begins the op on a
+    left-drag; `OnDragStart`/`OnDragEnd` events) and `DropTarget` (`AcceptTypes` filter — empty =
+    accept any; `OnDrop` fires with the payload; `OnDragEnter`/`OnDragLeave` fire with the hovering
+    payload + toggle an `IsOver` hover flag). `FRuiDragDropOp : FDragDropOperation` rides the payload
+    across the drag and fires `OnEnded(bHandled)` exactly once. C++-FIRST (the drop closure + FRuiValue
+    payload + array accept-list aren't cleanly markup-expressible — no `.uetkx` tag, like ListView).
+    The widgets + op are exported so the suite drives a synthetic drop (a hand-built `FDragDropEvent`
+    over the op) headless. Test `ReactiveUI.Slate.DragDrop`: op payload/type + fire-once OnEnded;
+    accept/reject by type (handled vs unhandled reply); empty-accept-any; enter/leave hover toggle;
+    drag-source OnDragDetected begins the op + fires OnDragStart.
 
 ## TD-005 — Rider support (skipped ENTIRELY for v1 — owner 2026-07-11)
 - **Where:** `ide-extensions/` (nothing ships for Rider in v1 — no TextMate bundle, no plugin)
