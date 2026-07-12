@@ -677,3 +677,39 @@ referenced from plans/PRs.
   ours could invoke the PIE gallery screens by name. Out of HMR v2 scope — the PIE gallery already
   exercises every demo, so a menu launcher is a convenience, not a gap.
 - **Status:** OPEN — low priority; pick up when the gallery grows enough that a jump-list earns its keep.
+
+## TD-HMR-XPLAT — live HMR is Windows-only (Live Coding); Hot Reload as the potential cross-platform path
+- **Where:** `FUetkxHmrController` (the whole live-reload loop) + the console hider (`#if PLATFORM_WINDOWS`).
+- **The limitation (documented, accepted for v1):** the live hot-reload loop depends on **Unreal Live
+  Coding, which is Windows-only** (`Engine/Source/Developer/Windows/LiveCoding`, Win64-only build). The
+  underlying tech (Molecular Matters' **Live++**) ships Windows + consoles only — no macOS/Linux; the
+  same is true of every native-C++ hot-reload option in the ecosystem, because runtime machine-code
+  patching is per-platform and macOS code-signing / hardened runtime is actively hostile to it. So:
+  - **Windows editor:** full HMR (save → Live Coding patch → refresh, state preserved).
+  - **Mac/Linux editor:** no Live Coding → `Start()` fails cleanly with "Live Coding module is not
+    available" (no crash). The rest of the library is fully cross-platform — compile-to-C++, the Slate
+    runtime, the watcher's compile-on-save codegen, and the drift gate all work; Mac/Linux devs iterate
+    the way they already do for **all** UE C++ (edit → rebuild), since Live Coding is absent there
+    regardless of our library. We are never worse than the platform's baseline; on Windows we're better.
+  - **Ship note:** call this out on the Fab listing + docs — the library *runs* everywhere; the *live-
+    reload DX* is Windows.
+- **Potential solution (spiked by reading the 5.6 API, not yet prototyped):** the legacy **Hot Reload**
+  module (`Developer/HotReload`, `IHotReloadModule` → `RecompileModule` / `DoHotReloadFromEditor` /
+  `RebindPackages`, completion via `FCoreUObjectDelegates::ReloadCompleteDelegate`) **is cross-platform**
+  and still present in 5.6. It lines up with our design (registry-FName component identity + the
+  `ForEachLive`/`HmrRefreshAll` refresh seam; hook state lives in `ReactiveUICore`, which doesn't reload).
+  The open risk:
+  > Whether that's fatal depends on one question I can't answer by reading alone: does every render path
+  > resolve components through the name registry, or do some hold raw `&Func` pointers across renders? If
+  > it's fully name-indirected, a DLL swap works. If any raw pointers survive, it crashes. Plus Hot Reload
+  > is deprecated, flakier, and slower (full-module reload vs incremental patch).
+  >
+  > Concrete next step I can actually run (on Windows): a throwaway branch that routes HMR through
+  > `DoHotReloadFromEditor` instead of `LiveCoding->Compile()`, then exercises the refresh seam, and
+  > observe: (a) does it survive without dangling-pointer crashes, (b) does hook state persist, (c) does
+  > new code run. Windows can run both systems, so it's a clean lab for the Mac/Linux question — if it
+  > survives here, it's a viable cross-platform fallback; if it crashes on `&Func`, we'd know we'd first
+  > need to make composition fully name-based (bigger change, perf implications).
+- **Status:** OPEN — limitation documented + accepted for v1 (Windows live HMR). The Hot Reload spike is
+  the tracked avenue if cross-platform live HMR is ever prioritized; the whole-library cross-platform
+  build/run is unaffected.

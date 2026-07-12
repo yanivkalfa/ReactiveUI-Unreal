@@ -17,6 +17,9 @@
 >   Unity-sibling model: Live Coding only holds the build while you are actually playing.
 > - HMR window opens ~600×500; demo `DefaultEngine.ini` sets `CommonGameViewportClient` (unrelated red
 >   CommonUI-on-Play error).
+> - **Live HMR is Windows-only** (Live Coding is) — accepted for v1, documented in README + **TD-HMR-XPLAT**,
+>   which also tracks the legacy Hot Reload spike as the potential cross-platform path. The library itself
+>   builds/runs on every UE platform; only the live-reload DX is Windows.
 >
 > **Two implementation deviations from the plan's names, both deliberate:**
 > - The controller is **`FUetkxHmrController`** (editor module), not `FRuiHmr` — the old `FRuiHmr` was

@@ -9,15 +9,16 @@ of [ReactiveUIToolKit](https://github.com/yanivkalfa/ReactiveUIToolKit) (Unity/C
 Function components return a virtual tree; a fiber reconciler diffs each render and patches only
 what changed on real **Slate** widgets. State lives in hooks. On top sits `.uetkx` — a JSX-like
 markup (same grammar as the siblings' `.guitkx`/`.uitkx`) that **compiles to native C++ for
-shipping builds** and **hot-reloads live in PIE** during development: save the file, see the UI
-update in under a second, no C++ recompile, no script VM in your shipped game.
+shipping builds** and **hot-reloads live in PIE** during development (Windows): save the file, see
+the UI update in under a second, no C++ recompile, no script VM in your shipped game.
 
 > **Status: beta — the product is built end to end.** The reconciler (23 core hooks, all
 > stub-free), 35+ wrapped Slate widgets with setter styling (the core set + the batch-2 everyday
 > widgets + specials — ExpandableArea/SegmentedControl/NumericEntryBox/ComboBox/SuggestionTextBox)
 > plus **virtualized `ListView`/`TileView`**, the `.uetkx` compiler (committed codegen +
 > `RUICompile`/drift-gate/contract commandlets), live hot reload mid-session (Unreal Live Coding +
-> editor watcher, whole-project, state preserved), the full **router** subsystem (17 hooks), **`@theme`/`@uss`
+> editor watcher, whole-project, state preserved — **Windows only**, since Live Coding is; the library
+> itself builds and runs on every UE platform), the full **router** subsystem (17 hooks), **`@theme`/`@uss`
 > stylesheets**, **exit animations** (`<Presence>`), **drag-and-drop** + keyboard shortcuts,
 > first-class **CommonUI/MVVM citizenship** (activatable screens, MVVM global collection, UMG
 > prop-map bridge), an **in-editor `.uetkx` live preview**, and VS Code/VS2022 language tooling

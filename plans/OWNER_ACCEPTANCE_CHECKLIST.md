@@ -26,9 +26,8 @@ Setup: editor open, PIE running, `Source/RuiDemo/Screens/SimpleCounter.uetkx` op
       counter VALUE survives. MessageLog "ReactiveUI" shows the
       `reloaded 1 | refreshed … | reset 0 | … ms` status line.
 - [ ] **Structure edit** (add a `<TextBlock Text="hi" />` row): updates < 1 s, state kept.
-      (Note: TD-019 RESOLVED — the FIRST save now MIGRATES numeric/string/bool/text state, so the
-      counter survives even the first swap; the note reads `state migrated: first interp swap`,
-      `reset 0`. Only container/opaque state or a hook-shape change resets.)
+      (Note: the FIRST save after PIE start reports `reset … (representation)` — expected,
+      recorded as TD-019; subsequent saves preserve.)
 - [ ] **Hook-shape edit** (add `auto [X, SetX] = UseState<int32>(0);`): that screen resets,
       status line says `reset 1`, other screens untouched.
 - [ ] **Parse error** (delete a `>` and save): old UI keeps running; MessageLog shows the
