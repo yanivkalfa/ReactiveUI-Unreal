@@ -44,9 +44,10 @@ bool FRuiUetkxSchemaTest::RunTest(const FString&)
 		TestEqual(TEXT("schema v1"), (int32)Schema->GetNumberField(TEXT("v")), 1);
 
 		const TSharedPtr<FJsonObject> Elements = Schema->GetObjectField(TEXT("elements"));
-		// 15 Phase-2 widgets + 9 Batch-2 (Phase 7): WidgetSwitcher, ScaleBox, Throbber, WrapBox,
-		// MultiLineEditableTextBox, SearchBox, SafeZone, DPIScaler, Separator.
-		TestEqual(TEXT("24 host tags"), Elements->Values.Num(), 24);
+		// 15 Phase-2 + 14 Batch-2 (Phase 7): WidgetSwitcher, ScaleBox, Throbber, WrapBox,
+		// MultiLineEditableTextBox, SearchBox, SafeZone, DPIScaler, Separator, SpinBox,
+		// UniformWrapPanel, RichTextBlock, GridPanel, UniformGridPanel.
+		TestEqual(TEXT("29 host tags"), Elements->Values.Num(), 29);
 		const TSharedPtr<FJsonObject> Switcher = Elements->GetObjectField(TEXT("WidgetSwitcher"));
 		TestEqual(TEXT("WidgetSwitcher factory"), Switcher->GetStringField(TEXT("factory")),
 				  FString(TEXT("RUI::Slate::WidgetSwitcher")));

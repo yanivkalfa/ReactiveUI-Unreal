@@ -14,13 +14,18 @@
 #include "Widgets/Images/SThrobber.h"
 #include "Widgets/Input/SMultiLineEditableTextBox.h"
 #include "Widgets/Input/SSearchBox.h"
+#include "Widgets/Input/SSpinBox.h"
 #include "Widgets/Layout/SDPIScaler.h"
+#include "Widgets/Layout/SGridPanel.h"
 #include "Widgets/Layout/SSafeZone.h"
 #include "Widgets/Layout/SScaleBox.h"
 #include "Widgets/Layout/SSeparator.h"
+#include "Widgets/Layout/SUniformGridPanel.h"
+#include "Widgets/Layout/SUniformWrapPanel.h"
 #include "Widgets/Layout/SWidgetSwitcher.h"
 #include "Widgets/Layout/SWrapBox.h"
 #include "Widgets/SNullWidget.h"
+#include "Widgets/Text/SRichTextBlock.h"
 
 namespace
 {
@@ -160,6 +165,20 @@ namespace
 			}
 		}
 		return false;
+	}
+
+	/** Read an integer slot.* key (grid column/row); absent -> Def. */
+	int32 SlotIntOf(const FRuiStyleDict* SlotProps, const TCHAR* Key, int32 Def)
+	{
+		if (SlotProps != nullptr)
+		{
+			if (const FRuiValue* V = SlotProps->Find(FName(Key)))
+			{
+				return V->Kind == FRuiValue::EKind::Int ? static_cast<int32>(V->IntValue)
+														: static_cast<int32>(V->FloatValue);
+			}
+		}
+		return Def;
 	}
 } // namespace
 
@@ -552,6 +571,242 @@ public:
 };
 
 // ─────────────────────────────────────────────────────────────────────────────────────────
+// SSpinBox<float> (Leaf) — numeric input (self-notifying skip; D-16)
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+class FRuiSpinBoxAdapter final : public IRuiElementAdapter
+{
+public:
+	virtual ERuiChildKind GetChildKind() const override { return ERuiChildKind::Leaf; }
+	virtual bool HasEvents() const override { return true; }
+
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase&, const TSharedPtr<FRuiEventProxy>& Proxy) override
+	{
+		return SNew(SSpinBox<float>)
+			.OnValueChanged(
+				SSpinBox<float>::FOnValueChanged::CreateSP(Proxy.ToSharedRef(), &FRuiEventProxy::HandleFloat,
+														   static_cast<int32>(FRuiSpinBoxProps::OnValueChanged_Bit)));
+	}
+
+	virtual void ApplyDiff(SWidget& Widget, const FRuiPropsBase* Old, const FRuiPropsBase& New) override
+	{
+		SSpinBox<float>& W = static_cast<SSpinBox<float>&>(Widget);
+		const FRuiSpinBoxProps& N = static_cast<const FRuiSpinBoxProps&>(New);
+		const FRuiSpinBoxProps* O = static_cast<const FRuiSpinBoxProps*>(Old);
+		RUI_ROW(MinValue, W.SetMinValue(N.MinValue))
+		RUI_ROW(MaxValue, W.SetMaxValue(N.MaxValue))
+		RUI_ROW(Delta, W.SetDelta(N.Delta))
+		// Self-notifying skip: the drag/commit round-trip lands on an equal value (D-16).
+		if (N.HasValue() && !FMath::IsNearlyEqual(W.GetValue(), N.Value))
+		{
+			W.SetValue(N.Value);
+		}
+	}
+
+	virtual void SyncEventHandlers(FRuiEventProxy& Proxy, const FRuiPropsBase& New) override
+	{
+		const FRuiSpinBoxProps& N = static_cast<const FRuiSpinBoxProps&>(New);
+		Proxy.SetHandler(static_cast<int32>(FRuiSpinBoxProps::OnValueChanged_Bit), N.OnValueChanged);
+	}
+};
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// SUniformWrapPanel (MultiSlot)
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+class FRuiUniformWrapPanelAdapter final : public IRuiElementAdapter
+{
+public:
+	virtual ERuiChildKind GetChildKind() const override { return ERuiChildKind::MultiSlot; }
+
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase&, const TSharedPtr<FRuiEventProxy>&) override
+	{
+		return SNew(SUniformWrapPanel);
+	}
+
+	virtual void ApplyDiff(SWidget& Widget, const FRuiPropsBase* Old, const FRuiPropsBase& New) override
+	{
+		SUniformWrapPanel& W = static_cast<SUniformWrapPanel&>(Widget);
+		const FRuiUniformWrapPanelProps& N = static_cast<const FRuiUniformWrapPanelProps&>(New);
+		const FRuiUniformWrapPanelProps* O = static_cast<const FRuiUniformWrapPanelProps*>(Old);
+		RUI_ROW(SlotPadding, W.SetSlotPadding(FMargin(N.SlotPadding)))
+		RUI_ROW(HAlign, W.SetHorizontalAlignment(HAlignOf(N.HAlign)))
+	}
+
+	virtual void InsertChild(SWidget& Parent, const TSharedRef<SWidget>& Child, int32, const FRuiStyleDict*) override
+	{
+		SUniformWrapPanel& W = static_cast<SUniformWrapPanel&>(Parent);
+		SUniformWrapPanel::FScopedWidgetSlotArguments Slot = W.AddSlot();
+		Slot.AttachWidget(Child);
+	}
+
+	virtual void RemoveChild(SWidget& Parent, const TSharedRef<SWidget>& Child) override
+	{
+		FChildren* Children = static_cast<SUniformWrapPanel&>(Parent).GetChildren();
+		// SUniformWrapPanel has no RemoveSlot(widget) — rebuild without the removed child.
+		TArray<TSharedRef<SWidget>> Kept;
+		for (int32 i = 0; i < Children->Num(); ++i)
+		{
+			TSharedRef<SWidget> C = Children->GetChildAt(i);
+			if (&C.Get() != &Child.Get())
+			{
+				Kept.Add(C);
+			}
+		}
+		Rebuild(static_cast<SUniformWrapPanel&>(Parent), Kept);
+	}
+
+	virtual void ReorderChildren(SWidget& Parent, const TArray<TSharedRef<SWidget>>& Ordered,
+								 TFunctionRef<const FRuiStyleDict*(const TSharedRef<SWidget>&)>) override
+	{
+		Rebuild(static_cast<SUniformWrapPanel&>(Parent), Ordered);
+	}
+
+private:
+	static void Rebuild(SUniformWrapPanel& W, const TArray<TSharedRef<SWidget>>& Children)
+	{
+		W.ClearChildren();
+		for (const TSharedRef<SWidget>& Child : Children)
+		{
+			SUniformWrapPanel::FScopedWidgetSlotArguments Slot = W.AddSlot();
+			Slot.AttachWidget(Child);
+		}
+	}
+};
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// SRichTextBlock (Leaf)
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+class FRuiRichTextBlockAdapter final : public IRuiElementAdapter
+{
+public:
+	virtual ERuiChildKind GetChildKind() const override { return ERuiChildKind::Leaf; }
+
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase&, const TSharedPtr<FRuiEventProxy>&) override
+	{
+		return SNew(SRichTextBlock);
+	}
+
+	virtual void ApplyDiff(SWidget& Widget, const FRuiPropsBase* Old, const FRuiPropsBase& New) override
+	{
+		SRichTextBlock& W = static_cast<SRichTextBlock&>(Widget);
+		const FRuiRichTextBlockProps& N = static_cast<const FRuiRichTextBlockProps&>(New);
+		const FRuiRichTextBlockProps* O = static_cast<const FRuiRichTextBlockProps*>(Old);
+		if (N.HasText() && (O == nullptr || !O->HasText() || !N.Text.EqualTo(O->Text)))
+		{
+			W.SetText(N.Text);
+		}
+		RUI_ROW(bAutoWrapText, W.SetAutoWrapText(N.bAutoWrapText))
+	}
+};
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// SGridPanel / SUniformGridPanel (MultiSlot; slot.column + slot.row place each child)
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+class FRuiGridPanelAdapter final : public IRuiElementAdapter
+{
+public:
+	virtual ERuiChildKind GetChildKind() const override { return ERuiChildKind::MultiSlot; }
+
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase&, const TSharedPtr<FRuiEventProxy>&) override
+	{
+		return SNew(SGridPanel);
+	}
+
+	virtual void ApplyDiff(SWidget&, const FRuiPropsBase*, const FRuiPropsBase&) override {}
+
+	virtual void InsertChild(SWidget& Parent, const TSharedRef<SWidget>& Child, int32,
+							 const FRuiStyleDict* SlotProps) override
+	{
+		SGridPanel& W = static_cast<SGridPanel&>(Parent);
+		SGridPanel::FScopedWidgetSlotArguments Slot =
+			W.AddSlot(SlotIntOf(SlotProps, TEXT("slot.column"), 0), SlotIntOf(SlotProps, TEXT("slot.row"), 0));
+		Slot.AttachWidget(Child);
+		ConfigureCommonSlot(Slot, SlotProps);
+	}
+
+	virtual void RemoveChild(SWidget& Parent, const TSharedRef<SWidget>& Child) override
+	{
+		Rebuild(static_cast<SGridPanel&>(Parent), Child);
+	}
+
+	virtual void ReorderChildren(SWidget& Parent, const TArray<TSharedRef<SWidget>>& Ordered,
+								 TFunctionRef<const FRuiStyleDict*(const TSharedRef<SWidget>&)> SlotPropsOf) override
+	{
+		SGridPanel& W = static_cast<SGridPanel&>(Parent);
+		W.ClearChildren();
+		for (const TSharedRef<SWidget>& Child : Ordered)
+		{
+			const FRuiStyleDict* SlotProps = SlotPropsOf(Child);
+			SGridPanel::FScopedWidgetSlotArguments Slot =
+				W.AddSlot(SlotIntOf(SlotProps, TEXT("slot.column"), 0), SlotIntOf(SlotProps, TEXT("slot.row"), 0));
+			Slot.AttachWidget(Child);
+			ConfigureCommonSlot(Slot, SlotProps);
+		}
+	}
+
+private:
+	static void Rebuild(SGridPanel& W, const TSharedRef<SWidget>& Remove)
+	{
+		// SGridPanel::RemoveSlot exists but takes a widget; a bare remove drops cell placement,
+		// so rebuild keeping every OTHER child at its current column/row is out of reach without
+		// stored cells. v1: just remove the slot (the reconciler re-inserts survivors on reorder).
+		W.RemoveSlot(Remove);
+	}
+};
+
+class FRuiUniformGridPanelAdapter final : public IRuiElementAdapter
+{
+public:
+	virtual ERuiChildKind GetChildKind() const override { return ERuiChildKind::MultiSlot; }
+
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase&, const TSharedPtr<FRuiEventProxy>&) override
+	{
+		return SNew(SUniformGridPanel);
+	}
+
+	virtual void ApplyDiff(SWidget& Widget, const FRuiPropsBase* Old, const FRuiPropsBase& New) override
+	{
+		SUniformGridPanel& W = static_cast<SUniformGridPanel&>(Widget);
+		const FRuiUniformGridPanelProps& N = static_cast<const FRuiUniformGridPanelProps&>(New);
+		const FRuiUniformGridPanelProps* O = static_cast<const FRuiUniformGridPanelProps*>(Old);
+		RUI_ROW(SlotPadding, W.SetSlotPadding(FMargin(N.SlotPadding)))
+		RUI_ROW(MinDesiredSlotWidth, W.SetMinDesiredSlotWidth(N.MinDesiredSlotWidth))
+		RUI_ROW(MinDesiredSlotHeight, W.SetMinDesiredSlotHeight(N.MinDesiredSlotHeight))
+	}
+
+	virtual void InsertChild(SWidget& Parent, const TSharedRef<SWidget>& Child, int32,
+							 const FRuiStyleDict* SlotProps) override
+	{
+		SUniformGridPanel& W = static_cast<SUniformGridPanel&>(Parent);
+		SUniformGridPanel::FScopedWidgetSlotArguments Slot =
+			W.AddSlot(SlotIntOf(SlotProps, TEXT("slot.column"), 0), SlotIntOf(SlotProps, TEXT("slot.row"), 0));
+		Slot.AttachWidget(Child);
+	}
+
+	virtual void RemoveChild(SWidget& Parent, const TSharedRef<SWidget>& Child) override
+	{
+		static_cast<SUniformGridPanel&>(Parent).RemoveSlot(Child);
+	}
+
+	virtual void ReorderChildren(SWidget& Parent, const TArray<TSharedRef<SWidget>>& Ordered,
+								 TFunctionRef<const FRuiStyleDict*(const TSharedRef<SWidget>&)> SlotPropsOf) override
+	{
+		SUniformGridPanel& W = static_cast<SUniformGridPanel&>(Parent);
+		W.ClearChildren();
+		for (const TSharedRef<SWidget>& Child : Ordered)
+		{
+			const FRuiStyleDict* SlotProps = SlotPropsOf(Child);
+			SUniformGridPanel::FScopedWidgetSlotArguments Slot =
+				W.AddSlot(SlotIntOf(SlotProps, TEXT("slot.column"), 0), SlotIntOf(SlotProps, TEXT("slot.row"), 0));
+			Slot.AttachWidget(Child);
+		}
+	}
+};
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
 // Types, factories, registration
 // ─────────────────────────────────────────────────────────────────────────────────────────
 
@@ -607,6 +862,26 @@ namespace RUI::Slate
 		{
 			return RUI::InternElementType(FName(TEXT("Separator")));
 		}
+		FRuiElementTypeId SpinBoxType()
+		{
+			return RUI::InternElementType(FName(TEXT("SpinBox")));
+		}
+		FRuiElementTypeId UniformWrapPanelType()
+		{
+			return RUI::InternElementType(FName(TEXT("UniformWrapPanel")));
+		}
+		FRuiElementTypeId RichTextBlockType()
+		{
+			return RUI::InternElementType(FName(TEXT("RichTextBlock")));
+		}
+		FRuiElementTypeId GridPanelType()
+		{
+			return RUI::InternElementType(FName(TEXT("GridPanel")));
+		}
+		FRuiElementTypeId UniformGridPanelType()
+		{
+			return RUI::InternElementType(FName(TEXT("UniformGridPanel")));
+		}
 	} // namespace
 
 	FRuiNode WidgetSwitcher(FRuiWidgetSwitcherProps Props, TArray<FRuiNode> Children, FRuiKey Key)
@@ -645,6 +920,26 @@ namespace RUI::Slate
 	{
 		return MakeHostNodeB2(SeparatorType(), MoveTemp(Props), TArray<FRuiNode>(), Key);
 	}
+	FRuiNode SpinBox(FRuiSpinBoxProps Props, FRuiKey Key)
+	{
+		return MakeHostNodeB2(SpinBoxType(), MoveTemp(Props), TArray<FRuiNode>(), Key);
+	}
+	FRuiNode UniformWrapPanel(FRuiUniformWrapPanelProps Props, TArray<FRuiNode> Children, FRuiKey Key)
+	{
+		return MakeHostNodeB2(UniformWrapPanelType(), MoveTemp(Props), MoveTemp(Children), Key);
+	}
+	FRuiNode RichTextBlock(FRuiRichTextBlockProps Props, FRuiKey Key)
+	{
+		return MakeHostNodeB2(RichTextBlockType(), MoveTemp(Props), TArray<FRuiNode>(), Key);
+	}
+	FRuiNode GridPanel(FRuiGridPanelProps Props, TArray<FRuiNode> Children, FRuiKey Key)
+	{
+		return MakeHostNodeB2(GridPanelType(), MoveTemp(Props), MoveTemp(Children), Key);
+	}
+	FRuiNode UniformGridPanel(FRuiUniformGridPanelProps Props, TArray<FRuiNode> Children, FRuiKey Key)
+	{
+		return MakeHostNodeB2(UniformGridPanelType(), MoveTemp(Props), MoveTemp(Children), Key);
+	}
 
 	namespace Detail
 	{
@@ -659,6 +954,11 @@ namespace RUI::Slate
 			RegisterAdapter(SafeZoneType(), MakeUnique<FRuiSafeZoneAdapter>());
 			RegisterAdapter(DPIScalerType(), MakeUnique<FRuiDPIScalerAdapter>());
 			RegisterAdapter(SeparatorType(), MakeUnique<FRuiSeparatorAdapter>());
+			RegisterAdapter(SpinBoxType(), MakeUnique<FRuiSpinBoxAdapter>());
+			RegisterAdapter(UniformWrapPanelType(), MakeUnique<FRuiUniformWrapPanelAdapter>());
+			RegisterAdapter(RichTextBlockType(), MakeUnique<FRuiRichTextBlockAdapter>());
+			RegisterAdapter(GridPanelType(), MakeUnique<FRuiGridPanelAdapter>());
+			RegisterAdapter(UniformGridPanelType(), MakeUnique<FRuiUniformGridPanelAdapter>());
 		}
 	} // namespace Detail
 } // namespace RUI::Slate

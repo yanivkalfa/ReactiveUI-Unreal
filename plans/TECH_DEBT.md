@@ -169,7 +169,22 @@ referenced from plans/PRs.
   need the ref-command design (family `useImperativeHandle` pattern over host handles).
   SCOPE EXPANDED (owner, 2026-07-10): coverage target is ALL official runtime widgets —
   plans/WIDGET_INVENTORY.md is the authoritative tracker (every S-class classified).
-- **Status:** OPEN
+- **Status:** SUBSTANTIALLY DELIVERED 2026-07-12 — the batch-2 **everyday game set is shipped**
+  (14 widgets, WIDGET_INVENTORY.md "Shipped Phase 7"): WidgetSwitcher, ScaleBox, Throbber,
+  WrapBox, MultiLineEditableTextBox, SearchBox, SafeZone, DPIScaler, Separator, SpinBox,
+  UniformWrapPanel, RichTextBlock, GridPanel, UniformGridPanel — each wired through EVERY
+  touchpoint (typed props + factory in RuiSlateElements.h, adapter in the new
+  RuiWidgetAdaptersB2.cpp, codegen host tag in UetkxCodegen.cpp HostTags, interp builder in
+  UetkxInterpElements.cpp, regenerated LSP schema, and a per-widget contract test
+  `ReactiveUI.Widgets.Batch2{,b,c}`). Separator is the first shipped widget to exercise the
+  TD-011 reconstruct mask (Orientation/Thickness construct-only → widget replacement; the test
+  proves a color-only change reuses the widget while a thickness change replaces it). Grid
+  panels place children by `slot.column`/`slot.row`. Schema grew 15 → 29 host tags. Full suite
+  64/64. **REMAINING (tracked, not blocking):** the item-model views (SListView/STileView/
+  STreeView/SComboBox/SHeaderRow) are TD-022's dedicated `items`-delegate mechanism, NOT plain
+  adapters; the batch-2 specials (SegmentedControl, ExpandableArea two-slot, SuggestionTextBox)
+  and the batch-3 long tail (color pickers, gradients, vector inputs, virtual controls, etc.)
+  wrap onto this exact production line as demand surfaces.
 
 ## TD-013 — Typed authoring API for style dicts + slot.* props
 - **Where:** `ReactiveUISlate` (would live next to RuiStyle.h)

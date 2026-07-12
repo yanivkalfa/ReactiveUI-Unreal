@@ -38,7 +38,7 @@ to wrap) · `SPECIAL` (covered by a dedicated mechanism, not a plain adapter).
 | SProgressBar | `ProgressBar` | + fillColor style key |
 | SRuiCanvas *(ours)* | `RuiCanvas` | the draw_fn paint trampoline (D-12); `Canvas` reserved for SCanvas |
 
-## Shipped (Phase 7 — batch 2, rolling) — 9
+## Shipped (Phase 7 — batch 2, rolling) — 14
 
 | Widget | Element tag | Notes |
 |---|---|---|
@@ -51,22 +51,23 @@ to wrap) · `SPECIAL` (covered by a dedicated mechanism, not a plain adapter).
 | SSafeZone | `SafeZone` | title-safe + per-side padding |
 | SDPIScaler | `DPIScaler` | DPIScale |
 | SSeparator | `Separator` | Orientation/Thickness (construct-only, TD-011 reconstruct mask) + ColorAndOpacity |
+| SSpinBox | `SpinBox` | numeric input (SSpinBox<float>); Value/Min/Max/Delta + OnValueChanged; test `ReactiveUI.Widgets.Batch2c` |
+| SUniformWrapPanel | `UniformWrapPanel` | uniform-cell wrap; SlotPadding/HAlign |
+| SRichTextBlock | `RichTextBlock` | Text (inline markup) + AutoWrapText |
+| SGridPanel | `GridPanel` | slot.column / slot.row cell placement |
+| SUniformGridPanel | `UniformGridPanel` | uniform cells by slot.column / slot.row |
 
-## Batch 2 (Phase 7 step 8) — the everyday game set
+## Batch 2 (Phase 7 step 8) — remaining (special designs / item-model)
 
 | Widget | Notes |
 |---|---|
-| SComboBox / SComboButton | templated items → item-model treatment shares SListView design |
-| SSpinBox / SNumericEntryBox | numeric inputs (templated — adapter per common instantiation) |
+| SComboBox / SComboButton | templated items → item-model treatment shares SListView design (TD-022) |
+| SNumericEntryBox | numeric input variant (SSpinBox ✅ shipped) |
 | SSuggestionTextBox | text-input family (SSearchBox ✅ shipped) |
-| SRichTextBlock | rich text (+ decorator story later) |
-| SSegmentedControl | templated |
-| SUniformWrapPanel | wrap layout (SWrapBox ✅ shipped) |
-| SGridPanel / SUniformGridPanel | grid layout (slot.row/slot.column props) |
-| SExpandableArea | header+body container |
-| SSpinningImage | busy indicator (SThrobber ✅ shipped) |
+| SSegmentedControl | templated selector |
+| SExpandableArea | header+body — needs a two-named-slot design |
 | SListView / STileView / STreeView | **the big one** — the family's item-model treatment (declarative `items` → widget-generating delegates), NOT a plain adapter (TD-022) |
-| SHeaderRow | column headers for the item views |
+| SHeaderRow | column headers for the item views (TD-022) |
 
 ## Batch 3 (v1.x long tail — target: all official)
 

@@ -16,10 +16,12 @@
 #include "Widgets/Input/SSlider.h"
 #include "Widgets/Input/SMultiLineEditableTextBox.h"
 #include "Widgets/Input/SSearchBox.h"
+#include "Widgets/Input/SSpinBox.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SSeparator.h"
 #include "Widgets/Layout/SWidgetSwitcher.h"
+#include "Widgets/Text/SRichTextBlock.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -425,6 +427,78 @@ bool FRuiWidgetsBatch2bTest::RunTest(const FString&)
 	SWidget* Sep2 = &Panel->GetChildren()->GetChildAt(4).Get();
 	TestNotEqual(TEXT("thickness change replaced the SSeparator"), (void*)Sep2, (void*)Sep1);
 	TestEqual(TEXT("replacement is still an SSeparator"), Sep2->GetType(), FName(TEXT("SSeparator")));
+	return true;
+}
+
+// ── batch 2c: SpinBox + UniformWrapPanel + RichTextBlock + Grid/UniformGrid panels ─────────
+
+static FRuiNode CellBox(const TCHAR* Label, int32 Column, int32 Row)
+{
+	FRuiBoxProps BoxProps;
+	TSharedRef<FRuiStyleDict> Slot = MakeShared<FRuiStyleDict>();
+	Slot->Add(FName(TEXT("slot.column")), FRuiValue(Column));
+	Slot->Add(FName(TEXT("slot.row")), FRuiValue(Row));
+	BoxProps.SlotProps = Slot;
+	return RUI::Slate::Box(MoveTemp(BoxProps), {RUI::TextBlock(Label)});
+}
+
+static FRuiNodeArray WidgetsBatch2cComp(FRuiContext& Ctx, const FRuiEmptyProps&, const TArray<FRuiNode>&)
+{
+	auto [Val, SetVal] = Ctx.UseState<int32>(0);
+	WidgetTest::IntSetter = SetVal;
+
+	FRuiSpinBoxProps SpinProps;
+	SpinProps.SetValue(Val == 0 ? 0.25f : 0.75f);
+	SpinProps.SetMinValue(0.0f);
+	SpinProps.SetMaxValue(1.0f);
+
+	FRuiRichTextBlockProps RichProps;
+	RichProps.SetText(FText::FromString(TEXT("rich <b>text</>")));
+	RichProps.SetbAutoWrapText(true);
+
+	return {RUI::Slate::VerticalBox(
+		FRuiVerticalBoxProps(),
+		{RUI::Slate::SpinBox(MoveTemp(SpinProps)),
+		 RUI::Slate::UniformWrapPanel(FRuiUniformWrapPanelProps(),
+									  {RUI::TextBlock(TEXT("u0")), RUI::TextBlock(TEXT("u1"))}),
+		 RUI::Slate::RichTextBlock(MoveTemp(RichProps)),
+		 RUI::Slate::GridPanel(FRuiGridPanelProps(), {CellBox(TEXT("g00"), 0, 0), CellBox(TEXT("g11"), 1, 1)}),
+		 RUI::Slate::UniformGridPanel(FRuiUniformGridPanelProps(),
+									  {CellBox(TEXT("c00"), 0, 0), CellBox(TEXT("c01"), 0, 1)})})};
+}
+RUI_COMPONENT(WidgetsBatch2cComp)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRuiWidgetsBatch2cTest, "ReactiveUI.Widgets.Batch2c", RUI_WIDGET_TEST_FLAGS)
+bool FRuiWidgetsBatch2cTest::RunTest(const FString&)
+{
+	WidgetTest::Reset();
+	TSharedRef<FRuiRoot> Root = FRuiRoot::Create(RUI::FC(&WidgetsBatch2cComp));
+	TSharedPtr<SWidget> Panel = WidgetTest::RootChild(*Root);
+	if (!TestTrue(TEXT("panel mounted"), Panel.IsValid()))
+	{
+		return false;
+	}
+	SSpinBox<float>& Spin = static_cast<SSpinBox<float>&>(Panel->GetChildren()->GetChildAt(0).Get());
+	TSharedRef<SWidget> WrapW = Panel->GetChildren()->GetChildAt(1);
+	SRichTextBlock& Rich = static_cast<SRichTextBlock&>(Panel->GetChildren()->GetChildAt(2).Get());
+	TSharedRef<SWidget> GridW = Panel->GetChildren()->GetChildAt(3);
+	TSharedRef<SWidget> UGridW = Panel->GetChildren()->GetChildAt(4);
+
+	TestEqual(TEXT("uniformwrap type"), WrapW->GetType(), FName(TEXT("SUniformWrapPanel")));
+	TestEqual(TEXT("richtext type"), Rich.GetType(), FName(TEXT("SRichTextBlock")));
+	TestEqual(TEXT("gridpanel type"), GridW->GetType(), FName(TEXT("SGridPanel")));
+	TestEqual(TEXT("uniformgrid type"), UGridW->GetType(), FName(TEXT("SUniformGridPanel")));
+
+	TestEqual(TEXT("spinbox value applied"), Spin.GetValue(), 0.25f);
+	TestEqual(TEXT("richtext text applied"), Rich.GetText().ToString(), FString(TEXT("rich <b>text</>")));
+	TestEqual(TEXT("uniformwrap has 2 children"), WrapW->GetChildren()->Num(), 2);
+	TestEqual(TEXT("gridpanel placed 2 cells"), GridW->GetChildren()->Num(), 2);
+	TestEqual(TEXT("uniformgrid placed 2 cells"), UGridW->GetChildren()->Num(), 2);
+
+	AddInfo(TEXT("[spinbox] state flip retargets the value (self-notifying skip path)"));
+	WidgetTest::IntSetter(1);
+	Root->FlushSync();
+	TestEqual(TEXT("spinbox value retargeted"), Spin.GetValue(), 0.75f);
 	return true;
 }
 

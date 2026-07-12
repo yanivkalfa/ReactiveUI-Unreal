@@ -194,6 +194,36 @@ namespace
 				T.Attrs.Add(TEXT("ColorAndOpacity"), EAttrType::Color);
 				M.Add(TEXT("Separator"), MoveTemp(T));
 			}
+			{
+				FTagDef T{TEXT("RUI::Slate::SpinBox"), TEXT("FRuiSpinBoxProps"), false, {}};
+				for (const TCHAR* P : {TEXT("Value"), TEXT("MinValue"), TEXT("MaxValue"), TEXT("Delta")})
+				{
+					T.Attrs.Add(P, EAttrType::Float);
+				}
+				T.Attrs.Add(TEXT("OnValueChanged"), EAttrType::Event);
+				M.Add(TEXT("SpinBox"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::UniformWrapPanel"), TEXT("FRuiUniformWrapPanelProps"), true, {}};
+				T.Attrs.Add(TEXT("SlotPadding"), EAttrType::Float);
+				T.Attrs.Add(TEXT("HAlign"), EAttrType::Name);
+				M.Add(TEXT("UniformWrapPanel"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::RichTextBlock"), TEXT("FRuiRichTextBlockProps"), false, {}};
+				T.Attrs.Add(TEXT("Text"), EAttrType::Text);
+				T.Attrs.Add(TEXT("bAutoWrapText"), EAttrType::Bool);
+				M.Add(TEXT("RichTextBlock"), MoveTemp(T));
+			}
+			M.Add(TEXT("GridPanel"), {TEXT("RUI::Slate::GridPanel"), TEXT("FRuiGridPanelProps"), true, {}});
+			{
+				FTagDef T{TEXT("RUI::Slate::UniformGridPanel"), TEXT("FRuiUniformGridPanelProps"), true, {}};
+				for (const TCHAR* P : {TEXT("SlotPadding"), TEXT("MinDesiredSlotWidth"), TEXT("MinDesiredSlotHeight")})
+				{
+					T.Attrs.Add(P, EAttrType::Float);
+				}
+				M.Add(TEXT("UniformGridPanel"), MoveTemp(T));
+			}
 			return M;
 		}();
 		return Tags;

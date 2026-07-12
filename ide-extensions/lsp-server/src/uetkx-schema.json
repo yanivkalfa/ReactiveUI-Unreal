@@ -74,6 +74,14 @@
 				"Text": "text"
 			}
 		},
+		"GridPanel":
+		{
+			"factory": "RUI::Slate::GridPanel",
+			"children": true,
+			"attrs":
+			{
+			}
+		},
 		"HorizontalBox":
 		{
 			"factory": "RUI::Slate::HorizontalBox",
@@ -120,6 +128,16 @@
 			"attrs":
 			{
 				"Percent": "float"
+			}
+		},
+		"RichTextBlock":
+		{
+			"factory": "RUI::Slate::RichTextBlock",
+			"children": false,
+			"attrs":
+			{
+				"bAutoWrapText": "bool",
+				"Text": "text"
 			}
 		},
 		"RuiCanvas":
@@ -210,6 +228,19 @@
 				"Size": "vector2"
 			}
 		},
+		"SpinBox":
+		{
+			"factory": "RUI::Slate::SpinBox",
+			"children": false,
+			"attrs":
+			{
+				"Delta": "float",
+				"MaxValue": "float",
+				"MinValue": "float",
+				"OnValueChanged": "event",
+				"Value": "float"
+			}
+		},
 		"TextBlock":
 		{
 			"factory": "RUI::TextBlock",
@@ -227,6 +258,27 @@
 			{
 				"Animate": "name",
 				"NumPieces": "int"
+			}
+		},
+		"UniformGridPanel":
+		{
+			"factory": "RUI::Slate::UniformGridPanel",
+			"children": true,
+			"attrs":
+			{
+				"MinDesiredSlotHeight": "float",
+				"MinDesiredSlotWidth": "float",
+				"SlotPadding": "float"
+			}
+		},
+		"UniformWrapPanel":
+		{
+			"factory": "RUI::Slate::UniformWrapPanel",
+			"children": true,
+			"attrs":
+			{
+				"HAlign": "name",
+				"SlotPadding": "float"
 			}
 		},
 		"VerticalBox":

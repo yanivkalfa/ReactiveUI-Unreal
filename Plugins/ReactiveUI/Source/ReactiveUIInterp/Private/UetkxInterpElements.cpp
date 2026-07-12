@@ -612,4 +612,92 @@ void FUetkxInterpElements::RegisterBuiltins()
 				 ApplyBase(P, In);
 				 return RUI::Slate::Separator(MoveTemp(P), In.Key);
 			 });
+
+	Register(TEXT("SpinBox"),
+			 [](FUetkxInterpElementInputs&& In)
+			 {
+				 FRuiSpinBoxProps P;
+				 if (const FRuiValue* Value = Attr(In, TEXT("Value")))
+				 {
+					 P.SetValue(AsFloat(*Value));
+				 }
+				 if (const FRuiValue* Min = Attr(In, TEXT("MinValue")))
+				 {
+					 P.SetMinValue(AsFloat(*Min));
+				 }
+				 if (const FRuiValue* Max = Attr(In, TEXT("MaxValue")))
+				 {
+					 P.SetMaxValue(AsFloat(*Max));
+				 }
+				 if (const FRuiValue* Delta = Attr(In, TEXT("Delta")))
+				 {
+					 P.SetDelta(AsFloat(*Delta));
+				 }
+				 if (const FRuiCallback* Changed = Event(In, TEXT("OnValueChanged")))
+				 {
+					 P.SetOnValueChanged(*Changed);
+				 }
+				 ApplyBase(P, In);
+				 return RUI::Slate::SpinBox(MoveTemp(P), In.Key);
+			 });
+
+	Register(TEXT("UniformWrapPanel"),
+			 [](FUetkxInterpElementInputs&& In)
+			 {
+				 FRuiUniformWrapPanelProps P;
+				 if (const FRuiValue* Padding = Attr(In, TEXT("SlotPadding")))
+				 {
+					 P.SetSlotPadding(AsFloat(*Padding));
+				 }
+				 if (const FRuiValue* H = Attr(In, TEXT("HAlign")))
+				 {
+					 P.SetHAlign(AsName(*H));
+				 }
+				 ApplyBase(P, In);
+				 return RUI::Slate::UniformWrapPanel(MoveTemp(P), MoveTemp(In.Children), In.Key);
+			 });
+
+	Register(TEXT("RichTextBlock"),
+			 [](FUetkxInterpElementInputs&& In)
+			 {
+				 FRuiRichTextBlockProps P;
+				 if (const FRuiValue* Text = Attr(In, TEXT("Text")))
+				 {
+					 P.SetText(AsText(*Text));
+				 }
+				 if (const FRuiValue* Wrap = Attr(In, TEXT("bAutoWrapText")))
+				 {
+					 P.SetbAutoWrapText(AsBool(*Wrap));
+				 }
+				 ApplyBase(P, In);
+				 return RUI::Slate::RichTextBlock(MoveTemp(P), In.Key);
+			 });
+
+	Register(TEXT("GridPanel"),
+			 [](FUetkxInterpElementInputs&& In)
+			 {
+				 FRuiGridPanelProps P;
+				 ApplyBase(P, In);
+				 return RUI::Slate::GridPanel(MoveTemp(P), MoveTemp(In.Children), In.Key);
+			 });
+
+	Register(TEXT("UniformGridPanel"),
+			 [](FUetkxInterpElementInputs&& In)
+			 {
+				 FRuiUniformGridPanelProps P;
+				 if (const FRuiValue* Padding = Attr(In, TEXT("SlotPadding")))
+				 {
+					 P.SetSlotPadding(AsFloat(*Padding));
+				 }
+				 if (const FRuiValue* W = Attr(In, TEXT("MinDesiredSlotWidth")))
+				 {
+					 P.SetMinDesiredSlotWidth(AsFloat(*W));
+				 }
+				 if (const FRuiValue* H = Attr(In, TEXT("MinDesiredSlotHeight")))
+				 {
+					 P.SetMinDesiredSlotHeight(AsFloat(*H));
+				 }
+				 ApplyBase(P, In);
+				 return RUI::Slate::UniformGridPanel(MoveTemp(P), MoveTemp(In.Children), In.Key);
+			 });
 }
