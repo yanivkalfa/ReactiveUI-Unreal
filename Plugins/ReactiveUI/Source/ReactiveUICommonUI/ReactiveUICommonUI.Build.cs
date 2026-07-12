@@ -17,6 +17,17 @@ public class ReactiveUICommonUI : ModuleRules
 		PublicDependencyModuleNames.AddRange(new string[]
 		{
 			"Core",
+			"CoreUObject",
+			"Engine",
+			"UMG",
+			"Slate",
+			"SlateCore",
+			"CommonUI",
+			"CommonInput",
+			"GameplayTags",
+			"ReactiveUICore",
+			"ReactiveUISlate",
+			"ReactiveUIUMG",
 		});
 	}
 }

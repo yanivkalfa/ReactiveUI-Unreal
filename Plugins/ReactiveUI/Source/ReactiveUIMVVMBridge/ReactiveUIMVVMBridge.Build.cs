@@ -16,6 +16,12 @@ public class ReactiveUIMVVMBridge : ModuleRules
 		PublicDependencyModuleNames.AddRange(new string[]
 		{
 			"Core",
+			"CoreUObject",
+			"Engine",
+			"FieldNotification",
+			"ModelViewViewModel",
+			"ReactiveUICore",
+			"ReactiveUIUMG",
 		});
 	}
 }
