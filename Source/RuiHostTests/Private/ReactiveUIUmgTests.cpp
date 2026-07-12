@@ -17,10 +17,12 @@
 #include "RuiAssetBrush.h"
 #include "RuiCoreElements.h"
 #include "RuiFieldHooks.h"
+#include "RuiFieldHooks.h"
 #include "RuiHostWidget.h"
 #include "RuiNode.h"
 #include "RuiReconciler.h"
 #include "RuiRoot.h"
+#include "RuiSignalViewModel.h"
 #include "RuiSlateElements.h"
 #include "RuiTestViewModel.h"
 #include "RuiUmgElement.h"
@@ -229,6 +231,70 @@ bool FRuiAssetBrushTest::RunTest(const FString&)
 	UmgTest::GBrush.Reset();
 	CollectGarbage(RF_NoFlags, /*bPerformFullPurge*/ true);
 	TestEqual(TEXT("tracked count returns to baseline after release"), RUI::Umg::NumTrackedAssetBrushes(), Baseline);
+	return true;
+}
+
+// ── TD-021: the REVERSE MVVM bridge — URuiSignalViewModel (ours feeding theirs) ────────────
+
+namespace UmgTest
+{
+	static URuiSignalViewModel* GSignalVm = nullptr;
+
+	static FRuiNodeArray SignalReaderComp(FRuiContext& Ctx, const FRuiEmptyProps&, const TArray<FRuiNode>&)
+	{
+		const int32 N = RUI::Umg::UseField<int32>(Ctx, GSignalVm, FName(TEXT("Int")), -1);
+		return {RUI::TextBlock(FString::Printf(TEXT("N:%d"), N))};
+	}
+	RUI_COMPONENT(SignalReaderComp)
+} // namespace UmgTest
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRuiReverseBridgeTest, "ReactiveUI.Mvvm.ReverseBridge",
+								 EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+bool FRuiReverseBridgeTest::RunTest(const FString&)
+{
+	URuiSignalViewModel* Vm = NewObject<URuiSignalViewModel>();
+	Vm->AddToRoot();
+
+	// ── the bridge broadcasts on change and skips when equal ──────────────────────────────────
+	int32 IntBroadcasts = 0;
+	const FDelegateHandle Handle = Vm->AddFieldValueChangedDelegate(
+		URuiSignalViewModel::FFieldNotificationClassDescriptor::Int,
+		INotifyFieldValueChanged::FFieldValueChangedDelegate::CreateLambda(
+			[&IntBroadcasts](UObject*, ::UE::FieldNotification::FFieldId) { ++IntBroadcasts; }));
+
+	Vm->SetInt(5);
+	TestEqual(TEXT("Int field updated"), Vm->Int, 5);
+	TestEqual(TEXT("broadcast fired once"), IntBroadcasts, 1);
+	Vm->SetInt(5); // equal set
+	TestEqual(TEXT("equal set did not broadcast"), IntBroadcasts, 1);
+	Vm->RemoveFieldValueChangedDelegate(URuiSignalViewModel::FFieldNotificationClassDescriptor::Int, Handle);
+
+	// ── Set(FRuiValue) routes by kind ─────────────────────────────────────────────────────────
+	Vm->Set(FRuiValue(3.5f));
+	TestEqual(TEXT("float routed"), Vm->Float, 3.5f);
+	Vm->Set(FRuiValue(true));
+	TestTrue(TEXT("bool routed"), Vm->Bool);
+	Vm->Set(FRuiValue(FText::FromString(TEXT("hello"))));
+	TestEqual(TEXT("text routed"), Vm->Text.ToString(), FString(TEXT("hello")));
+	Vm->Set(FRuiValue(FString(TEXT("world"))));
+	TestEqual(TEXT("string routed to text"), Vm->Text.ToString(), FString(TEXT("world")));
+
+	// ── round-trip: Rui writes the VM -> VM broadcasts -> a UseField consumer re-renders ──────
+	UmgTest::GSignalVm = Vm;
+	Vm->SetInt(5);
+	TSharedRef<FRuiRoot> Root = FRuiRoot::Create(RUI::FC(&UmgTest::SignalReaderComp));
+	Root->FlushSync();
+	SWidget& RootWidget = *Root->GetWidget();
+	TestTrue(TEXT("consumer reads the field"), UmgTest::ContainsText(RootWidget, TEXT("N:5")));
+
+	Vm->SetInt(9);
+	Root->FlushSync();
+	TestTrue(TEXT("consumer re-rendered on the reverse-bridge broadcast"),
+			 UmgTest::ContainsText(RootWidget, TEXT("N:9")));
+
+	Root->Unmount();
+	UmgTest::GSignalVm = nullptr;
+	Vm->RemoveFromRoot();
 	return true;
 }
 

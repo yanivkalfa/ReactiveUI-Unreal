@@ -369,7 +369,20 @@ referenced from plans/PRs.
 - **Production-grade resolution:** enable CommonUI/MVVM in the demo project, implement each
   layer with its suite (ReactiveUI.CommonUI, the reverse-bridge test), per-class prop maps
   generated from UHT reflection.
-- **Status:** OPEN
+- **Status:** PARTIAL — the MVVM **reverse bridge** shipped 2026-07-12 (the one layer with no
+  external-plugin dependency): `URuiSignalViewModel` (ReactiveUIUMG) is a FieldNotify UObject —
+  INotifyFieldValueChanged implemented directly over the engine FieldNotification module, NO
+  ModelViewViewModel-plugin dependency — with a generic bindable field set (Int/Float/Bool/Text).
+  Rui writes it via typed setters or `Set(FRuiValue)` (routes by kind, skip-when-equal, broadcasts
+  on change); a UMG widget (or a UseField consumer) bound to it updates when Rui state moves — the
+  "ours feeding theirs" direction, complementing the shipped UseField "theirs feeding ours". Test
+  `ReactiveUI.Mvvm.ReverseBridge`: broadcast-on-change + equal-set skip + FRuiValue routing + a
+  full round-trip (Rui writes VM → VM broadcasts → a UseField consumer re-renders). Full suite
+  68/68. **REMAINING (owner-gated):** (1) CommonUI activatables (URuiActivatableScreen/
+  UseActivation/UseInputMethod) and (3) per-class UMG prop maps + delegate trampolines both need
+  the CommonUI plugin enabled in the shipped demo `.uproject` + the D-27 optional-plugin-gating
+  decision exercised (a project-config change that is owner-territory); the MVVM plugin's
+  global-collection registration for URuiSignalViewModel likewise waits on enabling that plugin.
 
 ## TD-022 — Asset brushes (D-17) + focus extensions + item-model list views
 - **Where:** `ReactiveUISlate` (+ `ReactiveUIUMG` for the GC root)
