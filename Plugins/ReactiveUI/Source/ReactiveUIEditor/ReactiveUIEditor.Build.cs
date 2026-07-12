@@ -30,7 +30,8 @@ public class ReactiveUIEditor : ModuleRules
 			"ReactiveUIInterp",	 // FUetkxFileScan parser (preview scan — HMR v2 deleted the interpreter)
 			"ReactiveUIToolchain", // FUetkxDriver / FUetkxCodegen
 			"InputCore",			 // SEditableTextBox in the preview panel
-			"WorkspaceMenuStructure", // group the preview tab under Window > Tools (single, grouped entry)
+			"WorkspaceMenuStructure", // group the preview/HMR tabs under Window > Tools (grouped entries)
+			"ToolMenus",			  // the top-level ReactiveUetkx main-menu (HMR v2 Phase 2)
 			"DirectoryWatcher",		 // watcher trigger 1
 			"Slate",			 // window-activation trigger
 			"SlateCore",

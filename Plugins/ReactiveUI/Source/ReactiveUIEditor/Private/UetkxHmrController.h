@@ -24,6 +24,14 @@ struct FUetkxHmrStatus
 	double LastMs = 0.0; // wall-clock of the last compile→patch→refresh
 };
 
+/** A recent codegen error, for the HMR window's "Recent Errors" list (full detail is in the
+ *  "ReactiveUI" Message Log — this is the at-a-glance tail). */
+struct FUetkxHmrError
+{
+	FString When;	 // HH:MM the error was reported
+	FString Summary; // "<reason> — N error(s)"
+};
+
 /** Editor-only HMR controller (singleton). The watcher feeds it codegen results; it drives Live
  *  Coding and the reconciler refresh. Phase 2 adds the ReactiveUetkx window on top of this. */
 class FUetkxHmrController
@@ -44,6 +52,7 @@ public:
 
 	bool IsActive() const { return bActive; }
 	const FUetkxHmrStatus& GetStatus() const { return Status; }
+	const TArray<FUetkxHmrError>& GetRecentErrors() const { return RecentErrors; }
 	bool IsCompiling() const;
 
 	/** The watcher calls this after a codegen sweep. When active and something regenerated, it triggers
@@ -67,5 +76,6 @@ private:
 	bool bDirtyAgain = false; // a change arrived mid-compile → run one more cycle on completion
 	double CycleStartSeconds = 0.0;
 	FUetkxHmrStatus Status;
+	TArray<FUetkxHmrError> RecentErrors; // newest-first, capped (see NotifyCodegen)
 	FDelegateHandle PatchCompleteHandle;
 };

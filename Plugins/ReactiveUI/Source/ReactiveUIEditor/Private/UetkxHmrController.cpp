@@ -96,6 +96,19 @@ void FUetkxHmrController::Shutdown()
 void FUetkxHmrController::NotifyCodegen(int32 NumChanged, int32 NumErrors, const FString& Reason)
 {
 	Status.Errors += NumErrors;
+	if (NumErrors > 0)
+	{
+		// Keep a short, newest-first tail for the window; the "ReactiveUI" Message Log has the detail.
+		RecentErrors.Insert({FDateTime::Now().ToString(TEXT("%H:%M")),
+							  FString::Printf(TEXT("%s — %d error(s)"), *Reason, NumErrors)},
+							 0);
+		constexpr int32 MaxRecent = 20;
+		if (RecentErrors.Num() > MaxRecent)
+		{
+			RecentErrors.SetNum(MaxRecent);
+		}
+		OnStatusChanged.Broadcast(); // errors surface whether or not the mode is active
+	}
 	if (!bActive)
 	{
 		return; // codegen still runs (keeps the committed .inl fresh) but no live patch while stopped

@@ -5,8 +5,11 @@
 #include "Logging/LogMacros.h"
 #include "MessageLogModule.h"
 #include "Modules/ModuleManager.h"
+#include "ReactiveUetkxMenu.h"
+#include "SReactiveUetkxHmrPanel.h"
 #include "SUetkxPreviewPanel.h"
 #include "Styling/AppStyle.h"
+#include "ToolMenus.h"
 #include "UetkxHmrController.h"
 #include "UetkxWatcher.h"
 #include "Widgets/Docking/SDockTab.h"
@@ -18,6 +21,7 @@ DEFINE_LOG_CATEGORY_STATIC(LogRuiEditor, Log, All);
 namespace
 {
 	const FName GRuiPreviewTabId(TEXT("ReactiveUIPreview"));
+	const FName GRuiHmrTabId(TEXT("ReactiveUetkxHmr"));
 }
 
 class FReactiveUIEditorModule : public IModuleInterface
@@ -36,12 +40,19 @@ public:
 
 		RegisterHmrConsoleCommands();
 		RegisterPreviewTab();
+		RegisterHmrWindowTab();
+		// The main-menu bar isn't up yet at module load — register once ToolMenus is ready.
+		UToolMenus::RegisterStartupCallback(
+			FSimpleMulticastDelegate::FDelegate::CreateStatic(&FReactiveUetkxMenu::Register));
 		UE_LOG(LogRuiEditor, Display,
-			   TEXT("ReactiveUIEditor started — .uetkx watcher armed; HMR via ReactiveUetkx.HMR.Start/Stop/Toggle"));
+			   TEXT("ReactiveUIEditor started — .uetkx watcher armed; ReactiveUetkx menu + HMR window; "
+					"console: ReactiveUetkx.HMR.Start/Stop/Toggle"));
 	}
 
 	virtual void ShutdownModule() override
 	{
+		FReactiveUetkxMenu::Unregister();
+		UToolMenus::UnRegisterStartupCallback(this);
 		FUetkxHmrController::Get().Shutdown();
 		HmrCommands.Reset();
 		if (Watcher.IsValid())
@@ -52,6 +63,7 @@ public:
 		if (FSlateApplication::IsInitialized())
 		{
 			FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(GRuiPreviewTabId);
+			FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(GRuiHmrTabId);
 		}
 		if (FModuleManager::Get().IsModuleLoaded(TEXT("MessageLog")))
 		{
@@ -86,6 +98,29 @@ private:
 	TSharedRef<SDockTab> SpawnPreviewTab(const FSpawnTabArgs&)
 	{
 		return SNew(SDockTab).TabRole(ETabRole::NomadTab)[SNew(SUetkxPreviewPanel)];
+	}
+
+	/** Register the ReactiveUetkx Hot Reload window as a nomad tab (opened from the menu, HMR v2 Phase 2). */
+	void RegisterHmrWindowTab()
+	{
+		if (!FSlateApplication::IsInitialized())
+		{
+			return; // headless (commandlet) — no window UI
+		}
+		FGlobalTabmanager::Get()
+			->RegisterNomadTabSpawner(GRuiHmrTabId,
+									  FOnSpawnTab::CreateRaw(this, &FReactiveUIEditorModule::SpawnHmrTab))
+			.SetDisplayName(NSLOCTEXT("ReactiveUetkx", "HmrTabTitle", "ReactiveUetkx Hot Reload"))
+			.SetTooltipText(
+				NSLOCTEXT("ReactiveUetkx", "HmrTabTooltip", "Start/Stop .uetkx Hot Module Reload (Live Coding)"))
+			.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Recompile"))
+			.SetGroup(WorkspaceMenu::GetMenuStructure().GetToolsCategory())
+			.SetMenuType(ETabSpawnerMenuType::Enabled);
+	}
+
+	TSharedRef<SDockTab> SpawnHmrTab(const FSpawnTabArgs&)
+	{
+		return SNew(SDockTab).TabRole(ETabRole::NomadTab)[SNew(SReactiveUetkxHmrPanel)];
 	}
 
 	/** Start/Stop/Toggle the HMR mode from the console (the Phase-2 window + shortcuts drive the same
