@@ -228,11 +228,19 @@ referenced from plans/PRs.
     live state (D-16); `OnExpansionChanged` forwards the user toggle. Test
     `ReactiveUI.Widgets.ExpandableArea` (adapter-driven, like the slot suite): role routing
     (header/body/default), controlled collapse+re-expand, and body-holder clear on remove.
-  - **REMAINING (tracked, not blocking):** the batch-2 specials still needing bespoke designs —
-    SComboBox (dropdown rows generate only under a live menu stack — poor headless testability),
-    SSuggestionTextBox (suggestion menu, same), SNumericEntryBox (attribute-driven value + inner
-    SEditableText — value display only verifiable interactively), SSegmentedControl (templated
-    tabs); STreeView (hierarchical item model — TD-022 note); and the batch-3 long tail (color
+  - **SegmentedControl (tab bar): DONE 2026-07-12.** `RUI::Slate::SegmentedControl`
+    (`RuiSegmentedControl.h/.cpp`, exported `SRuiSegmentedControl`) wraps `SSegmentedControl<int32>`:
+    one text segment per `Labels` entry (value = index). `Labels` are construct-only (SSegmentedControl
+    has no clear-children API — a label-set change trips the reconstruct mask and replaces the widget);
+    `SelectedIndex` is CONTROLLED runtime (SetValue skip-when-equal, D-16); `OnSelectionChanged` fires
+    the picked index. Test `ReactiveUI.Widgets.SegmentedControl` (adapter-driven): segment count from
+    labels, controlled selection move, the Labels reconstruct-mask gate (same → no rebuild, changed →
+    rebuild), and a relabelled widget's new segment count.
+  - **REMAINING (tracked, not blocking):** the batch-2 specials still needing bespoke designs whose
+    CORE value is not cleanly verifiable headless — SComboBox (dropdown rows generate only under a
+    live menu stack), SSuggestionTextBox (suggestion menu, same), SNumericEntryBox (attribute-driven
+    value + inner SEditableText — value display only verifiable interactively); STreeView (hierarchical
+    item model — TD-022 note); and the batch-3 long tail (color
     pickers, gradients, vector inputs, virtual controls, etc.). Each wraps onto the established
     production line as demand surfaces; the ones above are deferred specifically because their core
     value (menu dropdowns / inner-text-widget behavior) is not cleanly verifiable headless — shipping

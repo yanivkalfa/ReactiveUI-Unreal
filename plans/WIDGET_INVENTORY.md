@@ -64,7 +64,7 @@ to wrap) · `SPECIAL` (covered by a dedicated mechanism, not a plain adapter).
 | SComboBox / SComboButton | templated items → item-model treatment shares SListView design (TD-022) |
 | SNumericEntryBox | numeric input variant (SSpinBox ✅ shipped) |
 | SSuggestionTextBox | text-input family (SSearchBox ✅ shipped) |
-| SSegmentedControl | templated selector |
+| SSegmentedControl | ✅ **shipped** (TD-012 tail) as `RUI::Slate::SegmentedControl` — labelled tab-bar selector (`Labels` bake the segments = construct-only reconstruct mask; `SelectedIndex` controlled; `OnSelectionChanged` fires the index) |
 | SExpandableArea | ✅ **shipped** (TD-012 tail) as `RUI::Slate::ExpandableArea` — the family's first TWO-NAMED-SLOT widget (children carry `slot.role="header"`/`"body"`; controlled `bIsExpanded` + `OnExpansionChanged`; `SRuiExpandableArea` reparents into two SBox holders) |
 | SListView / STileView | ✅ **shipped** (TD-022) as `RUI::Slate::ListView` / `TileView` — the family's item-model treatment (declarative `Items` + `RenderItem` render-prop → per-row `FRuiRoot` sub-roots over SListView's virtualized generate/recycle). C++-first (render closure not markup-expressible). |
 | STreeView | item-model with a hierarchical data shape — needs a per-item child accessor the flat `FRuiValue` item type doesn't carry; separate design (TD-022 note) |
