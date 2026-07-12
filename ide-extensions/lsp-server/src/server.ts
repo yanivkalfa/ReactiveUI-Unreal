@@ -24,6 +24,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { codePointToUtf16, utf16ToCodePoint } from "./codePoints";
 import { classifyCursor, DIRECTIVES } from "./context";
+import { enclosingAttrName, fieldForKind, PAYLOAD_FIELDS } from "./eventPayload";
 import { readSidecarDiags } from "./diagsSidecar";
 import { formatUetkx, UetkxFormatOptions, DEFAULT_FORMAT_OPTIONS } from "./formatUetkx";
 import { scanFile } from "./uetkxFileScan";
@@ -155,9 +156,28 @@ connection.onCompletion((params): CompletionItem[] => {
     return items;
   }
 
+  const schema = schemaOf(doc);
+
+  // TD-016: typed event payload — `Value.<field>` inside an event handler expression completes the
+  // FRuiValue field, with the ENCLOSING event's field first (OnTextChanged → Value.TextValue).
+  const off = doc.offsetAt(params.position);
+  const before = text.slice(Math.max(0, off - 48), off);
+  if (/\bValue\.[A-Za-z0-9_]*$/.test(before)) {
+    const attr = enclosingAttrName(text, off);
+    const want = fieldForKind(attr && schema.eventPayloads ? schema.eventPayloads[attr] : undefined);
+    const items: CompletionItem[] = [];
+    if (want) {
+      items.push({ label: want.field, kind: CompletionItemKind.Field, detail: `${want.type} — ${attr} payload`, sortText: "0" });
+    }
+    for (const f of PAYLOAD_FIELDS) {
+      if (want && f.field === want.field) continue;
+      items.push({ label: f.field, kind: CompletionItemKind.Field, detail: f.type, sortText: "1" + f.field });
+    }
+    return items;
+  }
+
   const cp = utf16ToCodePoint(text, doc.offsetAt(params.position));
   const ctx = classifyCursor(text, cp);
-  const schema = schemaOf(doc);
   if (ctx.kind === "tag") {
     const items: CompletionItem[] = Object.keys(schema.elements).map((tag) => ({
       label: tag,
@@ -239,6 +259,12 @@ connection.onHover((params) => {
   }
   if (schema.styleKeys.includes(word)) {
     return { contents: { kind: "markdown" as const, value: `**${word}** — style key (host-applied; resets on removal)` } };
+  }
+  // TD-016: an event attribute — show the payload its handler's `Value` carries.
+  if (schema.eventPayloads && schema.eventPayloads[word] !== undefined) {
+    const f = fieldForKind(schema.eventPayloads[word]);
+    const payload = f ? `the payload arrives as \`Value.${f.field}\` (\`${f.type}\`)` : "zero-payload — ignore `Value`";
+    return { contents: { kind: "markdown" as const, value: `**${word}** — event; ${payload}` } };
   }
   return null;
 });

@@ -203,5 +203,13 @@
 		"UseAnimate",
 		"UseTweenValue",
 		"UseSfx"
-	]
+	],
+	"eventPayloads":
+	{
+		"OnClicked": "void",
+		"OnCheckStateChanged": "bool",
+		"OnTextChanged": "text",
+		"OnTextCommitted": "text",
+		"OnValueChanged": "float"
+	}
 }

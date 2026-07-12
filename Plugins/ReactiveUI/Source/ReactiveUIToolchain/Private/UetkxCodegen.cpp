@@ -1277,6 +1277,48 @@ FString FUetkxCodegen::ExportSchemaJson()
 	}
 	Root->SetArrayField(TEXT("hooks"), HookArray);
 
+	// TD-016: per-event payload KIND — the FRuiValue field an event handler's `Value` carries, so
+	// the LSP can complete `Value.<Field>` typed by the event (text -> Value.TextValue, etc.). Keyed
+	// by event attr name (payload is per event name in v1). "void" = zero-payload (OnClicked).
+	auto EventPayloadKind = [](const FString& EventName) -> const TCHAR*
+	{
+		if (EventName == TEXT("OnTextChanged") || EventName == TEXT("OnTextCommitted"))
+		{
+			return TEXT("text");
+		}
+		if (EventName == TEXT("OnCheckStateChanged"))
+		{
+			return TEXT("bool");
+		}
+		if (EventName == TEXT("OnValueChanged"))
+		{
+			return TEXT("float");
+		}
+		return TEXT("void");
+	};
+	TSharedRef<FJsonObject> EventPayloads = MakeShared<FJsonObject>();
+	TSet<FString> SeenEvents;
+	for (const FName& TagName : TagNames)
+	{
+		const FTagDef& Tag = HostTags()[TagName];
+		TArray<FName> EvAttrNames;
+		Tag.Attrs.GetKeys(EvAttrNames);
+		EvAttrNames.Sort(FNameLexicalLess());
+		for (const FName& AttrName : EvAttrNames)
+		{
+			if (Tag.Attrs[AttrName] == EAttrType::Event)
+			{
+				const FString EvName = AttrName.ToString();
+				if (!SeenEvents.Contains(EvName))
+				{
+					SeenEvents.Add(EvName);
+					EventPayloads->SetStringField(EvName, EventPayloadKind(EvName));
+				}
+			}
+		}
+	}
+	Root->SetObjectField(TEXT("eventPayloads"), EventPayloads);
+
 	FString Out;
 	const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);
 	FJsonSerializer::Serialize(Root, Writer);

@@ -92,6 +92,21 @@ const settle = (ms = 300) => new Promise((r) => setTimeout(r, ms));
   if (!has("classes")) fail("attr completion missing 'classes'");
   console.log(`attr completion OK (${attrItems.length} items: typed attrs + style/slot keys + key/classes)`);
 
+  // TD-016: typed event payload — `Value.` inside OnTextChanged completes TextValue first.
+  const uriEvt = "file:///tmp/Evt.uetkx";
+  const evtText =
+    'component Evt {\n\tauto [T, SetT] = UseState<FString>(FString());\n\treturn (\n\t\t<EditableTextBox OnTextChanged={ SetT(Value.) } />\n\t);\n}\n';
+  notify("textDocument/didOpen", { textDocument: { uri: uriEvt, languageId: "uetkx", version: 1, text: evtText } });
+  // position right after `Value.` (line 3): "\t\t<EditableTextBox OnTextChanged={ SetT(Value." then cursor
+  const evtLine = evtText.split("\n")[3];
+  const evtCh = evtLine.indexOf("Value.") + "Value.".length;
+  const evtRes = await request("textDocument/completion", { textDocument: { uri: uriEvt }, position: { line: 3, character: evtCh } });
+  const evtItems = Array.isArray(evtRes.result) ? evtRes.result : (evtRes.result && evtRes.result.items) || [];
+  const textVal = evtItems.find((i) => i.label === "TextValue");
+  if (!textVal) fail("Value. completion missing TextValue: " + JSON.stringify(evtItems.map((i) => i.label)));
+  if (!/OnTextChanged payload/.test(textVal.detail || "")) fail("TextValue not marked as the OnTextChanged payload: " + JSON.stringify(textVal));
+  console.log("event payload completion OK (Value. → TextValue first, typed by OnTextChanged)");
+
   // live parse diagnostic: an unclosed tag flags the family code UETKX0301
   const uriBroken = "file:///tmp/Broken.uetkx";
   notify("textDocument/didOpen", {

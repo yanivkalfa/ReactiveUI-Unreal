@@ -8,6 +8,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { classifyCursor } from "../context";
+import { enclosingAttrName, fieldForKind } from "../eventPayload";
 import { readSidecarDiags } from "../diagsSidecar";
 import { srcHash } from "../cppScanner";
 import { shippedSchema } from "../uetkxSchema";
@@ -42,6 +43,28 @@ test("shipped schema is the committed compiler export", () => {
   assert.strictEqual(schema.elements.Button.attrs.OnClicked, "event");
   assert.strictEqual(schema.hooks.length, 20);
   assert.ok(schema.styleKeys.includes("RenderOpacity"));
+  // TD-016: event payload kinds present + correct.
+  assert.strictEqual(schema.eventPayloads?.OnTextChanged, "text");
+  assert.strictEqual(schema.eventPayloads?.OnCheckStateChanged, "bool");
+  assert.strictEqual(schema.eventPayloads?.OnValueChanged, "float");
+  assert.strictEqual(schema.eventPayloads?.OnClicked, "void");
+});
+
+test("event payload: enclosingAttrName + fieldForKind (TD-016)", () => {
+  // cursor inside OnTextChanged's expression finds the attr name
+  const src = '<EditableTextBox OnTextChanged={ Set(Value.';
+  assert.strictEqual(enclosingAttrName(src, src.length), "OnTextChanged");
+  // a nested brace in the expression doesn't confuse the walk
+  const nested = '<Slider OnValueChanged={ Set(FVector2D{1,2}, Value.';
+  assert.strictEqual(enclosingAttrName(nested, nested.length), "OnValueChanged");
+  // outside any attr value → null
+  assert.strictEqual(enclosingAttrName("<Button>Value.", "<Button>Value.".length), null);
+  // kind → field mapping
+  assert.strictEqual(fieldForKind("text")?.field, "TextValue");
+  assert.strictEqual(fieldForKind("bool")?.field, "BoolValue");
+  assert.strictEqual(fieldForKind("float")?.field, "FloatValue");
+  assert.strictEqual(fieldForKind("void"), null);
+  assert.strictEqual(fieldForKind(undefined), null);
 });
 
 test("sidecar diags gate on src_hash", () => {

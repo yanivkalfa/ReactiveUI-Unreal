@@ -13,6 +13,9 @@ export interface UetkxSchema {
   slotPrefix: string;
   slotKeys: string[];
   hooks: string[];
+  /** TD-016: event attr name -> payload kind (text|bool|float|int|name|color|vector2|void) — the
+   *  FRuiValue field an event handler's `Value` carries. Absent in older shipped schemas. */
+  eventPayloads?: Record<string, string>;
 }
 
 let shipped: UetkxSchema | null = null;
