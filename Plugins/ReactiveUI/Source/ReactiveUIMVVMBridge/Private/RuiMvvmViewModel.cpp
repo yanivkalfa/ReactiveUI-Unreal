@@ -85,7 +85,20 @@ bool RUI::Mvvm::RegisterGlobalViewModel(UGameInstance* GameInstance, FName Conte
 	FMVVMViewModelContext Context;
 	Context.ContextClass = ViewModel->GetClass();
 	Context.ContextName = ContextName;
-	return Collection->AddViewModelInstance(Context, ViewModel);
+	const bool bAdded = Collection->AddViewModelInstance(Context, ViewModel);
+
+	// Also register a URuiMvvmViewModel BASE-class alias for a subclassed viewmodel, so
+	// FindGlobalViewModel resolves it whether the caller passes the concrete class or relies on the
+	// base-class default (bughunt P1 — the engine's context match is exact class + name, so a subclass
+	// registered only under its own class was unresolvable via the default). The name still disambiguates.
+	if (bAdded && ViewModel->GetClass() != URuiMvvmViewModel::StaticClass() && ViewModel->IsA<URuiMvvmViewModel>())
+	{
+		FMVVMViewModelContext BaseAlias;
+		BaseAlias.ContextClass = URuiMvvmViewModel::StaticClass();
+		BaseAlias.ContextName = ContextName;
+		Collection->AddViewModelInstance(BaseAlias, ViewModel); // best-effort; collides only on duplicate name
+	}
+	return bAdded;
 }
 
 UMVVMViewModelBase* RUI::Mvvm::FindGlobalViewModel(UGameInstance* GameInstance, FName ContextName,

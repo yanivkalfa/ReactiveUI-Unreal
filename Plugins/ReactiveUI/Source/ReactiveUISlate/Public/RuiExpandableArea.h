@@ -58,6 +58,9 @@ private:
 	TSharedPtr<SBox> HeaderBox;
 	TSharedPtr<SBox> BodyBox;
 	FRuiCallback OnExpansionChanged;
+	/** Set while WE drive a controlled Area->SetExpanded, so HandleExpansionChanged suppresses
+	 *  OnExpansionChanged for the programmatic change (bughunt B9 — only user toggles fire it). */
+	bool bApplyingExpansion = false;
 };
 
 namespace RUI::Slate

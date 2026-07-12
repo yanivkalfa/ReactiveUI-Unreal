@@ -69,6 +69,11 @@ TSharedRef<FUetkxPreview> FUetkxPreview::FromSource(const FString& Source, const
 		Preview->Messages.Add(FString::Printf(TEXT("[interp] %s"), *Note));
 	}
 
+	// Edit-time safety (bughunt P2): stub referenced COMPILED child components to inert placeholders so
+	// their effects never run live in the editor (URuiHostWidget's design-time discipline, which the
+	// preview otherwise bypasses). The previewed component's own markup still renders.
+	Def->bStubComponents = true;
+
 	Preview->ComponentName = Decl->Name;
 	Preview->Root = FRuiRoot::Create(Def->MakeNode());
 	Preview->Root->FlushSync();

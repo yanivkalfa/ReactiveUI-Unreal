@@ -8,8 +8,11 @@
 
 #include "Misc/AutomationTest.h"
 #include "Blueprint/UserWidget.h"
+#include "CommonInputSubsystem.h"
+#include "CommonInputTypeEnum.h"
 #include "Engine/GameInstance.h"
 #include "Engine/Engine.h"
+#include "Engine/LocalPlayer.h"
 #include "RuiActivatableScreen.h"
 #include "RuiActivation.h"
 #include "RuiContext.h"
@@ -36,6 +39,17 @@ namespace CommonUITest
 		SWidget* Text = RuiTest::FindDescendantByType(Root.Get(), FName(TEXT("STextBlock")));
 		return Text != nullptr ? static_cast<STextBlock*>(Text)->GetText().ToString() : FString();
 	}
+
+	// Renders the current input method as text — the observable for the B12 device-switch regression.
+	static FRuiNodeArray InputProbe(FRuiContext& Ctx, const FRuiEmptyProps&, const TArray<FRuiNode>&)
+	{
+		const ERuiInputMethod M = RUI::CommonUI::UseInputMethod(Ctx);
+		const TCHAR* S = M == ERuiInputMethod::Gamepad ? TEXT("GAMEPAD")
+						 : M == ERuiInputMethod::Touch ? TEXT("TOUCH")
+													   : TEXT("MK");
+		return {RUI::TextBlock(FString(S))};
+	}
+	RUI_COMPONENT(InputProbe)
 } // namespace CommonUITest
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRuiCommonUIActivationTest, "ReactiveUI.CommonUI.Activation",
@@ -103,6 +117,46 @@ bool FRuiCommonUIScreenTest::RunTest(const FString&)
 		Screen->DeactivateWidget();
 		TestFalse(TEXT("DeactivateWidget clears active"), Screen->IsScreenActive());
 		TestEqual(TEXT("deactivation re-renders to INACTIVE"), ProbeText(Widget), FString(TEXT("INACTIVE")));
+	}
+
+	GameInstance->Shutdown();
+	GameInstance->RemoveFromRoot();
+	return true;
+}
+
+// ── B12 (bughunt): a live input-method switch re-renders the screen's UseInputMethod consumers ────
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRuiCommonUIInputMethodTest, "ReactiveUI.CommonUI.InputMethod",
+								 EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+bool FRuiCommonUIInputMethodTest::RunTest(const FString&)
+{
+	using namespace CommonUITest;
+	RUI::RegisterNamedFactory(FName(TEXT("RuiInputProbe")), []() { return RUI::FC(&InputProbe); });
+	if (GEngine == nullptr)
+	{
+		return true;
+	}
+	UGameInstance* GameInstance = NewObject<UGameInstance>(GEngine);
+	GameInstance->AddToRoot();
+	GameInstance->InitializeStandalone();
+
+	URuiActivatableScreen* Screen = CreateWidget<URuiActivatableScreen>(GameInstance);
+	if (TestNotNull(TEXT("screen created"), Screen))
+	{
+		Screen->ComponentName = FName(TEXT("RuiInputProbe"));
+		TSharedRef<SWidget> Widget = Screen->TakeWidget();
+		Screen->ActivateWidget(); // subscribes to the input-method-changed delegate
+		TestEqual(TEXT("B12: starts mouse-and-keyboard"), ProbeText(Widget), FString(TEXT("MK")));
+
+		ULocalPlayer* LocalPlayer = GameInstance->GetLocalPlayerByIndex(0);
+		if (LocalPlayer != nullptr)
+		{
+			if (UCommonInputSubsystem* Input = UCommonInputSubsystem::Get(LocalPlayer))
+			{
+				Input->SetCurrentInputType(ECommonInputType::Gamepad); // a live device switch
+				TestEqual(TEXT("B12: the screen re-rendered to GAMEPAD on the device switch"), ProbeText(Widget),
+						  FString(TEXT("GAMEPAD")));
+			}
+		}
 	}
 
 	GameInstance->Shutdown();

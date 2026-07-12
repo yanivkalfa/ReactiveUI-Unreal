@@ -79,16 +79,44 @@ void URuiActivatableScreen::RefreshInputMethod()
 	// player-less context (automation) the state simply stays mouse-and-keyboard.
 	if (const ULocalPlayer* LocalPlayer = GetOwningLocalPlayer())
 	{
-		if (const UCommonInputSubsystem* Input = UCommonInputSubsystem::Get(LocalPlayer))
+		if (UCommonInputSubsystem* Input = UCommonInputSubsystem::Get(LocalPlayer))
 		{
 			State.InputMethod = MapInputType(Input->GetCurrentInputType());
+			// Subscribe ONCE so a live mid-session device switch (mouse<->gamepad<->touch) re-renders the
+			// tree — sampling only at activation left UseInputMethod consumers stale (bughunt B12).
+			if (!InputMethodHandle.IsValid())
+			{
+				InputMethodHandle = Input->OnInputMethodChangedNative.AddUObject(
+					this, &URuiActivatableScreen::HandleInputMethodChanged);
+			}
 		}
+	}
+}
+
+void URuiActivatableScreen::HandleInputMethodChanged(ECommonInputType NewInputType)
+{
+	const ERuiInputMethod Mapped = MapInputType(NewInputType);
+	if (Mapped != State.InputMethod)
+	{
+		State.InputMethod = Mapped;
+		Rerender();
 	}
 }
 
 void URuiActivatableScreen::ReleaseSlateResources(bool bReleaseChildren)
 {
 	Super::ReleaseSlateResources(bReleaseChildren);
+	if (InputMethodHandle.IsValid())
+	{
+		if (const ULocalPlayer* LocalPlayer = GetOwningLocalPlayer())
+		{
+			if (UCommonInputSubsystem* Input = UCommonInputSubsystem::Get(LocalPlayer))
+			{
+				Input->OnInputMethodChangedNative.Remove(InputMethodHandle);
+			}
+		}
+		InputMethodHandle.Reset();
+	}
 	if (Root.IsValid())
 	{
 		Root->Unmount(); // cleanups run before the Slate tree is released (family teardown order)

@@ -10,6 +10,7 @@
 
 import { scanFile, UetkxComponentDecl, UetkxHookDecl, UetkxModuleDecl } from "./uetkxFileScan";
 import { SourceMap, SourceSpan } from "./sourceMap";
+import { codePointToUtf16 } from "./codePoints";
 
 export interface VirtualDoc {
   /** The synthesized C++ translation unit. */
@@ -48,7 +49,10 @@ export function buildVirtualCpp(source: string, basename = "doc"): VirtualDoc {
     }
     parts.push(prefix);
     vir += prefix.length;
-    spans.push({ srcStart: srcAt, virStart: vir, length: regionText.length });
+    // scanFile offsets are CODE POINTS, but the virtual side and every server consumer (doc.offsetAt /
+    // doc.positionAt) are UTF-16 — convert srcStart to UTF-16 (bughunt B14: without this, an astral-plane
+    // character before a region shifted the map, so hover/definition landed on the wrong token).
+    spans.push({ srcStart: codePointToUtf16(source, srcAt), virStart: vir, length: regionText.length });
     parts.push(regionText);
     vir += regionText.length;
     parts.push(suffix);

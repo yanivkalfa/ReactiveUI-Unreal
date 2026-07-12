@@ -54,7 +54,9 @@ void SRuiComboBox::SetSelectedIndex(int32 Index)
 	SelectedIndex = Index;
 	if (Combo.IsValid() && Options.IsValidIndex(Index))
 	{
-		Combo->SetSelectedItem(Options[Index]); // ESelectInfo::Direct — HandleSelectionChanged won't re-fire
+		bApplyingSelection = true; // suppress our own callback (bughunt B6)
+		Combo->SetSelectedItem(Options[Index]);
+		bApplyingSelection = false;
 	}
 	RefreshSelectedDisplay();
 }
@@ -97,13 +99,14 @@ TSharedRef<SWidget> SRuiComboBox::HandleGenerateRow(FItemType Item)
 	return Row->GetWidget();
 }
 
-void SRuiComboBox::HandleSelectionChanged(FItemType Item, ESelectInfo::Type SelectInfo)
+void SRuiComboBox::HandleSelectionChanged(FItemType Item, ESelectInfo::Type /*SelectInfo*/)
 {
 	const int32 Index = Item.IsValid() ? Options.IndexOfByKey(Item) : INDEX_NONE;
 	SelectedIndex = Index;
 	RefreshSelectedDisplay();
-	// Direct = our own programmatic SetSelectedItem (controlled) — only a user pick fires the event.
-	if (SelectInfo != ESelectInfo::Direct && OnSelectionChanged.IsBound())
+	// Fire only for a genuine USER pick — suppressed via the reentrancy flag while WE drive the set,
+	// NOT via ESelectInfo (SComboBox emits Direct for user keyboard-close / gamepad-accept too, B6).
+	if (!bApplyingSelection && OnSelectionChanged.IsBound())
 	{
 		OnSelectionChanged.Execute(FRuiValue(Index));
 	}

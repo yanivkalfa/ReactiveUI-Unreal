@@ -12,6 +12,7 @@
 #include "RuiSlateElements.h"
 #include "RuiSlateLog.h"
 #include "Styling/CoreStyle.h"
+#include "Styling/StyleDefaults.h" // FStyleDefaults::GetNoBrush (pointer-backed brush reset, D-17)
 #include "SRuiCanvas.h"
 
 #include "Widgets/Images/SImage.h"
@@ -102,9 +103,29 @@ public:
 		RUI_ROW(BorderBackgroundColor, W.SetBorderBackgroundColor(FSlateColor(N.BorderBackgroundColor)))
 		RUI_ROW(HAlign, W.SetHAlign(HAlignOf(N.HAlign)))
 		RUI_ROW(VAlign, W.SetVAlign(VAlignOf(N.VAlign)))
-		RUI_ROW(BorderImage, W.SetBorderImage(FCoreStyle::Get().GetBrush(N.BorderImage)))
-		// Asset brush (D-17) wins over the FCoreStyle name (applied last); GC-rooted by MakeAssetBrush.
-		RUI_ROW(BorderImageBrush, W.SetBorderImage(N.BorderImageBrush.Get()))
+		// Border image (D-17). The asset brush (BorderImageBrush) is POINTER-backed and wins over the
+		// FCoreStyle name, so it must (a) reset on removal — else SBorder keeps a raw FSlateBrush* into
+		// freed props (use-after-free on Paint, bughunt B11) — and (b) be re-applied LAST on ANY change
+		// to either input, else a name-only change clobbers a still-set asset (bughunt B10). The name is
+		// a plain prop (family: doesn't reset on removal) handled by RUI_ROW when no asset is present.
+		const bool bFresh = (O == nullptr);
+		const bool bAssetChanged = N.HasBorderImageBrush() &&
+								   (bFresh || !O->HasBorderImageBrush() || N.BorderImageBrush != O->BorderImageBrush);
+		const bool bNameChanged =
+			N.HasBorderImage() && (bFresh || !O->HasBorderImage() || !(N.BorderImage == O->BorderImage));
+		if (O != nullptr && O->HasBorderImageBrush() && !N.HasBorderImageBrush())
+		{
+			W.SetBorderImage(N.HasBorderImage() ? FCoreStyle::Get().GetBrush(N.BorderImage)
+												: FStyleDefaults::GetNoBrush());
+		}
+		else if (N.HasBorderImageBrush() && (bAssetChanged || bNameChanged))
+		{
+			W.SetBorderImage(N.BorderImageBrush.Get()); // asset wins, applied last
+		}
+		else
+		{
+			RUI_ROW(BorderImage, W.SetBorderImage(FCoreStyle::Get().GetBrush(N.BorderImage)))
+		}
 	}
 
 	virtual void SetContent(SWidget& Parent, const TSharedPtr<SWidget>& Child) override
@@ -169,9 +190,17 @@ public:
 		const FRuiImageProps* O = static_cast<const FRuiImageProps*>(Old);
 		RUI_ROW(ColorAndOpacity, W.SetColorAndOpacity(FSlateColor(N.ColorAndOpacity)))
 		RUI_ROW(DesiredSizeOverride, W.SetDesiredSizeOverride(N.DesiredSizeOverride))
-		// Asset brush (D-17): the committed props own the TSharedPtr, so the raw pointer SImage
-		// stores stays valid while mounted; RUI::Umg::MakeAssetBrush GC-roots its resource object.
-		RUI_ROW(Brush, W.SetImage(N.Brush.Get()))
+		// Asset brush (D-17): POINTER-backed, so it must RESET on removal — the committed props own the
+		// sole TSharedPtr, and once they are released SImage's raw FSlateBrush* dangles (use-after-free on
+		// the next Paint, bughunt B11). Removed asset -> reset to the no-brush default.
+		if (O != nullptr && O->HasBrush() && !N.HasBrush())
+		{
+			W.SetImage(FStyleDefaults::GetNoBrush());
+		}
+		else
+		{
+			RUI_ROW(Brush, W.SetImage(N.Brush.Get()))
+		}
 	}
 };
 

@@ -28,6 +28,13 @@ public:
 	uint32 HookSig = 0;
 	TArray<FString> Notes; // fallback notes (collected at build; reported by HMR)
 
+	/** Edit-time preview safety (bughunt P2): when set, a referenced COMPILED child component
+	 *  (`<Child/>`) renders as an inert `<Child/>` placeholder instead of resolving to the live
+	 *  compiled factory — so its UseEffect/UseLayoutEffect bodies never run in the editor (mirrors
+	 *  URuiHostWidget's design-time guard, which the in-editor preview otherwise bypasses). The
+	 *  previewed component's own markup + interp state still render live. */
+	bool bStubComponents = false;
+
 	static TSharedPtr<FUetkxInterpDef> Build(const FUetkxComponentDecl& Decl);
 
 	/** The reconciler-facing invoke (swapped in via RUI::SetComponentOverride). */

@@ -64,6 +64,32 @@ test("virtual C++ doc lifts an embedded hook body verbatim + maps it back", () =
   assert.strictEqual(vd.map.sourceToVirtual(source.indexOf("export")), null);
 });
 
+test("astral-plane char before a region keeps the map on the UTF-16 axis (bughunt B14)", () => {
+  // 🎉 is ONE code point but TWO UTF-16 units. scanFile offsets are code points; the virtual side and
+  // the server (doc.offsetAt/positionAt) are UTF-16, so srcStart must be stored in UTF-16 — else every
+  // identifier after the emoji maps one unit too far and hover/definition hit the wrong token.
+  const source = [
+    "// 🎉 banner",
+    "export hook UseThing(int32 Start) -> int32 {",
+    "\tconst int32 Doubled = Start * 2;",
+    "\treturn Doubled;",
+    "}",
+  ].join("\n");
+  const vd = buildVirtualCpp(source);
+
+  const needle = "Doubled = Start";
+  const srcOffset = source.indexOf(needle); // JS indexOf is UTF-16
+  assert.ok(srcOffset > 0);
+  const virOffset = vd.map.sourceToVirtual(srcOffset);
+  assert.notStrictEqual(virOffset, null, "the body offset maps into the virtual doc");
+  assert.strictEqual(
+    vd.text.slice(virOffset!, virOffset! + needle.length),
+    needle,
+    "the mapped virtual slice is the SAME identifier (no astral-char off-by-N)",
+  );
+  assert.strictEqual(vd.map.virtualToSource(virOffset!), srcOffset, "round-trips back to the UTF-16 source offset");
+});
+
 test("virtual C++ doc lifts a component setup block", () => {
   const source = [
     "export component Counter {",

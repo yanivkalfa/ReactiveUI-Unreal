@@ -143,12 +143,70 @@ namespace RUI::Slate
 		return GStyleClasses.Find(ClassName);
 	}
 
+	// TD-002 third layer: resolve `$token` references in `Out` against the active theme (lowest
+	// priority — the token supplies the VALUE a class/inline key referenced).
+	void ResolveThemeTokens(FRuiStyleDict& Out)
+	{
+		FScopeLock Lock(&GClassLock);
+		if (GActiveTheme == NAME_None)
+		{
+			return;
+		}
+		const FRuiStyleDict* Theme = GThemes.Find(GActiveTheme);
+		if (Theme == nullptr)
+		{
+			return;
+		}
+		for (TPair<FName, FRuiValue>& Pair : Out)
+		{
+			if (IsTokenRef(Pair.Value))
+			{
+				const FName Token(*Pair.Value.StringValue.RightChop(1));
+				if (const FRuiValue* Resolved = Theme->Find(Token))
+				{
+					Pair.Value = *Resolved;
+				}
+				else
+				{
+					WarnUnknownKey(FName(*(TEXT("token:") + Token.ToString())));
+				}
+			}
+		}
+	}
+
+	/** True iff a theme is active AND `Dict` holds at least one `$token` ref needing resolution. */
+	bool NeedsTokenResolution(const FRuiStyleDict& Dict)
+	{
+		FScopeLock Lock(&GClassLock);
+		if (GActiveTheme == NAME_None)
+		{
+			return false;
+		}
+		for (const TPair<FName, FRuiValue>& Pair : Dict)
+		{
+			if (IsTokenRef(Pair.Value))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
 	TSharedPtr<FRuiStyleDict> BuildEffectiveStyle(const TArray<FName>& Classes,
 												  const TSharedPtr<FRuiStyleDict>& InlineStyle)
 	{
 		if (Classes.IsEmpty())
 		{
-			return InlineStyle; // the common case shares the inline dict, no copy
+			// Fast path: no classes. Share the inline dict untouched UNLESS it carries `$token` refs that
+			// an active theme must resolve (bughunt B4 — the early return skipped resolution, so an
+			// inline-only `$token` reached the adapter as a raw String). Copy+resolve only then.
+			if (!InlineStyle.IsValid() || !NeedsTokenResolution(*InlineStyle))
+			{
+				return InlineStyle;
+			}
+			TSharedPtr<FRuiStyleDict> Out = MakeShared<FRuiStyleDict>(*InlineStyle);
+			ResolveThemeTokens(*Out);
+			return Out->IsEmpty() ? TSharedPtr<FRuiStyleDict>() : Out;
 		}
 		TSharedPtr<FRuiStyleDict> Out = MakeShared<FRuiStyleDict>();
 		{
@@ -175,32 +233,7 @@ namespace RUI::Slate
 				Out->Add(Pair.Key, Pair.Value); // inline wins
 			}
 		}
-		// TD-002 third layer: resolve `$token` references against the active theme (lowest
-		// priority — the token supplies the VALUE a class/inline key referenced).
-		{
-			FScopeLock Lock(&GClassLock);
-			if (GActiveTheme != NAME_None)
-			{
-				if (const FRuiStyleDict* Theme = GThemes.Find(GActiveTheme))
-				{
-					for (TPair<FName, FRuiValue>& Pair : *Out)
-					{
-						if (IsTokenRef(Pair.Value))
-						{
-							const FName Token(*Pair.Value.StringValue.RightChop(1));
-							if (const FRuiValue* Resolved = Theme->Find(Token))
-							{
-								Pair.Value = *Resolved;
-							}
-							else
-							{
-								WarnUnknownKey(FName(*(TEXT("token:") + Token.ToString())));
-							}
-						}
-					}
-				}
-			}
-		}
+		ResolveThemeTokens(*Out);
 		return Out->IsEmpty() ? TSharedPtr<FRuiStyleDict>() : Out;
 	}
 
@@ -347,37 +380,66 @@ namespace RUI::Slate
 		return FRuiValue(FName(*S));
 	}
 
+	/** Strip `/* ... *​/` and `//` comments, QUOTE-AWARE: a `//` or `/*` inside a `"..."` value is a
+	 *  literal, not a comment (bughunt B5 — the old global Find-based strip truncated any value
+	 *  containing `//`, e.g. `"img://cdn/x.png"`, silently eating the rest of the block). Newlines are
+	 *  preserved so line structure survives. */
+	FString StripComments(const FString& In)
+	{
+		FString Out;
+		Out.Reserve(In.Len());
+		const int32 N = In.Len();
+		bool bInString = false;
+		for (int32 i = 0; i < N;)
+		{
+			const TCHAR C = In[i];
+			if (bInString)
+			{
+				if (C == TEXT('\\') && i + 1 < N) // keep an escaped char pair verbatim
+				{
+					Out.AppendChar(C);
+					Out.AppendChar(In[i + 1]);
+					i += 2;
+					continue;
+				}
+				Out.AppendChar(C);
+				if (C == TEXT('"'))
+				{
+					bInString = false;
+				}
+				++i;
+				continue;
+			}
+			if (C == TEXT('"'))
+			{
+				bInString = true;
+				Out.AppendChar(C);
+				++i;
+				continue;
+			}
+			if (C == TEXT('/') && i + 1 < N && In[i + 1] == TEXT('*'))
+			{
+				const int32 End = In.Find(TEXT("*/"), ESearchCase::CaseSensitive, ESearchDir::FromStart, i + 2);
+				i = (End == INDEX_NONE) ? N : End + 2;
+				continue;
+			}
+			if (C == TEXT('/') && i + 1 < N && In[i + 1] == TEXT('/'))
+			{
+				const int32 NL = In.Find(TEXT("\n"), ESearchCase::CaseSensitive, ESearchDir::FromStart, i + 2);
+				i = (NL == INDEX_NONE) ? N : NL; // stop before the newline (kept next iteration)
+				continue;
+			}
+			Out.AppendChar(C);
+			++i;
+		}
+		return Out;
+	}
+
 	int32 LoadStylesheet(const FString& Source)
 	{
 		int32 Registered = 0;
-		// Strip /* ... */ and // line comments, then walk `header { body }` blocks.
-		FString Src = Source;
-		{
-			// Strip /* ... */ block comments.
-			int32 Start;
-			while ((Start = Src.Find(TEXT("/*"))) != INDEX_NONE)
-			{
-				const int32 End = Src.Find(TEXT("*/"), ESearchCase::CaseSensitive, ESearchDir::FromStart, Start);
-				if (End == INDEX_NONE)
-				{
-					break;
-				}
-				Src = Src.Left(Start) + Src.RightChop(End + 2);
-			}
-			// Strip // line comments (to end of line) — done GLOBALLY so a trailing comment never
-			// eats the next declaration once the body is split on ';'.
-			int32 P;
-			while ((P = Src.Find(TEXT("//"))) != INDEX_NONE)
-			{
-				const int32 NL = Src.Find(TEXT("\n"), ESearchCase::CaseSensitive, ESearchDir::FromStart, P);
-				if (NL == INDEX_NONE)
-				{
-					Src = Src.Left(P);
-					break;
-				}
-				Src = Src.Left(P) + Src.RightChop(NL);
-			}
-		}
+		// Strip comments (quote-aware), then walk `header { body }` blocks.
+		FString Src = StripComments(Source);
 
 		int32 Cursor = 0;
 		while (Cursor < Src.Len())

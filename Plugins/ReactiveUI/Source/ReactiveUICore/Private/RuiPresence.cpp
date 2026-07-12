@@ -24,10 +24,14 @@ namespace
 		return Handle;
 	}
 
-	/** Positional-index fallback key for an unkeyed child (mirrors the reconciler's namespace). */
+	/** Positional-index fallback key for an unkeyed child. MUST use the reconciler's namespaced
+	 *  sentinel (a control-char FName that can never equal a user key), not a raw FRuiKey(Index) —
+	 *  the latter is byte-identical to a user's integer key FRuiKey(Index), so an unkeyed child and an
+	 *  integer-keyed child at the same value would collapse to one identity (bughunt B1: silent child
+	 *  drop / mis-attributed exit tracking). Mirrors FiberKey/VNodeKey in RuiReconciler.cpp. */
 	FRuiKey KeyForChild(const FRuiNode& Child, int32 Index)
 	{
-		return Child.Key.IsSet() ? Child.Key : FRuiKey(Index);
+		return Child.Key.IsSet() ? Child.Key : FRuiKey(FName(*FString::Printf(TEXT("\x01idx%d"), Index)));
 	}
 
 	// ── PresenceChild: wraps ONE kept child, owns its bPresent context + exit timeout ──────

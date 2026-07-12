@@ -19,7 +19,10 @@ void SRuiSegmentedControl::Construct(const FArguments& InArgs)
 	if (InArgs._Labels.Num() > 0)
 	{
 		const int32 Initial = FMath::Clamp(InArgs._InitialIndex, 0, InArgs._Labels.Num() - 1);
-		Control->SetValue(Initial, /*bUpdateChildren*/ false);
+		// bUpdateChildren=TRUE so the segment highlight follows the controlled value (bughunt B8): the
+		// value attribute is unbound, so the check states are static snapshots — without the refresh they
+		// stay Unchecked and no controlled/initial selection ever visually highlights (only user clicks do).
+		Control->SetValue(Initial, /*bUpdateChildren*/ true);
 	}
 	ChildSlot[Control.ToSharedRef()];
 }
@@ -29,7 +32,7 @@ void SRuiSegmentedControl::SetSelectedIndex(int32 Index)
 	// Controlled skip-when-equal (D-16): the widget's own click lands on an equal value.
 	if (Control.IsValid() && Index >= 0 && Index < Control->NumSlots() && Control->GetValue() != Index)
 	{
-		Control->SetValue(Index, /*bUpdateChildren*/ false);
+		Control->SetValue(Index, /*bUpdateChildren*/ true); // refresh the highlight (bughunt B8)
 	}
 }
 

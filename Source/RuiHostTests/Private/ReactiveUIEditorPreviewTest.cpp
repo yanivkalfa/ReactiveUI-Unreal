@@ -5,13 +5,39 @@
 // no component or a parse error yields a placeholder + diagnostics (never a crash).
 
 #include "Misc/AutomationTest.h"
+#include "RuiContext.h"
+#include "RuiCoreElements.h"
+#include "RuiNode.h"
 #include "UetkxPreview.h"
 #include "Widgets/SWidget.h"
+#include "Widgets/Text/STextBlock.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
 namespace EditorPreviewTest
 {
+	// A compiled child component whose render would be observable IF it ran live in the editor.
+	static FRuiNodeArray PreviewChildComp(FRuiContext&, const FRuiEmptyProps&, const TArray<FRuiNode>&)
+	{
+		return {RUI::TextBlock(FString(TEXT("CHILD_RAN_LIVE")))};
+	}
+	RUI_COMPONENT(PreviewChildComp)
+
+	static void CollectTexts(SWidget& Root, TArray<FString>& Out)
+	{
+		if (Root.GetType() == FName(TEXT("STextBlock")))
+		{
+			Out.Add(static_cast<STextBlock&>(Root).GetText().ToString());
+		}
+		if (FChildren* Children = Root.GetChildren())
+		{
+			for (int32 i = 0; i < Children->Num(); ++i)
+			{
+				CollectTexts(Children->GetChildAt(i).Get(), Out);
+			}
+		}
+	}
+
 	static bool AnyMessageContains(const TArray<FString>& Messages, const TCHAR* Needle)
 	{
 		for (const FString& Message : Messages)
@@ -70,6 +96,25 @@ bool FRuiEditorPreviewTest::RunTest(const FString&)
 		TSharedRef<FUetkxPreview> Preview = FUetkxPreview::FromSource(Source, TEXT("Broken"));
 		TestTrue(TEXT("a parse error produced at least one message"), Preview->GetMessages().Num() > 0);
 		Preview->GetWidget(); // no crash
+	}
+
+	// ── P2 (bughunt): a referenced COMPILED child component is STUBBED, not run live at edit time ──
+	{
+		RUI::RegisterNamedFactory(FName(TEXT("BugfixPreviewChild")),
+								  []() { return RUI::FC(&EditorPreviewTest::PreviewChildComp); });
+		const FString Source = TEXT("component Host {\n\treturn ( <BugfixPreviewChild></BugfixPreviewChild> );\n}\n");
+		TSharedRef<FUetkxPreview> Preview = FUetkxPreview::FromSource(Source, TEXT("Host"));
+		TestTrue(TEXT("P2: host mounts"), Preview->IsValid());
+		TArray<FString> Texts;
+		CollectTexts(Preview->GetWidget().Get(), Texts);
+		bool bRanLive = false, bStubbed = false;
+		for (const FString& T : Texts)
+		{
+			bRanLive |= T.Contains(TEXT("CHILD_RAN_LIVE"));
+			bStubbed |= T.Contains(TEXT("<BugfixPreviewChild/>"));
+		}
+		TestFalse(TEXT("P2: the compiled child did NOT run live in the editor"), bRanLive);
+		TestTrue(TEXT("P2: the child rendered as an inert placeholder"), bStubbed);
 	}
 
 	return true;

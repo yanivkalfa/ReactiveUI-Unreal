@@ -31,15 +31,33 @@ namespace
 		return TEXT("/") + FString::Join(Segs, TEXT("/"));
 	}
 
-	/** Grab the ?search#hash tail of a to-string (so ResolvePath sees only the pathname). */
+	/** Index of the first `?` or `#` in a to-string (whichever is earlier), or INDEX_NONE. */
+	int32 TailStart(const FString& To)
+	{
+		int32 Q, H;
+		const bool bQ = To.FindChar(TEXT('?'), Q);
+		const bool bH = To.FindChar(TEXT('#'), H);
+		if (bQ && bH)
+		{
+			return FMath::Min(Q, H);
+		}
+		return bQ ? Q : (bH ? H : INDEX_NONE);
+	}
+
+	/** The ?search#hash tail of a to-string (so it can be re-appended once after path resolution). */
 	FString ExtractQueryHash(const FString& To)
 	{
-		int32 Idx;
-		if (To.FindChar(TEXT('?'), Idx) || To.FindChar(TEXT('#'), Idx))
-		{
-			return To.RightChop(Idx);
-		}
-		return FString();
+		const int32 Cut = TailStart(To);
+		return Cut == INDEX_NONE ? FString() : To.RightChop(Cut);
+	}
+
+	/** The PATHNAME part of a to-string, with any ?query#hash tail removed — what ResolvePath must see.
+	 *  ResolvePath segments only on `/`, so passing the raw `To` embeds the tail into the resolved path
+	 *  AND lets the caller append it again -> doubled search/hash (bughunt B2). Strip first. */
+	FString StripQueryHash(const FString& To)
+	{
+		const int32 Cut = TailStart(To);
+		return Cut == INDEX_NONE ? To : To.Left(Cut);
 	}
 } // namespace
 
@@ -110,14 +128,19 @@ TMap<FString, FString> RUI::ParseSearch(const FString& Search)
 	S.ParseIntoArray(Pairs, TEXT("&"), true);
 	for (const FString& Pair : Pairs)
 	{
+		// First value wins for a repeated key (documented contract, RuiRouter.h) — insert only when
+		// absent (bughunt B3: FindOrAdd + assign was last-value-wins, contradicting the header).
 		FString Key, Value;
 		if (Pair.Split(TEXT("="), &Key, &Value))
 		{
-			Out.FindOrAdd(Key) = Value;
+			if (!Out.Contains(Key))
+			{
+				Out.Add(Key, Value);
+			}
 		}
-		else if (!Pair.IsEmpty())
+		else if (!Pair.IsEmpty() && !Out.Contains(Pair))
 		{
-			Out.FindOrAdd(Pair) = FString();
+			Out.Add(Pair, FString());
 		}
 	}
 	return Out;
@@ -312,7 +335,8 @@ namespace
 		auto Navigate = [HistRef, BlockerList, Bump](const FString& To, bool bReplace)
 		{
 			FRuiHistory& H = HistRef->Current;
-			const FString Resolved = RUI::ResolvePath(To, H.Current.Pathname);
+			// Resolve only the pathname part, then re-append the ?query#hash tail ONCE (bughunt B2).
+			const FString Resolved = RUI::ResolvePath(StripQueryHash(To), H.Current.Pathname);
 			const FRuiLocation Next =
 				RUI::ParseLocation(To.StartsWith(TEXT("/")) ? To : Resolved + ExtractQueryHash(To));
 			if (AnyBlockerActive(BlockerList, Next.ToHref()))
@@ -699,9 +723,9 @@ FString UseHref(FRuiContext& Ctx, const FString& To)
 	{
 		return RUI::ParseLocation(To).ToHref();
 	}
-	int32 Idx;
-	const FString Tail = (To.FindChar(TEXT('?'), Idx) || To.FindChar(TEXT('#'), Idx)) ? To.RightChop(Idx) : FString();
-	return UseResolvedPath(Ctx, To) + Tail;
+	// Resolve only the pathname, then append the tail once (bughunt B2 — was doubling via
+	// UseResolvedPath(To) embedding the tail AND `+ Tail` re-appending it).
+	return RUI::ResolvePath(StripQueryHash(To), UseLocation(Ctx).Pathname) + ExtractQueryHash(To);
 }
 
 void UseBlocker(FRuiContext& Ctx, bool bBlock, TFunction<void(const FString&)> OnBlocked)

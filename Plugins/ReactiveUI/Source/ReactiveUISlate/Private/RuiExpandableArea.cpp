@@ -40,7 +40,12 @@ void SRuiExpandableArea::SetExpanded(bool bExpanded)
 	// Self-notifying skip (D-16): the widget's own toggle lands on an equal value.
 	if (Area.IsValid() && Area->IsExpanded() != bExpanded)
 	{
+		// SExpandableArea::SetExpanded broadcasts OnAreaExpansionChanged; suppress our forward of it for
+		// this PROGRAMMATIC (controlled) change so OnExpansionChanged fires only on a genuine user toggle
+		// (bughunt B9 — controlled-component feedback footgun).
+		bApplyingExpansion = true;
 		Area->SetExpanded(bExpanded);
+		bApplyingExpansion = false;
 	}
 }
 
@@ -104,7 +109,9 @@ TSharedPtr<SWidget> SRuiExpandableArea::GetRoleContent(FName Role) const
 
 void SRuiExpandableArea::HandleExpansionChanged(bool bExpanded)
 {
-	if (OnExpansionChanged.IsBound())
+	// Only a genuine USER toggle forwards the event; a programmatic (controlled) change is suppressed
+	// via bApplyingExpansion (bughunt B9).
+	if (!bApplyingExpansion && OnExpansionChanged.IsBound())
 	{
 		OnExpansionChanged.Execute(FRuiValue(bExpanded));
 	}

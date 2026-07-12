@@ -652,7 +652,11 @@ FRuiNode FUetkxInterpDef::EmitElement(const FPrepNode& Node, FUetkxExprEnv& Env,
 
 	if (Node.Kind == FPrepNode::EKind::Component)
 	{
-		FRuiNode Ref = RUI::Named(Node.Tag);
+		// Preview/edit-time safety (bughunt P2): a compiled child component would run its real
+		// UseEffect/UseLayoutEffect in the editor. Substitute an inert placeholder instead.
+		FRuiNode Ref = bStubComponents
+						   ? RUI::TextBlock(FText::FromString(FString::Printf(TEXT("<%s/>"), *Node.Tag.ToString())))
+						   : RUI::Named(Node.Tag);
 		Ref.Key = Inputs.Key;
 		return Ref;
 	}

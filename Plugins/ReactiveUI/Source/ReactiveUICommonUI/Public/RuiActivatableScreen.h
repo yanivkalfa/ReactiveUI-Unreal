@@ -14,6 +14,7 @@
 #include "RuiActivatableScreen.generated.h"
 
 class FRuiRoot;
+enum class ECommonInputType : uint8;
 
 UCLASS(meta = (DisplayName = "ReactiveUI Activatable Screen"))
 class REACTIVEUICOMMONUI_API URuiActivatableScreen : public UCommonActivatableWidget
@@ -46,7 +47,10 @@ private:
 	FRuiNode BuildTree() const;
 	void Rerender();
 	void RefreshInputMethod();
+	/** Bound to UCommonInputSubsystem::OnInputMethodChangedNative so a live device switch re-renders. */
+	void HandleInputMethodChanged(ECommonInputType NewInputType);
 
 	TSharedPtr<FRuiRoot> Root;
 	FRuiActivationState State;
+	FDelegateHandle InputMethodHandle;
 };

@@ -169,10 +169,20 @@ public:
 		const TSharedPtr<FRuiDragDropOp> Op = Event.GetOperationAs<FRuiDragDropOp>();
 		if (Accepts(Op))
 		{
-			bIsOver = false;
 			if (OnDropCb.IsBound())
 			{
 				OnDropCb.Execute(Op->Payload);
+			}
+			// Slate delivers no OnDragLeave to the widget it was dropped on (still under the cursor), so
+			// fire the leave callback here — else any hover styling lit on OnDragEnter stays on forever
+			// after the drop (bughunt B7). Mirror the OnDragLeave guard: only when we were hovered.
+			if (bIsOver)
+			{
+				bIsOver = false;
+				if (OnLeaveCb.IsBound())
+				{
+					OnLeaveCb.Execute(FRuiValue());
+				}
 			}
 			return FReply::Handled();
 		}

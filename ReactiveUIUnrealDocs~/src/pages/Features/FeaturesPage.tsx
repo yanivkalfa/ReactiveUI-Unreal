@@ -4,21 +4,21 @@ import { CodeBlock } from '../../components/CodeBlock/CodeBlock'
 
 const ROUTER = `#include "RuiRouter.h"
 
-// A router owns an in-memory history; consumers read location and navigate.
+// A router owns an in-memory history; Routes renders the best match for the current location.
 FRuiNode App(FRuiContext& Ctx) {
-    return RUI::Router({}, {
-        RUI::Routes({}, {
-            RUI::Route("/", HomeRoute),
-            RUI::Route("/users/:id", UserRoute),
+    return RUI::Router({
+        RUI::Routes({
+            FRuiRoute{ TEXT("/"),          RUI::FC(&HomeScreen) },
+            FRuiRoute{ TEXT("/users/:id"), RUI::FC(&UserScreen) },
         }),
-    });
+    }, TEXT("/"));
 }
 
-// Inside a route component: the family's 17 router hooks.
-FRuiLocation Loc   = RUI::UseLocation(Ctx);
-FRuiParams   P     = RUI::UseParams(Ctx);          // { "id": "42" }
-auto         Nav   = RUI::UseNavigate(Ctx);        // Nav("/users/7")
-auto         Search = RUI::UseSearchParams(Ctx);   // ?q=... read/write`
+// Inside a route component: the family's 17 router hooks (global free functions, not RUI-scoped).
+const FRuiLocation&           Loc    = UseLocation(Ctx);
+const TMap<FString, FString>& Params = UseParams(Ctx);      // { "id": "42" }
+auto                          Nav    = UseNavigate(Ctx);    // Nav(TEXT("/users/7"), false)
+auto                          Search = UseSearchParams(Ctx);`
 
 const STYLESHEET = `// theme.uss — @theme tokens + $token refs; the cascade is theme < classes < inline.
 @theme dark {
@@ -39,7 +39,7 @@ FRuiListViewProps P;
 P.SetItems(Items);                                  // stable TSharedPtr<FRuiValue> array
 P.SetRenderItem(RUI::Slate::MakeItemRenderer(
     [](const FRuiValue& V, int32) { return RUI::TextBlock(V.StringValue); }));
-P.SetSelectedIndex(0);
+P.SetSelectionMode(FName(TEXT("single")));          // none | single | singleToggle | multi
 return RUI::Slate::ListView(MoveTemp(P));            // or TileView(...)`
 
 const DND = `#include "RuiDragDrop.h"
@@ -52,7 +52,7 @@ const PRESENCE = `#include "RuiPresence.h"
 
 // Children removed from the tree stay mounted until they signal done (or time out).
 RUI::Presence({ /* keyed children */ });
-FRuiPresenceState S = RUI::UsePresence(Ctx);         // { bPresent, NotifyDone }`
+FRuiPresenceState S = UsePresence(Ctx);              // global hook: { bPresent, NotifyDone }`
 
 const COMMONUI = `#include "RuiActivatableScreen.h"   // our tree as a CommonUI screen
 

@@ -29,40 +29,56 @@ int32 RUI::Umg::ApplyPropMap(UUserWidget* Widget, const FRuiStyleDict& WidgetPro
 		const FRuiValue& V = Pair.Value;
 		bool bSet = true;
 
+		// Dispatch on the DESTINATION property type but validate against V.Kind (bughunt B13): FRuiValue
+		// stores each kind in a separate zero-defaulted member, so reading (e.g.) V.FloatValue on an
+		// Int-kind value silently yields 0.0. Numeric props coerce Int<->Float; every other category
+		// requires a compatible kind, else the pair is SKIPPED (the documented "mismatches are skipped").
+		using EKind = FRuiValue::EKind;
+		const bool bNumeric = (V.Kind == EKind::Int || V.Kind == EKind::Float);
+		const double NumD = (V.Kind == EKind::Float) ? V.FloatValue : static_cast<double>(V.IntValue);
+		const int64 NumI = (V.Kind == EKind::Float) ? static_cast<int64>(V.FloatValue) : V.IntValue;
+		const bool bStringy = (V.Kind == EKind::String || V.Kind == EKind::Text || V.Kind == EKind::Name);
+		auto AsString = [&V]() -> FString
+		{
+			return V.Kind == EKind::Text ? V.TextValue.ToString()
+										 : (V.Kind == EKind::Name ? V.NameValue.ToString() : V.StringValue);
+		};
+
 		if (FIntProperty* IntProp = CastField<FIntProperty>(Prop))
 		{
-			IntProp->SetPropertyValue(ValuePtr, static_cast<int32>(V.IntValue));
+			bSet = bNumeric && (IntProp->SetPropertyValue(ValuePtr, static_cast<int32>(NumI)), true);
 		}
 		else if (FInt64Property* Int64Prop = CastField<FInt64Property>(Prop))
 		{
-			Int64Prop->SetPropertyValue(ValuePtr, V.IntValue);
+			bSet = bNumeric && (Int64Prop->SetPropertyValue(ValuePtr, NumI), true);
 		}
 		else if (FFloatProperty* FloatProp = CastField<FFloatProperty>(Prop))
 		{
-			FloatProp->SetPropertyValue(ValuePtr, static_cast<float>(V.FloatValue));
+			bSet = bNumeric && (FloatProp->SetPropertyValue(ValuePtr, static_cast<float>(NumD)), true);
 		}
 		else if (FDoubleProperty* DoubleProp = CastField<FDoubleProperty>(Prop))
 		{
-			DoubleProp->SetPropertyValue(ValuePtr, V.FloatValue);
+			bSet = bNumeric && (DoubleProp->SetPropertyValue(ValuePtr, NumD), true);
 		}
 		else if (FBoolProperty* BoolProp = CastField<FBoolProperty>(Prop))
 		{
-			BoolProp->SetPropertyValue(ValuePtr, V.BoolValue);
+			bSet = (V.Kind == EKind::Bool) && (BoolProp->SetPropertyValue(ValuePtr, V.BoolValue), true);
 		}
 		else if (FStrProperty* StrProp = CastField<FStrProperty>(Prop))
 		{
-			StrProp->SetPropertyValue(ValuePtr,
-									  V.Kind == FRuiValue::EKind::Text ? V.TextValue.ToString() : V.StringValue);
+			bSet = bStringy && (StrProp->SetPropertyValue(ValuePtr, AsString()), true);
 		}
 		else if (FTextProperty* TextProp = CastField<FTextProperty>(Prop))
 		{
-			TextProp->SetPropertyValue(ValuePtr, V.Kind == FRuiValue::EKind::Text ? V.TextValue
-																				  : FText::FromString(V.StringValue));
+			bSet = bStringy && (TextProp->SetPropertyValue(
+									ValuePtr, V.Kind == EKind::Text ? V.TextValue : FText::FromString(AsString())),
+								true);
 		}
 		else if (FNameProperty* NameProp = CastField<FNameProperty>(Prop))
 		{
-			NameProp->SetPropertyValue(ValuePtr,
-									   V.Kind == FRuiValue::EKind::Name ? V.NameValue : FName(*V.StringValue));
+			bSet =
+				bStringy &&
+				(NameProp->SetPropertyValue(ValuePtr, V.Kind == EKind::Name ? V.NameValue : FName(*AsString())), true);
 		}
 		else
 		{

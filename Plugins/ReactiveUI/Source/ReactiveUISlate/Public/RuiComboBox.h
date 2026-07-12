@@ -58,6 +58,9 @@ public:
 	/** The widget currently shown as the collapsed selected display (its sub-root's tree). */
 	TSharedPtr<SWidget> GetSelectedContent() const;
 
+	/** The backing SComboBox (tests drive a user-style selection through it, e.g. ESelectInfo::Direct). */
+	TSharedPtr<SComboBox<FItemType>> GetComboWidget() const { return Combo; }
+
 private:
 	TSharedRef<SWidget> HandleGenerateRow(FItemType Item);
 	void HandleSelectionChanged(FItemType Item, ESelectInfo::Type SelectInfo);
@@ -73,6 +76,10 @@ private:
 	TSharedPtr<SBox> SelectedHolder;
 	TSharedPtr<FRuiRoot> SelectedRoot;
 	TArray<TSharedPtr<FRuiRoot>> RowRoots;
+	/** Set while WE drive Combo->SetSelectedItem, so HandleSelectionChanged suppresses OnSelectionChanged
+	 *  for our own programmatic set (bughunt B6 — ESelectInfo::Direct is NOT a reliable programmatic-vs-user
+	 *  signal; SComboBox emits Direct for genuine user commits too). */
+	bool bApplyingSelection = false;
 };
 
 namespace RUI::Slate

@@ -33,6 +33,7 @@ public class RuiHostTests : ModuleRules
 			"ReactiveUIUMG",    // the Phase-6 interop suites (Umg/Mvvm)
 			"ReactiveUICommonUI", // the TD-021 CommonUI activatable suite
 			"CommonUI",         // UCommonActivatableWidget + ActivateWidget in the suite
+			"CommonInput",      // UCommonInputSubsystem (B12 input-method regression)
 			"ReactiveUIMVVMBridge", // the TD-021 MVVM global-collection suite
 			"ModelViewViewModel",   // UMVVMViewModelBase + the global collection in the suite
 			"UMG",

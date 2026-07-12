@@ -10,6 +10,7 @@
 #include "CoreMinimal.h"
 #include "FieldNotificationDelegate.h"
 #include "INotifyFieldValueChanged.h"
+#include "RuiMvvmViewModel.h" // URuiMvvmViewModel (P1 regression subclass)
 #include "UObject/Object.h"
 #include "RuiTestViewModel.generated.h"
 
@@ -97,4 +98,12 @@ public:
 
 	UPROPERTY()
 	FString StringValue;
+};
+
+/** A URuiMvvmViewModel SUBCLASS — the intended MVVM extension point (add FieldNotify props). Used by
+ *  the bughunt-P1 regression: registering it must be resolvable via FindGlobalViewModel's default class. */
+UCLASS()
+class URuiTestMvvmSubViewModel : public URuiMvvmViewModel
+{
+	GENERATED_BODY()
 };
