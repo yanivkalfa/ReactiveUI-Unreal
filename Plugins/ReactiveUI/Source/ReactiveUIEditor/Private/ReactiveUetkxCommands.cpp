@@ -59,6 +59,11 @@ void FReactiveUetkxCommands::ExecuteToggleHmrWindow()
 
 bool FReactiveUetkxInputProcessor::HandleKeyDownEvent(FSlateApplication&, const FKeyEvent& KeyEvent)
 {
+	// Auto-repeat while the chord is held must not re-fire (it would rapid-toggle the mode).
+	if (KeyEvent.IsRepeat())
+	{
+		return false;
+	}
 	// Ignore bare modifier presses — wait for the real key that completes the chord.
 	const FKey Key = KeyEvent.GetKey();
 	if (Key.IsModifierKey())
