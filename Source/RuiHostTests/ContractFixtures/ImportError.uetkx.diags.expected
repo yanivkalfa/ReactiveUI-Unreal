@@ -1,0 +1,3 @@
+UETKX2300 0 @27+8: unknown import specifier `./Nope` — no file at ./Nope(.uetkx)
+UETKX2301 0 @45+10: `UsePrivate` is not exported by Palette.uetkx — add `export` to its declaration
+UETKX2305 0 @127+10: `StatusChip` is defined in StatusChip.uetkx but not imported — add: import { StatusChip } from "./StatusChip"

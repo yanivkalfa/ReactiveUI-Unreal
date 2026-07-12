@@ -1,0 +1,38 @@
+{
+	// npm runs through `cmd /d /c`, not PowerShell — on stock Windows, `npm` resolves to npm.ps1
+	// and ExecutionPolicy blocks it (Unity-sibling scar; its tasks.json wraps identically).
+	// The server builds FIRST so a server-side edit is always picked up by a plain F5: the client
+	// build's bundle-server.mjs copies lsp-server/out into vscode-uetkx/server/ afterwards.
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Build UETKX Language Server",
+			"type": "shell",
+			"command": "npm run build",
+			"options": {
+				"cwd": "${workspaceFolder}/ide-extensions/lsp-server",
+				"shell": { "executable": "cmd.exe", "args": ["/d", "/c"] }
+			},
+			"presentation": { "reveal": "silent", "panel": "shared" },
+			"problemMatcher": "$tsc"
+		},
+		{
+			"label": "Build UETKX Extension Client",
+			"type": "shell",
+			"command": "npm run build",
+			"options": {
+				"cwd": "${workspaceFolder}/ide-extensions/vscode-uetkx",
+				"shell": { "executable": "cmd.exe", "args": ["/d", "/c"] }
+			},
+			"presentation": { "reveal": "silent", "panel": "shared" },
+			"problemMatcher": "$tsc"
+		},
+		{
+			"label": "Build UETKX Extension",
+			"dependsOrder": "sequence",
+			"dependsOn": ["Build UETKX Language Server", "Build UETKX Extension Client"],
+			"group": "build",
+			"problemMatcher": []
+		}
+	]
+}

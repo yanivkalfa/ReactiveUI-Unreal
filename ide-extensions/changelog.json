@@ -1,3 +1,22 @@
 {
-  "entries": []
+  "entries": [
+    {
+      "date": "2026-07-12",
+      "versions": {
+        "vs2022": "0.2.0"
+      },
+      "vs2022": [
+        "Editor polish (TD-020 tail): a Tools > Options > ReactiveUI > UETKX page with a Format on Save setting; format-on-save runs Format Document on a .uetkx file (via the golden-corpus formatter over LSP) when the option is enabled. Brace completion + smart indent ride the shared language-configuration. The extension now loads a background package on solution-exists to arm the save hook."
+      ]
+    },
+    {
+      "date": "2026-07-11",
+      "versions": {
+        "vscode": "0.2.0"
+      },
+      "vscode": [
+        ".uetkx import/export intelligence: scanner recognizes import/export and mixed component/hook/module files; the formatter canonicalizes the import block and preserves export; the language config gains a `~/` root key; import/from/export keywords are highlighted. Corpus-locked to the C++ compiler."
+      ]
+    }
+  ]
 }

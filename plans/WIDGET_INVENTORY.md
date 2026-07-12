@@ -38,25 +38,37 @@ to wrap) · `SPECIAL` (covered by a dedicated mechanism, not a plain adapter).
 | SProgressBar | `ProgressBar` | + fillColor style key |
 | SRuiCanvas *(ours)* | `RuiCanvas` | the draw_fn paint trampoline (D-12); `Canvas` reserved for SCanvas |
 
-## Batch 2 (Phase 7 step 8) — the everyday game set
+## Shipped (Phase 7 — batch 2, rolling) — 14
+
+| Widget | Element tag | Notes |
+|---|---|---|
+| SWidgetSwitcher | `WidgetSwitcher` | index-switched panel; WidgetIndex runtime setter; test `ReactiveUI.Widgets.Batch2` |
+| SScaleBox | `ScaleBox` | Stretch + StretchDirection |
+| SThrobber | `Throbber` | NumPieces + Animate |
+| SWrapBox | `WrapBox` | Orientation/WrapSize/InnerSlotPadding/UseAllottedSize |
+| SMultiLineEditableTextBox | `MultiLineEditableTextBox` | multi-line controlled input (D-16 caret rule) |
+| SSearchBox | `SearchBox` | controlled search text (OnTextChanged/Committed); test `ReactiveUI.Widgets.Batch2b` |
+| SSafeZone | `SafeZone` | title-safe + per-side padding |
+| SDPIScaler | `DPIScaler` | DPIScale |
+| SSeparator | `Separator` | Orientation/Thickness (construct-only, TD-011 reconstruct mask) + ColorAndOpacity |
+| SSpinBox | `SpinBox` | numeric input (SSpinBox<float>); Value/Min/Max/Delta + OnValueChanged; test `ReactiveUI.Widgets.Batch2c` |
+| SUniformWrapPanel | `UniformWrapPanel` | uniform-cell wrap; SlotPadding/HAlign |
+| SRichTextBlock | `RichTextBlock` | Text (inline markup) + AutoWrapText |
+| SGridPanel | `GridPanel` | slot.column / slot.row cell placement |
+| SUniformGridPanel | `UniformGridPanel` | uniform cells by slot.column / slot.row |
+
+## Batch 2 (Phase 7 step 8) — remaining (special designs / item-model)
 
 | Widget | Notes |
 |---|---|
-| SComboBox / SComboButton | templated items → item-model treatment shares SListView design |
-| SSpinBox / SNumericEntryBox | numeric inputs (templated — adapter per common instantiation) |
-| SSearchBox / SSuggestionTextBox | text-input family |
-| SMultiLineEditableTextBox / SMultiLineEditableText | multi-line controlled input (same caret rule) |
-| SRichTextBlock | rich text (+ decorator story later) |
-| SSegmentedControl | templated |
-| SWrapBox / SUniformWrapPanel | wrap layout |
-| SGridPanel / SUniformGridPanel | grid layout (slot.row/slot.column props) |
-| SScaleBox / SSafeZone / SDPIScaler | scale/safe-area containers |
-| SWidgetSwitcher | index-switched panel |
-| SSeparator | trivial leaf |
-| SExpandableArea | header+body container |
-| SThrobber / SSpinningImage | busy indicators |
-| SListView / STileView / STreeView | **the big one** — the family's item-model treatment (declarative `items` → widget-generating delegates), NOT a plain adapter |
-| SHeaderRow | column headers for the item views |
+| SComboBox | ✅ **shipped** (TD-012 tail) as `RUI::Slate::ComboBox` — dropdown reusing the ListView render-prop for the selected display + generated rows (FRuiRoot sub-roots); controlled `SelectedIndex`; menu verified headless via the interaction harness |
+| SNumericEntryBox | ✅ **shipped** (TD-012 tail) as `RUI::Slate::NumericEntryBox` — controlled numeric field; display read back from the inner editable text via the harness |
+| SSuggestionTextBox | ✅ **shipped** (TD-012 tail) as `RUI::Slate::SuggestionTextBox` — controlled text + case-insensitive substring suggestion filter (`OnShowingSuggestions`) |
+| SSegmentedControl | ✅ **shipped** (TD-012 tail) as `RUI::Slate::SegmentedControl` — labelled tab-bar selector (`Labels` bake the segments = construct-only reconstruct mask; `SelectedIndex` controlled; `OnSelectionChanged` fires the index) |
+| SExpandableArea | ✅ **shipped** (TD-012 tail) as `RUI::Slate::ExpandableArea` — the family's first TWO-NAMED-SLOT widget (children carry `slot.role="header"`/`"body"`; controlled `bIsExpanded` + `OnExpansionChanged`; `SRuiExpandableArea` reparents into two SBox holders) |
+| SListView / STileView | ✅ **shipped** (TD-022) as `RUI::Slate::ListView` / `TileView` — the family's item-model treatment (declarative `Items` + `RenderItem` render-prop → per-row `FRuiRoot` sub-roots over SListView's virtualized generate/recycle). C++-first (render closure not markup-expressible). |
+| STreeView | item-model with a hierarchical data shape — needs a per-item child accessor the flat `FRuiValue` item type doesn't carry; separate design (TD-022 note) |
+| SHeaderRow | column headers for the item views (TD-022) |
 
 ## Batch 3 (v1.x long tail — target: all official)
 

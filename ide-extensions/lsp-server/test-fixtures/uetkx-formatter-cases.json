@@ -18,7 +18,9 @@
     },
     {
       "name": "attributes wrap one-per-line past printWidth",
-      "opts": { "printWidth": 40 },
+      "opts": {
+        "printWidth": 40
+      },
       "input": "component Wide {\n\treturn (\n\t\t<Button OnClicked={ Fire() } bEnabled ContentPadding={ FMargin(4.f) }>Go</Button>\n\t);\n}\n",
       "expect": "component Wide {\n\treturn (\n\t\t<Button\n\t\t\tOnClicked={ Fire() }\n\t\t\tbEnabled\n\t\t\tContentPadding={ FMargin(4.f) }\n\t\t>\n\t\t\tGo\n\t\t</Button>\n\t);\n}\n"
     },
@@ -48,12 +50,12 @@
       "fellBack": true
     },
     {
-      "name": "trailing content after the declaration round-trips after one blank line",
+      "name": "trailing content after the component body falls back verbatim (one component per file)",
       "input": "component Badge {\n\treturn (\n\t\t<Spacer />\n\t);\n}\nstray tail text\n",
-      "expect": "component Badge {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n\nstray tail text\n"
+      "fellBack": true
     },
     {
-      "name": "two components separate with exactly one blank line",
+      "name": "mixed-decl: two components format (one component per file is a LINT convention, not an error)",
       "input": "component Alpha {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n\n\n\ncomponent Beta {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n",
       "expect": "component Alpha {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n\ncomponent Beta {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n"
     },
@@ -74,7 +76,10 @@
     },
     {
       "name": "space-indent option emits spaces",
-      "opts": { "indentStyle": "space", "indentSize": 2 },
+      "opts": {
+        "indentStyle": "space",
+        "indentSize": 2
+      },
       "input": "component Badge {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n",
       "expect": "component Badge {\n  return (\n    <Spacer />\n  );\n}\n"
     },
@@ -82,6 +87,41 @@
       "name": "markup comments verbatim; expr nodes get canonical brace spacing",
       "input": "component Mixed {\n\treturn (\n\t\t<VerticalBox>\n\t\t\t<!-- a note -->\n\t\t\t{Compute()}\n\t\t\tplain text run\n\t\t</VerticalBox>\n\t);\n}\n",
       "expect": "component Mixed {\n\treturn (\n\t\t<VerticalBox>\n\t\t\t<!-- a note -->\n\t\t\t{ Compute() }\n\t\t\tplain text run\n\t\t</VerticalBox>\n\t);\n}\n"
+    },
+    {
+      "name": "support files (hook/module) round-trip verbatim without fallback",
+      "input": "hook UseThing(int32 A) -> int32 {\n\tauto [V, SetV] = UseState<int32>(A);\n\treturn V;\n}\n\nmodule ThingStyle {\n\tinline const float Pad = 4.0f;\n}\n",
+      "expect": "hook UseThing(int32 A) -> int32 {\n\tauto [V, SetV] = UseState<int32>(A);\n\treturn V;\n}\n\nmodule ThingStyle {\n\tinline const float Pad = 4.0f;\n}\n"
+    },
+    {
+      "name": "M11: import + export component is already canonical (idempotent)",
+      "input": "import { StatusChip } from \"./StatusChip\"\n\nexport component Screen {\n\treturn (\n\t\t<StatusChip />\n\t);\n}\n",
+      "expect": "import { StatusChip } from \"./StatusChip\"\n\nexport component Screen {\n\treturn (\n\t\t<StatusChip />\n\t);\n}\n"
+    },
+    {
+      "name": "M11: preamble canonicalizes to #include block, blank, import block, blank",
+      "input": "#include \"X.h\"\n\n\nimport { A } from \"./A\"\nexport component S {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n",
+      "expect": "#include \"X.h\"\n\nimport { A } from \"./A\"\n\nexport component S {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n"
+    },
+    {
+      "name": "hook: header whitespace + params canonicalize; body re-anchored to tabs",
+      "input": "export   hook UseCounter(int32 Start)  ->  TTuple<int32, int32> {\n    auto [C, Set] = UseState<int32>(Start);\n    return MakeTuple(C, C);\n}\n",
+      "expect": "export hook UseCounter(int32 Start) -> TTuple<int32, int32> {\n\tauto [C, Set] = UseState<int32>(Start);\n\treturn MakeTuple(C, C);\n}\n"
+    },
+    {
+      "name": "non-exported void hook keeps the arrow omitted",
+      "input": "hook UsePrivate() {\n    UseEffect([] { Log(); });\n}\n",
+      "expect": "hook UsePrivate() {\n\tUseEffect([] { Log(); });\n}\n"
+    },
+    {
+      "name": "module: verbatim C++ body re-anchored, name canonical",
+      "input": "export module Styles {\n        using Accent = FLinearColor;\n        const int32 N = 3;\n}\n",
+      "expect": "export module Styles {\n\tusing Accent = FLinearColor;\n\tconst int32 N = 3;\n}\n"
+    },
+    {
+      "name": "mixed file in source order: module, hook, component (one blank line between)",
+      "input": "export module M {\n    using T = int32;\n}\nexport hook UseX() -> int32 {\n    return 1;\n}\ncomponent App {\n    return (\n        <Spacer />\n    );\n}\n",
+      "expect": "export module M {\n\tusing T = int32;\n}\n\nexport hook UseX() -> int32 {\n\treturn 1;\n}\n\ncomponent App {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n"
     }
   ]
 }

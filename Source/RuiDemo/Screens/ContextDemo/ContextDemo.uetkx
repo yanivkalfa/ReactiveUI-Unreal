@@ -1,0 +1,28 @@
+#include "RuiDemoSupport.h"
+
+import { DemoContextPanel } from "./components/DemoContextPanel/DemoContextPanel"
+import { ContextDemoStyle } from "./ContextDemo.style"
+
+export component ContextDemo {
+	auto [bPrimary, SetPrimary] = UseState<bool>(true);
+	TFunction<void(bool)> Set = SetPrimary;
+	const bool bNow = bPrimary;
+	const FLinearColor Theme = bPrimary ? ContextDemoStyle::CoolTheme : ContextDemoStyle::WarmTheme;
+	ProvideContext(RuiDemo::GDemoThemeCtx, Theme);
+
+	return (
+		<Border Padding="12" BorderImage="WhiteBrush" BorderBackgroundColor={ ContextDemoStyle::PanelBackground } Slot.Padding="0,10,0,0">
+			<VerticalBox>
+				<TextBlock Text="Context Demo (toggle theme to see consumers update)" />
+				<Spacer Size={ FVector2D(1.0f, 6.0f) } />
+				<HorizontalBox>
+					<Button OnClicked={ Set(!bNow) } ContentPadding="12,4" Slot.Padding="0,0,6,0">
+						<TextBlock Text={ FText::FromString(bNow ? TEXT("Switch To Warm Theme") : TEXT("Switch To Cool Theme")) } />
+					</Button>
+				</HorizontalBox>
+				<DemoContextPanel />
+				<DemoContextPanel Label="Secondary Panel" />
+			</VerticalBox>
+		</Border>
+	);
+}

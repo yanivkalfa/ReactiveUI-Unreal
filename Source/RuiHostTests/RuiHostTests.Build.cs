@@ -29,12 +29,19 @@ public class RuiHostTests : ModuleRules
 			"RuiDemo",          // the Demos suite mounts the gallery
 			"ReactiveUIInterp", // the .uetkx scanner/parser suites + VM/Hmr
 			"ReactiveUIToolchain", // the codegen suites
+			"ReactiveUIEditor", // the TD-006 .uetkx preview suite (FUetkxPreview)
 			"ReactiveUIUMG",    // the Phase-6 interop suites (Umg/Mvvm)
+			"ReactiveUICommonUI", // the TD-021 CommonUI activatable suite
+			"CommonUI",         // UCommonActivatableWidget + ActivateWidget in the suite
+			"CommonInput",      // UCommonInputSubsystem (B12 input-method regression)
+			"ReactiveUIMVVMBridge", // the TD-021 MVVM global-collection suite
+			"ModelViewViewModel",   // UMVVMViewModelBase + the global collection in the suite
 			"UMG",
 			"FieldNotification",
 			"Json",             // contract-corpus loading
 			"SlateCore",
 			"Slate",
+			"InputCore",        // EKeys / FKeyEvent for the shortcut suite
 		});
 	}
 }

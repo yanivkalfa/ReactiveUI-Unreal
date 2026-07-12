@@ -1,0 +1,85 @@
+// Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
+//
+// TD-020 — the server-side wiring that routes hover/definition INTO the embedded-C++ layer. A
+// .uetkx position that lands inside a component `setup` / `hook` / `module` body is embedded C++;
+// this module maps it into the synthesized virtual document (virtualDoc.ts) and forwards the
+// request to a clangd proxy, translating result ranges back to .uetkx coordinates. A position
+// OUTSIDE any embedded region returns null so the caller falls through to the markup baseline; a
+// null is also returned whenever the proxy is unavailable — the family's documented degradation.
+
+import { buildVirtualCpp } from "./virtualDoc";
+import { offsetToPosition, positionToOffset } from "./sourceMap";
+import type { ClangdPosition } from "./clangdProxy";
+
+/** The minimal position-request surface embeddedIntel needs — ClangdProxy satisfies it, and tests
+ *  pass a stub. Keeping it structural means neither a live clangd nor a spawned process is required
+ *  to exercise the routing/fallback logic. */
+export interface PositionResponder {
+  isAvailable(): boolean;
+  didOpen(uri: string, text: string): void;
+  positionRequest(method: string, uri: string, position: ClangdPosition): Promise<unknown | null>;
+}
+
+/** The virtual URI the proxy sees for a .uetkx document's synthesized C++ translation unit. */
+export function virtualUriOf(sourceUri: string): string {
+  return `${sourceUri}.__rui_embedded__.cpp`;
+}
+
+/**
+ * A build-once view over a .uetkx source: the synthesized virtual C++ + bidirectional position
+ * mapping. Rebuilding the virtual doc per request is cheap (a single scan), but callers that do
+ * several lookups for one document should reuse a view.
+ */
+export function buildEmbeddedView(source: string) {
+  const vd = buildVirtualCpp(source);
+  return {
+    /** The synthesized C++ translation unit clangd parses. */
+    virtualText: vd.text,
+    /** How many embedded regions were lifted (0 = a markup-only file — nothing to forward). */
+    regionCount: vd.regionCount,
+
+    /** A source utf16 offset -> the virtual-doc position, or null when not inside embedded C++. */
+    positionInVirtual(sourceOffset: number): ClangdPosition | null {
+      const virOffset = vd.map.sourceToVirtual(sourceOffset);
+      if (virOffset === null) return null;
+      return offsetToPosition(vd.text, virOffset);
+    },
+
+    /** A virtual-doc position -> the source utf16 offset, or null when it maps outside every region
+     *  (e.g. clangd pointed into the prelude scaffolding, or into a real engine header). */
+    sourceOffsetOf(virtualPosition: ClangdPosition): number | null {
+      const virOffset = positionToOffset(vd.text, virtualPosition);
+      return vd.map.virtualToSource(virOffset);
+    },
+  };
+}
+
+/**
+ * Forward a hover/definition-style position request for a .uetkx position through the proxy.
+ * Returns:
+ *   - null when the position is NOT embedded C++ (caller uses the markup baseline),
+ *   - null when the proxy is unavailable (graceful degradation),
+ *   - otherwise clangd's raw result (ranges are in VIRTUAL coordinates — translate with the view
+ *     when the result points back into the virtual doc; engine-header locations pass through).
+ */
+export async function embeddedPositionRequest(
+  proxy: PositionResponder,
+  method: string,
+  sourceUri: string,
+  source: string,
+  sourceOffset: number,
+): Promise<unknown | null> {
+  if (!proxy.isAvailable()) return null;
+  const view = buildEmbeddedView(source);
+  const virtualPosition = view.positionInVirtual(sourceOffset);
+  if (virtualPosition === null) return null; // markup — not our layer
+  const uri = virtualUriOf(sourceUri);
+  proxy.didOpen(uri, view.virtualText);
+  return proxy.positionRequest(method, uri, virtualPosition);
+}
+
+/** True when `sourceOffset` lands inside an embedded C++ region of `source` (the routing gate the
+ *  server uses before deciding whether to consult the proxy at all). */
+export function isEmbeddedOffset(source: string, sourceOffset: number): boolean {
+  return buildEmbeddedView(source).positionInVirtual(sourceOffset) !== null;
+}

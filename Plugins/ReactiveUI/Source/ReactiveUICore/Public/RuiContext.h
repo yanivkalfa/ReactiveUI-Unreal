@@ -50,6 +50,16 @@ public:
 		const int32 i = State.HookIndex++;
 		if (i >= State.Hooks.Num())
 		{
+			// TD-019: on a migrating HMR reset the reconciler stashed the old cell's exported value
+			// at this slot — seed the fresh FRuiValue cell from it (the interpreter's cell type)
+			// instead of the interp Init, so numeric/string/bool/text state survives the first swap.
+			if constexpr (std::is_same_v<T, FRuiValue>)
+			{
+				if (State.MigratedState.IsValidIndex(i) && !State.MigratedState[i].IsNull())
+				{
+					Initial = State.MigratedState[i];
+				}
+			}
 			State.Hooks.Emplace(MakeUnique<TRuiStateCell<T>>(MoveTemp(Initial)));
 		}
 		TRuiStateCell<T>* Cell = static_cast<TRuiStateCell<T>*>(State.Hooks[i].Get());

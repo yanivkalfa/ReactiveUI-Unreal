@@ -13,6 +13,9 @@ export interface UetkxSchema {
   slotPrefix: string;
   slotKeys: string[];
   hooks: string[];
+  /** TD-016: event attr name -> payload kind (text|bool|float|int|name|color|vector2|void) — the
+   *  FRuiValue field an event handler's `Value` carries. Absent in older shipped schemas. */
+  eventPayloads?: Record<string, string>;
 }
 
 let shipped: UetkxSchema | null = null;
@@ -51,21 +54,41 @@ export function schemaForFile(fileDir: string): UetkxSchema {
   return shippedSchema();
 }
 
-/** uetkx.config.json walk-up (nearest wins; malformed = {}). */
-export function loadFormatterConfig(fileDir: string): Record<string, unknown> {
+/** The nearest uetkx.config.json and the directory it lives in (nearest wins, NO merge; malformed
+ *  = {}). configDir is null when no config is found. Mirrors C++ FUetkxConfig::Load (M1): one
+ *  walk-up shared by the formatter (options) and the import resolver (the `~/` root anchor). */
+export function loadUetkxConfig(fileDir: string): { config: Record<string, unknown>; configDir: string | null } {
   let dir = fileDir;
   for (let depth = 0; depth < 32; depth++) {
     const candidate = path.join(dir, "uetkx.config.json");
     if (fs.existsSync(candidate)) {
       try {
-        return JSON.parse(fs.readFileSync(candidate, "utf8"));
+        return { config: JSON.parse(fs.readFileSync(candidate, "utf8")), configDir: dir };
       } catch {
-        return {};
+        return { config: {}, configDir: dir }; // nearest config wins even when malformed
       }
     }
     const parent = path.dirname(dir);
     if (parent === dir) break;
     dir = parent;
   }
-  return {};
+  return { config: {}, configDir: null };
+}
+
+/** uetkx.config.json walk-up (nearest wins; malformed = {}). */
+export function loadFormatterConfig(fileDir: string): Record<string, unknown> {
+  return loadUetkxConfig(fileDir).config;
+}
+
+/** The `~/` family-root anchor for a .uetkx file, or null when no config declares `"root"` (the
+ *  caller falls back to the module root — the *.Build.cs walk, done engine-side / in M11's
+ *  workspace index). The `"root"` string is relative to the config file's own directory (A5g:
+ *  nearest-config-wins, no inheritance). */
+export function rootAnchorFor(fileDir: string): string | null {
+  const { config, configDir } = loadUetkxConfig(fileDir);
+  const root = config.root;
+  if (configDir && typeof root === "string" && root.trim() !== "") {
+    return path.resolve(configDir, root.trim());
+  }
+  return null;
 }

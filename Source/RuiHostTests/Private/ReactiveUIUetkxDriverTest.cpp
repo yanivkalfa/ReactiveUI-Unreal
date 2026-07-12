@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 //
 // ReactiveUI.Uetkx.Driver — the compiler's FILE layer, end-to-end on real scratch files under
-// Saved/: compile writes .inl + sidecar (schema v2), a failed compile deletes the stale .inl
+// Saved/: compile writes .inl + sidecar (schema v3), a failed compile deletes the stale .inl
 // and its same-hash error sidecar suppresses re-compiles (the busy-loop guard), content changes
 // re-stale, sweeps count + settle (fingerprint), and aggregators regenerate deterministically.
 
@@ -25,7 +25,7 @@ bool FRuiUetkxDriverTest::RunTest(const FString&)
 	FM.DeleteDirectory(*Scratch, /*RequireExists*/ false, /*Tree*/ true);
 	FM.MakeDirectory(*Scratch, /*Tree*/ true);
 
-	const FString GoodBadge = TEXT("component Badge(Label: FString = TEXT(\"hi\")) {\n"
+	const FString GoodBadge = TEXT("export component Badge(Label: FString = TEXT(\"hi\")) {\n"
 								   "\tauto [Count, SetCount] = UseState(0);\n"
 								   "\treturn (\n"
 								   "\t\t<VerticalBox>\n"
@@ -64,7 +64,8 @@ bool FRuiUetkxDriverTest::RunTest(const FString&)
 		FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(SidecarJson), Sidecar);
 		if (TestTrue(TEXT("sidecar parses"), Sidecar.IsValid()))
 		{
-			TestEqual(TEXT("schema v2"), (int32)Sidecar->GetNumberField(TEXT("v")), 2);
+			TestEqual(TEXT("schema v3"), (int32)Sidecar->GetNumberField(TEXT("v")), 3);
+			TestTrue(TEXT("v3 records an export_hash"), Sidecar->HasField(TEXT("export_hash")));
 			TestEqual(TEXT("src_hash recorded"), (uint32)Sidecar->GetNumberField(TEXT("src_hash")),
 					  FUetkxDriver::SrcHash(GoodBadge));
 			TestEqual(TEXT("clean compile -> no diagnostics"), Sidecar->GetArrayField(TEXT("diagnostics")).Num(), 0);
@@ -195,9 +196,9 @@ bool FRuiUetkxDriverTest::RunTest(const FString&)
 		AddExpectedError(TEXT("UETKX2106"), EAutomationExpectedErrorFlags::Contains, 0);
 		FFileHelper::SaveStringToFile(FixedSrc, *BrokenPath); // settle the previous block
 		const FString DupPath = Scratch / TEXT("Loose/BadgeCopy.uetkx");
-		FFileHelper::SaveStringToFile(TEXT("component Badge { return ( <Spacer /> ); }\n"), *DupPath);
+		FFileHelper::SaveStringToFile(TEXT("export component Badge { return ( <Spacer /> ); }\n"), *DupPath);
 		const FUetkxSweepResult Dup = FUetkxDriver::CompileAll(Scratch, /*bForce*/ true);
-		TestTrue(TEXT("duplicate binding is a sweep error"), Dup.Errors >= 1);
+		TestTrue(TEXT("duplicate EXPORTED binding is a sweep error"), Dup.Errors >= 1);
 		TestTrue(TEXT("the drift gate flags duplicates too"),
 				 FUetkxDriver::CheckDrift({Scratch}).Messages.ContainsByPredicate(
 					 [](const FString& M) { return M.Contains(TEXT("UETKX2106")); }));
@@ -207,6 +208,65 @@ bool FRuiUetkxDriverTest::RunTest(const FString&)
 		FUetkxDriver::CompileAll(Scratch);
 		TestFalse(TEXT("orphan .inl swept with its source"), FM.FileExists(*FUetkxDriver::InlPathFor(DupPath)));
 		TestFalse(TEXT("orphan sidecar swept"), FM.FileExists(*FUetkxDriver::SidecarPathFor(DupPath)));
+	}
+
+	// ── verdict-poisoning fix (A5d/M8): an importer re-stales when a dep gains its export ─────────
+	{
+		const FString Dir = Scratch / TEXT("Retry");
+		const FString APath = Dir / TEXT("A.uetkx");
+		const FString BPath = Dir / TEXT("B.uetkx");
+		// B does not export X yet; A imports X from ./B and renders <X/> — A errors (2302).
+		FFileHelper::SaveStringToFile(TEXT("export component Placeholder { return ( <Spacer /> ); }\n"), *BPath);
+		FFileHelper::SaveStringToFile(TEXT("import { X } from \"./B\"\nexport component A { return ( <X /> ); }\n"),
+									  *APath);
+		AddExpectedError(TEXT("UETKX2302"), EAutomationExpectedErrorFlags::Contains, 0);
+		FUetkxDriver::CompileAll(Scratch, /*bForce*/ true);
+		TestFalse(TEXT("A failed to resolve X -> no .inl"), FM.FileExists(*FUetkxDriver::InlPathFor(APath)));
+
+		// B gains X. A is NOT touched. The dep_hashes graph un-poisons A's error verdict, and the
+		// staleness FIXPOINT recompiles A in a SINGLE sweep even though A sorts before B (pass 1
+		// settles B, pass 2 catches A) — no external re-sweep needed.
+		FFileHelper::SaveStringToFile(
+			TEXT("export component Placeholder { return ( <Spacer /> ); }\nexport component X { return ( <Spacer /> "
+				 "); }\n"),
+			*BPath);
+		FUetkxDriver::CompileAll(Scratch);
+		TestTrue(TEXT("A recompiled after B gained X in ONE sweep (verdict un-poisoned, fixpoint)"),
+				 FM.FileExists(*FUetkxDriver::InlPathFor(APath)));
+		FM.Delete(*APath);
+		FM.Delete(*BPath);
+		FUetkxDriver::CompileAll(Scratch);
+	}
+
+	// ── PRIVATE same-name decls across two files are LEGAL (A5e: the ledger keys exported only) ──
+	{
+		const FString PrivA = Scratch / TEXT("Loose/PrivA.uetkx");
+		const FString PrivB = Scratch / TEXT("Loose/PrivB.uetkx");
+		FFileHelper::SaveStringToFile(TEXT("component Helper { return ( <Spacer /> ); }\n"), *PrivA);
+		FFileHelper::SaveStringToFile(TEXT("component Helper { return ( <Border /> ); }\n"), *PrivB);
+		const FUetkxCheckResult Check = FUetkxDriver::CheckDrift({Scratch});
+		TestFalse(TEXT("two PRIVATE same-name decls do not trip 2106"),
+				  Check.Messages.ContainsByPredicate([](const FString& M) { return M.Contains(TEXT("UETKX2106")); }));
+		FM.Delete(*PrivA);
+		FM.Delete(*PrivB);
+	}
+
+	// ── UETKX2306: a VALUE-import cycle (module <-> module) errors; component cycles are legal ────
+	{
+		const FString Dir = Scratch / TEXT("Value");
+		const FString MA = Dir / TEXT("MA.uetkx");
+		const FString MB = Dir / TEXT("MB.uetkx");
+		// MA's module reads MB's constant and vice versa — an eager-load init deadlock.
+		FFileHelper::SaveStringToFile(
+			TEXT("import { StyleB } from \"./MB\"\nexport module StyleA { inline const int32 X = StyleB::Y; }\n"), *MA);
+		FFileHelper::SaveStringToFile(
+			TEXT("import { StyleA } from \"./MA\"\nexport module StyleB { inline const int32 Y = StyleA::X; }\n"), *MB);
+		AddExpectedError(TEXT("UETKX2306"), EAutomationExpectedErrorFlags::Contains, 0);
+		const FUetkxSweepResult Sweep = FUetkxDriver::CompileAll(Scratch, /*bForce*/ true);
+		TestTrue(TEXT("module<->module value cycle is a sweep error (2306)"), Sweep.Errors >= 1);
+		FM.Delete(*MA);
+		FM.Delete(*MB);
+		FUetkxDriver::CompileAll(Scratch);
 	}
 
 	FM.DeleteDirectory(*Scratch, false, true);

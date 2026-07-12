@@ -1,0 +1,6 @@
+export module Palette {
+	inline const int32 Primary = 1;
+}
+
+hook UsePrivate() {
+}

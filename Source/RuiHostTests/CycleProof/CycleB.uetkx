@@ -1,0 +1,12 @@
+import { CycleA } from "./CycleA"
+
+export component CycleB(Depth: int32 = 0) {
+	return (
+		<VerticalBox>
+			<TextBlock Text="B" />
+			@if (Depth > 0) {
+				return ( <CycleA Depth={ Depth - 1 } /> );
+			}
+		</VerticalBox>
+	);
+}

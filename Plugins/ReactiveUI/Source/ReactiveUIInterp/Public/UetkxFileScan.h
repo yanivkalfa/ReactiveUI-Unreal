@@ -31,10 +31,35 @@ struct REACTIVEUIINTERP_API FUetkxParam
 	FString Default; // empty = required
 };
 
+/** The three declaration kinds a .uetkx file may hold, in any number and any order (FULL
+ *  MIXED-DECL v1, A1). The scan records the source ORDER as (kind, index-into-its-array) pairs so
+ *  the emitter can lower declarations in the order the author wrote them. */
+enum class EUetkxDeclKind : uint8
+{
+	Component,
+	Hook,
+	Module
+};
+
+/** `import { A, B } from "specifier"` — a PREAMBLE-ONLY static import (A1): named bindings only
+ *  (no default, no `*`), string-literal specifier (extensionless; `./` `../` `~/` forms resolved
+ *  by the import resolver, M4). Names/NameAts are 1:1; SpecifierAt/At are code-point offsets into
+ *  the original source (D-18). */
+struct REACTIVEUIINTERP_API FUetkxImportDecl
+{
+	TArray<FString> Names;
+	TArray<int32> NameAts;
+	FString Specifier;
+	int32 SpecifierAt = -1; // offset of the opening quote
+	int32 At = -1;			// offset of the `import` keyword
+};
+
 struct REACTIVEUIINTERP_API FUetkxComponentDecl
 {
 	FString Name;
-	int32 At = -1; // the `component` keyword offset
+	bool bExported = false; // `export component` — cross-file addressable (privacy is opt-in, A3)
+	int32 At = -1;			// the `component` keyword offset (the `export`, if any, precedes it)
+	int32 ExportAt = -1;	// the `export` keyword offset when bExported, else -1 (the decl's true start)
 	int32 NameAt = -1;
 	TArray<FUetkxParam> Params;
 	FString Setup; // body text before the chosen markup return (verbatim C++)
@@ -47,11 +72,54 @@ struct REACTIVEUIINTERP_API FUetkxComponentDecl
 	int32 Next = -1;		   // just past the closing brace
 };
 
+/** `hook UseName(params) [-> Ret] { body }` — a user hook (support-file declaration). The
+ *  params/body are VERBATIM C++ (unlike component params, which use the `Name: Type` decl
+ *  grammar) — C++ params can carry template commas the family grammar can't split. */
+struct REACTIVEUIINTERP_API FUetkxHookDecl
+{
+	FString Name;
+	bool bExported = false; // `export hook`
+	int32 At = -1;
+	int32 ExportAt = -1; // the `export` keyword offset when bExported, else -1 (the decl's true start)
+	int32 NameAt = -1;
+	FString Params; // verbatim C++ parameter list (may be empty)
+	FString Ret;	// verbatim return type; empty = void (family: omitted arrow ⇒ void)
+	FString Body;	// verbatim C++ body
+	int32 BodyAt = -1;
+	int32 Next = -1;
+};
+
+/** `module Name { body }` — verbatim C++ declarations (style dicts, types, statics). */
+struct REACTIVEUIINTERP_API FUetkxModuleDecl
+{
+	FString Name;
+	bool bExported = false; // `export module`
+	int32 At = -1;
+	int32 ExportAt = -1; // the `export` keyword offset when bExported, else -1 (the decl's true start)
+	int32 NameAt = -1;
+	FString Body; // verbatim C++
+	int32 BodyAt = -1;
+	int32 Next = -1;
+};
+
 struct REACTIVEUIINTERP_API FUetkxFileScanResult
 {
 	TArray<FString> PreambleIncludes; // verbatim `#include ...` lines from the preamble
+	TArray<FUetkxImportDecl> Imports; // preamble `import { … } from "…"` declarations (A1)
+	// FULL MIXED-DECL v1 (A1): a file is a SEQUENCE of any number of components + hooks + modules
+	// in any order. Each array holds its own kind; `Order` records the source order across all
+	// three so the emitter lowers declarations exactly as written (>1 component is a LINT warn,
+	// UETKX2105, not an error).
 	TArray<FUetkxComponentDecl> Components;
+	TArray<FUetkxHookDecl> Hooks;
+	TArray<FUetkxModuleDecl> Modules;
+	TArray<TPair<EUetkxDeclKind, int32>> Order; // (kind, index-into-that-kind's-array), source order
 	TArray<FUetkxDiag> Diags;
+
+	// TRANSITION helper (A1): "has no markup" — true when the file declares no component. Retires
+	// from dispatch decisions in M3 (codegen emits per `Order`); kept until the HMR rewrite (M9)
+	// still reads it. NOT a file-KIND classifier anymore — a mixed file has both markup and hooks.
+	bool IsSupportFile() const { return Components.IsEmpty() && (Hooks.Num() + Modules.Num()) > 0; }
 
 	bool HasError() const
 	{
@@ -64,6 +132,26 @@ struct REACTIVEUIINTERP_API FUetkxFileScanResult
 		}
 		return false;
 	}
+};
+
+/** One declaration's identity, as seen by the cheap preamble scan (no markup parse). */
+struct REACTIVEUIINTERP_API FUetkxPreambleDecl
+{
+	FString Name;
+	EUetkxDeclKind Kind = EUetkxDeclKind::Component;
+	bool bExported = false;
+	int32 At = -1;		 // the decl keyword offset (a preceding `export`, if any, is at ExportAt)
+	int32 ExportAt = -1; // the `export` keyword offset when bExported, else -1 (codemod insert point)
+};
+
+/** The result of ScanPreamble: imports + declaration identities in source order, WITHOUT parsing
+ *  component markup. The import resolver reads this to build export tables + export hashes cheaply
+ *  and without tripping on a target file's markup errors (A2 source-truth graph). */
+struct REACTIVEUIINTERP_API FUetkxPreambleScan
+{
+	TArray<FUetkxImportDecl> Imports;
+	TArray<FUetkxPreambleDecl> Decls;
+	int32 FirstDeclAt = -1; // offset where the first declaration begins (preamble end); -1 = none
 };
 
 /** The (last) top-level markup `return ( ... )` inside a body — the ONE splitter shared by
@@ -80,7 +168,7 @@ struct REACTIVEUIINTERP_API FUetkxSplitReturn
 class REACTIVEUIINTERP_API FUetkxFileScan
 {
 public:
-	/** The 23 hook names (auto-prefix + signature scanning). */
+	/** The 20 hook names (auto-prefix + signature scanning). */
 	static const TArray<FString>& HookNames();
 
 	/** FNV-1a (2166136261/16777619, 32-bit) over the ordered hook-kind sequence. */
@@ -88,6 +176,12 @@ public:
 
 	/** Scan a whole .uetkx source: preamble + every component declaration. */
 	static FUetkxFileScanResult Scan(const FString& Source, const FString& Basename);
+
+	/** Cheap scan: preamble imports + declaration identities (name/kind/exported) in source order,
+	 *  WITHOUT parsing component markup. Used by the import resolver for export tables + hashes; it
+	 *  never fails on a target's markup errors (best-effort — stops at the first unparseable decl
+	 *  header). */
+	static FUetkxPreambleScan ScanPreamble(const FString& Source);
 
 	/** Find the LAST top-level `return ( ... )` in a body (T1.4 semantics). With
 	 *  bRequireMarkupPeek the window must START like markup (`<`/`@`/`{`, after leading markup

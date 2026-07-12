@@ -1,4 +1,4 @@
-component Counter(StartAt: int32 = 0) {
+export component Counter(StartAt: int32 = 0) {
 	auto [Count, SetCount] = UseState(StartAt);
 	TFunction<void(int32)> Set = SetCount;
 	const int32 Now = Count;

@@ -3,10 +3,12 @@
 #include "UetkxCodegen.h"
 
 #include "Dom/JsonObject.h"
+#include "Misc/Paths.h" // FPaths — seller-repo sentinel probe (D-32a / CG-1)
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 #include "UetkxJsxScan.h"
 #include "UetkxLexer.h"
+#include "UetkxResolve.h"
 
 namespace
 {
@@ -128,6 +130,101 @@ namespace
 				T.Attrs.Add(TEXT("DrawFn"), EAttrType::Expr); // identity semantics — {expr} only
 				M.Add(TEXT("RuiCanvas"), MoveTemp(T));
 			}
+			// ── Batch 2 (Phase 7 step 8) — the everyday game set ────────────────────────────
+			{
+				FTagDef T{TEXT("RUI::Slate::WidgetSwitcher"), TEXT("FRuiWidgetSwitcherProps"), true, {}};
+				T.Attrs.Add(TEXT("WidgetIndex"), EAttrType::Int);
+				M.Add(TEXT("WidgetSwitcher"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::ScaleBox"), TEXT("FRuiScaleBoxProps"), true, {}};
+				T.Attrs.Add(TEXT("Stretch"), EAttrType::Name);
+				T.Attrs.Add(TEXT("StretchDirection"), EAttrType::Name);
+				M.Add(TEXT("ScaleBox"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::Throbber"), TEXT("FRuiThrobberProps"), false, {}};
+				T.Attrs.Add(TEXT("NumPieces"), EAttrType::Int);
+				T.Attrs.Add(TEXT("Animate"), EAttrType::Name);
+				M.Add(TEXT("Throbber"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::WrapBox"), TEXT("FRuiWrapBoxProps"), true, {}};
+				T.Attrs.Add(TEXT("Orientation"), EAttrType::Name);
+				T.Attrs.Add(TEXT("WrapSize"), EAttrType::Float);
+				T.Attrs.Add(TEXT("InnerSlotPadding"), EAttrType::Vector2);
+				T.Attrs.Add(TEXT("bUseAllottedSize"), EAttrType::Bool);
+				M.Add(TEXT("WrapBox"), MoveTemp(T));
+			}
+			{
+				FTagDef T{
+					TEXT("RUI::Slate::MultiLineEditableTextBox"), TEXT("FRuiMultiLineEditableTextBoxProps"), false, {}};
+				T.Attrs.Add(TEXT("Text"), EAttrType::Text);
+				T.Attrs.Add(TEXT("HintText"), EAttrType::Text);
+				T.Attrs.Add(TEXT("bIsReadOnly"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("OnTextChanged"), EAttrType::Event);
+				T.Attrs.Add(TEXT("OnTextCommitted"), EAttrType::Event);
+				M.Add(TEXT("MultiLineEditableTextBox"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::SearchBox"), TEXT("FRuiSearchBoxProps"), false, {}};
+				T.Attrs.Add(TEXT("Text"), EAttrType::Text);
+				T.Attrs.Add(TEXT("HintText"), EAttrType::Text);
+				T.Attrs.Add(TEXT("OnTextChanged"), EAttrType::Event);
+				T.Attrs.Add(TEXT("OnTextCommitted"), EAttrType::Event);
+				M.Add(TEXT("SearchBox"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::SafeZone"), TEXT("FRuiSafeZoneProps"), true, {}};
+				for (const TCHAR* P :
+					 {TEXT("bIsTitleSafe"), TEXT("bPadLeft"), TEXT("bPadRight"), TEXT("bPadTop"), TEXT("bPadBottom")})
+				{
+					T.Attrs.Add(P, EAttrType::Bool);
+				}
+				M.Add(TEXT("SafeZone"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::DPIScaler"), TEXT("FRuiDPIScalerProps"), true, {}};
+				T.Attrs.Add(TEXT("DPIScale"), EAttrType::Float);
+				M.Add(TEXT("DPIScaler"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::Separator"), TEXT("FRuiSeparatorProps"), false, {}};
+				T.Attrs.Add(TEXT("Orientation"), EAttrType::Name);
+				T.Attrs.Add(TEXT("Thickness"), EAttrType::Float);
+				T.Attrs.Add(TEXT("ColorAndOpacity"), EAttrType::Color);
+				M.Add(TEXT("Separator"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::SpinBox"), TEXT("FRuiSpinBoxProps"), false, {}};
+				for (const TCHAR* P : {TEXT("Value"), TEXT("MinValue"), TEXT("MaxValue"), TEXT("Delta")})
+				{
+					T.Attrs.Add(P, EAttrType::Float);
+				}
+				T.Attrs.Add(TEXT("OnValueChanged"), EAttrType::Event);
+				M.Add(TEXT("SpinBox"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::UniformWrapPanel"), TEXT("FRuiUniformWrapPanelProps"), true, {}};
+				T.Attrs.Add(TEXT("SlotPadding"), EAttrType::Float);
+				T.Attrs.Add(TEXT("HAlign"), EAttrType::Name);
+				M.Add(TEXT("UniformWrapPanel"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::RichTextBlock"), TEXT("FRuiRichTextBlockProps"), false, {}};
+				T.Attrs.Add(TEXT("Text"), EAttrType::Text);
+				T.Attrs.Add(TEXT("bAutoWrapText"), EAttrType::Bool);
+				M.Add(TEXT("RichTextBlock"), MoveTemp(T));
+			}
+			M.Add(TEXT("GridPanel"), {TEXT("RUI::Slate::GridPanel"), TEXT("FRuiGridPanelProps"), true, {}});
+			{
+				FTagDef T{TEXT("RUI::Slate::UniformGridPanel"), TEXT("FRuiUniformGridPanelProps"), true, {}};
+				for (const TCHAR* P : {TEXT("SlotPadding"), TEXT("MinDesiredSlotWidth"), TEXT("MinDesiredSlotHeight")})
+				{
+					T.Attrs.Add(P, EAttrType::Float);
+				}
+				M.Add(TEXT("UniformGridPanel"), MoveTemp(T));
+			}
 			return M;
 		}();
 		return Tags;
@@ -159,16 +256,323 @@ namespace
 		return Out;
 	}
 
+	/** Hook auto-prefix over verbatim C++ (shared by component setup/exprs AND `hook` decl
+	 *  bodies): bare BUILT-IN hook calls become Ctx.-qualified; bare USER hook calls
+	 *  (`Use<Upper>...` not in the built-in table, incl. `NS::Use...`) get `Ctx` injected as
+	 *  their first argument — user hooks are plain functions taking FRuiContext& first (the
+	 *  documented divergence from Unity's ambient statics). Member access (`.`/`->`) blocks
+	 *  both transforms. `Qualified` (M5) maps a same-file PRIVATE decl name to its detail-namespace
+	 *  prefix (`RuiPriv_<Basename>::`); a private hook call or a private `Module::` qual is rewritten
+	 *  to reach into that namespace. */
+	FString PrefixHookCalls(const FString& Code, const TMap<FString, FString>& Qualified = {})
+	{
+		const TArray<int32> Src = FUetkxLexer::ToCodePoints(Code);
+		FString Out;
+		int32 i = 0;
+		const int32 N = Src.Num();
+		while (i < N)
+		{
+			const int32 j = FUetkxLexer::SkipNoncode(Src, i);
+			if (j != i)
+			{
+				Out += FUetkxLexer::FromCodePoints(Src, i, j - i);
+				i = j;
+				continue;
+			}
+			// member/scope access scan-back, shared by both branches
+			auto ScanBack = [&Src](int32 From, bool& bOutMember, bool& bOutScope)
+			{
+				bOutMember = false;
+				bOutScope = false;
+				for (int32 k = From - 1; k >= 0; --k)
+				{
+					const int32 P = Src[k];
+					if (P == ' ' || P == '\t')
+					{
+						continue;
+					}
+					bOutMember = (P == '.') || (P == '>' && k > 0 && Src[k - 1] == '-');
+					bOutScope = (P == ':');
+					break;
+				}
+			};
+			bool bMatched = false;
+			const bool bWordStart = (i == 0) || !FUetkxLexer::IsIdentCode(Src[i - 1]);
+			if (bWordStart && (Src[i] == 'U' || Src[i] == 'P'))
+			{
+				for (const FString& Hook : FUetkxFileScan::HookNames())
+				{
+					// UseSignal/UseSignalKey are RUI:: free functions taking Ctx as an
+					// argument — never Ctx.-prefixable (authors write the qualified form).
+					if (Hook == TEXT("UseSignal") || Hook == TEXT("UseSignalKey"))
+					{
+						continue;
+					}
+					if (FUetkxLexer::KeywordAt(Src, i, *Hook))
+					{
+						bool bMember = false, bScope = false;
+						ScanBack(i, bMember, bScope);
+						if (!bMember && !bScope)
+						{
+							Out += TEXT("Ctx.");
+						}
+						Out += Hook;
+						i += Hook.Len();
+						bMatched = true;
+						break;
+					}
+				}
+			}
+			// user hook: Use<Upper>… + not built-in + call syntax → inject Ctx as first arg
+			if (!bMatched && bWordStart && i + 3 < N && Src[i] == 'U' && Src[i + 1] == 's' && Src[i + 2] == 'e' &&
+				Src[i + 3] >= 'A' && Src[i + 3] <= 'Z')
+			{
+				int32 e = i;
+				while (e < N && FUetkxLexer::IsIdentCode(Src[e]))
+				{
+					++e;
+				}
+				const FString Ident = FUetkxLexer::FromCodePoints(Src, i, e - i);
+				bool bMember = false, bScope = false;
+				ScanBack(i, bMember, bScope);
+				int32 p = e;
+				while (p < N && (Src[p] == ' ' || Src[p] == '\t'))
+				{
+					++p;
+				}
+				if (!FUetkxFileScan::HookNames().Contains(Ident) && !bMember && p < N && Src[p] == '(')
+				{
+					int32 q = p + 1;
+					while (q < N && (Src[q] == ' ' || Src[q] == '\t' || Src[q] == '\n' || Src[q] == '\r'))
+					{
+						++q;
+					}
+					const bool bEmptyArgs = (q < N && Src[q] == ')');
+					if (const FString* Prefix = Qualified.Find(Ident)) // private same-file hook
+					{
+						Out += *Prefix;
+					}
+					Out += Ident;
+					Out += bEmptyArgs ? TEXT("(Ctx") : TEXT("(Ctx, ");
+					i = p + 1;
+					bMatched = true;
+				}
+			}
+			// private same-file `Module::` qual → RuiPriv_<Basename>::Module:: (M5). Only fires for
+			// an identifier the file declares privately; ambient namespaces are untouched.
+			if (!bMatched && bWordStart && !Qualified.IsEmpty() && FUetkxLexer::IsIdentCode(Src[i]) &&
+				!(Src[i] >= '0' && Src[i] <= '9'))
+			{
+				int32 e = i;
+				while (e < N && FUetkxLexer::IsIdentCode(Src[e]))
+				{
+					++e;
+				}
+				int32 p = e;
+				while (p < N && (Src[p] == ' ' || Src[p] == '\t'))
+				{
+					++p;
+				}
+				bool bMember = false, bScope = false;
+				ScanBack(i, bMember, bScope);
+				const FString Ident = FUetkxLexer::FromCodePoints(Src, i, e - i);
+				const FString* Prefix = Qualified.Find(Ident);
+				if (Prefix && !bMember && !bScope && p + 1 < N && Src[p] == ':' && Src[p + 1] == ':')
+				{
+					Out += *Prefix;
+					Out += Ident;
+					i = e;
+					bMatched = true;
+				}
+			}
+			if (!bMatched)
+			{
+				Out += FUetkxLexer::FromCodePoints(Src, i, 1);
+				++i;
+			}
+		}
+		return Out;
+	}
+
+	/** The per-file detail namespace private declarations live in (A5e): `RuiPriv_<Basename>`, with
+	 *  any non-identifier characters in the basename (companion dots) folded to `_`. Two files' same-
+	 *  named private decls never collide in the aggregator TU (the compile-time half of privacy). */
+	FString PrivNamespaceFor(const FString& Basename)
+	{
+		FString S = Basename;
+		for (int32 i = 0; i < S.Len(); ++i)
+		{
+			if (!FUetkxLexer::IsIdentCode(S[i]))
+			{
+				S[i] = '_';
+			}
+		}
+		return TEXT("RuiPriv_") + S;
+	}
+
+	/** Line-mapping context for the `#line` directives (M7): the file's line-start table, the
+	 *  project-relative .uetkx path a breakpoint binds to, and the .inl's own name for the restore
+	 *  directive. Disabled (no directives) when no ProjectRelPath was supplied. */
+	struct FLineCtx
+	{
+		TArray<int32> LineStarts;
+		FString ProjRel;
+		FString InlName;
+		bool bEnabled = false;
+	};
+
+	/** Wrap a verbatim user-code region (component setup / hook body / module body) in `#line`
+	 *  directives so a VS breakpoint in the .uetkx binds to it. The region is spliced with its line
+	 *  count preserved (re-indent `\n`->`\n\t` adds no lines), so the mapping stays line-for-line.
+	 *  The restore directive uses a @@R@@ placeholder fixed up once the whole .inl is assembled.
+	 *  Column drift (the extra indent) + single-line attr/event exprs are accepted limits (M7). */
+	FString WithLine(const FString& RegionText, int32 SrcLine, const FLineCtx& Ctx)
+	{
+		if (!Ctx.bEnabled || RegionText.IsEmpty())
+		{
+			return RegionText;
+		}
+		return FString::Printf(TEXT("#line %d \"%s\"\n"), FMath::Max(1, SrcLine), *Ctx.ProjRel) + RegionText +
+			   FString::Printf(TEXT("#line @@R@@ \"%s\"\n"), *Ctx.InlName);
+	}
+
+	/** The 1-based source line of a verbatim region's first NON-whitespace char (the trim skips
+	 *  leading blank lines, so the `#line` must point past them). Region = the raw slice; RegionAt =
+	 *  its code-point offset in the file. */
+	int32 SrcLineOfRegion(const FString& Region, int32 RegionAt, const FLineCtx& Ctx)
+	{
+		const int32 LeadWs = Region.Len() - Region.TrimStart().Len();
+		return FUetkxLexer::LineOf(Ctx.LineStarts, RegionAt + LeadWs);
+	}
+
+	/** A declaration split into the aggregator's two phases (M6). The DECL phase (complete props
+	 *  structs + defaulted wrapper decls + hook fwd-decls + module bodies) is `#include`d for EVERY
+	 *  file before ANY body — so cross-file component references (incl. CYCLES) are all forward-
+	 *  declared before use. The BODY phase carries impls + default-FREE wrapper defs + registrations
+	 *  (+ hook bodies). Modules live entirely in the DECL phase (their member defaults may reference
+	 *  imported module constants). */
+	struct FEmittedDecl
+	{
+		FString DeclPhase;
+		FString BodyPhase;
+	};
+
+	/** Wrap both phases of a private declaration in the per-file detail namespace (A5e). */
+	void WrapPrivate(FEmittedDecl& E, const FString& PrivNs)
+	{
+		const FString Open = FString::Printf(TEXT("namespace %s\n{\n"), *PrivNs);
+		const FString Close = FString::Printf(TEXT("} // namespace %s\n"), *PrivNs);
+		if (!E.DeclPhase.IsEmpty())
+		{
+			E.DeclPhase = Open + E.DeclPhase + Close;
+		}
+		if (!E.BodyPhase.IsEmpty())
+		{
+			E.BodyPhase = Open + E.BodyPhase + Close;
+		}
+	}
+
+	/** Re-indent a verbatim user region: insert a tab after every newline that is OUTSIDE a
+	 *  string/char/raw-string/comment token, so re-indentation never mutates multi-line string-literal
+	 *  CONTENT (bughunt CG-2 — the old blanket `Replace("\n","\n\t")` injected a tab inside raw strings,
+	 *  silently changing the runtime value). Every newline is preserved, so #line mapping is unaffected. */
+	FString IndentRegion(const FString& Body)
+	{
+		const TArray<int32> Src = FUetkxLexer::ToCodePoints(Body);
+		const int32 N = Src.Num();
+		FString Out;
+		int32 i = 0;
+		while (i < N)
+		{
+			const int32 j = FUetkxLexer::SkipNoncode(Src, i);
+			if (j != i)
+			{
+				Out += FUetkxLexer::FromCodePoints(Src, i, j - i); // token verbatim — no indent injected
+				i = j;
+				continue;
+			}
+			const int32 C = Src[i++];
+			Out.AppendChar(static_cast<TCHAR>(C));
+			if (C == static_cast<int32>('\n'))
+			{
+				Out.AppendChar(TEXT('\t'));
+			}
+		}
+		return Out;
+	}
+
+	/** The canonical (case-exact) tag name of a host def — its Factory's last `::` segment, which equals
+	 *  the tag key for every host tag (verified). Derived from the Factory LITERAL, so the casing is
+	 *  reliable (unlike FName::ToString, which reflects the FName pool's first-seen casing). Used to
+	 *  reject a mis-cased tag (<Textblock/>) case-sensitively — HostTags()'s FName match is not (CG-3). */
+	FString CanonicalTagName(const FTagDef& Tag)
+	{
+		int32 Colon = INDEX_NONE;
+		return Tag.Factory.FindLastChar(TEXT(':'), Colon) ? Tag.Factory.RightChop(Colon + 1) : Tag.Factory;
+	}
+
+	/** A `hook` declaration → an inline free function taking FRuiContext& first (built-in hook
+	 *  calls in the body Ctx.-prefixed, nested user hooks Ctx-injected). DECL phase = the forward
+	 *  declaration; BODY phase = the definition. A non-exported hook wraps in the detail namespace. */
+	FEmittedDecl EmitHookInl(const FUetkxHookDecl& Hook, const FString& PrivNs, const TMap<FString, FString>& Qualified,
+							 const FLineCtx& Line)
+	{
+		const FString Ret = Hook.Ret.IsEmpty() ? FString(TEXT("void")) : Hook.Ret;
+		const FString Sig = FString::Printf(TEXT("inline %s %s(FRuiContext& Ctx%s%s)"), *Ret, *Hook.Name,
+											Hook.Params.IsEmpty() ? TEXT("") : TEXT(", "), *Hook.Params);
+		FEmittedDecl E;
+		E.DeclPhase = Sig + TEXT(";\n");
+		FString Def = Sig + TEXT("\n{\n");
+		const FString Body = PrefixHookCalls(Hook.Body.TrimStartAndEnd(), Qualified);
+		if (!Body.IsEmpty())
+		{
+			Def += WithLine(TEXT("\t") + IndentRegion(Body) + TEXT("\n"), SrcLineOfRegion(Hook.Body, Hook.BodyAt, Line),
+							Line);
+		}
+		Def += TEXT("}\n");
+		E.BodyPhase = Def;
+		if (!Hook.bExported)
+		{
+			WrapPrivate(E, PrivNs);
+		}
+		return E;
+	}
+
+	/** A `module` declaration → a namespace holding its verbatim C++ body, emitted ENTIRELY in the
+	 *  DECL phase (before any struct that might default from its constants). A non-exported module
+	 *  nests inside the per-file detail namespace so same-named private modules never collide. */
+	FEmittedDecl EmitModuleInl(const FUetkxModuleDecl& Module, const FString& PrivNs, const FLineCtx& Line)
+	{
+		FString Out = FString::Printf(TEXT("namespace %s\n{\n"), *Module.Name);
+		const FString Body = Module.Body.TrimStartAndEnd();
+		if (!Body.IsEmpty())
+		{
+			Out += WithLine(TEXT("\t") + IndentRegion(Body) + TEXT("\n"),
+							SrcLineOfRegion(Module.Body, Module.BodyAt, Line), Line);
+		}
+		Out += FString::Printf(TEXT("} // namespace %s\n"), *Module.Name);
+		FEmittedDecl E;
+		E.DeclPhase = Out;
+		if (!Module.bExported)
+		{
+			WrapPrivate(E, PrivNs);
+		}
+		return E;
+	}
+
 	/** The one emitter (per component). */
 	class FEmitter
 	{
 	public:
-		FEmitter(const FString& InBasename, const FUetkxComponentDecl& InDecl, TArray<FUetkxDiag>& InDiags)
-			: Basename(InBasename), Decl(InDecl), Diags(InDiags)
+		FEmitter(const FString& InBasename, const FUetkxComponentDecl& InDecl, TArray<FUetkxDiag>& InDiags,
+				 TSet<FString>& InUses, TMap<FString, int32>& InUseAts, const TMap<FString, FString>& InQualified,
+				 const FLineCtx& InLine)
+			: Basename(InBasename), Decl(InDecl), Diags(InDiags), Uses(InUses), UseAts(InUseAts),
+			  Qualified(InQualified), Line(InLine)
 		{
 		}
 
-		FString Emit();
+		FEmittedDecl Emit();
 		bool HasError() const { return bError; }
 
 	private:
@@ -189,67 +593,9 @@ namespace
 								   ++TextKeyCounter, *CppStringLiteral(Value));
 		}
 
-		/** Hook auto-prefix: bare hook calls (UseState, ProvideContext, ...) become Ctx.-
-		 *  qualified (word boundary, not after `.`, `->`, `::`). Everything else verbatim. */
-		FString PrefixHooks(const FString& Code)
-		{
-			const TArray<int32> Src = FUetkxLexer::ToCodePoints(Code);
-			FString Out;
-			int32 i = 0;
-			const int32 N = Src.Num();
-			while (i < N)
-			{
-				const int32 j = FUetkxLexer::SkipNoncode(Src, i);
-				if (j != i)
-				{
-					Out += FUetkxLexer::FromCodePoints(Src, i, j - i);
-					i = j;
-					continue;
-				}
-				bool bMatched = false;
-				if (Src[i] == 'U' || Src[i] == 'P')
-				{
-					for (const FString& Hook : FUetkxFileScan::HookNames())
-					{
-						// UseSignal/UseSignalKey are RUI:: free functions taking Ctx as an
-						// argument — never Ctx.-prefixable (authors write the qualified form).
-						if (Hook == TEXT("UseSignal") || Hook == TEXT("UseSignalKey"))
-						{
-							continue;
-						}
-						if (FUetkxLexer::KeywordAt(Src, i, *Hook))
-						{
-							// not after member/scope access
-							bool bQualified = false;
-							for (int32 k = i - 1; k >= 0; --k)
-							{
-								const int32 P = Src[k];
-								if (P == ' ' || P == '\t')
-								{
-									continue;
-								}
-								bQualified = (P == '.') || (P == ':') || (P == '>' && k > 0 && Src[k - 1] == '-');
-								break;
-							}
-							if (!bQualified)
-							{
-								Out += TEXT("Ctx.");
-							}
-							Out += Hook;
-							i += Hook.Len();
-							bMatched = true;
-							break;
-						}
-					}
-				}
-				if (!bMatched)
-				{
-					Out += FUetkxLexer::FromCodePoints(Src, i, 1);
-					++i;
-				}
-			}
-			return Out;
-		}
+		/** Hook auto-prefix (built-in → Ctx.*, user hooks → Ctx first arg), plus same-file PRIVATE
+		 *  reference qualification (private hook calls + `Module::` quals → RuiPriv_<Basename>::…). */
+		FString PrefixHooks(const FString& Code) { return PrefixHookCalls(Code, Qualified); }
 
 		/** An embedded expression: rewrite nested markup ranges (jsx scan) to element exprs. */
 		FString EmitExpr(const FString& Expr, int32 AbsAt)
@@ -306,6 +652,10 @@ namespace
 		const FString& Basename;
 		const FUetkxComponentDecl& Decl;
 		TArray<FUetkxDiag>& Diags;
+		TSet<FString>& Uses;					 // component tags this component references (aggregator topo order)
+		TMap<FString, int32>& UseAts;			 // tag -> first reference offset (strict-import diagnostics, M4)
+		const TMap<FString, FString>& Qualified; // private same-file decl name -> RuiPriv_<Basename>::name
+		const FLineCtx& Line;					 // #line directive context (M7)
 		int32 TextKeyCounter = 0;
 		bool bError = false;
 	};
@@ -356,11 +706,32 @@ namespace
 
 		// ── element ────────────────────────────────────────────────────────────────────────
 		const FTagDef* Tag = HostTags().Find(FName(*Node.Tag));
+		// FName match is case-INSENSITIVE; host tags are case-sensitive (1:1 with the Slate class, D-33).
+		// A mis-cased host tag (<Textblock/>) must NOT resolve to the canonical widget — it would emit
+		// uncompilable C++ (TextBlock has no props struct) with no diagnostic (bughunt CG-3). Compare the
+		// authored tag CASE-SENSITIVELY against the matched def's canonical name (its Factory's last `::`
+		// segment, a literal — reliable, unlike FName::ToString / a case-insensitive TSet<FString>).
+		if (Tag != nullptr && !CanonicalTagName(*Tag).Equals(Node.Tag, ESearchCase::CaseSensitive))
+		{
+			Fail(TEXT("UETKX0105"),
+				 FString::Printf(TEXT("unknown tag <%s> — host tags are case-sensitive (1:1 with the Slate class)"),
+								 *Node.Tag),
+				 AbsAt + Node.At);
+			return FString(TEXT("FRuiNode()"));
+		}
 		const bool bComponent = Tag == nullptr;
 		if (bComponent && !(Node.Tag[0] >= 'A' && Node.Tag[0] <= 'Z'))
 		{
 			Fail(TEXT("UETKX0105"), FString::Printf(TEXT("unknown tag <%s>"), *Node.Tag), AbsAt + Node.At);
 			return FString(TEXT("FRuiNode()"));
+		}
+		if (bComponent)
+		{
+			Uses.Add(Node.Tag);
+			if (!UseAts.Contains(Node.Tag))
+			{
+				UseAts.Add(Node.Tag, AbsAt + Node.At);
+			}
 		}
 
 		// TextBlock special case: single Text attr routes through the factory directly.
@@ -442,8 +813,13 @@ namespace
 			return Out;
 		}
 
-		const FString PropsType = bComponent ? FString::Printf(TEXT("F%sUetkxProps"), *Node.Tag) : Tag->PropsType;
-		const FString Factory = bComponent ? Node.Tag : Tag->Factory;
+		// A same-file PRIVATE component lives in the per-file detail namespace, so its call site
+		// qualifies both the props struct and the wrapper (RuiPriv_<Basename>::…).
+		const FString* Priv = bComponent ? Qualified.Find(Node.Tag) : nullptr;
+		const FString Prefix = Priv ? *Priv : FString();
+		const FString PropsType =
+			bComponent ? FString::Printf(TEXT("%sF%sUetkxProps"), *Prefix, *Node.Tag) : Tag->PropsType;
+		const FString Factory = bComponent ? Prefix + Node.Tag : Tag->Factory;
 
 		FString Out = TEXT("[&]() -> FRuiNode {\n");
 		Out += FString::Printf(TEXT("\t\t%s P;\n"), *PropsType);
@@ -652,6 +1028,13 @@ namespace
 			}
 			default:
 			{
+				// TD-015: `{children}` SPLICES the component's forwarded children (Ch.Append) rather
+				// than adding a single node — lets a component wrap arbitrary children.
+				if (Child.Type == EUetkxNodeType::Expr && Child.Code.TrimStartAndEnd() == TEXT("children"))
+				{
+					Out += Indent + TEXT("Ch.Append(children);\n");
+					break;
+				}
 				const FString Expr = EmitNodeExpr(Child, AbsAt);
 				if (!Expr.IsEmpty())
 				{
@@ -694,18 +1077,24 @@ namespace
 		{
 			if (Node.IsValid() && Node->Type != EUetkxNodeType::Comment)
 			{
+				if (Node->Type == EUetkxNodeType::Expr && Node->Code.TrimStartAndEnd() == TEXT("children"))
+				{
+					Out += Indent + TEXT("Ch.Append(children);\n"); // TD-015 children splice (directive body)
+					continue;
+				}
 				Out += FString::Printf(TEXT("%sCh.Add(%s);\n"), *Indent, *EmitNodeExpr(*Node, AbsAt));
 			}
 		}
 	}
 
-	FString FEmitter::Emit()
+	FEmittedDecl FEmitter::Emit()
 	{
-		FString Out;
+		FEmittedDecl E;
 		const FString PropsType = FString::Printf(TEXT("F%sUetkxProps"), *Decl.Name);
 
-		// props struct
-		Out += FString::Printf(TEXT("struct %s final : public FRuiPropsBase\n{\n"), *PropsType);
+		// ── DECL phase: the COMPLETE props struct (call sites construct it BY VALUE, so it must be
+		// fully defined before every caller — a forward declaration is not enough).
+		FString Struct = FString::Printf(TEXT("struct %s final : public FRuiPropsBase\n{\n"), *PropsType);
 		for (const FUetkxParam& Param : Decl.Params)
 		{
 			if (Param.Type.IsEmpty())
@@ -715,67 +1104,111 @@ namespace
 					 Decl.NameAt);
 				continue;
 			}
-			Out +=
+			Struct +=
 				FString::Printf(TEXT("\t%s %s%s;\n"), *Param.Type, *Param.Name,
 								Param.Default.IsEmpty() ? TEXT("{}") : *FString::Printf(TEXT(" = %s"), *Param.Default));
 		}
-		Out += TEXT("\n\tvirtual bool Equals(const FRuiPropsBase& OtherBase) const override\n\t{\n");
-		Out += FString::Printf(TEXT("\t\tconst %s& O = static_cast<const %s&>(OtherBase);\n"), *PropsType, *PropsType);
-		Out += TEXT("\t\tbool bEq = BaseFieldsEqual(O);\n");
+		Struct += TEXT("\n\tvirtual bool Equals(const FRuiPropsBase& OtherBase) const override\n\t{\n");
+		Struct +=
+			FString::Printf(TEXT("\t\tconst %s& O = static_cast<const %s&>(OtherBase);\n"), *PropsType, *PropsType);
+		Struct += TEXT("\t\tbool bEq = BaseFieldsEqual(O);\n");
 		for (const FUetkxParam& Param : Decl.Params)
 		{
 			if (Param.Type == TEXT("FText"))
 			{
-				Out += FString::Printf(
+				Struct += FString::Printf(
 					TEXT("\t\tbEq = bEq && (%s.IdenticalTo(O.%s) || %s.ToString() == O.%s.ToString());\n"), *Param.Name,
 					*Param.Name, *Param.Name, *Param.Name);
 			}
 			else
 			{
-				Out += FString::Printf(TEXT("\t\tbEq = bEq && (%s == O.%s);\n"), *Param.Name, *Param.Name);
+				Struct += FString::Printf(TEXT("\t\tbEq = bEq && (%s == O.%s);\n"), *Param.Name, *Param.Name);
 			}
 		}
-		Out += TEXT("\t\treturn bEq;\n\t}\n};\n\n");
+		Struct += TEXT("\t\treturn bEq;\n\t}\n};\n");
 
-		// component function
-		Out += FString::Printf(
+		// The wrapper's default arguments live on EXACTLY the DECL-phase forward declaration; the
+		// BODY-phase definition repeats the signature WITHOUT defaults (repeating them is a C++
+		// redefinition error; omitting them on the definition is legal).
+		const FString WrapDecl = FString::Printf(
+			TEXT("inline FRuiNode %s(%s InProps = %s(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey "
+				 "InKey = FRuiKey());\n"),
+			*Decl.Name, *PropsType, *PropsType);
+		E.DeclPhase = Struct + WrapDecl;
+
+		// ── BODY phase: the impl (markup lowering — MUST run to populate Uses/UseAts), the identity
+		// + hook-signature registrations, the default-free wrapper definition, and (exported only)
+		// the named-factory self-registration.
+		FString Impl = FString::Printf(
 			TEXT("static FRuiNodeArray %s_UetkxImpl(FRuiContext& Ctx, const %s& Props, const TArray<FRuiNode>& "
 				 "children)\n{\n"),
 			*Decl.Name, *PropsType);
 		for (const FUetkxParam& Param : Decl.Params)
 		{
-			Out += FString::Printf(TEXT("\tconst auto& %s = Props.%s;\n"), *Param.Name, *Param.Name);
+			Impl += FString::Printf(TEXT("\tconst auto& %s = Props.%s;\n"), *Param.Name, *Param.Name);
 		}
 		const FString Setup = Decl.Setup.TrimStartAndEnd();
 		if (!Setup.IsEmpty())
 		{
-			Out += TEXT("\t") + PrefixHooks(Setup).Replace(TEXT("\n"), TEXT("\n\t")) + TEXT("\n");
+			Impl += WithLine(TEXT("\t") + IndentRegion(PrefixHooks(Setup)) + TEXT("\n"),
+							 SrcLineOfRegion(Decl.Setup, Decl.SetupAt, Line), Line);
 		}
-		Out += FString::Printf(TEXT("\treturn { %s };\n}\n"), *EmitNodeExpr(*Decl.Root, Decl.BodyAt));
-		Out += FString::Printf(TEXT("static const FName G%sUetkxId = RUI::RegisterComponentId((void*)&%s_UetkxImpl, "
-									"FName(TEXT(\"%s\")));\n"),
-							   *Decl.Name, *Decl.Name, *Decl.Name);
-		Out += FString::Printf(TEXT("static constexpr uint32 %s_RUI_HOOK_SIG = 0x%08Xu;\n"), *Decl.Name,
-							   FUetkxFileScan::HookSignature(Decl.HookCalls));
-		Out += FString::Printf(
-			TEXT("inline FRuiNode %s(%s InProps = %s(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey "
-				 "InKey = FRuiKey())\n{\n\treturn RUI::FC(&%s_UetkxImpl, MoveTemp(InProps), MoveTemp(InChildren), "
-				 "InKey);\n}\n"),
-			*Decl.Name, *PropsType, *PropsType, *Decl.Name);
-		// Cross-TU reach: the wrapper above is TU-local (the aggregator), so every component
-		// also self-registers a default-props factory under its name (gallery/preview/HMR).
-		Out += FString::Printf(TEXT("static const bool G%sUetkxFactoryReg = "
-									"RUI::RegisterNamedFactory(FName(TEXT(\"%s\")), []() { return %s(); });\n"),
-							   *Decl.Name, *Decl.Name, *Decl.Name);
-		return Out;
+		Impl += FString::Printf(TEXT("\treturn { %s };\n}\n"), *EmitNodeExpr(*Decl.Root, Decl.BodyAt));
+		Impl += FString::Printf(TEXT("static const FName G%sUetkxId = RUI::RegisterComponentId((void*)&%s_UetkxImpl, "
+									 "FName(TEXT(\"%s\")));\n"),
+								*Decl.Name, *Decl.Name, *Decl.Name);
+		Impl += FString::Printf(TEXT("static constexpr uint32 %s_RUI_HOOK_SIG = 0x%08Xu;\n"), *Decl.Name,
+								FUetkxFileScan::HookSignature(Decl.HookCalls));
+		Impl += FString::Printf(TEXT("inline FRuiNode %s(%s InProps, TArray<FRuiNode> InChildren, FRuiKey "
+									 "InKey)\n{\n\treturn RUI::FC(&%s_UetkxImpl, MoveTemp(InProps), "
+									 "MoveTemp(InChildren), InKey);\n}\n"),
+								*Decl.Name, *PropsType, *Decl.Name);
+		if (Decl.bExported)
+		{
+			Impl += FString::Printf(TEXT("static const bool G%sUetkxFactoryReg = "
+										 "RUI::RegisterNamedFactory(FName(TEXT(\"%s\")), []() { return %s(); });\n"),
+									*Decl.Name, *Decl.Name, *Decl.Name);
+		}
+		E.BodyPhase = Impl;
+
+		// A PRIVATE component is TREE-SHAKEN (no named factory, above) and both phases wrap in the
+		// per-file detail namespace (A5e). RegisterComponentId is KEPT either way (HMR identity).
+		if (!Decl.bExported)
+		{
+			WrapPrivate(E, PrivNamespaceFor(Basename));
+		}
+		return E;
 	}
 } // namespace
 
-FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FString& Basename)
+bool FUetkxCodegen::IsSellerRepo()
+{
+	// The sentinel lives at the seller monorepo's project root, ABOVE Plugins/ReactiveUI/, so it is
+	// never part of the Fab plugin package a customer installs (D-32a). Cached: a process is entirely
+	// in one repo or the other. Tests that need the other banner pass an explicit override instead.
+	static const bool bSeller = FPaths::FileExists(FPaths::ProjectDir() / TEXT(".rui-seller-repo"));
+	return bSeller;
+}
+
+FString FUetkxCodegen::GeneratedCopyrightLine(const FString& Basename, TOptional<bool> bSellerRepoOverride)
+{
+	const bool bSeller = bSellerRepoOverride.IsSet() ? bSellerRepoOverride.GetValue() : IsSellerRepo();
+	if (bSeller)
+	{
+		return TEXT("// Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.\n");
+	}
+	return FString::Printf(
+		TEXT("// Generated by ReactiveUI from %s.uetkx — this generated code belongs to your project.\n"), *Basename);
+}
+
+FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FString& Basename,
+												 const FString& ProjectRelPath, const IUetkxImportResolver* Resolver,
+												 TOptional<bool> bSellerRepoOverride)
 {
 	FUetkxCompileOutput Out;
 	FUetkxFileScanResult Scan = FUetkxFileScan::Scan(Source, Basename);
 	Out.Diags = Scan.Diags;
+	Out.ExportHash = FUetkxResolve::ExportHash(FUetkxFileScan::ScanPreamble(Source)); // reverse-staleness key (M8)
 	if (Scan.HasError())
 	{
 		return Out;
@@ -783,28 +1216,163 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 
 	FString Inl;
 	Inl += TEXT("// AUTO-GENERATED by RUICompile — DO NOT EDIT. Source: ") + Basename + TEXT(".uetkx\n");
-	Inl += TEXT("// Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.\n\n");
+	// D-32(a): seller copyright inside this repo, neutral "belongs to your project" banner in a
+	// customer project (bughunt CG-1 — was an unconditional seller line stamped into customer output).
+	Inl += GeneratedCopyrightLine(Basename, bSellerRepoOverride) + TEXT("\n");
 	for (const FString& Include : Scan.PreambleIncludes)
 	{
 		Inl += Include + TEXT("\n");
 	}
 	Inl += TEXT("\n");
 
-	for (const FUetkxComponentDecl& Decl : Scan.Components)
+	// Same-file PRIVATE decls (A5e) get a detail-namespace prefix so their same-file references
+	// reach into the wrapper: name -> `RuiPriv_<Basename>::`. Exported decls stay at file scope.
+	const FString PrivNs = PrivNamespaceFor(Basename);
+	TMap<FString, FString> Qualified;
+	for (const FUetkxComponentDecl& D : Scan.Components)
 	{
-		FEmitter Emitter(Basename, Decl, Out.Diags);
-		const FString Body = Emitter.Emit();
-		if (Emitter.HasError())
+		if (!D.bExported)
 		{
-			return Out;
-		}
-		Inl += Body + TEXT("\n");
-		Out.ComponentNames.Add(Decl.Name);
-		if (Out.HookSig == 0)
-		{
-			Out.HookSig = FUetkxFileScan::HookSignature(Decl.HookCalls);
+			Qualified.Add(D.Name, PrivNs + TEXT("::"));
 		}
 	}
+	for (const FUetkxHookDecl& D : Scan.Hooks)
+	{
+		if (!D.bExported)
+		{
+			Qualified.Add(D.Name, PrivNs + TEXT("::"));
+		}
+	}
+	for (const FUetkxModuleDecl& D : Scan.Modules)
+	{
+		if (!D.bExported)
+		{
+			Qualified.Add(D.Name, PrivNs + TEXT("::"));
+		}
+	}
+
+	// #line mapping (M7): breakpoints in the .uetkx bind to the generated body. ProjRel is the
+	// machine-stable path (M3); fixtures/tests fall back to `<Basename>.uetkx`.
+	FLineCtx Line;
+	Line.LineStarts = FUetkxLexer::BuildLineStarts(FUetkxLexer::ToCodePoints(Source));
+	Line.ProjRel = ProjectRelPath.IsEmpty() ? Basename + TEXT(".uetkx") : ProjectRelPath;
+	Line.InlName = Basename + TEXT(".uetkx.inl");
+	Line.bEnabled = true;
+
+	// De-binarized emit (mixed-decl v1) split into the two aggregator phases (M6). Modules emit into
+	// the DECL phase FIRST (member defaults may reference them). Components + hooks emit in SOURCE
+	// order into both phases. The whole .inl is wrapped `#if defined(RUI_UETKX_DECL_PHASE) … #else …
+	// #endif` so the aggregator can include it once per phase.
+	TSet<FString> Uses;
+	TMap<FString, int32> UseAts;
+	FString ModuleDecls, OtherDecls, Bodies;
+	for (const TPair<EUetkxDeclKind, int32>& Entry : Scan.Order)
+	{
+		switch (Entry.Key)
+		{
+		case EUetkxDeclKind::Component:
+		{
+			const FUetkxComponentDecl& Decl = Scan.Components[Entry.Value];
+			FEmitter Emitter(Basename, Decl, Out.Diags, Uses, UseAts, Qualified, Line);
+			const FEmittedDecl E = Emitter.Emit();
+			if (Emitter.HasError())
+			{
+				return Out;
+			}
+			OtherDecls += E.DeclPhase + TEXT("\n");
+			Bodies += E.BodyPhase + TEXT("\n");
+			Out.ComponentNames.Add(Decl.Name);
+			if (Out.HookSig == 0)
+			{
+				Out.HookSig = FUetkxFileScan::HookSignature(Decl.HookCalls);
+			}
+			break;
+		}
+		case EUetkxDeclKind::Hook:
+		{
+			const FEmittedDecl E = EmitHookInl(Scan.Hooks[Entry.Value], PrivNs, Qualified, Line);
+			OtherDecls += E.DeclPhase + TEXT("\n");
+			Bodies += E.BodyPhase + TEXT("\n");
+			Out.ComponentNames.Add(Scan.Hooks[Entry.Value].Name);
+			break;
+		}
+		case EUetkxDeclKind::Module:
+			ModuleDecls += EmitModuleInl(Scan.Modules[Entry.Value], PrivNs, Line).DeclPhase + TEXT("\n");
+			Out.ComponentNames.Add(Scan.Modules[Entry.Value].Name);
+			break;
+		}
+	}
+	Inl += TEXT("#if defined(RUI_UETKX_DECL_PHASE)\n");
+	Inl += ModuleDecls + OtherDecls;
+	Inl += TEXT("#else\n");
+	Inl += Bodies;
+	Inl += TEXT("#endif\n");
+
+	// Fix up the `#line` restore placeholders (@@R@@) now the whole .inl is assembled: a restore
+	// directive on .inl line L points the NEXT line back to the .inl at L+1 (so generated code after
+	// a user region maps to the .inl, not the .uetkx).
+	if (Inl.Contains(TEXT("@@R@@")))
+	{
+		TArray<FString> Lines;
+		Inl.ParseIntoArray(Lines, TEXT("\n"), false);
+		for (int32 i = 0; i < Lines.Num(); ++i)
+		{
+			if (Lines[i].Contains(TEXT("@@R@@")))
+			{
+				Lines[i] = Lines[i].Replace(TEXT("@@R@@"), *FString::FromInt(i + 2));
+			}
+		}
+		Inl = FString::Join(Lines, TEXT("\n"));
+	}
+	// Import resolution + STRICT usage diagnostics (M4). Runs only when a resolver is supplied
+	// (driver / fixture harness); tests without one get syntax-only compilation. Resolution
+	// happens AFTER emit so the component-tag reference set (UseAts) is available; a resolution
+	// ERROR discards the .inl (bOk stays false) so no under-resolved code is committed.
+	if (Resolver != nullptr)
+	{
+		const FString ImporterPath = ProjectRelPath.IsEmpty() ? Basename + TEXT(".uetkx") : ProjectRelPath;
+		FUetkxResolve::Apply(Scan, UseAts, ImporterPath, *Resolver, Out.Diags, Out.DepHashes);
+		for (const FUetkxDiag& Diag : Out.Diags)
+		{
+			if (Diag.Severity == 0)
+			{
+				return Out;
+			}
+		}
+	}
+
+	// EXPORTED decl names — the cross-file-addressable bindings the 2106 global ledger keys on
+	// (private decls may collide across files by construction, A5e).
+	for (const FUetkxComponentDecl& D : Scan.Components)
+	{
+		if (D.bExported)
+		{
+			Out.ExportedNames.Add(D.Name);
+		}
+	}
+	for (const FUetkxHookDecl& D : Scan.Hooks)
+	{
+		if (D.bExported)
+		{
+			Out.ExportedNames.Add(D.Name);
+		}
+	}
+	for (const FUetkxModuleDecl& D : Scan.Modules)
+	{
+		if (D.bExported)
+		{
+			Out.ExportedNames.Add(D.Name);
+		}
+	}
+
+	// a component never depends on ITSELF for ordering (recursion is legal in one TU)
+	for (const FString& Name : Out.ComponentNames)
+	{
+		Uses.Remove(Name);
+	}
+	Out.Uses = Uses.Array();
+	Out.Uses.Sort();
+	Out.bSupportFile = Scan.Components.IsEmpty(); // no markup → HMR rebuild note, not interp swap
 	Out.bOk = true;
 	Out.Inl = MoveTemp(Inl);
 	return Out;
@@ -891,6 +1459,48 @@ FString FUetkxCodegen::ExportSchemaJson()
 		HookArray.Add(MakeShared<FJsonValueString>(Hook));
 	}
 	Root->SetArrayField(TEXT("hooks"), HookArray);
+
+	// TD-016: per-event payload KIND — the FRuiValue field an event handler's `Value` carries, so
+	// the LSP can complete `Value.<Field>` typed by the event (text -> Value.TextValue, etc.). Keyed
+	// by event attr name (payload is per event name in v1). "void" = zero-payload (OnClicked).
+	auto EventPayloadKind = [](const FString& EventName) -> const TCHAR*
+	{
+		if (EventName == TEXT("OnTextChanged") || EventName == TEXT("OnTextCommitted"))
+		{
+			return TEXT("text");
+		}
+		if (EventName == TEXT("OnCheckStateChanged"))
+		{
+			return TEXT("bool");
+		}
+		if (EventName == TEXT("OnValueChanged"))
+		{
+			return TEXT("float");
+		}
+		return TEXT("void");
+	};
+	TSharedRef<FJsonObject> EventPayloads = MakeShared<FJsonObject>();
+	TSet<FString> SeenEvents;
+	for (const FName& TagName : TagNames)
+	{
+		const FTagDef& Tag = HostTags()[TagName];
+		TArray<FName> EvAttrNames;
+		Tag.Attrs.GetKeys(EvAttrNames);
+		EvAttrNames.Sort(FNameLexicalLess());
+		for (const FName& AttrName : EvAttrNames)
+		{
+			if (Tag.Attrs[AttrName] == EAttrType::Event)
+			{
+				const FString EvName = AttrName.ToString();
+				if (!SeenEvents.Contains(EvName))
+				{
+					SeenEvents.Add(EvName);
+					EventPayloads->SetStringField(EvName, EventPayloadKind(EvName));
+				}
+			}
+		}
+	}
+	Root->SetObjectField(TEXT("eventPayloads"), EventPayloads);
 
 	FString Out;
 	const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);

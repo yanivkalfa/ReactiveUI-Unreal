@@ -48,8 +48,10 @@ Setup: editor open, PIE running, `Source/RuiDemo/Screens/SimpleCounter.uetkx` op
 ## D. VS Code extension (~10 min)
 
 - [ ] `cd ide-extensions/lsp-server && npm ci && npm test` → 7/7 (both shared corpora replay).
-- [ ] `cd ../vscode-uetkx && npm ci && npm run build`, then F5 (Extension Development Host)
-      or `npx @vscode/vsce package` + install the `.vsix`.
+- [ ] `cd ../vscode-uetkx && npm ci`, then open **the repo root** in VS Code and press **F5**
+      ("Run UETKX Extension") — the pre-launch task builds server + client and an Extension
+      Development Host opens on this repo. (Alternative: `npm run build` +
+      `npx @vscode/vsce package` in `vscode-uetkx` and install the `.vsix`.)
 - [ ] Open a gallery `.uetkx`: syntax colors (markup + embedded C++ tint), `<` completes
       element names, attr position completes typed attrs + style/slot keys, hover on
       `Button`/`UseState`/`RenderOpacity` shows docs.
@@ -60,11 +62,12 @@ Setup: editor open, PIE running, `Source/RuiDemo/Screens/SimpleCounter.uetkx` op
 
 ## E. VS2022 extension (~15 min, needs the VSSDK workload)
 
-- [ ] Open `ide-extensions/visual-studio/UetkxVsix/UetkxVsix.csproj` in VS2022 (17.x) with the
-      "Visual Studio extension development" workload; restore + build.
-- [ ] Copy the built lsp-server bundle into `UetkxVsix/server/` (the vscode sibling's
-      `scripts/bundle-server.mjs` output layout) — optionally a `node.exe` beside it.
-- [ ] F5 (experimental instance) → open a `.uetkx`: colors + completions + diagnostics work.
+- [ ] `cd ide-extensions/visual-studio && .\build-local.ps1` — builds the server bundle,
+      mirrors it into `UetkxVsix/server/`, and builds the VSIX in one go.
+- [ ] Open `ide-extensions/visual-studio/UetkxVsix/UetkxVsix.csproj` in VS2022 (17.x, VSSDK
+      workload) and press **F5** (StartAction is committed → experimental instance), or
+      `.\build-local.ps1 -Debug`.
+- [ ] In the experimental instance, open a `.uetkx`: colors + completions + diagnostics work.
 
 ## F. Interop spot checks (~10 min)
 

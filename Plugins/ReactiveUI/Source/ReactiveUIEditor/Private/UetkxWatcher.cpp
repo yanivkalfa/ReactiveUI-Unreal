@@ -4,55 +4,65 @@
 
 #include "DirectoryWatcherModule.h"
 #include "Framework/Application/SlateApplication.h"
+#include "HAL/FileManager.h"
 #include "IDirectoryWatcher.h"
 #include "Logging/MessageLog.h"
 #include "Misc/Paths.h"
 #include "Modules/ModuleManager.h"
 #include "RUICompileCommandlet.h"
-#include "RuiHmr.h"
+#include "ReactiveUetkxEditorSettings.h"
 #include "UetkxDriver.h"
-
-#include "HAL/IConsoleManager.h"
-#include "ILiveCodingModule.h"
+#include "UetkxHmrController.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogUetkxWatcher, Log, All);
 
 namespace
 {
-	constexpr double PollSeconds = 2.0;
+	// HMR v2 (D-HMR-4): a fast ticker + a quiet-window debounce so a save is picked up in ~300 ms
+	// (coalesced), not on the slow fallback poll. The stale/fingerprint fallback stays throttled.
+	constexpr double TickSeconds = 0.15;
+	constexpr double DefaultDebounceSeconds = 0.30; // quiet window after the last .uetkx event (settings override)
+	constexpr double StalePollSeconds = 2.0;		// throttle for the (file-I/O) HasStale fallback
 	constexpr double DeadmanSeconds = 30.0;
 	const FName MessageLogName(TEXT("ReactiveUI"));
 
-	/** Off by default: when a swap reports fallback notes ("rebuild required for full
-	 *  behavior"), optionally fire a Live Coding compile so the compiled regions catch up. */
-	TAutoConsoleVariable<bool> CVarAutoLiveCoding(TEXT("rui.Hmr.AutoLiveCoding"), false,
-												  TEXT("Trigger Live Coding when a .uetkx hot-swap needs a rebuild "
-													   "for full behavior (default off)."));
-
-	void MaybeTriggerLiveCoding()
+	// The quiet window after the last event, from settings (clamped to something sane).
+	double DebounceSeconds()
 	{
-		if (!CVarAutoLiveCoding.GetValueOnGameThread())
-		{
-			return;
-		}
-		if (ILiveCodingModule* LiveCoding = FModuleManager::GetModulePtr<ILiveCodingModule>(TEXT("LiveCoding")))
-		{
-			if (LiveCoding->IsEnabledForSession() && !LiveCoding->IsCompiling())
-			{
-				LiveCoding->Compile(ELiveCodingCompileFlags::None, nullptr);
-			}
-		}
+		const int32 Ms = GetDefault<UReactiveUetkxEditorSettings>()->DebounceMs;
+		return Ms > 0 ? FMath::Clamp(Ms, 0, 2000) / 1000.0 : DefaultDebounceSeconds;
+	}
+
+	bool VerboseWatcher()
+	{
+		return GetDefault<UReactiveUetkxEditorSettings>()->bVerboseWatcher;
 	}
 } // namespace
 
 void FUetkxWatcher::Start()
 {
+	// Watched roots: settings.WatchedRoots (project-relative), else the default Source/ + Plugins/.
+	// Read at Start — changing the roots takes effect on the next editor start (they anchor the FS watchers).
+	Roots.Reset();
+	for (const FString& Rel : GetDefault<UReactiveUetkxEditorSettings>()->WatchedRoots)
+	{
+		const FString Full = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / Rel);
+		if (IFileManager::Get().DirectoryExists(*Full))
+		{
+			Roots.Add(Full);
+		}
+	}
+	if (Roots.Num() == 0)
+	{
+		Roots = URUICompileCommandlet::DefaultRoots();
+	}
+
 	// trigger 1: directory watcher on each sweep root
 	FDirectoryWatcherModule& WatcherModule =
 		FModuleManager::LoadModuleChecked<FDirectoryWatcherModule>(TEXT("DirectoryWatcher"));
 	if (IDirectoryWatcher* Watcher = WatcherModule.Get())
 	{
-		for (const FString& Root : URUICompileCommandlet::DefaultRoots())
+		for (const FString& Root : Roots)
 		{
 			FDelegateHandle Handle;
 			Watcher->RegisterDirectoryChangedCallback_Handle(
@@ -75,28 +85,43 @@ void FUetkxWatcher::Start()
 			});
 	}
 
-	// trigger 3: the standing poll — also drains pending sweeps from triggers 1+2
+	// trigger 3: a fast ticker that debounces the change/activation triggers and, throttled, runs the
+	// HasStale fallback poll (external edit while the editor sits in background).
 	TickerHandle = FTSTicker::GetCoreTicker().AddTicker(
 		FTickerDelegate::CreateLambda(
 			[this](float)
 			{
-				if (bPendingSweep || !bFirstSweepDone || FUetkxDriver::FingerprintMismatch())
+				const double Now = FPlatformTime::Seconds();
+				// First sweep + fingerprint drift are immediate; a pending change sweeps once the quiet
+				// window has elapsed (coalescing a burst of save events into one compile).
+				if (!bFirstSweepDone || FUetkxDriver::FingerprintMismatch())
 				{
 					bPendingSweep = false;
 					Sweep(TEXT("poll"));
 					return true;
 				}
-				for (const FString& Root : URUICompileCommandlet::DefaultRoots())
+				if (bPendingSweep && (Now - LastChangeSeconds) >= DebounceSeconds())
 				{
-					if (FUetkxDriver::HasStale(Root))
+					bPendingSweep = false;
+					Sweep(TEXT("save"));
+					return true;
+				}
+				// Throttled fallback: catch a stale file the FS watcher missed.
+				if ((Now - LastStaleCheckSeconds) >= StalePollSeconds)
+				{
+					LastStaleCheckSeconds = Now;
+					for (const FString& Root : Roots)
 					{
-						Sweep(TEXT("stale-poll"));
-						break;
+						if (FUetkxDriver::HasStale(Root))
+						{
+							Sweep(TEXT("stale-poll"));
+							break;
+						}
 					}
 				}
 				return true;
 			}),
-		PollSeconds);
+		TickSeconds);
 }
 
 void FUetkxWatcher::Stop()
@@ -126,11 +151,20 @@ void FUetkxWatcher::Stop()
 
 void FUetkxWatcher::OnDirectoryChanged(const TArray<FFileChangeData>& Changes)
 {
+	// ANY .uetkx event (add / modify / remove — the watcher includes directory changes) arms a
+	// debounced sweep. CompileAll then handles the whole tree: new files compile, removed files
+	// orphan-sweep, changed files + their importers recompile (HMR v2 D-HMR-4).
 	for (const FFileChangeData& Change : Changes)
 	{
 		if (Change.Filename.EndsWith(TEXT(".uetkx")))
 		{
 			bPendingSweep = true;
+			LastChangeSeconds = FPlatformTime::Seconds();
+			if (VerboseWatcher())
+			{
+				UE_LOG(LogUetkxWatcher, Display, TEXT("[RUI watcher] event: %s (armed debounced sweep)"),
+					   *Change.Filename);
+			}
 			return;
 		}
 	}
@@ -186,7 +220,7 @@ int32 FUetkxWatcher::Sweep(const TCHAR* Reason)
 	int32 Compiled = 0;
 	int32 Errors = 0;
 	const bool bForce = FUetkxDriver::FingerprintMismatch();
-	for (const FString& Root : URUICompileCommandlet::DefaultRoots())
+	for (const FString& Root : Roots)
 	{
 		const FUetkxSweepResult Result = FUetkxDriver::CompileAll(Root, bForce);
 		Compiled += Result.Compiled;
@@ -207,18 +241,12 @@ int32 FUetkxWatcher::Sweep(const TCHAR* Reason)
 				}
 			}
 			ReportDiags(File.UetkxPath, FileErrors);
-			if (File.bOk)
-			{
-				// the live half of the loop: swap the definition under the running UI
-				const FRuiHmrStatus Status = FRuiHmr::ApplyFile(File.UetkxPath);
-				FMessageLog(MessageLogName).Info(FText::FromString(Status.ToString()));
-				if (Status.Notes.Num() > 0)
-				{
-					MaybeTriggerLiveCoding();
-				}
-			}
 		}
 	}
+	// HMR v2: codegen regenerated the committed .inl (keeps the tree fresh regardless of HMR). Hand the
+	// result to the controller — when HMR mode is ACTIVE it triggers a Live Coding compile → patch →
+	// refresh; when stopped, this is a no-op (D-HMR-2/3).
+	FUetkxHmrController::Get().NotifyCodegen(Compiled, Errors, Reason);
 	if (!bFirstSweepDone || Compiled > 0 || Errors > 0)
 	{
 		// cold-open proof of life: a silent Output means the watcher is NOT running

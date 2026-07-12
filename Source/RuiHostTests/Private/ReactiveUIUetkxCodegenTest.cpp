@@ -20,7 +20,7 @@ bool FRuiUetkxCodegenTest::RunTest(const FString&)
 	// ── the counter (the family's hello-world of state) ───────────────────────────────────
 	{
 		const FString Source = TEXT(R"UETKX(
-component Counter(StartAt: int32 = 0) {
+export component Counter(StartAt: int32 = 0) {
 	auto [Count, SetCount] = UseState(StartAt);
 	TFunction<void(int32)> Set = SetCount;
 	const int32 Now = Count;
@@ -145,6 +145,65 @@ component RowList(Names: TArray<FString>) {
 		const uint32 C = FUetkxFileScan::HookSignature({TEXT("UseEffect"), TEXT("UseState")});
 		TestEqual(TEXT("sig deterministic"), A, B);
 		TestNotEqual(TEXT("sig order-sensitive"), A, C);
+	}
+
+	// ── exports/privacy (M5): detail namespace + tree-shake + same-file qualification ─────────
+	{
+		// A file with an EXPORTED component that references a PRIVATE same-file component, hook, and
+		// module — the private decls wrap in RuiPriv_<Basename> and their references qualify.
+		const FString Src = TEXT("module RowStyle {\n\tinline const int32 Gap = 4;\n}\n")
+			TEXT("hook UseLocalCount() -> int32 {\n\treturn 0;\n}\n")
+				TEXT("component Row {\n\treturn ( <Spacer /> );\n}\n") TEXT("export component Panel {\n")
+					TEXT("\tint32 Pad = RowStyle::Gap;\n") TEXT("\tauto V = UseLocalCount();\n")
+						TEXT("\treturn ( <VerticalBox> <Row /> </VerticalBox> );\n}\n");
+		const FUetkxCompileOutput Out = FUetkxCodegen::CompileSource(Src, TEXT("Panel"));
+		if (TestTrue(TEXT("privacy sample compiles"), Out.bOk))
+		{
+			// exported component: file scope + named factory.
+			TestTrue(
+				TEXT("exported component registers a named factory"),
+				Out.Inl.Contains(TEXT("RUI::RegisterNamedFactory(FName(TEXT(\"Panel\")), []() { return Panel(); })")));
+			TestTrue(TEXT("only exported decls in the export ledger"),
+					 Out.ExportedNames.Num() == 1 && Out.ExportedNames[0] == TEXT("Panel"));
+			// private decls wrap in the per-file detail namespace.
+			TestTrue(TEXT("private component wrapped"), Out.Inl.Contains(TEXT("namespace RuiPriv_Panel")));
+			TestTrue(TEXT("private component NOT globally registered"),
+					 !Out.Inl.Contains(TEXT("RegisterNamedFactory(FName(TEXT(\"Row\"))")));
+			// same-file references reach into the detail namespace.
+			TestTrue(TEXT("private component tag qualified"), Out.Inl.Contains(TEXT("RuiPriv_Panel::FRowUetkxProps")) &&
+																  Out.Inl.Contains(TEXT("RuiPriv_Panel::Row(")));
+			TestTrue(TEXT("private hook call qualified"), Out.Inl.Contains(TEXT("RuiPriv_Panel::UseLocalCount(Ctx)")));
+			TestTrue(TEXT("private module qual qualified"), Out.Inl.Contains(TEXT("RuiPriv_Panel::RowStyle::Gap")));
+		}
+	}
+
+	// ── two-phase emit shape (M6): phase guards + defaults on the DECL wrapper only ───────────────
+	{
+		const FUetkxCompileOutput Out = FUetkxCodegen::CompileSource(
+			TEXT("export component TwoPhase(Title: FText) {\n\treturn ( <Spacer /> );\n}\n"), TEXT("TwoPhase"));
+		if (TestTrue(TEXT("two-phase sample compiles"), Out.bOk))
+		{
+			TestTrue(TEXT("has the decl-phase guard"), Out.Inl.Contains(TEXT("#if defined(RUI_UETKX_DECL_PHASE)")));
+			TestTrue(TEXT("has the body-phase #else"), Out.Inl.Contains(TEXT("#else")));
+			TestTrue(TEXT("has #endif"), Out.Inl.Contains(TEXT("#endif")));
+			// The DECL phase carries the complete struct + a defaulted forward declaration.
+			TestTrue(TEXT("decl phase has the complete props struct"),
+					 Out.Inl.Contains(TEXT("struct FTwoPhaseUetkxProps final : public FRuiPropsBase")));
+			TestTrue(TEXT("decl-phase wrapper is a DEFAULTED forward declaration"),
+					 Out.Inl.Contains(
+						 TEXT("inline FRuiNode TwoPhase(FTwoPhaseUetkxProps InProps = FTwoPhaseUetkxProps(), "
+							  "TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey InKey = FRuiKey());")));
+			// The BODY phase repeats the signature WITHOUT defaults (C++ redefinition rule).
+			TestTrue(TEXT("body-phase wrapper definition drops the defaults"),
+					 Out.Inl.Contains(TEXT("inline FRuiNode TwoPhase(FTwoPhaseUetkxProps InProps, TArray<FRuiNode> "
+										   "InChildren, FRuiKey InKey)\n{")));
+			TestFalse(TEXT("no defaulted wrapper DEFINITION (would be a redefinition error)"),
+					  Out.Inl.Contains(TEXT("FRuiKey InKey = FRuiKey())\n{")));
+			// The impl lives in the body phase; the struct does NOT repeat there.
+			const int32 Split = Out.Inl.Find(TEXT("#else"));
+			TestTrue(TEXT("impl is after #else (body phase)"),
+					 Split >= 0 && Out.Inl.Find(TEXT("TwoPhase_UetkxImpl")) > Split);
+		}
 	}
 	return true;
 }

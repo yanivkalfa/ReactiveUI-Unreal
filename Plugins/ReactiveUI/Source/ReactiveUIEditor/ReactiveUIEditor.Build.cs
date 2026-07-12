@@ -25,13 +25,20 @@ public class ReactiveUIEditor : ModuleRules
 			"CoreUObject",		 // commandlet UCLASSes
 			"Engine",			 // UCommandlet base
 			"Projects",			 // sweep roots
-			"ReactiveUIInterp",	 // FRuiHmr (editor-only module — the Interp linkage rule allows it)
+			"ReactiveUICore",	 // FRuiNode / FRuiRoot (the preview panel, TD-006)
+			"ReactiveUISlate",	 // FRuiRoot mount surface (the preview panel, TD-006)
+			"ReactiveUIInterp",	 // FUetkxFileScan parser (preview scan — HMR v2 deleted the interpreter)
 			"ReactiveUIToolchain", // FUetkxDriver / FUetkxCodegen
-			"DirectoryWatcher",	 // watcher trigger 1
+			"InputCore",			 // SEditableTextBox in the preview panel
+			"WorkspaceMenuStructure", // group the preview/HMR tabs under Window > Tools (grouped entries)
+			"ToolMenus",			  // the top-level ReactiveUetkx main-menu (HMR v2 Phase 2)
+			"DeveloperSettings",	  // UReactiveUetkxEditorSettings (HMR v2 Phase 3)
+			"UnrealEd",				  // FEditorDelegates PIE hooks for "Follow Play" (HMR v2)
+			"DirectoryWatcher",		 // watcher trigger 1
 			"Slate",			 // window-activation trigger
 			"SlateCore",
 			"MessageLog",  // the "ReactiveUI" dock listing
-			"LiveCoding",  // optional rui.Hmr.AutoLiveCoding trigger
+			"LiveCoding",  // FUetkxHmrController drives the Live Coding session (HMR v2, D-HMR-8)
 		});
 	}
 }

@@ -10,7 +10,9 @@
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
+#include "UetkxConfig.h"
 #include "UetkxLexer.h"
+#include "UetkxResolve.h"
 #include "UetkxToolchainLog.h"
 
 namespace
@@ -41,11 +43,31 @@ namespace
 	}
 
 	FString SerializeSidecar(uint32 SrcHash, const TArray<FUetkxDiag>& Diags, const TArray<FString>& ComponentNames,
-							 const FString& InlName)
+							 const FString& InlName, const TArray<FString>& Uses, bool bSupportFile, uint32 ExportHash,
+							 const TMap<FString, uint32>& DepHashes)
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
-		Root->SetNumberField(TEXT("v"), 2);
+		Root->SetNumberField(TEXT("v"), 3);
 		Root->SetNumberField(TEXT("src_hash"), static_cast<double>(SrcHash));
+		// v3 staleness graph (M8): this file's export shape hash + the export hash of every resolved
+		// dependency at compile time. An importer re-stales when a dep's export_hash moves (A5d).
+		Root->SetNumberField(TEXT("export_hash"), static_cast<double>(ExportHash));
+		TSharedRef<FJsonObject> Deps = MakeShared<FJsonObject>();
+		for (const TPair<FString, uint32>& Dep : DepHashes)
+		{
+			Deps->SetNumberField(Dep.Key, static_cast<double>(Dep.Value));
+		}
+		Root->SetObjectField(TEXT("dep_hashes"), Deps);
+		// Optional (schema-v2-compatible) ordering fields: which components this file's markup
+		// REFERENCES + whether it is a hook/module support file. BuildAggregators reads these
+		// to order #includes (direct component calls need callee-before-caller in the TU).
+		Root->SetStringField(TEXT("kind"), bSupportFile ? TEXT("support") : TEXT("component"));
+		TArray<TSharedPtr<FJsonValue>> UsesArray;
+		for (const FString& Use : Uses)
+		{
+			UsesArray.Add(MakeShared<FJsonValueString>(Use));
+		}
+		Root->SetArrayField(TEXT("uses"), UsesArray);
 		TArray<TSharedPtr<FJsonValue>> DiagArray;
 		for (const FUetkxDiag& Diag : Diags)
 		{
@@ -103,6 +125,69 @@ namespace
 		return true;
 	}
 
+	uint32 ReadSidecarExportHash(const FString& SidecarPath)
+	{
+		FString Json;
+		TSharedPtr<FJsonObject> Root;
+		if (!FFileHelper::LoadFileToString(Json, *SidecarPath) ||
+			!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Json), Root) || !Root.IsValid())
+		{
+			return 0;
+		}
+		double H = 0.0;
+		Root->TryGetNumberField(TEXT("export_hash"), H);
+		return static_cast<uint32>(H);
+	}
+
+	/** True when any dependency this file recorded (dep_hashes) now has a DIFFERENT export_hash in
+	 *  its own sidecar — the reverse-edge staleness + verdict-poisoning signal (M8/A5d). Labels are
+	 *  project-relative paths; a missing dep sidecar reads as export_hash 0. */
+	bool DepsChanged(const FString& SidecarPath)
+	{
+		FString Json;
+		TSharedPtr<FJsonObject> Root;
+		if (!FFileHelper::LoadFileToString(Json, *SidecarPath) ||
+			!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Json), Root) || !Root.IsValid())
+		{
+			return false;
+		}
+		const TSharedPtr<FJsonObject>* Deps = nullptr;
+		if (!Root->TryGetObjectField(TEXT("dep_hashes"), Deps))
+		{
+			return false; // v2 sidecar (pre-M8) — no dep graph recorded
+		}
+		for (const TPair<FString, TSharedPtr<FJsonValue>>& Dep : (*Deps)->Values)
+		{
+			const FString DepUetkx = FPaths::Combine(FPaths::ProjectDir(), Dep.Key);
+			const uint32 Current = ReadSidecarExportHash(FUetkxDriver::SidecarPathFor(DepUetkx));
+			if (Current != static_cast<uint32>(Dep.Value->AsNumber()))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/** The dependency labels a sidecar recorded (dep_hashes keys) — the resolved imports of a file,
+	 *  the reverse-edge source for the HMR blast radius (M9). */
+	TArray<FString> ReadSidecarDepKeys(const FString& SidecarPath)
+	{
+		TArray<FString> Out;
+		FString Json;
+		TSharedPtr<FJsonObject> Root;
+		if (!FFileHelper::LoadFileToString(Json, *SidecarPath) ||
+			!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Json), Root) || !Root.IsValid())
+		{
+			return Out;
+		}
+		const TSharedPtr<FJsonObject>* Deps = nullptr;
+		if (Root->TryGetObjectField(TEXT("dep_hashes"), Deps))
+		{
+			(*Deps)->Values.GetKeys(Out);
+		}
+		return Out;
+	}
+
 	/** The component names a sidecar recorded (its refs keys) — how a SKIPPED file still
 	 *  contributes to the duplicate-binding check without recompiling. */
 	TArray<FString> ReadSidecarRefs(const FString& SidecarPath)
@@ -134,6 +219,117 @@ namespace
 	{
 		return Path.Replace(TEXT("\\"), TEXT("/")).Contains(TEXT("/ContractFixtures/"));
 	}
+
+	/** A .uetkx source path relative to the project dir, forward-slashed — the stable, machine-
+	 *  independent form emitted into `#line` directives (M7) and stored in the sidecar. */
+	FString ProjectRelPathFor(const FString& UetkxPath)
+	{
+		FString Rel = UetkxPath;
+		FPaths::MakePathRelativeTo(Rel, *FPaths::ProjectDir());
+		Rel.ReplaceInline(TEXT("\\"), TEXT("/"));
+		return Rel;
+	}
+
+	/** Detect a VALUE-import cycle (imported HOOKS/MODULES, which load eagerly — a cycle among them is a
+	 *  real init deadlock, TDZ parity; component cycles are legal via the two-phase decl pass). Returns
+	 *  the cycle's filename chain, or an empty array when there is none. Shared by CompileAllRoots and
+	 *  CheckDrift so `-check` enforces the SAME UETKX2306 invariant the full sweep does (bughunt CHECK-1). */
+	TArray<FString> DetectValueImportCycleNames(const TArray<FString>& All, const FUetkxFsResolver& Resolver)
+	{
+		auto NormFull = [](FString P)
+		{
+			P = FPaths::ConvertRelativePathToFull(P);
+			FPaths::NormalizeFilename(P);
+			return P;
+		};
+		TMap<FString, FString> NormToOrig;
+		TMap<FString, TArray<FString>> ValueEdges; // normalized path -> normalized paths it value-imports
+		for (const FString& Path : All)
+		{
+			const FString Norm = NormFull(Path);
+			NormToOrig.Add(Norm, Path);
+			TArray<FString> Edges;
+			FString Source;
+			if (FFileHelper::LoadFileToString(Source, *Path))
+			{
+				const FString ProjRel = ProjectRelPathFor(Path);
+				for (const FUetkxImportDecl& Imp : FUetkxFileScan::ScanPreamble(Source).Imports)
+				{
+					const FString Target = Resolver.Resolve(Imp.Specifier, ProjRel);
+					if (Target.IsEmpty())
+					{
+						continue;
+					}
+					TMap<FString, FUetkxTargetDecl> Decls;
+					if (!Resolver.GetDecls(Target, Decls))
+					{
+						continue;
+					}
+					const FString NormTarget = NormFull(Target);
+					if (NormTarget == Norm)
+					{
+						continue; // a self-import is not a value cycle (bughunt IMPORT-4) — never a self-edge
+					}
+					for (const FString& Name : Imp.Names)
+					{
+						const FUetkxTargetDecl* T = Decls.Find(Name);
+						if (T && (T->Kind == EUetkxDeclKind::Hook || T->Kind == EUetkxDeclKind::Module))
+						{
+							Edges.AddUnique(NormTarget);
+							break;
+						}
+					}
+				}
+			}
+			ValueEdges.Add(Norm, MoveTemp(Edges));
+		}
+		TSet<FString> Visited, OnStack;
+		TArray<FString> Chain;
+		TFunction<bool(const FString&)> Dfs = [&](const FString& Node) -> bool
+		{
+			Visited.Add(Node);
+			OnStack.Add(Node);
+			Chain.Push(Node);
+			for (const FString& Next : ValueEdges.FindRef(Node))
+			{
+				if (OnStack.Contains(Next))
+				{
+					Chain.Push(Next); // close the cycle
+					return true;
+				}
+				if (!Visited.Contains(Next) && Dfs(Next))
+				{
+					return true;
+				}
+			}
+			OnStack.Remove(Node);
+			Chain.Pop();
+			return false;
+		};
+		for (const FString& Path : All)
+		{
+			const FString Norm = NormFull(Path);
+			if (!Visited.Contains(Norm))
+			{
+				Chain.Reset();
+				if (Dfs(Norm))
+				{
+					const int32 Start = Chain.IndexOfByKey(Chain.Last());
+					TArray<FString> Names;
+					for (int32 i = FMath::Max(0, Start); i < Chain.Num(); ++i)
+					{
+						Names.Add(FPaths::GetCleanFilename(NormToOrig.FindRef(Chain[i])));
+					}
+					return Names;
+				}
+			}
+		}
+		return {};
+	}
+
+	// NOTE (M6): the aggregator no longer orders by the sidecar `uses`/`kind` cache — ordering is now
+	// source-truth (fresh preamble import edges, A2). The sidecar's `uses`/`kind` fields remain in
+	// the payload as a verifier hint but are read by no code path here (ReadSidecarOrdering removed).
 } // namespace
 
 uint32 FUetkxDriver::SrcHash(const FString& Source)
@@ -162,6 +358,9 @@ bool FUetkxDriver::IsStale(const FString& UetkxPath)
 	// "This exact content already compiled and reported broken" — the busy-loop guard.
 	// It only excuses a MISSING output: an on-disk .inl older than its source is always
 	// stale (a failed recompile deletes it; stale generated code must never build).
+	// Verdict-poisoning fix (A5d): a standing error verdict is INVALID once a dependency's export
+	// shape moved — e.g. A errored importing {X} from ./B before B exported X; B now exports X, so
+	// A must recompile even though A's own source is byte-identical.
 	auto MatchesErrorVerdict = [&]()
 	{
 		uint32 SidecarHash = 0;
@@ -170,9 +369,18 @@ bool FUetkxDriver::IsStale(const FString& UetkxPath)
 		{
 			return false;
 		}
+		if (DepsChanged(SidecarPathFor(UetkxPath)))
+		{
+			return false;
+		}
 		FString Source;
 		return FFileHelper::LoadFileToString(Source, *UetkxPath) && SrcHash(Source) == SidecarHash;
 	};
+	// Reverse-edge staleness (M8): a dependency's export_hash moved → recompile, regardless of mtime.
+	if (DepsChanged(SidecarPathFor(UetkxPath)))
+	{
+		return true;
+	}
 	const FDateTime InlTime = FM.GetTimeStamp(*InlPathFor(UetkxPath));
 	if (InlTime == FDateTime::MinValue())
 	{
@@ -200,16 +408,37 @@ bool FUetkxDriver::IsStale(const FString& UetkxPath)
 	return SrcHash(Source) != SidecarHash;
 }
 
-FUetkxFileResult FUetkxDriver::CompileFile(const FString& UetkxPath, bool bForce)
+FUetkxFileResult FUetkxDriver::CompileFile(const FString& UetkxPath, bool bForce, const IUetkxImportResolver* Resolver)
 {
 	FUetkxFileResult Out;
 	Out.UetkxPath = UetkxPath;
 	Out.InlPath = InlPathFor(UetkxPath);
 	if (!bForce && !IsStale(UetkxPath))
 	{
-		Out.bOk = true;
 		Out.bSkipped = true;
+		// A skip over a STANDING ERROR verdict (source unchanged since the last failed compile) is NOT a
+		// success — mark it not-OK so the sweep/-check exit code reflects the still-broken tree instead of
+		// silently passing (bughunt DRV-3). A clean up-to-date file skips as OK.
+		uint32 VerdictHash = 0;
+		bool bHadError = false;
+		const bool bStandingError = ReadSidecarVerdict(SidecarPathFor(UetkxPath), VerdictHash, bHadError) && bHadError;
+		Out.bOk = !bStandingError;
 		Out.ComponentNames = ReadSidecarRefs(SidecarPathFor(UetkxPath));
+		// Populate the EXPORTED-name set even on a skip (cheap preamble scan) so the cross-file
+		// UETKX2106 duplicate-export ledger still counts a SKIPPED incumbent's exports — otherwise a
+		// new file exporting the same name collides silently and only surfaces on a full recompile
+		// (bughunt DRV-1). Skips are unchanged, so a fresh scan matches the committed output.
+		FString SkipSource;
+		if (FFileHelper::LoadFileToString(SkipSource, *UetkxPath))
+		{
+			for (const FUetkxPreambleDecl& D : FUetkxFileScan::ScanPreamble(SkipSource).Decls)
+			{
+				if (D.bExported)
+				{
+					Out.ExportedNames.Add(D.Name);
+				}
+			}
+		}
 		return Out;
 	}
 	FString Source;
@@ -224,9 +453,11 @@ FUetkxFileResult FUetkxDriver::CompileFile(const FString& UetkxPath, bool bForce
 	}
 	const FString Basename = FPaths::GetBaseFilename(UetkxPath);
 	const uint32 Hash = SrcHash(Source);
-	FUetkxCompileOutput Compiled = FUetkxCodegen::CompileSource(Source, Basename);
+	FUetkxCompileOutput Compiled =
+		FUetkxCodegen::CompileSource(Source, Basename, ProjectRelPathFor(UetkxPath), Resolver);
 	Out.Diags = Compiled.Diags;
 	Out.ComponentNames = Compiled.ComponentNames;
+	Out.ExportedNames = Compiled.ExportedNames;
 	if (Compiled.bOk)
 	{
 		// Unconditional write: the fresh mtime IS the staleness ledger (see WriteIfChanged).
@@ -251,7 +482,8 @@ FUetkxFileResult FUetkxDriver::CompileFile(const FString& UetkxPath, bool bForce
 								   /*Quiet*/ true);
 	}
 	WriteIfChanged(SidecarPathFor(UetkxPath),
-				   SerializeSidecar(Hash, Out.Diags, Compiled.ComponentNames, FPaths::GetCleanFilename(Out.InlPath)));
+				   SerializeSidecar(Hash, Out.Diags, Compiled.ComponentNames, FPaths::GetCleanFilename(Out.InlPath),
+									Compiled.Uses, Compiled.bSupportFile, Compiled.ExportHash, Compiled.DepHashes));
 	return Out;
 }
 
@@ -288,22 +520,12 @@ TMap<FString, FString> FUetkxDriver::BuildAggregators(const TArray<FString>& Uet
 	TMap<FString, TArray<FString>> ByModuleDir;
 	for (const FString& Path : UetkxPaths)
 	{
-		FString Dir = FPaths::GetPath(Path);
-		while (!Dir.IsEmpty())
+		// The nearest *.Build.cs ancestor (dir name == module name, UBT convention). Shared with
+		// the import resolver's `~/` module-root default via FUetkxConfig::ModuleRootFor (M1).
+		const FString ModuleDir = FUetkxConfig::ModuleRootFor(Path);
+		if (!ModuleDir.IsEmpty())
 		{
-			TArray<FString> BuildFiles;
-			IFileManager::Get().FindFiles(BuildFiles, *(Dir / TEXT("*.Build.cs")), true, false);
-			if (!BuildFiles.IsEmpty())
-			{
-				ByModuleDir.FindOrAdd(Dir).Add(Path);
-				break;
-			}
-			const FString Parent = FPaths::GetPath(Dir);
-			if (Parent == Dir)
-			{
-				break;
-			}
-			Dir = Parent;
+			ByModuleDir.FindOrAdd(ModuleDir).Add(Path);
 		}
 	}
 	TMap<FString, FString> Out;
@@ -315,20 +537,192 @@ TMap<FString, FString> FUetkxDriver::BuildAggregators(const TArray<FString>& Uet
 		FString Contents;
 		Contents += TEXT("// AUTO-GENERATED aggregator - DO NOT EDIT. Regenerated by RUICompile; the\n");
 		Contents += TEXT("// compiled source-file SET stays constant, only these contents change (D-19).\n");
-		Contents += TEXT("// Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.\n\n");
+		// D-32(a) context-aware banner (bughunt CG-1): seller copyright in THIS repo, neutral in a
+		// customer project — the same seller-repo signal CompileSource uses for the per-file .inl.
+		Contents += FUetkxCodegen::IsSellerRepo()
+						? TEXT("// Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.\n\n")
+						: TEXT("// Generated by ReactiveUI — this generated aggregator belongs to your project.\n\n");
 		Contents += TEXT("#include \"CoreMinimal.h\"\n");
 		Contents += TEXT("#include \"RuiContext.h\"\n");
 		Contents += TEXT("#include \"RuiCoreElements.h\"\n");
 		Contents += TEXT("#include \"RuiSignal.h\"\n");
 		Contents += TEXT("#include \"RuiSlateElements.h\"\n");
 		Contents += TEXT("#include \"RuiStyle.h\"\n\n");
+		// TWO-PHASE include (M6): every .inl is `#include`d once in the DECL phase (complete props
+		// structs + defaulted wrapper decls + hook fwd-decls + module bodies) and once in the BODY
+		// phase. Because the decl pass forward-declares EVERY wrapper before any body, cross-file
+		// component references — INCLUDING CYCLES — all resolve; the old UETKX2107 error retires.
+		//
+		// Order is SOURCE-TRUTH (A2): each file's fresh PREAMBLE-scan imports, resolved to the files
+		// it depends on (not the per-machine sidecar `uses` cache). Topo-sorted (Kahn) so a
+		// dependency's declarations precede its importer — the only hard constraint is a module body
+		// preceding a struct whose member defaults read its constants — alphabetical tie-break, and
+		// the cycle remainder appended alphabetically (now legal under the two-phase decl pass).
+		auto NormFull = [](FString P)
+		{
+			P = FPaths::ConvertRelativePathToFull(P);
+			FPaths::NormalizeFilename(P);
+			return P;
+		};
 		TArray<FString> Sorted = Pair.Value;
-		Sorted.Sort(); // deterministic; cross-component refs must respect alphabetical order (v1)
+		Sorted.Sort();
+		const FUetkxFsResolver Resolver(FPaths::ProjectDir(), {}, /*bFixtureMode*/ false);
+		TMap<FString, FString> NormToPath;
 		for (const FString& Uetkx : Sorted)
+		{
+			NormToPath.Add(NormFull(Uetkx), Uetkx);
+		}
+		TMap<FString, TArray<FString>> DepsByPath; // path -> the group files it imports
+		for (const FString& Uetkx : Sorted)
+		{
+			TArray<FString> Deps;
+			FString Source;
+			if (FFileHelper::LoadFileToString(Source, *Uetkx))
+			{
+				const FString ProjRel = ProjectRelPathFor(Uetkx);
+				for (const FUetkxImportDecl& Imp : FUetkxFileScan::ScanPreamble(Source).Imports)
+				{
+					const FString Target = Resolver.Resolve(Imp.Specifier, ProjRel);
+					if (const FString* Dep = Target.IsEmpty() ? nullptr : NormToPath.Find(NormFull(Target)))
+					{
+						Deps.AddUnique(*Dep);
+					}
+				}
+			}
+			DepsByPath.Add(Uetkx, MoveTemp(Deps));
+		}
+		TArray<FString> Ordered;
+		TSet<FString> Emitted;
+		while (Ordered.Num() < Sorted.Num())
+		{
+			bool bProgress = false;
+			for (const FString& Uetkx : Sorted)
+			{
+				if (Emitted.Contains(Uetkx))
+				{
+					continue;
+				}
+				bool bReady = true;
+				for (const FString& Dep : DepsByPath[Uetkx])
+				{
+					if (Dep != Uetkx && !Emitted.Contains(Dep))
+					{
+						bReady = false;
+						break;
+					}
+				}
+				if (bReady)
+				{
+					Ordered.Add(Uetkx);
+					Emitted.Add(Uetkx);
+					bProgress = true;
+				}
+			}
+			if (!bProgress)
+			{
+				// Cycle remainder. A component-import edge creates a LEGAL cycle (the two-phase decl pass
+				// forward-declares every wrapper), so it imposes NO decl-order constraint. But a VALUE
+				// import (a module whose constants a struct member defaults from — bughunt CG-4) still
+				// must precede its consumer. Value edges are acyclic (else UETKX2306), so order the
+				// remainder by THOSE edges (alphabetical tie-break) instead of pure alphabetical, which
+				// ignored a module-default whose provider is itself inside the component cycle.
+				TArray<FString> Remainder;
+				for (const FString& Uetkx : Sorted)
+				{
+					if (!Emitted.Contains(Uetkx))
+					{
+						Remainder.Add(Uetkx);
+					}
+				}
+				TMap<FString, TArray<FString>> ValueDeps;
+				for (const FString& Uetkx : Remainder)
+				{
+					TArray<FString> VDeps;
+					FString Source;
+					if (FFileHelper::LoadFileToString(Source, *Uetkx))
+					{
+						const FString ProjRel = ProjectRelPathFor(Uetkx);
+						for (const FUetkxImportDecl& Imp : FUetkxFileScan::ScanPreamble(Source).Imports)
+						{
+							const FString Target = Resolver.Resolve(Imp.Specifier, ProjRel);
+							const FString* Dep = Target.IsEmpty() ? nullptr : NormToPath.Find(NormFull(Target));
+							if (Dep == nullptr || *Dep == Uetkx || Emitted.Contains(*Dep))
+							{
+								continue; // only unemitted remainder deps constrain the remainder order
+							}
+							TMap<FString, FUetkxTargetDecl> Decls;
+							if (!Resolver.GetDecls(Target, Decls))
+							{
+								continue;
+							}
+							for (const FString& Name : Imp.Names)
+							{
+								const FUetkxTargetDecl* T = Decls.Find(Name);
+								if (T && (T->Kind == EUetkxDeclKind::Hook || T->Kind == EUetkxDeclKind::Module))
+								{
+									VDeps.AddUnique(*Dep);
+									break;
+								}
+							}
+						}
+					}
+					ValueDeps.Add(Uetkx, MoveTemp(VDeps));
+				}
+				for (;;) // Kahn over the (acyclic) value edges; Remainder is alphabetical → stable tie-break
+				{
+					bool bAny = false;
+					for (const FString& Uetkx : Remainder)
+					{
+						if (Emitted.Contains(Uetkx))
+						{
+							continue;
+						}
+						bool bReady = true;
+						for (const FString& D : ValueDeps[Uetkx])
+						{
+							if (!Emitted.Contains(D))
+							{
+								bReady = false;
+								break;
+							}
+						}
+						if (bReady)
+						{
+							Ordered.Add(Uetkx);
+							Emitted.Add(Uetkx);
+							bAny = true;
+						}
+					}
+					if (!bAny)
+					{
+						break;
+					}
+				}
+				for (const FString& Uetkx : Remainder) // any value-cycle leftover (2306 would flag it): alphabetical
+				{
+					if (!Emitted.Contains(Uetkx))
+					{
+						Ordered.Add(Uetkx);
+						Emitted.Add(Uetkx);
+					}
+				}
+			}
+		}
+		auto RelOf = [&](const FString& Uetkx)
 		{
 			FString Rel = InlPathFor(Uetkx);
 			FPaths::MakePathRelativeTo(Rel, *(AggregatorDir + TEXT("/")));
-			Contents += FString::Printf(TEXT("#include \"%s\"\n"), *Rel);
+			return Rel;
+		};
+		Contents += TEXT("#define RUI_UETKX_DECL_PHASE\n");
+		for (const FString& Uetkx : Ordered)
+		{
+			Contents += FString::Printf(TEXT("#include \"%s\"\n"), *RelOf(Uetkx));
+		}
+		Contents += TEXT("#undef RUI_UETKX_DECL_PHASE\n");
+		for (const FString& Uetkx : Ordered)
+		{
+			Contents += FString::Printf(TEXT("#include \"%s\"\n"), *RelOf(Uetkx));
 		}
 		Out.Add(AggregatorPath, MoveTemp(Contents));
 	}
@@ -360,6 +754,7 @@ FUetkxCheckResult FUetkxDriver::CheckDrift(const TArray<FString>& Roots)
 	}
 	Out.Total = All.Num();
 	TMap<FString, FString> NameToFile; // duplicate-binding ledger (UETKX2106)
+	const FUetkxFsResolver Resolver(FPaths::ProjectDir(), Roots, /*bFixtureMode*/ false); // strict resolution
 	for (const FString& Path : All)
 	{
 		FString Source;
@@ -369,14 +764,15 @@ FUetkxCheckResult FUetkxDriver::CheckDrift(const TArray<FString>& Roots)
 			Out.Messages.Add(FString::Printf(TEXT("%s: unreadable"), *Path));
 			continue;
 		}
-		const FUetkxCompileOutput Compiled = FUetkxCodegen::CompileSource(Source, FPaths::GetBaseFilename(Path));
-		for (const FString& Name : Compiled.ComponentNames)
+		const FUetkxCompileOutput Compiled =
+			FUetkxCodegen::CompileSource(Source, FPaths::GetBaseFilename(Path), ProjectRelPathFor(Path), &Resolver);
+		for (const FString& Name : Compiled.ExportedNames)
 		{
 			if (const FString* Incumbent = NameToFile.Find(Name))
 			{
 				++Out.Errors;
-				Out.Messages.Add(FString::Printf(TEXT("%s: UETKX2106: component `%s` is already bound by %s"), *Path,
-												 *Name, **Incumbent));
+				Out.Messages.Add(FString::Printf(TEXT("%s: UETKX2106: exported binding `%s` is already bound by %s"),
+												 *Path, *Name, **Incumbent));
 			}
 			else
 			{
@@ -421,6 +817,32 @@ FUetkxCheckResult FUetkxDriver::CheckDrift(const TArray<FString>& Roots)
 			Out.Messages.Add(FString::Printf(TEXT("%s: aggregator stale — include set changed"), *Pair.Key));
 		}
 	}
+	// Enforce the SAME cross-file value-import-cycle invariant the full sweep does — otherwise a 2306
+	// cycle passes `-check` but fails the real RUICompile (bughunt CHECK-1).
+	if (const TArray<FString> Cycle = DetectValueImportCycleNames(All, Resolver); Cycle.Num() > 0)
+	{
+		++Out.Errors;
+		Out.Messages.Add(FString::Printf(TEXT("UETKX2306: value-import cycle: %s (hooks/modules load eagerly — "
+											  "break the chain or move to component refs)"),
+										 *FString::Join(Cycle, TEXT(" -> "))));
+	}
+	return Out;
+}
+
+TArray<FString> FUetkxDriver::ImportersOf(const FString& ProjRelPath, const TArray<FString>& Roots)
+{
+	TArray<FString> Out;
+	for (const FString& Root : Roots)
+	{
+		for (const FString& Path : FindAll(Root))
+		{
+			if (ReadSidecarDepKeys(SidecarPathFor(Path)).Contains(ProjRelPath))
+			{
+				Out.AddUnique(FPaths::GetBaseFilename(Path));
+			}
+		}
+	}
+	Out.Sort();
 	return Out;
 }
 
@@ -442,32 +864,103 @@ void FUetkxDriver::RefreshFingerprint()
 
 FUetkxSweepResult FUetkxDriver::CompileAll(const FString& RootDir, bool bForce)
 {
+	return CompileAllRoots({RootDir}, bForce);
+}
+
+FUetkxSweepResult FUetkxDriver::CompileAllRoots(const TArray<FString>& Roots, bool bForce)
+{
 	FUetkxSweepResult Out;
 	const bool bFingerprintStale = FingerprintMismatch();
-	const TArray<FString> All = FindAll(RootDir);
+	TArray<FString> All;
+	for (const FString& Root : Roots)
+	{
+		All.Append(FindAll(Root));
+	}
 	Out.Total = All.Num();
 	bool bAnyHeld = false;
-	TMap<FString, FString> NameToFile; // duplicate-binding ledger (UETKX2106)
+	// STRICT enforcement (A1): the compiler resolves imports over the sweep roots. Migrated files
+	// resolve clean; a broken import fails the file (its .inl is deleted) — strict day one.
+	const FUetkxFsResolver Resolver(FPaths::ProjectDir(), Roots, /*bFixtureMode*/ false);
+	auto NormPath = [](FString P)
+	{
+		P = FPaths::ConvertRelativePathToFull(P);
+		FPaths::NormalizeFilename(P);
+		return P;
+	};
+
+	// One compile pass over every file. Each file's result is kept in ByPath: a real compile
+	// (non-skip) always overwrites, a skip is kept only when the file was never compiled — so a file
+	// compiled in pass 1 and skipped in pass 2 (up-to-date) still reports as COMPILED with its
+	// ExportedNames intact for the 2106 ledger.
+	TMap<FString, FUetkxFileResult> ByPath;
+	auto RunPass = [&](bool bForcePass)
+	{
+		for (const FString& Path : All)
+		{
+			FUetkxFileResult R = CompileFile(Path, bForcePass, &Resolver);
+			if (!R.bSkipped || !ByPath.Contains(Path))
+			{
+				ByPath.Add(Path, MoveTemp(R));
+			}
+		}
+	};
+
+	// Reverse-edge staleness FIXPOINT (M8/TD-025): snapshot each file's export_hash, run pass 1, and
+	// if any export shape MOVED, an importer that sorted BEFORE its dep saw the stale hash — re-sweep
+	// ONCE so its dep-hash IsStale check (now reading the updated dep sidecar) recompiles it. In
+	// practice this converges in 2 passes (an importer's own export_hash does not change from merely
+	// resolving, so there is no further cascade).
+	TMap<FString, uint32> OldExport;
 	for (const FString& Path : All)
 	{
-		FUetkxFileResult R = CompileFile(Path, bForce || bFingerprintStale);
-		for (const FString& Name : R.ComponentNames)
+		OldExport.Add(NormPath(Path), ReadSidecarExportHash(SidecarPathFor(Path)));
+	}
+	RunPass(bForce || bFingerprintStale);
+	bool bExportsMoved = false;
+	for (const FString& Path : All)
+	{
+		if (ReadSidecarExportHash(SidecarPathFor(Path)) != OldExport.FindRef(NormPath(Path)))
+		{
+			bExportsMoved = true;
+			break;
+		}
+	}
+	if (bExportsMoved)
+	{
+		RunPass(false);
+	}
+
+	// Tally + the UETKX2106 exported-name ledger from the CONVERGED per-file state.
+	TMap<FString, FString> NameToFile;
+	for (const FString& Path : All)
+	{
+		const FUetkxFileResult& R = ByPath[Path];
+		for (const FString& Name : R.ExportedNames)
 		{
 			if (const FString* Incumbent = NameToFile.Find(Name))
 			{
 				++Out.Errors;
-				UE_LOG(LogRuiToolchain, Error,
-					   TEXT("%s: UETKX2106: component `%s` is already bound by %s (one name, one file)"), *Path, *Name,
-					   **Incumbent);
+				UE_LOG(
+					LogRuiToolchain, Error,
+					TEXT("%s: UETKX2106: exported binding `%s` is already bound by %s (one exported name, one file)"),
+					*Path, *Name, **Incumbent);
 			}
 			else
 			{
 				NameToFile.Add(Name, Path);
 			}
 		}
-		if (R.bSkipped)
+		if (R.bSkipped && R.bOk)
 		{
 			++Out.Skipped;
+		}
+		else if (R.bSkipped) // skipped over a STANDING ERROR verdict — the tree is still broken (DRV-3)
+		{
+			++Out.Errors;
+			UE_LOG(LogRuiToolchain, Error,
+				   TEXT("%s: standing compile error (source unchanged since the last failed compile) — fix the "
+						"source, or run -run=RUICompile -full to re-surface the diagnostics"),
+				   *R.UetkxPath);
 		}
 		else if (R.bOk)
 		{
@@ -475,13 +968,20 @@ FUetkxSweepResult FUetkxDriver::CompileAll(const FString& RootDir, bool bForce)
 		}
 		else
 		{
-			++Out.Errors;
+			// An env-hold (unreadable source — UETKX2507) is a TRANSIENT retry, not a sweep error (bughunt
+			// DRV-4): counting it as an error contradicts the "keep outputs, retry later" design.
+			const bool bHeld =
+				R.Diags.ContainsByPredicate([](const FUetkxDiag& D) { return D.Code == TEXT("UETKX2507"); });
+			if (bHeld)
+			{
+				bAnyHeld = true;
+			}
+			else
+			{
+				++Out.Errors;
+			}
 			for (const FUetkxDiag& Diag : R.Diags)
 			{
-				if (Diag.Code == TEXT("UETKX2507"))
-				{
-					bAnyHeld = true;
-				}
 				if (Diag.Severity == 0)
 				{
 					UE_LOG(LogRuiToolchain, Error, TEXT("%s: %s: %s"), *R.UetkxPath, *Diag.Code, *Diag.Message);
@@ -492,15 +992,26 @@ FUetkxSweepResult FUetkxDriver::CompileAll(const FString& RootDir, bool bForce)
 				}
 			}
 		}
-		Out.Files.Add(MoveTemp(R));
+		Out.Files.Add(R);
+	}
+	// UETKX2306: a VALUE-import cycle (imported hooks/modules load eagerly — an init deadlock; component
+	// cycles are legal via the two-phase decl pass). The DFS is shared with CheckDrift (CHECK-1).
+	if (const TArray<FString> Cycle = DetectValueImportCycleNames(All, Resolver); Cycle.Num() > 0)
+	{
+		++Out.Errors;
+		UE_LOG(LogRuiToolchain, Error,
+			   TEXT("UETKX2306: value-import cycle: %s (hooks/modules load eagerly — break the chain or move to "
+					"component refs)"),
+			   *FString::Join(Cycle, TEXT(" -> ")));
 	}
 	// Orphan sweep: a deleted Foo.uetkx takes its generated siblings with it — a committed
 	// .inl with no source would otherwise keep BUILDING through the aggregator's next regen
 	// cycle... the aggregator drops the include (built from FindAll), but the stale file
 	// itself must not linger for a hand include or a future rename to resurrect.
+	for (const FString& Root : Roots)
 	{
 		TArray<FString> Inls;
-		IFileManager::Get().FindFilesRecursive(Inls, *RootDir, TEXT("*.uetkx.inl"), true, false);
+		IFileManager::Get().FindFilesRecursive(Inls, *Root, TEXT("*.uetkx.inl"), true, false);
 		for (const FString& Inl : Inls)
 		{
 			const FString SourcePath = Inl.LeftChop(4); // strip ".inl"

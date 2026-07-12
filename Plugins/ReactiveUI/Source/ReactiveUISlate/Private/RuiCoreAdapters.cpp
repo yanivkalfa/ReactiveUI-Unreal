@@ -15,6 +15,7 @@
 #include "RuiElementAdapter.h"
 #include "RuiEventProxy.h"
 #include "RuiSlateElements.h"
+#include "RuiSlotValue.h"
 
 #include "RuiSlateLog.h"
 #include "Styling/CoreStyle.h"
@@ -129,8 +130,7 @@ namespace
 		{
 			if (const FRuiValue* Fill = SlotProps->Find(SlotFillKey))
 			{
-				return Fill->Kind == FRuiValue::EKind::Int ? static_cast<float>(Fill->IntValue)
-														   : static_cast<float>(Fill->FloatValue);
+				return RUI::Slate::SlotValue::AsFloat(*Fill); // String/Name literal forms too (SLOT-1)
 			}
 		}
 		return 0.0f; // absent -> Auto size
@@ -263,18 +263,19 @@ public:
 	virtual void UpdateChildSlotProps(SWidget& Parent, const TSharedRef<SWidget>& Child,
 									  const FRuiStyleDict* SlotProps) override
 	{
-		// v1: reinsert at the same index with the new slot config (in-place FSlot setters
-		// are a Phase 2 step 5 refinement — plans/TECH_DEBT.md).
+		// TD-010(a): mutate the LIVE FSlot in place — no detach/reinsert churn on hot slot-prop
+		// animation paths (e.g. an animated Slot.Padding). GetSlotAt returns a const ref; the slot
+		// is engine-mutable, so we cast to the concrete box FSlot and drive its runtime setters.
 		TBox& Box = static_cast<TBox&>(Parent);
 		FChildren* Children = Box.GetChildren();
 		for (int32 i = 0; i < Children->Num(); ++i)
 		{
 			if (&Children->GetChildAt(i).Get() == &Child.Get())
 			{
-				Box.RemoveSlot(Child);
-				typename TBox::FScopedWidgetSlotArguments Slot = Box.InsertSlot(i);
-				Slot.AttachWidget(Child);
-				ConfigureSlot(Slot, SlotProps);
+				typename TBox::FSlot& Slot =
+					const_cast<typename TBox::FSlot&>(static_cast<const typename TBox::FSlot&>(Children->GetSlotAt(i)));
+				ConfigureSlotLive(Slot, SlotProps);
+				Box.Invalidate(EInvalidateWidgetReason::Layout);
 				return;
 			}
 		}
@@ -318,6 +319,33 @@ private:
 	static void SetFill(SHorizontalBox::FScopedWidgetSlotArguments& Slot, float Fill) { Slot.FillWidth(Fill); }
 	static void SetAuto(SVerticalBox::FScopedWidgetSlotArguments& Slot) { Slot.AutoHeight(); }
 	static void SetAuto(SHorizontalBox::FScopedWidgetSlotArguments& Slot) { Slot.AutoWidth(); }
+
+	// Live-FSlot counterparts (TD-010(a) in-place update).
+	static void SetFillLive(SVerticalBox::FSlot& Slot, float Fill) { Slot.SetFillHeight(Fill); }
+	static void SetFillLive(SHorizontalBox::FSlot& Slot, float Fill) { Slot.SetFillWidth(Fill); }
+	static void SetAutoLive(SVerticalBox::FSlot& Slot) { Slot.SetAutoHeight(); }
+	static void SetAutoLive(SHorizontalBox::FSlot& Slot) { Slot.SetAutoWidth(); }
+
+	/** Apply the full slot config to a LIVE FSlot. Absent keys RESET to the box slot defaults
+	 *  (padding 0, HAlign/VAlign Fill) so an update mirrors the fresh-reinsert result exactly. */
+	static void ConfigureSlotLive(typename TBox::FSlot& Slot, const FRuiStyleDict* SlotProps)
+	{
+		const float Fill = SlotFillOf(SlotProps);
+		if (Fill > 0.0f)
+		{
+			SetFillLive(Slot, Fill);
+		}
+		else
+		{
+			SetAutoLive(Slot);
+		}
+		const FRuiValue* Padding = SlotProps ? SlotProps->Find(SlotPaddingKey) : nullptr;
+		Slot.SetPadding(Padding ? ParsePadding(*Padding) : FMargin(0.0f));
+		const FRuiValue* H = SlotProps ? SlotProps->Find(SlotHAlignKey) : nullptr;
+		Slot.SetHorizontalAlignment(H ? ParseHAlign(*H) : HAlign_Fill);
+		const FRuiValue* V = SlotProps ? SlotProps->Find(SlotVAlignKey) : nullptr;
+		Slot.SetVerticalAlignment(V ? ParseVAlign(*V) : VAlign_Fill);
+	}
 };
 
 class FRuiVerticalBoxAdapter final : public TRuiBoxPanelAdapter<SVerticalBox>
@@ -452,7 +480,7 @@ private:
 		{
 			if (const FRuiValue* Z = SlotProps->Find(SlotZOrderKey))
 			{
-				return static_cast<int32>(Z->IntValue);
+				return RUI::Slate::SlotValue::AsInt(*Z, INDEX_NONE); // String/Name literal forms too (SLOT-1)
 			}
 		}
 		return INDEX_NONE;
@@ -540,8 +568,16 @@ namespace RUI::Slate
 
 	namespace Detail
 	{
-		void RegisterBatch2Adapters(); // RuiWidgetAdapters.cpp
-	}
+		void RegisterBatch2Adapters();			 // RuiWidgetAdapters.cpp
+		void RegisterBatch2WidgetAdapters();	 // RuiWidgetAdaptersB2.cpp (Phase 7 batch-2 set)
+		void RegisterItemViewAdapters();		 // RuiListView.cpp (TD-022 virtualized ListView/TileView)
+		void RegisterDragDropAdapters();		 // RuiDragDrop.cpp (TD-004 DragSource/DropTarget)
+		void RegisterExpandableAreaAdapter();	 // RuiExpandableArea.cpp (TD-012 tail; two role slots)
+		void RegisterSegmentedControlAdapter();	 // RuiSegmentedControl.cpp (TD-012 tail; tab bar)
+		void RegisterNumericEntryBoxAdapter();	 // RuiNumericEntryBox.cpp (TD-012 tail; numeric field)
+		void RegisterComboBoxAdapter();			 // RuiComboBox.cpp (TD-012 tail; dropdown selector)
+		void RegisterSuggestionTextBoxAdapter(); // RuiSuggestionTextBox.cpp (TD-012 tail; autocomplete)
+	} // namespace Detail
 
 	void RegisterBuiltinAdapters()
 	{
@@ -551,5 +587,13 @@ namespace RUI::Slate
 		RegisterAdapter(ButtonType(), MakeUnique<FRuiButtonAdapter>());
 		RegisterAdapter(OverlayType(), MakeUnique<FRuiOverlayAdapter>());
 		Detail::RegisterBatch2Adapters();
+		Detail::RegisterBatch2WidgetAdapters();
+		Detail::RegisterItemViewAdapters();
+		Detail::RegisterDragDropAdapters();
+		Detail::RegisterExpandableAreaAdapter();
+		Detail::RegisterSegmentedControlAdapter();
+		Detail::RegisterNumericEntryBoxAdapter();
+		Detail::RegisterComboBoxAdapter();
+		Detail::RegisterSuggestionTextBoxAdapter();
 	}
 } // namespace RUI::Slate

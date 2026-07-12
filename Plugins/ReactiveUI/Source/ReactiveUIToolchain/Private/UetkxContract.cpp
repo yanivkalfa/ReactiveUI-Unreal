@@ -6,6 +6,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "UetkxCodegen.h"
+#include "UetkxResolve.h"
 
 namespace
 {
@@ -39,6 +40,10 @@ FUetkxContractResult FUetkxContract::Run(const FString& FixtureDir, bool bWrite)
 	IFileManager::Get().FindFilesRecursive(Fixtures, *FixtureDir, TEXT("*.uetkx"), true, false);
 	Fixtures.Sort();
 	Out.Total = Fixtures.Num();
+	// A fixture-local resolver (A5f): imports resolve within the flat fixture tree, `~/` anchors at
+	// the fixture dir, and the export index is the fixture set — so import/export/strict diagnostics
+	// are exercised by the golden contract exactly as the driver exercises the real tree.
+	const FUetkxFsResolver Resolver(FixtureDir, {FixtureDir}, /*bFixtureMode*/ true);
 	for (const FString& Fixture : Fixtures)
 	{
 		FString Source;
@@ -48,7 +53,11 @@ FUetkxContractResult FUetkxContract::Run(const FString& FixtureDir, bool bWrite)
 			Out.Messages.Add(FString::Printf(TEXT("%s: unreadable"), *Fixture));
 			continue;
 		}
-		const FUetkxCompileOutput Compiled = FUetkxCodegen::CompileSource(Source, FPaths::GetBaseFilename(Fixture));
+		// Fixtures pass a machine-independent project-rel path (Basename + ".uetkx") so the M7
+		// `#line` directives are stable across machines (the fixture tree is not project-relative).
+		const FString Basename = FPaths::GetBaseFilename(Fixture);
+		const FUetkxCompileOutput Compiled =
+			FUetkxCodegen::CompileSource(Source, Basename, Basename + TEXT(".uetkx"), &Resolver);
 		const FString GoldenPath = Compiled.bOk ? Fixture + TEXT(".inl.expected") : Fixture + TEXT(".diags.expected");
 		const FString StalePath = Compiled.bOk ? Fixture + TEXT(".diags.expected") : Fixture + TEXT(".inl.expected");
 		const FString Actual = Compiled.bOk ? Compiled.Inl : SerializeDiags(Compiled);

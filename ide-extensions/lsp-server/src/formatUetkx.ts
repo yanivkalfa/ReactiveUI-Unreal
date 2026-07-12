@@ -8,7 +8,7 @@
 import { skipNoncode } from "./cppScanner";
 import { fromCodePoints, toCodePoints } from "./codePoints";
 import { parseMarkup, UetkxAttr, UetkxNode } from "./uetkxMarkup";
-import { scanFile, hasError, splitMarkupReturn, UetkxComponentDecl, UetkxParam } from "./uetkxFileScan";
+import { scanFile, hasError, splitMarkupReturn, UetkxComponentDecl, UetkxHookDecl, UetkxModuleDecl, UetkxParam } from "./uetkxFileScan";
 
 export interface UetkxFormatOptions {
   printWidth: number;
@@ -43,35 +43,77 @@ export function formatUetkx(source: string, opts?: Partial<UetkxFormatOptions>):
   const verbatim = (fellBack: boolean): UetkxFormatResult => ({ ok: true, text: source, changed: false, fellBack });
 
   const scan = scanFile(source, "");
-  if (scan.components.length === 0) return verbatim(hasError(scan));
+  if (scan.order.length === 0) return verbatim(hasError(scan));
   if (hasError(scan)) return verbatim(true);
 
   const state: FmtState = { o, unsafeStrAttr: false };
   const srcCp = toCodePoints(source);
   let out = "";
 
-  // preamble (T1.3): canonical ONLY when whitespace + #include lines
-  const pre = fromCodePoints(srcCp, 0, scan.components[0].at);
+  // The source-order start/end + canonical re-emit of any top-level declaration kind (M12
+  // FmtHook/FmtModule): the mixed-decl file is a SEQUENCE (scan.order) of components + hooks +
+  // modules, each canonicalized by its own formatter. trueStart honors a preceding `export`.
+  type Ord = (typeof scan.order)[number];
+  const trueStart = (ord: Ord): number => {
+    if (ord.kind === "component") {
+      const d = scan.components[ord.index];
+      return d.exported && d.exportAt >= 0 ? d.exportAt : d.at;
+    }
+    if (ord.kind === "hook") {
+      const d = scan.hooks[ord.index];
+      return d.exported && d.exportAt >= 0 ? d.exportAt : d.at;
+    }
+    const d = scan.modules[ord.index];
+    return d.exported && d.exportAt >= 0 ? d.exportAt : d.at;
+  };
+  const declNext = (ord: Ord): number =>
+    ord.kind === "component" ? scan.components[ord.index].next : ord.kind === "hook" ? scan.hooks[ord.index].next : scan.modules[ord.index].next;
+  const fmtDecl = (ord: Ord): string =>
+    ord.kind === "component"
+      ? fmtComponent(scan.components[ord.index], state)
+      : ord.kind === "hook"
+        ? fmtHook(scan.hooks[ord.index], state)
+        : fmtModule(scan.modules[ord.index], state);
+
+  // preamble (T1.3 + M11): canonical ONLY when whitespace + #include + `import` lines.
+  // Canonical order: #include block, blank, import block, blank.
+  const pre = fromCodePoints(srcCp, 0, trueStart(scan.order[0]));
   let preCanonical = true;
   for (const line of pre.split("\n")) {
     const t = line.trim();
-    if (t && !t.startsWith("#include")) {
+    if (t && !t.startsWith("#include") && !t.startsWith("import ")) {
+      preCanonical = false;
+      break;
+    }
+    // A trailing/standalone comment on a preamble line is NOT reconstructed structurally — emit the
+    // preamble verbatim so the comment survives (bughunt LSP-3). Specifiers/include paths use single
+    // slashes, so `//` or `/*` only ever marks a comment here.
+    if (t && (t.includes("//") || t.includes("/*"))) {
       preCanonical = false;
       break;
     }
   }
-  if (!preCanonical) out += pre;
-  else if (scan.preambleIncludes.length > 0) out += scan.preambleIncludes.join("\n") + "\n\n";
+  if (!preCanonical) {
+    out += pre;
+  } else {
+    let block = "";
+    if (scan.preambleIncludes.length > 0) block += scan.preambleIncludes.join("\n") + "\n";
+    if (scan.imports.length > 0) {
+      if (block) block += "\n";
+      for (const imp of scan.imports) block += `import { ${imp.names.join(", ")} } from "${imp.specifier}"\n`;
+    }
+    if (block) out += block + "\n";
+  }
 
   let cursor = -1;
-  for (let k = 0; k < scan.components.length; k++) {
-    const decl = scan.components[k];
+  for (let k = 0; k < scan.order.length; k++) {
+    const ord = scan.order[k];
     if (k > 0) {
-      if (fromCodePoints(srcCp, cursor, decl.at - cursor).trim()) return verbatim(true); // never delete user text
+      if (fromCodePoints(srcCp, cursor, trueStart(ord) - cursor).trim()) return verbatim(true); // never delete user text
       out += "\n";
     }
-    out += fmtComponent(decl, state);
-    cursor = decl.next;
+    out += fmtDecl(ord);
+    cursor = declNext(ord);
   }
   if (state.unsafeStrAttr) return verbatim(true); // G-05
 
@@ -446,7 +488,7 @@ function fmtParams(params: readonly UetkxParam[]): string {
 }
 
 function fmtComponent(decl: UetkxComponentDecl, state: FmtState): string {
-  let out = `component ${decl.name}${fmtParams(decl.params)} {\n`;
+  let out = `${decl.exported ? "export " : ""}component ${decl.name}${fmtParams(decl.params)} {\n`;
   const setup = reanchor(decl.setup, 1, state.o);
   if (setup) {
     if (hasLeadingBlank(decl.setup)) out += "\n";
@@ -458,4 +500,32 @@ function fmtComponent(decl: UetkxComponentDecl, state: FmtState): string {
   out += pad(1, state.o) + ");\n";
   out += "}\n";
   return out;
+}
+
+// A verbatim-C++ body (hook / module) canonically re-anchored at depth 1 with the authored
+// leading/trailing blank lines kept — the fmtComponent setup treatment, shared so the two
+// verbatim-body declaration kinds format identically (mirrors FmtVerbatimBody).
+function fmtVerbatimBody(body: string, state: FmtState): string {
+  let out = "";
+  const reanchored = reanchor(body, 1, state.o);
+  if (reanchored) {
+    if (hasLeadingBlank(body)) out += "\n";
+    out += reanchored;
+    if (hasTrailingBlank(body)) out += "\n";
+  }
+  return out;
+}
+
+function fmtHook(decl: UetkxHookDecl, state: FmtState): string {
+  // `export? hook Name(<verbatim C++ params>) [-> <verbatim Ret>] {`. Params/Ret are verbatim C++
+  // (template commas the family grammar can't split) — trimmed, never re-parsed.
+  let header = `${decl.exported ? "export " : ""}hook ${decl.name}(${decl.params.trim()})`;
+  const ret = decl.ret.trim();
+  if (ret) header += ` -> ${ret}`;
+  return header + " {\n" + fmtVerbatimBody(decl.body, state) + "}\n";
+}
+
+function fmtModule(decl: UetkxModuleDecl, state: FmtState): string {
+  const header = `${decl.exported ? "export " : ""}module ${decl.name}`;
+  return header + " {\n" + fmtVerbatimBody(decl.body, state) + "}\n";
 }

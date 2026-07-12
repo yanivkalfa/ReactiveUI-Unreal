@@ -13,20 +13,47 @@
 #include "CoreMinimal.h"
 #include "UetkxFileScan.h"
 
+class IUetkxImportResolver; // UetkxResolve.h (M4) — resolution runs inside CompileSource when set
+
 struct REACTIVEUITOOLCHAIN_API FUetkxCompileOutput
 {
 	bool bOk = false;
 	FString Inl; // the generated .uetkx.inl text ("" on failure)
 	TArray<FUetkxDiag> Diags;
-	TArray<FString> ComponentNames; // bindings (name -> this file), for refs/aggregator order
-	uint32 HookSig = 0;				// first component's hook signature (interp swap key)
+	TArray<FString> ComponentNames;	 // ALL decl bindings (component/hook/module names) -> this file; refs
+	TArray<FString> ExportedNames;	 // EXPORTED decl names only — the UETKX2106 global-uniqueness ledger (A5e)
+	TArray<FString> Uses;			 // component names REFERENCED by markup (aggregator topo order)
+	bool bSupportFile = false;		 // no markup (only hooks/modules) — HMR rebuild, not interp swap
+	uint32 HookSig = 0;				 // first component's hook signature (interp swap key)
+	uint32 ExportHash = 0;			 // FNV over this file's exported decl shapes — reverse staleness (M8)
+	TMap<FString, uint32> DepHashes; // resolved import label -> its export_hash (staleness graph, M8)
 };
 
 class REACTIVEUITOOLCHAIN_API FUetkxCodegen
 {
 public:
-	/** Compile one .uetkx source. Basename = file stem (binding + NSLOCTEXT namespace). */
-	static FUetkxCompileOutput CompileSource(const FString& Source, const FString& Basename);
+	/** Compile one .uetkx source into its sibling .inl. Basename = file stem (binding + NSLOCTEXT
+	 *  namespace). ProjectRelPath = the source path relative to the project (forward slashes) for
+	 *  `#line` mapping (M7); "" = the fixtures/tests default (Basename + ".uetkx"). Resolver, when
+	 *  non-null (driver/fixture harness), runs import resolution + strict diagnostics AFTER scan
+	 *  and BEFORE emit (M4); null = resolution skipped (syntax-only). Declarations lower in SOURCE
+	 *  order (mixed-decl v1): hook -> inline free function, module -> namespace, component ->
+	 *  struct + impl + wrapper. */
+	static FUetkxCompileOutput CompileSource(const FString& Source, const FString& Basename,
+											 const FString& ProjectRelPath = FString(),
+											 const IUetkxImportResolver* Resolver = nullptr,
+											 TOptional<bool> bSellerRepoOverride = TOptional<bool>());
+
+	/** D-32(a) context-aware generated-code header. TRUE only inside ReactiveUI's OWN repo (the seller's
+	 *  monorepo, marked by a `.rui-seller-repo` sentinel at the project root that never ships in the Fab
+	 *  package) — there generated code carries the seller copyright. In a CUSTOMER project the sentinel
+	 *  is absent, so generated code carries the neutral "belongs to your project" banner. */
+	static bool IsSellerRepo();
+
+	/** The generated-file copyright/attribution header line for `Basename` (seller vs neutral per
+	 *  IsSellerRepo / the explicit override). Includes the trailing newline. */
+	static FString GeneratedCopyrightLine(const FString& Basename,
+										  TOptional<bool> bSellerRepoOverride = TOptional<bool>());
 
 	/** The markup vocabulary as JSON — elements/attrs (typed), style keys, slot keys, hooks.
 	 *  RUIExportSchema writes this to Saved/ReactiveUI/schema.json for the LSP (Phase 5). */

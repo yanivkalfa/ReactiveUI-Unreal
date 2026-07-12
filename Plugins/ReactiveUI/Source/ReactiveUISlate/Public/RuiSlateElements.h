@@ -14,7 +14,8 @@
 #include "RuiCoreElements.h"
 #include "RuiNode.h"
 #include "RuiPropsBase.h"
-#include "SRuiCanvas.h" // FRuiDrawFn
+#include "SRuiCanvas.h"			// FRuiDrawFn
+#include "Styling/SlateBrush.h" // FSlateBrush (asset brushes, D-17)
 
 /** SVerticalBox (MultiSlot). Layout comes from the children's slot.* props. */
 struct REACTIVEUISLATE_API FRuiVerticalBoxProps final : public FRuiPropsBase
@@ -56,8 +57,9 @@ struct REACTIVEUISLATE_API FRuiBorderProps final : public FRuiPropsBase
 	RUI_PROP(FName, HAlign, 2)
 	RUI_PROP(FName, VAlign, 3)
 	RUI_PROP(FName, BorderImage, 4)
-	RUI_PROPS_BODY(FRuiBorderProps,
-				   RUI_EQ(Padding) RUI_EQ(BorderBackgroundColor) RUI_EQ(HAlign) RUI_EQ(VAlign) RUI_EQ(BorderImage))
+	RUI_PROP(TSharedPtr<FSlateBrush>, BorderImageBrush, 5) // asset brush (D-17); wins over BorderImage name
+	RUI_PROPS_BODY(FRuiBorderProps, RUI_EQ(Padding) RUI_EQ(BorderBackgroundColor) RUI_EQ(HAlign) RUI_EQ(VAlign)
+										RUI_EQ(BorderImage) RUI_EQ(BorderImageBrush))
 };
 
 /** SBox (SingleContent): size overrides + content alignment. Overrides are settable, not
@@ -77,13 +79,15 @@ struct REACTIVEUISLATE_API FRuiBoxProps final : public FRuiPropsBase
 					   RUI_EQ(MaxDesiredWidth) RUI_EQ(MaxDesiredHeight) RUI_EQ(HAlign) RUI_EQ(VAlign))
 };
 
-/** SImage (Leaf) v1: tint + desired size. Brush CONTENT (textures/materials) is the D-17
- *  GC-root work — it arrives with the style/asset layer, not here. */
+/** SImage (Leaf): tint + desired size + an optional asset Brush (D-17). Build the brush ONCE
+ *  with RUI::Umg::MakeAssetBrush (it GC-roots the texture/material) and pass it by identity —
+ *  RUI_EQ(Brush) compares the shared pointer, so wrap it in UseMemo/UseRef to avoid re-applying. */
 struct REACTIVEUISLATE_API FRuiImageProps final : public FRuiPropsBase
 {
 	RUI_PROP(FLinearColor, ColorAndOpacity, 0)
 	RUI_PROP(FVector2D, DesiredSizeOverride, 1)
-	RUI_PROPS_BODY(FRuiImageProps, RUI_EQ(ColorAndOpacity) RUI_EQ(DesiredSizeOverride))
+	RUI_PROP(TSharedPtr<FSlateBrush>, Brush, 2)
+	RUI_PROPS_BODY(FRuiImageProps, RUI_EQ(ColorAndOpacity) RUI_EQ(DesiredSizeOverride) RUI_EQ(Brush))
 };
 
 /** SScrollBox (MultiSlot). Orientation is runtime-settable (header-sweep verified). */
@@ -156,6 +160,169 @@ struct REACTIVEUISLATE_API FRuiCanvasProps final : public FRuiPropsBase
 	RUI_PROPS_BODY(FRuiCanvasProps, RUI_EQ(DrawFn) RUI_EQ(RedrawKey) RUI_EQ(CanvasSize))
 };
 
+// ── Batch 2 (Phase 7 step 8) — the everyday game set (WIDGET_INVENTORY.md) ─────────────────
+
+/** SWidgetSwitcher (MultiSlot): shows exactly one child by index. WidgetIndex is a runtime
+ *  setter (SetActiveWidgetIndex) — the classic tab/page panel. */
+struct REACTIVEUISLATE_API FRuiWidgetSwitcherProps final : public FRuiPropsBase
+{
+	RUI_PROP(int32, WidgetIndex, 0)
+	RUI_PROPS_BODY(FRuiWidgetSwitcherProps, RUI_EQ(WidgetIndex))
+};
+
+/** SScaleBox (SingleContent): scales its content. Stretch = none|fill|scaleToFit|scaleToFitX|
+ *  scaleToFitY|scaleToFill|scaleBySafeZone; StretchDirection = both|downOnly|upOnly. */
+struct REACTIVEUISLATE_API FRuiScaleBoxProps final : public FRuiPropsBase
+{
+	RUI_PROP(FName, Stretch, 0)
+	RUI_PROP(FName, StretchDirection, 1)
+	RUI_PROPS_BODY(FRuiScaleBoxProps, RUI_EQ(Stretch) RUI_EQ(StretchDirection))
+};
+
+/** SThrobber (Leaf): a busy indicator. Animate = all|vertical|horizontal|opacity|
+ *  verticalAndOpacity|none. */
+struct REACTIVEUISLATE_API FRuiThrobberProps final : public FRuiPropsBase
+{
+	RUI_PROP(int32, NumPieces, 0)
+	RUI_PROP(FName, Animate, 1)
+	RUI_PROPS_BODY(FRuiThrobberProps, RUI_EQ(NumPieces) RUI_EQ(Animate))
+};
+
+/** SWrapBox (MultiSlot): flows children onto new lines. Orientation = horizontal (default) |
+ *  vertical. WrapSize is the wrap threshold (ignored while bUseAllottedSize). */
+struct REACTIVEUISLATE_API FRuiWrapBoxProps final : public FRuiPropsBase
+{
+	RUI_PROP(FName, Orientation, 0)
+	RUI_PROP(float, WrapSize, 1)
+	RUI_PROP(FVector2D, InnerSlotPadding, 2)
+	RUI_PROP(bool, bUseAllottedSize, 3)
+	RUI_PROPS_BODY(FRuiWrapBoxProps,
+				   RUI_EQ(Orientation) RUI_EQ(WrapSize) RUI_EQ(InnerSlotPadding) RUI_EQ(bUseAllottedSize))
+};
+
+/** SMultiLineEditableTextBox (Leaf) — multi-line controlled input; same D-16 caret rule as
+ *  SEditableTextBox (Text applied skip-when-equal against the WIDGET's live text). */
+struct REACTIVEUISLATE_API FRuiMultiLineEditableTextBoxProps final : public FRuiPropsBase
+{
+	RUI_PROP(FText, Text, 0)
+	RUI_PROP(FText, HintText, 1)
+	RUI_PROP(bool, bIsReadOnly, 2)
+	RUI_PROP_EVENT(OnTextChanged, 3)
+	RUI_PROP_EVENT(OnTextCommitted, 4)
+
+	virtual bool Equals(const FRuiPropsBase& OtherBase) const override
+	{
+		const FRuiMultiLineEditableTextBoxProps& Other =
+			static_cast<const FRuiMultiLineEditableTextBoxProps&>(OtherBase);
+		auto TextEq = [](const FText& A, const FText& B) { return A.IdenticalTo(B) || A.ToString() == B.ToString(); };
+		return SetBits == Other.SetBits && BaseFieldsEqual(Other) && TextEq(Text, Other.Text) &&
+			   TextEq(HintText, Other.HintText) && bIsReadOnly == Other.bIsReadOnly &&
+			   OnTextChanged == Other.OnTextChanged && OnTextCommitted == Other.OnTextCommitted;
+	}
+};
+
+/** SSearchBox (Leaf) — an SEditableTextBox specialization with a search affordance. The search
+ *  text flows through OnTextChanged/OnTextCommitted (SSearchBox::OnSearch is up/down navigation,
+ *  not a text callback). Text is the same controlled-input caret rule (D-16). */
+struct REACTIVEUISLATE_API FRuiSearchBoxProps final : public FRuiPropsBase
+{
+	RUI_PROP(FText, Text, 0)
+	RUI_PROP(FText, HintText, 1)
+	RUI_PROP_EVENT(OnTextChanged, 2)
+	RUI_PROP_EVENT(OnTextCommitted, 3)
+
+	virtual bool Equals(const FRuiPropsBase& OtherBase) const override
+	{
+		const FRuiSearchBoxProps& Other = static_cast<const FRuiSearchBoxProps&>(OtherBase);
+		auto TextEq = [](const FText& A, const FText& B) { return A.IdenticalTo(B) || A.ToString() == B.ToString(); };
+		return SetBits == Other.SetBits && BaseFieldsEqual(Other) && TextEq(Text, Other.Text) &&
+			   TextEq(HintText, Other.HintText) && OnTextChanged == Other.OnTextChanged &&
+			   OnTextCommitted == Other.OnTextCommitted;
+	}
+};
+
+/** SSafeZone (SingleContent): pads content into the device title/action safe area. */
+struct REACTIVEUISLATE_API FRuiSafeZoneProps final : public FRuiPropsBase
+{
+	RUI_PROP(bool, bIsTitleSafe, 0)
+	RUI_PROP(bool, bPadLeft, 1)
+	RUI_PROP(bool, bPadRight, 2)
+	RUI_PROP(bool, bPadTop, 3)
+	RUI_PROP(bool, bPadBottom, 4)
+	RUI_PROPS_BODY(FRuiSafeZoneProps,
+				   RUI_EQ(bIsTitleSafe) RUI_EQ(bPadLeft) RUI_EQ(bPadRight) RUI_EQ(bPadTop) RUI_EQ(bPadBottom))
+};
+
+/** SDPIScaler (SingleContent): scales its content by a DPI factor. */
+struct REACTIVEUISLATE_API FRuiDPIScalerProps final : public FRuiPropsBase
+{
+	RUI_PROP(float, DPIScale, 0)
+	RUI_PROPS_BODY(FRuiDPIScalerProps, RUI_EQ(DPIScale))
+};
+
+/** SSeparator (Leaf): a styled line. Orientation (horizontal|vertical) + Thickness are
+ *  CONSTRUCT-ONLY (Slate bakes them at build) — a change replaces the widget (TD-011 reconstruct
+ *  mask, the first shipped widget to exercise it). ColorAndOpacity is a live setter. */
+struct REACTIVEUISLATE_API FRuiSeparatorProps final : public FRuiPropsBase
+{
+	RUI_PROP(FName, Orientation, 0)			   // construct-only
+	RUI_PROP(float, Thickness, 1)			   // construct-only
+	RUI_PROP(FLinearColor, ColorAndOpacity, 2) // runtime
+	RUI_PROPS_BODY(FRuiSeparatorProps, RUI_EQ(Orientation) RUI_EQ(Thickness) RUI_EQ(ColorAndOpacity))
+};
+
+/** SSpinBox<float> (Leaf): numeric drag/type input. Value applies skip-when-equal (D-16
+ *  self-notifying). Delta is the drag step (0 = continuous). */
+struct REACTIVEUISLATE_API FRuiSpinBoxProps final : public FRuiPropsBase
+{
+	RUI_PROP(float, Value, 0)
+	RUI_PROP(float, MinValue, 1)
+	RUI_PROP(float, MaxValue, 2)
+	RUI_PROP(float, Delta, 3)
+	RUI_PROP_EVENT(OnValueChanged, 4)
+	RUI_PROPS_BODY(FRuiSpinBoxProps,
+				   RUI_EQ(Value) RUI_EQ(MinValue) RUI_EQ(MaxValue) RUI_EQ(Delta) RUI_EQ(OnValueChanged))
+};
+
+/** SUniformWrapPanel (MultiSlot): a wrap panel that gives every child the same cell size. */
+struct REACTIVEUISLATE_API FRuiUniformWrapPanelProps final : public FRuiPropsBase
+{
+	RUI_PROP(float, SlotPadding, 0)
+	RUI_PROP(FName, HAlign, 1)
+	RUI_PROPS_BODY(FRuiUniformWrapPanelProps, RUI_EQ(SlotPadding) RUI_EQ(HAlign))
+};
+
+/** SRichTextBlock (Leaf): text with inline markup (default decorator set). AutoWrapText wraps. */
+struct REACTIVEUISLATE_API FRuiRichTextBlockProps final : public FRuiPropsBase
+{
+	RUI_PROP(FText, Text, 0)
+	RUI_PROP(bool, bAutoWrapText, 1)
+
+	virtual bool Equals(const FRuiPropsBase& OtherBase) const override
+	{
+		const FRuiRichTextBlockProps& Other = static_cast<const FRuiRichTextBlockProps&>(OtherBase);
+		auto TextEq = [](const FText& A, const FText& B) { return A.IdenticalTo(B) || A.ToString() == B.ToString(); };
+		return SetBits == Other.SetBits && BaseFieldsEqual(Other) && TextEq(Text, Other.Text) &&
+			   bAutoWrapText == Other.bAutoWrapText;
+	}
+};
+
+/** SGridPanel (MultiSlot): places children by slot.column / slot.row (both default 0). */
+struct REACTIVEUISLATE_API FRuiGridPanelProps final : public FRuiPropsBase
+{
+	RUI_PROPS_BODY(FRuiGridPanelProps, )
+};
+
+/** SUniformGridPanel (MultiSlot): uniform cells placed by slot.column / slot.row. */
+struct REACTIVEUISLATE_API FRuiUniformGridPanelProps final : public FRuiPropsBase
+{
+	RUI_PROP(float, SlotPadding, 0)
+	RUI_PROP(float, MinDesiredSlotWidth, 1)
+	RUI_PROP(float, MinDesiredSlotHeight, 2)
+	RUI_PROPS_BODY(FRuiUniformGridPanelProps,
+				   RUI_EQ(SlotPadding) RUI_EQ(MinDesiredSlotWidth) RUI_EQ(MinDesiredSlotHeight))
+};
+
 namespace RUI::Slate
 {
 	REACTIVEUISLATE_API FRuiElementTypeId VerticalBoxType();
@@ -188,6 +355,35 @@ namespace RUI::Slate
 	REACTIVEUISLATE_API FRuiNode ProgressBar(FRuiProgressBarProps Props = FRuiProgressBarProps(),
 											 FRuiKey Key = FRuiKey());
 	REACTIVEUISLATE_API FRuiNode RuiCanvas(FRuiCanvasProps Props = FRuiCanvasProps(), FRuiKey Key = FRuiKey());
+
+	// ── Batch 2 (Phase 7 step 8) factories ────────────────────────────────────────────────
+	REACTIVEUISLATE_API FRuiNode WidgetSwitcher(FRuiWidgetSwitcherProps Props = FRuiWidgetSwitcherProps(),
+												TArray<FRuiNode> Children = TArray<FRuiNode>(),
+												FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode ScaleBox(FRuiScaleBoxProps Props = FRuiScaleBoxProps(),
+										  TArray<FRuiNode> Children = TArray<FRuiNode>(), FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode Throbber(FRuiThrobberProps Props = FRuiThrobberProps(), FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode WrapBox(FRuiWrapBoxProps Props = FRuiWrapBoxProps(),
+										 TArray<FRuiNode> Children = TArray<FRuiNode>(), FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode MultiLineEditableTextBox(
+		FRuiMultiLineEditableTextBoxProps Props = FRuiMultiLineEditableTextBoxProps(), FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode SearchBox(FRuiSearchBoxProps Props = FRuiSearchBoxProps(), FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode SafeZone(FRuiSafeZoneProps Props = FRuiSafeZoneProps(),
+										  TArray<FRuiNode> Children = TArray<FRuiNode>(), FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode DPIScaler(FRuiDPIScalerProps Props = FRuiDPIScalerProps(),
+										   TArray<FRuiNode> Children = TArray<FRuiNode>(), FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode Separator(FRuiSeparatorProps Props = FRuiSeparatorProps(), FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode SpinBox(FRuiSpinBoxProps Props = FRuiSpinBoxProps(), FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode UniformWrapPanel(FRuiUniformWrapPanelProps Props = FRuiUniformWrapPanelProps(),
+												  TArray<FRuiNode> Children = TArray<FRuiNode>(),
+												  FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode RichTextBlock(FRuiRichTextBlockProps Props = FRuiRichTextBlockProps(),
+											   FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode GridPanel(FRuiGridPanelProps Props = FRuiGridPanelProps(),
+										   TArray<FRuiNode> Children = TArray<FRuiNode>(), FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode UniformGridPanel(FRuiUniformGridPanelProps Props = FRuiUniformGridPanelProps(),
+												  TArray<FRuiNode> Children = TArray<FRuiNode>(),
+												  FRuiKey Key = FRuiKey());
 
 	/** Wrap a paint lambda ONCE (UseMemo/UseRef it) — the canvas repaints on identity change. */
 	REACTIVEUISLATE_API TSharedPtr<FRuiDrawFn> MakeDrawFn(FRuiDrawFn Fn);

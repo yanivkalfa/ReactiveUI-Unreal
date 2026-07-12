@@ -1,10 +1,18 @@
 # ReactiveUI-Unreal — Overview & Roadmap
 
-> **Status:** IN PROGRESS — **Phase 0 COMPLETE 2026-07-10** (PR #4 merged; the empty plugin
-> builds green on the owner's UE 5.6; every engine-free CI gate is live). Phase 1 (the core
-> reconciler + all 23 hooks) is next. One owner setup item still open: re-add the branch
-> ruleset with THIS repo's check names (the imported one carried the Godot repo's and was
-> deleted).
+> **STATUS RECONCILIATION — 2026-07-12.** The table below had lagged since Phase 0 (the scar
+> the `plan-progress` skill warns about); reconciled to the delivered state. Phases 1–6 shipped
+> across `feat/core-library` + `feat/uetkx-compiler` + `feat/uetkx-imports`; Phase 7 is
+> substantially delivered (lists/focus/animation/portals/DnD/widget-batch-2 done — **localization
+> deferred**); Phase 8 is in progress (gallery + benchmarks done, docs site in progress); Phase 9
+> (release) is owner-gated. Evidence: the per-phase bullets in `plans/PENDING_CHANGELOG.md` +
+> the 80/80 headless automation battery. **All work sits on `feat/uetkx-imports`, not yet merged.**
+>
+> **Status:** IN PROGRESS — the product is built end to end (reconciler → Slate host → `.uetkx`
+> compiler → live hot reload → IDE tooling → Epic interop → production gaps); Phase 7's
+> localization gap + Phase 8 docs + the Phase 9 release remain. One owner setup item still open:
+> re-add the branch ruleset with THIS repo's check names (the imported one carried the Godot
+> repo's and was deleted).
 > **This document:** the plain-English picture of what we are building and where we stand.
 > It is the **living status source of truth**: every time a phase in the master plan finishes,
 > the matching row in the table at the bottom of this file is updated (see the `plan-progress` skill).
@@ -207,15 +215,16 @@ reconciler core, and anything touching a CI gate always stay on the strongest mo
 | # | Phase | Status | Done / Next |
 |---|---|---|---|
 | 0 | Ecosystem & repo bootstrap | COMPLETE 2026-07-10 | PR #4 merged; UE 5.6 editor build 45/45 green; all engine-free gates live (owner: re-add the ruleset with this repo's check names) |
-| 1 | Core reconciler + hooks | NOT STARTED | **Next up** — starts on the owner's word |
-| 2 | Slate host + first widgets | NOT STARTED | Needs Phase 1 |
-| 3 | `.uetkx` compiler + build integration | NOT STARTED | Starts after Phase 0 (parallel with 1–2); its last step needs 1–2 |
-| 4 | Interpreter + hot reload | NOT STARTED | Needs Phases 2 + 3 |
-| 5 | IDE extensions (LSP, VS Code, VS2022) | NOT STARTED | Needs Phases 1 + 3 |
-| 6 | UMG / CommonUI / MVVM interop | NOT STARTED | Needs Phase 2 |
-| 7 | Production gaps (lists, loc, focus, animation, portals, widget batch 2) | NOT STARTED | Needs Phases 2 + 3 |
-| 8 | Demos, docs site, benchmarks | NOT STARTED | Needs Phases 4–7 |
-| 9 | Release & publishing | NOT STARTED | Needs the ship gate (§3) |
+| 1 | Core reconciler + hooks | COMPLETE | Fiber reconciler (subtree-skip, O(1) context, keyed diff, error-boundary latch) + all 23 hooks + signals/Suspense; 23 mock-host suites + Bench.Core (feat/core-library) |
+| 2 | Slate host + first widgets | COMPLETE | Adapter registry, bind-once-swap-inner event proxy, SRuiRoot mount surfaces, 15 core widgets, style v1, GO-05 pool, focus fences, demo gallery (feat/core-library) |
+| 3 | `.uetkx` compiler + build integration | COMPLETE | Lexer/parser/scan → committed reflection-free `.inl` + aggregators, schema-v2 sidecars, staleness machinery, RUICompile/RUIExportSchema/RUIContractDump commandlets, formatter (feat/uetkx-compiler) |
+| 4 | Interpreter + hot reload | COMPLETE | D-20 expression VM + markup interpreter, FRuiHmr swap/link/reset + status line, editor watcher (3 triggers, MessageLog), rui.Hmr.AutoLiveCoding (feat/uetkx-compiler) |
+| 5 | IDE extensions (LSP, VS Code, VS2022) | COMPLETE | uetkx-language-server (schema completions/hover, sidecar diags, formatting) + VS Code + VS2022 extensions; embedded-C++ clangd proxy + VS2022 polish added (feat/uetkx-*) |
+| 6 | UMG / CommonUI / MVVM interop | COMPLETE | Phase-6 core (URuiHostWidget, RUI::Umg::UserWidget, URuiWorldSubsystem, UseField) + TD-021 CommonUI activatables, MVVM global collection, UMG prop-map bridge (feat/uetkx-*) |
+| 7 | Production gaps (lists, loc, focus, animation, portals, widget batch 2) | SUBSTANTIALLY DELIVERED | Lists (virtualized ListView/TileView), focus, animation/media hooks, portals, widget batch-2 + specials, drag-and-drop, exit animations — all shipped. **Localization (FText gathering) DEFERRED** |
+| 8 | Demos, docs site, benchmarks | IN PROGRESS | Gallery ✅ (11 screens on the compiled path), Bench baselines ✅; docs site content in progress |
+| 9 | Release & publishing | NOT STARTED | Owner-gated — needs the ship gate (§3) + the `feat/uetkx-imports` → `dev` → `master` merge + Fab/Discord |
 
 *Rows are updated by the `plan-progress` skill whenever a phase in
-[MASTER_PLAN.md](MASTER_PLAN.md) is marked done.*
+[MASTER_PLAN.md](MASTER_PLAN.md) is marked done. Phases 1–7 were delivered across earlier branches
+but the table lagged; reconciled 2026-07-12 from the PENDING_CHANGELOG evidence (see the banner).*

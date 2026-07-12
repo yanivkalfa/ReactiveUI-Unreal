@@ -1,0 +1,8 @@
+export hook UseChipCount(int32 Start) -> int32 {
+	auto [Count, SetCount] = UseState<int32>(Start);
+	return Count;
+}
+
+export module ChipStyle {
+	inline const float Padding = 4.0f;
+}

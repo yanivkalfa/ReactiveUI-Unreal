@@ -2,39 +2,7 @@
 // Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 
 
-struct FStatusChipUetkxProps final : public FRuiPropsBase
-{
-	FString Label = FString(TEXT("ok"));
-
-	virtual bool Equals(const FRuiPropsBase& OtherBase) const override
-	{
-		const FStatusChipUetkxProps& O = static_cast<const FStatusChipUetkxProps&>(OtherBase);
-		bool bEq = BaseFieldsEqual(O);
-		bEq = bEq && (Label == O.Label);
-		return bEq;
-	}
-};
-
-static FRuiNodeArray StatusChip_UetkxImpl(FRuiContext& Ctx, const FStatusChipUetkxProps& Props, const TArray<FRuiNode>& children)
-{
-	const auto& Label = Props.Label;
-	return { [&]() -> FRuiNode {
-		FRuiBorderProps P;
-		P.SetPadding(FMargin(4));
-		P.SetBorderImage(FName(TEXT("WhiteBrush")));
-		TArray<FRuiNode> Ch;
-		Ch.Add(RUI::TextBlock((FText::FromString(Label)), FRuiKey()));
-		return RUI::Slate::Border(MoveTemp(P), MoveTemp(Ch), FRuiKey());
-	}() };
-}
-static const FName GStatusChipUetkxId = RUI::RegisterComponentId((void*)&StatusChip_UetkxImpl, FName(TEXT("StatusChip")));
-static constexpr uint32 StatusChip_RUI_HOOK_SIG = 0x811C9DC5u;
-inline FRuiNode StatusChip(FStatusChipUetkxProps InProps = FStatusChipUetkxProps(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey InKey = FRuiKey())
-{
-	return RUI::FC(&StatusChip_UetkxImpl, MoveTemp(InProps), MoveTemp(InChildren), InKey);
-}
-static const bool GStatusChipUetkxFactoryReg = RUI::RegisterNamedFactory(FName(TEXT("StatusChip")), []() { return StatusChip(); });
-
+#if defined(RUI_UETKX_DECL_PHASE)
 struct FShowcaseUetkxProps final : public FRuiPropsBase
 {
 
@@ -45,9 +13,12 @@ struct FShowcaseUetkxProps final : public FRuiPropsBase
 		return bEq;
 	}
 };
+inline FRuiNode Showcase(FShowcaseUetkxProps InProps = FShowcaseUetkxProps(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey InKey = FRuiKey());
 
+#else
 static FRuiNodeArray Showcase_UetkxImpl(FRuiContext& Ctx, const FShowcaseUetkxProps& Props, const TArray<FRuiNode>& children)
 {
+#line 4 "Showcase.uetkx"
 	auto [Mode, SetMode] = Ctx.UseState<int32>(0);
 		TFunction<void(int32)> Set = SetMode;
 		const int32 ModeNow = Mode;
@@ -56,6 +27,7 @@ static FRuiNodeArray Showcase_UetkxImpl(FRuiContext& Ctx, const FShowcaseUetkxPr
 		{
 			++Total;
 		}
+#line 31 "Showcase.uetkx.inl"
 	return { [&]() -> FRuiNode {
 		FRuiVerticalBoxProps P;
 		P.Classes.Add(FName(TEXT("card")));
@@ -139,9 +111,10 @@ static FRuiNodeArray Showcase_UetkxImpl(FRuiContext& Ctx, const FShowcaseUetkxPr
 }
 static const FName GShowcaseUetkxId = RUI::RegisterComponentId((void*)&Showcase_UetkxImpl, FName(TEXT("Showcase")));
 static constexpr uint32 Showcase_RUI_HOOK_SIG = 0x986DF5F6u;
-inline FRuiNode Showcase(FShowcaseUetkxProps InProps = FShowcaseUetkxProps(), TArray<FRuiNode> InChildren = TArray<FRuiNode>(), FRuiKey InKey = FRuiKey())
+inline FRuiNode Showcase(FShowcaseUetkxProps InProps, TArray<FRuiNode> InChildren, FRuiKey InKey)
 {
 	return RUI::FC(&Showcase_UetkxImpl, MoveTemp(InProps), MoveTemp(InChildren), InKey);
 }
 static const bool GShowcaseUetkxFactoryReg = RUI::RegisterNamedFactory(FName(TEXT("Showcase")), []() { return Showcase(); });
 
+#endif

@@ -1,8 +1,22 @@
 # Exit-animation protocol (delayed unmount) — design
 
-> Status: DESIGN (Phase 7 deliverable; implementation is TD-003). Family context: neither
-> sibling ships exit animations in v1; all three need the same protocol, so the design is
-> written once here and reviewed cross-family before any implementation.
+> Status: **IMPLEMENTED** (TD-003, 2026-07-12) — `RuiPresence.h/.cpp` in ReactiveUICore, test
+> `ReactiveUI.Core.Presence`. Family context: neither sibling ships exit animations in v1; all
+> three need the same protocol, so the design is written once here and reviewed cross-family
+> before any implementation.
+>
+> **Implementation note (chosen over the reconciler-diversion sketch below):** shipped as a pure
+> userland composition — a `Presence` function component that remembers exiting keyed children in
+> its own state and keeps rendering them, plus a `PresenceChild` wrapper that provides the
+> per-child `{bPresent, NotifyDone}` context and owns the timeout fence. This is the
+> React-community shape (framer-motion's `AnimatePresence` is itself a component, not a renderer
+> patch). It needs ZERO reconciler surgery: state preservation falls out because the boundary
+> keeps rendering the same keyed child, so the reconciler keeps the same fiber (and its tween
+> cell). The one genuine core change it forced was a latent-bug fix, not a feature hook:
+> `ScheduleUpdateOnFiber` now marks alternate twins (React `markUpdateLaneFromFiberToRoot`
+> parity) so an async setState reaching a bailed-out intermediate isn't skipped. The
+> reconciler-touch-points section below is retained as the ALTERNATIVE that was considered and
+> rejected for higher core risk.
 
 ## Problem
 

@@ -52,6 +52,15 @@
 				"OnCheckStateChanged": "event"
 			}
 		},
+		"DPIScaler":
+		{
+			"factory": "RUI::Slate::DPIScaler",
+			"children": true,
+			"attrs":
+			{
+				"DPIScale": "float"
+			}
+		},
 		"EditableTextBox":
 		{
 			"factory": "RUI::Slate::EditableTextBox",
@@ -63,6 +72,14 @@
 				"OnTextChanged": "event",
 				"OnTextCommitted": "event",
 				"Text": "text"
+			}
+		},
+		"GridPanel":
+		{
+			"factory": "RUI::Slate::GridPanel",
+			"children": true,
+			"attrs":
+			{
 			}
 		},
 		"HorizontalBox":
@@ -83,6 +100,19 @@
 				"DesiredSizeOverride": "vector2"
 			}
 		},
+		"MultiLineEditableTextBox":
+		{
+			"factory": "RUI::Slate::MultiLineEditableTextBox",
+			"children": false,
+			"attrs":
+			{
+				"bIsReadOnly": "bool",
+				"HintText": "text",
+				"OnTextChanged": "event",
+				"OnTextCommitted": "event",
+				"Text": "text"
+			}
+		},
 		"Overlay":
 		{
 			"factory": "RUI::Slate::Overlay",
@@ -100,6 +130,16 @@
 				"Percent": "float"
 			}
 		},
+		"RichTextBlock":
+		{
+			"factory": "RUI::Slate::RichTextBlock",
+			"children": false,
+			"attrs":
+			{
+				"bAutoWrapText": "bool",
+				"Text": "text"
+			}
+		},
 		"RuiCanvas":
 		{
 			"factory": "RUI::Slate::RuiCanvas",
@@ -111,6 +151,29 @@
 				"RedrawKey": "int"
 			}
 		},
+		"SafeZone":
+		{
+			"factory": "RUI::Slate::SafeZone",
+			"children": true,
+			"attrs":
+			{
+				"bIsTitleSafe": "bool",
+				"bPadBottom": "bool",
+				"bPadLeft": "bool",
+				"bPadRight": "bool",
+				"bPadTop": "bool"
+			}
+		},
+		"ScaleBox":
+		{
+			"factory": "RUI::Slate::ScaleBox",
+			"children": true,
+			"attrs":
+			{
+				"Stretch": "name",
+				"StretchDirection": "name"
+			}
+		},
 		"ScrollBox":
 		{
 			"factory": "RUI::Slate::ScrollBox",
@@ -118,6 +181,29 @@
 			"attrs":
 			{
 				"Orientation": "name"
+			}
+		},
+		"SearchBox":
+		{
+			"factory": "RUI::Slate::SearchBox",
+			"children": false,
+			"attrs":
+			{
+				"HintText": "text",
+				"OnTextChanged": "event",
+				"OnTextCommitted": "event",
+				"Text": "text"
+			}
+		},
+		"Separator":
+		{
+			"factory": "RUI::Slate::Separator",
+			"children": false,
+			"attrs":
+			{
+				"ColorAndOpacity": "color",
+				"Orientation": "name",
+				"Thickness": "float"
 			}
 		},
 		"Slider":
@@ -142,6 +228,19 @@
 				"Size": "vector2"
 			}
 		},
+		"SpinBox":
+		{
+			"factory": "RUI::Slate::SpinBox",
+			"children": false,
+			"attrs":
+			{
+				"Delta": "float",
+				"MaxValue": "float",
+				"MinValue": "float",
+				"OnValueChanged": "event",
+				"Value": "float"
+			}
+		},
 		"TextBlock":
 		{
 			"factory": "RUI::TextBlock",
@@ -151,12 +250,64 @@
 				"Text": "text"
 			}
 		},
+		"Throbber":
+		{
+			"factory": "RUI::Slate::Throbber",
+			"children": false,
+			"attrs":
+			{
+				"Animate": "name",
+				"NumPieces": "int"
+			}
+		},
+		"UniformGridPanel":
+		{
+			"factory": "RUI::Slate::UniformGridPanel",
+			"children": true,
+			"attrs":
+			{
+				"MinDesiredSlotHeight": "float",
+				"MinDesiredSlotWidth": "float",
+				"SlotPadding": "float"
+			}
+		},
+		"UniformWrapPanel":
+		{
+			"factory": "RUI::Slate::UniformWrapPanel",
+			"children": true,
+			"attrs":
+			{
+				"HAlign": "name",
+				"SlotPadding": "float"
+			}
+		},
 		"VerticalBox":
 		{
 			"factory": "RUI::Slate::VerticalBox",
 			"children": true,
 			"attrs":
 			{
+			}
+		},
+		"WidgetSwitcher":
+		{
+			"factory": "RUI::Slate::WidgetSwitcher",
+			"children": true,
+			"attrs":
+			{
+				"WidgetIndex": "int"
+			}
+		},
+		"WrapBox":
+		{
+			"factory": "RUI::Slate::WrapBox",
+			"children": true,
+			"attrs":
+			{
+				"bUseAllottedSize": "bool",
+				"InnerSlotPadding": "vector2",
+				"Orientation": "name",
+				"WrapSize": "float"
 			}
 		}
 	},
@@ -203,5 +354,13 @@
 		"UseAnimate",
 		"UseTweenValue",
 		"UseSfx"
-	]
+	],
+	"eventPayloads":
+	{
+		"OnClicked": "void",
+		"OnCheckStateChanged": "bool",
+		"OnTextChanged": "text",
+		"OnTextCommitted": "text",
+		"OnValueChanged": "float"
+	}
 }

@@ -11,7 +11,9 @@
 #include "RuiEventProxy.h"
 #include "RuiSlateElements.h"
 #include "RuiSlateLog.h"
+#include "RuiSlotValue.h"
 #include "Styling/CoreStyle.h"
+#include "Styling/StyleDefaults.h" // FStyleDefaults::GetNoBrush (pointer-backed brush reset, D-17)
 #include "SRuiCanvas.h"
 
 #include "Widgets/Images/SImage.h"
@@ -102,7 +104,29 @@ public:
 		RUI_ROW(BorderBackgroundColor, W.SetBorderBackgroundColor(FSlateColor(N.BorderBackgroundColor)))
 		RUI_ROW(HAlign, W.SetHAlign(HAlignOf(N.HAlign)))
 		RUI_ROW(VAlign, W.SetVAlign(VAlignOf(N.VAlign)))
-		RUI_ROW(BorderImage, W.SetBorderImage(FCoreStyle::Get().GetBrush(N.BorderImage)))
+		// Border image (D-17). The asset brush (BorderImageBrush) is POINTER-backed and wins over the
+		// FCoreStyle name, so it must (a) reset on removal — else SBorder keeps a raw FSlateBrush* into
+		// freed props (use-after-free on Paint, bughunt B11) — and (b) be re-applied LAST on ANY change
+		// to either input, else a name-only change clobbers a still-set asset (bughunt B10). The name is
+		// a plain prop (family: doesn't reset on removal) handled by RUI_ROW when no asset is present.
+		const bool bFresh = (O == nullptr);
+		const bool bAssetChanged = N.HasBorderImageBrush() &&
+								   (bFresh || !O->HasBorderImageBrush() || N.BorderImageBrush != O->BorderImageBrush);
+		const bool bNameChanged =
+			N.HasBorderImage() && (bFresh || !O->HasBorderImage() || !(N.BorderImage == O->BorderImage));
+		if (O != nullptr && O->HasBorderImageBrush() && !N.HasBorderImageBrush())
+		{
+			W.SetBorderImage(N.HasBorderImage() ? FCoreStyle::Get().GetBrush(N.BorderImage)
+												: FStyleDefaults::GetNoBrush());
+		}
+		else if (N.HasBorderImageBrush() && (bAssetChanged || bNameChanged))
+		{
+			W.SetBorderImage(N.BorderImageBrush.Get()); // asset wins, applied last
+		}
+		else
+		{
+			RUI_ROW(BorderImage, W.SetBorderImage(FCoreStyle::Get().GetBrush(N.BorderImage)))
+		}
 	}
 
 	virtual void SetContent(SWidget& Parent, const TSharedPtr<SWidget>& Child) override
@@ -167,6 +191,17 @@ public:
 		const FRuiImageProps* O = static_cast<const FRuiImageProps*>(Old);
 		RUI_ROW(ColorAndOpacity, W.SetColorAndOpacity(FSlateColor(N.ColorAndOpacity)))
 		RUI_ROW(DesiredSizeOverride, W.SetDesiredSizeOverride(N.DesiredSizeOverride))
+		// Asset brush (D-17): POINTER-backed, so it must RESET on removal — the committed props own the
+		// sole TSharedPtr, and once they are released SImage's raw FSlateBrush* dangles (use-after-free on
+		// the next Paint, bughunt B11). Removed asset -> reset to the no-brush default.
+		if (O != nullptr && O->HasBrush() && !N.HasBrush())
+		{
+			W.SetImage(FStyleDefaults::GetNoBrush());
+		}
+		else
+		{
+			RUI_ROW(Brush, W.SetImage(N.Brush.Get()))
+		}
 	}
 };
 
@@ -228,26 +263,21 @@ public:
 	virtual void UpdateChildSlotProps(SWidget& Parent, const TSharedRef<SWidget>& Child,
 									  const FRuiStyleDict* SlotProps) override
 	{
-		// Padding-only slots: remove + re-add at the end (scroll slots are order-stable for
-		// this path; reuse_by_slot lists never hit it). Presence-check first — RemoveSlot
-		// returns void, and re-adding a widget that was never a child would grow the list.
+		// Mutate the LIVE FSlot in place rather than remove+append, which jumped a non-last child to
+		// the end (bughunt WRAP-1: SScrollBox appends — GetChildAt order is the visual order).
 		SScrollBox& Box = static_cast<SScrollBox&>(Parent);
 		FChildren* Children = Box.GetChildren();
-		bool bPresent = false;
 		for (int32 i = 0; i < Children->Num(); ++i)
 		{
 			if (&Children->GetChildAt(i).Get() == &Child.Get())
 			{
-				bPresent = true;
-				break;
+				SScrollBox::FSlot& Slot =
+					const_cast<SScrollBox::FSlot&>(static_cast<const SScrollBox::FSlot&>(Children->GetSlotAt(i)));
+				const FRuiValue* Padding = SlotProps ? SlotProps->Find(FName(TEXT("slot.padding"))) : nullptr;
+				Slot.SetPadding(Padding ? RUI::Slate::SlotValue::AsMargin(*Padding) : FMargin(0.0f));
+				Box.Invalidate(EInvalidateWidgetReason::Layout);
+				return;
 			}
-		}
-		if (bPresent)
-		{
-			Box.RemoveSlot(Child);
-			SScrollBox::FScopedWidgetSlotArguments Slot = Box.AddSlot();
-			Slot.AttachWidget(Child);
-			ConfigureSlot(Slot, SlotProps);
 		}
 	}
 
@@ -260,9 +290,8 @@ private:
 		}
 		if (const FRuiValue* Padding = SlotProps->Find(FName(TEXT("slot.padding"))))
 		{
-			const float Uniform = Padding->Kind == FRuiValue::EKind::Int ? static_cast<float>(Padding->IntValue)
-																		 : static_cast<float>(Padding->FloatValue);
-			Slot.Padding(FMargin(Uniform));
+			// String/Vector2/uniform forms (bughunt SLOT-2 — was Int/Float-only → String → 0).
+			Slot.Padding(RUI::Slate::SlotValue::AsMargin(*Padding));
 		}
 	}
 };

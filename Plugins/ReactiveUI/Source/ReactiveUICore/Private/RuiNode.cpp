@@ -135,7 +135,8 @@ namespace RUI
 		return 0;
 	}
 
-	void SetComponentOverride(FName ComponentId, TSharedPtr<FRuiComponentInvoke> Invoke, bool bResetState)
+	void SetComponentOverride(FName ComponentId, TSharedPtr<FRuiComponentInvoke> Invoke, bool bResetState,
+							  bool bMigrateState)
 	{
 		FRuiHmrRegistry& Reg = FRuiHmrRegistry::Get();
 		FScopeLock Guard(&Reg.Lock);
@@ -143,6 +144,7 @@ namespace RUI
 		Entry.Invoke = MoveTemp(Invoke);
 		Entry.Generation = Reg.NextGeneration++;
 		Entry.bResetState = bResetState;
+		Entry.bMigrateState = bMigrateState;
 	}
 
 	void ClearComponentOverride(FName ComponentId)

@@ -121,10 +121,25 @@ void FRuiReconciler::ScheduleUpdateOnFiber(FRuiFiber* Fiber)
 		return; // torn down — ignore late setState/effect callbacks [audit]
 	}
 	FRuiFiber* Target = Fiber ? Fiber : RootCurrent;
+	// Mark the target AND its alternate twin, and set the subtree flag on every ancestor AND
+	// its twin (React's markUpdateLaneFromFiberToRoot parity). A shared state's Fiber may point
+	// at whichever buffer last rendered THIS component — but a bailed-out ancestor is reached
+	// through the OTHER buffer next pass (ReconcileFiber copies the flag from the committed
+	// side). Marking both twins guarantees the flag survives onto the WIP regardless of which
+	// buffer the async setState (frame/timer callback) happened to land on. [audit: async
+	// setState through a bailing intermediate — TD-003 Presence exposed it].
 	Target->bHasPendingUpdate = true;
+	if (Target->Alternate != nullptr)
+	{
+		Target->Alternate->bHasPendingUpdate = true;
+	}
 	for (FRuiFiber* P = Target->Parent; P != nullptr; P = P->Parent)
 	{
 		P->bSubtreeHasUpdates = true;
+		if (P->Alternate != nullptr)
+		{
+			P->Alternate->bSubtreeHasUpdates = true;
+		}
 	}
 	if (bIsCommitting)
 	{
@@ -428,7 +443,27 @@ void FRuiReconciler::RenderComponent(FRuiFiber* Fiber)
 			{
 				if (Override.bResetState && State->Hooks.Num() > 0)
 				{
-					State->HmrResetHooks(); // hook shape changed: deliberate reset (family rule)
+					if (Override.bMigrateState)
+					{
+						// TD-019: same-shape representation swap — snapshot exportable state BEFORE the
+						// reset so this render's UseState re-seeds from it. Pack by STATE-ORDINAL, not
+						// absolute hook slot (bughunt HMR-1): the interp materializes only UseState cells,
+						// so its i-th UseState reads MigratedState[i] by state order. A non-State slot
+						// (Ref/Memo/Reducer/effect) has no interp cell and must NOT consume an index; a
+						// non-exportable State cell still consumes one (as Null) to keep the rest aligned.
+						State->MigratedState.Reset();
+						for (int32 h = 0; h < State->Hooks.Num(); ++h)
+						{
+							if (!State->Hooks[h].IsValid() || State->Hooks[h]->GetKind() != ERuiHookKind::State)
+							{
+								continue;
+							}
+							FRuiValue Exported;
+							State->MigratedState.Add(State->Hooks[h]->ExportRuiValue(Exported) ? MoveTemp(Exported)
+																							   : FRuiValue());
+						}
+					}
+					State->HmrResetHooks(); // reset (family rule); MigratedState survives for re-seed
 				}
 				State->HmrGeneration = Override.Generation;
 			}
@@ -500,6 +535,7 @@ void FRuiReconciler::RenderComponent(FRuiFiber* Fiber)
 	{
 		Result = RunOnce(); // double-invoke, first result discarded (impure-render flusher)
 	}
+	State->MigratedState.Reset(); // TD-019: one-shot — consumed by this render's UseState calls
 
 	// Cooperative error latch (D-10): a failed render unwinds to the nearest boundary.
 	if (TOptional<FString> Failure = RUI::ConsumeRenderFailure())

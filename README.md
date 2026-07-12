@@ -9,18 +9,24 @@ of [ReactiveUIToolKit](https://github.com/yanivkalfa/ReactiveUIToolKit) (Unity/C
 Function components return a virtual tree; a fiber reconciler diffs each render and patches only
 what changed on real **Slate** widgets. State lives in hooks. On top sits `.uetkx` — a JSX-like
 markup (same grammar as the siblings' `.guitkx`/`.uitkx`) that **compiles to native C++ for
-shipping builds** and **hot-reloads live in PIE** during development: save the file, see the UI
-update in under a second, no C++ recompile, no script VM in your shipped game.
+shipping builds** and **hot-reloads live in PIE** during development (Windows): save the file, see
+the UI update in under a second, no C++ recompile, no script VM in your shipped game.
 
-> **Status: alpha — the core loop works end to end.** The reconciler (23 hooks, all stub-free),
-> 15 wrapped Slate widgets with setter styling, the `.uetkx` compiler (committed codegen +
-> `RUICompile`/drift-gate/contract commandlets), live hot reload mid-session (expression VM +
-> interpreter + editor watcher), the UMG/FieldNotify interop core, and VS Code/VS2022 language
-> tooling are implemented and green under a 52-suite headless battery. The demo gallery's 11
-> screens all compile from `.uetkx`. Open `ReactiveUIUnrealDemo.uproject` (UE 5.6.1+) and press
-> Play. Remaining before v1: the widget-inventory sweep, asset brushes, CommonUI/MVVM plugin
-> layers, docs site — tracked in [plans/ROADMAP.md](plans/ROADMAP.md) and
-> [plans/TECH_DEBT.md](plans/TECH_DEBT.md).
+> **Status: beta — the product is built end to end.** The reconciler (23 core hooks, all
+> stub-free), 35+ wrapped Slate widgets with setter styling (the core set + the batch-2 everyday
+> widgets + specials — ExpandableArea/SegmentedControl/NumericEntryBox/ComboBox/SuggestionTextBox)
+> plus **virtualized `ListView`/`TileView`**, the `.uetkx` compiler (committed codegen +
+> `RUICompile`/drift-gate/contract commandlets), live hot reload mid-session (Unreal Live Coding +
+> editor watcher, whole-project, state preserved — **Windows only**, since Live Coding is; the library
+> itself builds and runs on every UE platform), the full **router** subsystem (17 hooks), **`@theme`/`@uss`
+> stylesheets**, **exit animations** (`<Presence>`), **drag-and-drop** + keyboard shortcuts,
+> first-class **CommonUI/MVVM citizenship** (activatable screens, MVVM global collection, UMG
+> prop-map bridge), an **in-editor `.uetkx` live preview**, and VS Code/VS2022 language tooling
+> (with embedded-C++ clangd intelligence) are implemented and green under an **80-suite headless
+> battery**. The demo gallery's 11 screens all compile from `.uetkx`. Open
+> `ReactiveUIUnrealDemo.uproject` (UE 5.6.1+) and press Play. Remaining before v1: **localization**
+> (FText gathering) and the **docs-site content** — tracked in [plans/ROADMAP.md](plans/ROADMAP.md)
+> and [plans/TECH_DEBT.md](plans/TECH_DEBT.md).
 
 **Quick taste** — `Source/RuiDemo/Screens/SimpleCounter.uetkx` (compiles to the committed
 sibling `.inl`; edit it while the editor runs and the screen hot-swaps in place):
@@ -62,10 +68,13 @@ reversed ≈ **178 µs**; minimal-move single reorder ≈ **3 µs**.
 
 The reconciler with all 23 family hooks · 25 wrapped Slate widgets plus a virtualized list ·
 setter-based styling (a style tweak never rebuilds a widget) · the `.uetkx` compiler
-(compile-to-C++ for shipping, interpret-live for dev) · VS Code + VS2022 extensions on the shared
-family language server · the UMG/CommonUI/MVVM interop above · localization, focus preservation,
-portals, asset-safe brushes · a demo project (this repo — open and press Play) and a docs site,
-with every performance claim measured before it's printed.
+(compile-to-C++ for shipping, Live-Coding hot reload for dev) · **static imports/exports** (`import { A }
+from "./x"` / `~/` root alias, `export` for cross-file reach with privacy-by-default, mixed
+component/hook/module files, strict resolution enforced by the compiler, and a one-command
+`-run=RUIMigrateImports` codemod to upgrade an existing project) · VS Code + VS2022 extensions on
+the shared family language server · the UMG/CommonUI/MVVM interop above · localization, focus
+preservation, portals, asset-safe brushes · a demo project (this repo — open and press Play) and
+a docs site, with every performance claim measured before it's printed.
 
 ## Repository layout
 

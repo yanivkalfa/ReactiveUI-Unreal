@@ -137,21 +137,18 @@ void FRuiSlateHost::CommitUpdate(const FRuiHostHandle& Handle, FRuiElementTypeId
 		return;
 	}
 
-	// Construct-only props changing post-mount would require widget replacement. v1 keeps
-	// the mask honest and loudly rejects violations (tracked in plans/TECH_DEBT.md — the
-	// replacement path arrives with the widget batch that first needs it).
+	// TD-011: a construct-only prop that actually CHANGED VALUE requires rebuilding the widget.
+	// The mask marks the bits; ConstructOnlyChanged is the precise trigger (a mask bit set on both
+	// sides with an unchanged value must not force a rebuild). ReplaceWidget rebuilds + re-parents
+	// children + swaps into the parent slot, then re-applies props/style/events — so we are DONE.
 	const uint64 Mask = Node->Adapter->GetReconstructMask();
 	if (Mask != 0 && OldProps != nullptr)
 	{
-		// A construct-only prop "changed" if either side set it and values differ — the
-		// adapter's diff rows are the authority; this is a coarse guard on the bits.
 		const uint64 TouchedBits = (OldProps->SetBits | NewProps.SetBits) & Mask;
-		if (TouchedBits != 0 && !NewProps.Equals(*OldProps))
+		if (TouchedBits != 0 && !NewProps.Equals(*OldProps) && Node->Adapter->ConstructOnlyChanged(*OldProps, NewProps))
 		{
-			UE_LOG(LogRuiSlate, Warning,
-				   TEXT("[ReactiveUI] construct-only prop diff on '%s' ignored (widget replacement lands with the ")
-					   TEXT("first widget that needs it — see plans/TECH_DEBT.md)"),
-				   *RUI::GetElementTypeName(Type).ToString());
+			ReplaceWidget(*Node, OldProps, NewProps);
+			return;
 		}
 	}
 
@@ -300,6 +297,17 @@ void FRuiSlateHost::InsertChild(const FRuiHostHandle& ParentHandle, const FRuiHo
 		return;
 	}
 	Child->ParentNode = StaticCastSharedPtr<FRuiSlateNode>(ParentHandle);
+
+	// TD-011 bookkeeping: mirror the MultiSlot child order so a construct-only REPLACEMENT can
+	// re-parent children (with slot props) into the rebuilt widget. Dedupe (a re-insert moves it).
+	if (Parent->Adapter->GetChildKind() == ERuiChildKind::MultiSlot)
+	{
+		TSharedPtr<FRuiSlateNode> ChildShared = StaticCastSharedPtr<FRuiSlateNode>(ChildHandle);
+		Parent->ChildNodes.RemoveAll([&ChildShared](const TWeakPtr<FRuiSlateNode>& W)
+									 { return !W.IsValid() || W.Pin() == ChildShared; });
+		const int32 At = (Index < 0 || Index > Parent->ChildNodes.Num()) ? Parent->ChildNodes.Num() : Index;
+		Parent->ChildNodes.Insert(ChildShared, At);
+	}
 }
 
 void FRuiSlateHost::RemoveChild(const FRuiHostHandle& ParentHandle, const FRuiHostHandle& ChildHandle)
@@ -313,6 +321,12 @@ void FRuiSlateHost::RemoveChild(const FRuiHostHandle& ParentHandle, const FRuiHo
 	}
 	RemoveChildFromParent(*Parent, Child->Widget.ToSharedRef());
 	Child->ParentNode.Reset();
+	Parent->ChildNodes.RemoveAll(
+		[Child](const TWeakPtr<FRuiSlateNode>& W)
+		{
+			TSharedPtr<FRuiSlateNode> P = W.Pin();
+			return !P.IsValid() || P.Get() == Child;
+		});
 }
 
 void FRuiSlateHost::ReorderChildren(const FRuiHostHandle& ParentHandle, const TArray<FRuiHostHandle>& Ordered)
@@ -339,6 +353,16 @@ void FRuiSlateHost::ReorderChildren(const FRuiHostHandle& ParentHandle, const TA
 	Parent->Adapter->ReorderChildren(*Parent->Widget, Widgets,
 									 [&SlotPropsByWidget](const TSharedRef<SWidget>& W) -> const FRuiStyleDict*
 									 { return SlotPropsByWidget.FindRef(&W.Get()); });
+
+	// TD-011 bookkeeping: adopt the exact new order.
+	Parent->ChildNodes.Reset(Ordered.Num());
+	for (const FRuiHostHandle& H : Ordered)
+	{
+		if (TSharedPtr<FRuiSlateNode> N = StaticCastSharedPtr<FRuiSlateNode>(H); N.IsValid())
+		{
+			Parent->ChildNodes.Add(N);
+		}
+	}
 }
 
 FRuiElementTypeId FRuiSlateHost::GetTextElementType() const
@@ -421,4 +445,104 @@ void FRuiSlateHost::RemoveChildFromParent(FRuiSlateNode& Parent, const TSharedRe
 	case ERuiChildKind::Leaf:
 		break;
 	}
+}
+
+void FRuiSlateHost::ReplaceWidget(FRuiSlateNode& Node, const FRuiPropsBase* OldProps, const FRuiPropsBase& NewProps)
+{
+	TSharedPtr<FRuiSlateNode> Parent = Node.ParentNode.Pin();
+	if (!Parent.IsValid() || !Parent->Widget.IsValid() || Parent->Adapter == nullptr)
+	{
+		// A host node always has a host parent (the wrapped mount panel or another widget). If it
+		// somehow does not, we cannot swap it into a slot — apply the runtime diff and warn once.
+		UE_LOG(LogRuiSlate, Warning,
+			   TEXT("[ReactiveUI] construct-only change on '%s' could not replace the widget (no host parent) — "
+					"runtime props applied, construct-only props stale"),
+			   *RUI::GetElementTypeName(Node.Type).ToString());
+		Node.Adapter->ApplyDiff(*Node.Widget, nullptr, NewProps);
+		return;
+	}
+	IRuiElementAdapter* Adapter = Node.Adapter;
+	const TSharedRef<SWidget> OldWidget = Node.Widget.ToSharedRef();
+
+	// 1. Build the replacement, REUSING the event proxy so bound delegates keep firing
+	//    (bind-once-swap-inner: CreateWidget rebinds the new widget's SLATE_EVENT args to the same
+	//    proxy, SyncEventHandlers refreshes the inner callbacks).
+	const TSharedRef<SWidget> NewWidget = Adapter->CreateWidget(NewProps, Node.Proxy);
+	// Runtime props: restore the LAST-committed props first, then apply this render's changes on top.
+	// The fresh widget starts at its literal defaults, so a runtime prop the new render OMITS but a
+	// prior render set would otherwise reset — violating the family "removed plain props don't reset"
+	// rule on the rebuild path (bughunt SEP-REBUILD-1). Construct-only props ride NewProps via CreateWidget.
+	if (OldProps != nullptr)
+	{
+		Adapter->ApplyDiff(*NewWidget, nullptr, *OldProps);
+		Adapter->ApplyDiff(*NewWidget, OldProps, NewProps);
+	}
+	else
+	{
+		Adapter->ApplyDiff(*NewWidget, nullptr, NewProps);
+	}
+	if (Node.Proxy.IsValid())
+	{
+		Adapter->SyncEventHandlers(*Node.Proxy, NewProps);
+	}
+
+	// 2. Re-parent the children into the new widget WITH their slot props, order preserved.
+	switch (Adapter->GetChildKind())
+	{
+	case ERuiChildKind::MultiSlot:
+		for (const TWeakPtr<FRuiSlateNode>& ChildWeak : Node.ChildNodes)
+		{
+			if (TSharedPtr<FRuiSlateNode> ChildNode = ChildWeak.Pin();
+				ChildNode.IsValid() && ChildNode->Widget.IsValid())
+			{
+				Adapter->InsertChild(*NewWidget, ChildNode->Widget.ToSharedRef(), -1, ChildNode->SlotProps.Get());
+			}
+		}
+		break;
+	case ERuiChildKind::SingleContent:
+		if (TSharedPtr<SWidget> Content = Node.ContentChild.Pin())
+		{
+			Adapter->SetContent(*NewWidget, Content);
+		}
+		break;
+	case ERuiChildKind::Leaf:
+		break;
+	}
+
+	// 3. Adopt this render's slot props (a construct-only change may ride with a slot change), then
+	//    swap the new widget into the parent's slot at the SAME index.
+	if (NewProps.SlotProps.IsValid())
+	{
+		Node.SlotProps = MakeShared<FRuiStyleDict>(*NewProps.SlotProps);
+	}
+	else
+	{
+		Node.SlotProps.Reset();
+	}
+	const int32 Index = Parent->ChildNodes.IndexOfByPredicate([&Node](const TWeakPtr<FRuiSlateNode>& W)
+															  { return W.Pin().Get() == &Node; });
+	RemoveChildFromParent(*Parent, OldWidget);
+	switch (Parent->Adapter->GetChildKind())
+	{
+	case ERuiChildKind::MultiSlot:
+		Parent->Adapter->InsertChild(*Parent->Widget, NewWidget, Index, Node.SlotProps.Get());
+		break;
+	case ERuiChildKind::SingleContent:
+		Parent->Adapter->SetContent(*Parent->Widget, NewWidget);
+		Parent->ContentChild = NewWidget;
+		break;
+	case ERuiChildKind::Leaf:
+		break;
+	}
+
+	// 4. Adopt the new widget + re-apply the effective style from scratch (the old style lived on
+	//    the discarded widget). The node identity, ChildNodes, and parent link are all unchanged.
+	Node.Widget = NewWidget;
+	Node.AppliedStyle.Reset();
+	TSharedPtr<FRuiStyleDict> Effective = RUI::Slate::BuildEffectiveStyle(NewProps.Classes, NewProps.Style);
+	if (Effective.IsValid())
+	{
+		RUI::Slate::ApplyStyleDiff(*NewWidget, Adapter, nullptr, Effective.Get());
+	}
+	Node.AppliedStyle = Effective;
 }

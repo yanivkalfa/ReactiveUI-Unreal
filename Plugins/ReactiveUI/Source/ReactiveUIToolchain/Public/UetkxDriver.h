@@ -15,6 +15,8 @@
 #include "CoreMinimal.h"
 #include "UetkxCodegen.h"
 
+class IUetkxImportResolver;
+
 struct REACTIVEUITOOLCHAIN_API FUetkxFileResult
 {
 	bool bOk = false;
@@ -23,6 +25,7 @@ struct REACTIVEUITOOLCHAIN_API FUetkxFileResult
 	FString InlPath;
 	TArray<FUetkxDiag> Diags;
 	TArray<FString> ComponentNames; // compiled: from codegen; skipped: from the sidecar refs
+	TArray<FString> ExportedNames;	// EXPORTED names only — the 2106 ledger key (A5e)
 };
 
 struct REACTIVEUITOOLCHAIN_API FUetkxSweepResult
@@ -48,8 +51,9 @@ struct REACTIVEUITOOLCHAIN_API FUetkxCheckResult
 class REACTIVEUITOOLCHAIN_API FUetkxDriver
 {
 public:
-	/** Bump when generated-code SHAPE changes — the fingerprint that re-stales everything. */
-	static constexpr int32 CodegenVersion = 1;
+	/** Bump when generated-code SHAPE changes — the fingerprint that re-stales everything.
+	 *  v2: two-phase (`RUI_UETKX_DECL_PHASE`) aggregator + fwd-decl emit + `#line` directives (M6/M7). */
+	static constexpr int32 CodegenVersion = 2;
 
 	static FString InlPathFor(const FString& UetkxPath) { return UetkxPath + TEXT(".inl"); }
 	static FString SidecarPathFor(const FString& UetkxPath) { return UetkxPath + TEXT(".diags.json"); }
@@ -60,7 +64,8 @@ public:
 	/** Compile one file: writes the .inl on success (deletes it on failure — stale output
 	 *  must never run) and the sidecar ALWAYS (unless payload-identical). bForce skips the
 	 *  staleness check. */
-	static FUetkxFileResult CompileFile(const FString& UetkxPath, bool bForce = false);
+	static FUetkxFileResult CompileFile(const FString& UetkxPath, bool bForce = false,
+										const IUetkxImportResolver* Resolver = nullptr);
 
 	/** True when UetkxPath needs a compile (missing/older .inl; error verdicts honored). */
 	static bool IsStale(const FString& UetkxPath);
@@ -79,6 +84,12 @@ public:
 	 *  + regenerate aggregators + fingerprint. */
 	static FUetkxSweepResult CompileAll(const FString& RootDir, bool bForce = false);
 
+	/** Sweep every root under ONE ledger (A5e): a single UETKX2106 exported-name table spans all
+	 *  roots (a name exported in Source AND Plugins is a collision), and the aggregators + orphan
+	 *  sweep + fingerprint run over the combined file set. The commandlet calls this once instead
+	 *  of looping CompileAll per root. */
+	static FUetkxSweepResult CompileAllRoots(const TArray<FString>& Roots, bool bForce = false);
+
 	/** Regenerate `<ModuleDirName>.Uetkx.gen.cpp` beside each module's .uetkx set. Returns
 	 *  true when any aggregator changed on disk. */
 	static bool RegenerateAggregators(const TArray<FString>& UetkxPaths);
@@ -91,6 +102,11 @@ public:
 	 *  and compare against the committed outputs — content-based, mtime-independent (git does
 	 *  not preserve mtimes), no writes. Line endings are normalized before comparing. */
 	static FUetkxCheckResult CheckDrift(const TArray<FString>& Roots);
+
+	/** The import blast radius (M9): the basenames of files under Roots whose recorded dep graph
+	 *  (sidecar v3 dep_hashes) points at ProjRelPath — i.e. the files that import it. Sorted; the
+	 *  watcher names these in the HMR hook/module rebuild note. */
+	static TArray<FString> ImportersOf(const FString& ProjRelPath, const TArray<FString>& Roots);
 
 	/** Fingerprint file check: mismatch/absent -> everything stale (returns true). Call
 	 *  RefreshFingerprint after a clean sweep. */

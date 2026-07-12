@@ -45,19 +45,22 @@ jobs:
           "$ENGINE_ROOT/Engine/Build/BatchFiles/Linux/Build.sh" ReactiveUIUnrealDemoServer Linux Development \
             -Project="$GITHUB_WORKSPACE/ReactiveUIUnrealDemo.uproject"
 
-      # 3. Markup drift gate — activates in Phase 3 when the RUICompile commandlet exists.
-      #    (Kept as a documented placeholder so the sequence is complete in ONE place.)
-      # - name: Markup drift gate
-      #   run: |
-      #     "$ENGINE_ROOT/Engine/Binaries/Linux/UnrealEditor-Cmd" "$GITHUB_WORKSPACE/ReactiveUIUnrealDemo.uproject" \
-      #       -run=RUICompile -check -unattended -nopause -nullrhi
+      # 3. Markup drift gate — the RUICompile commandlet + committed *.uetkx.inl / aggregators exist
+      #    (Phase 3+), so this is the SOLE guard that the 25 committed generated files match a fresh
+      #    compile. Was left commented past its activation point, leaving generated code ungated even
+      #    when armed (bughunt BUILD-2).
+      - name: Markup drift gate
+        run: |
+          "$ENGINE_ROOT/Engine/Binaries/Linux/UnrealEditor-Cmd" "$GITHUB_WORKSPACE/ReactiveUIUnrealDemo.uproject" \
+            -run=RUICompile -check -unattended -nopause -nullrhi
 
-      # 4. Automation suites — activates in Phase 1 with the first ReactiveUI.* specs.
-      #    Pass/fail parses report/index.json, NOT the exit code (test-run skill scar).
-      # - name: Automation suites (headless)
-      #   run: |
-      #     "$ENGINE_ROOT/Engine/Binaries/Linux/UnrealEditor-Cmd" "$GITHUB_WORKSPACE/ReactiveUIUnrealDemo.uproject" \
-      #       -ExecCmds="Automation RunTests ReactiveUI; Quit" \
-      #       -unattended -nopause -nosplash -nullrhi -stdout -FullStdOutLogOutput \
-      #       -ReportExportPath="$GITHUB_WORKSPACE/test-report"
-      #     node -e "const r=require('./test-report/index.json'); if(r.failed>0){console.error(r.failed+' failed');process.exit(1)}"
+      # 4. Automation suites (headless) — the ReactiveUI.* specs exist (Phase 1+). Pass/fail parses
+      #    report/index.json, NOT the exit code (test-run skill scar). Was commented past its
+      #    activation point, so an armed run reported green having run ZERO tests (bughunt BUILD-2).
+      - name: Automation suites (headless)
+        run: |
+          "$ENGINE_ROOT/Engine/Binaries/Linux/UnrealEditor-Cmd" "$GITHUB_WORKSPACE/ReactiveUIUnrealDemo.uproject" \
+            -ExecCmds="Automation RunTests ReactiveUI; Quit" \
+            -unattended -nopause -nosplash -nullrhi -stdout -FullStdOutLogOutput \
+            -ReportExportPath="$GITHUB_WORKSPACE/test-report"
+          node -e "const r=require('./test-report/index.json'); const fails=(r.tests||[]).filter(t=>t.state&&t.state!=='Success').length; const n=typeof r.failed==='number'?Math.max(r.failed,fails):fails; if(n>0){console.error(n+' automation test(s) failed');process.exit(1)} console.log('automation suites passed')"

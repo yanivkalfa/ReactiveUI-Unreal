@@ -69,6 +69,13 @@ public:
 	 *  seeing a NEWER generation with bResetState pending runs a deliberate state reset. */
 	uint32 HmrGeneration = 0;
 
+	/** TD-019: one-shot state migration across the compiled→interp HMR swap. When the reconciler
+	 *  resets hooks for a same-shape representation swap it snapshots the old cells' exported
+	 *  FRuiValues here (by hook slot); the next render's UseState seeds fresh FRuiValue cells from
+	 *  it instead of the interpreter's Init, so numeric/string/bool/text state survives the FIRST
+	 *  save too. Cleared after the migrating render. Null entries (non-migratable slots) re-init. */
+	TArray<FRuiValue> MigratedState;
+
 	/** The HMR hook-shape reset: run effect cleanups, then drop every hook slot so the next
 	 *  render re-initializes (cell destructors release external subscriptions). Scheduling
 	 *  wiring (OnStateUpdated/Fiber) and LastOutput stay — the fiber is still mounted. */

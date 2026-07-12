@@ -1,0 +1,63 @@
+#include "RuiDemoSupport.h"
+
+export component CustomDraw {
+	auto [Sides, SetSides] = UseState<int32>(3);
+	auto [bBlue, SetBlue] = UseState<bool>(true);
+	auto [RedrawTick, SetRedrawTick] = UseState<int32>(0);
+	TFunction<void(int32)> SetSidesFn = SetSides;
+	TFunction<void(bool)> SetBlueFn = SetBlue;
+	TFunction<void(int32)> SetTickFn = SetRedrawTick;
+	const int32 SidesNow = Sides;
+	const bool bBlueNow = bBlue;
+	const int32 TickNow = RedrawTick;
+
+	// 1+2: the draw fn's IDENTITY tracks its inputs (UseMemo deps) -> repaint on change.
+	const TSharedPtr<FRuiDrawFn>& PolyFn = UseMemo<TSharedPtr<FRuiDrawFn>>(
+		[SidesNow]() {
+			return RUI::Slate::MakeDrawFn([SidesNow](const FGeometry& G, FSlateWindowElementList& O, int32 L)
+										  { return RuiDemo::DrawPolygon(G, O, L, SidesNow); });
+		},
+		RUI::Deps(SidesNow));
+	const TSharedPtr<FRuiDrawFn>& QuadFn = UseMemo<TSharedPtr<FRuiDrawFn>>(
+		[bBlueNow]() {
+			return RUI::Slate::MakeDrawFn([bBlueNow](const FGeometry& G, FSlateWindowElementList& O, int32 L)
+										  { return RuiDemo::DrawQuad(G, O, L, bBlueNow); });
+		},
+		RUI::Deps(bBlueNow));
+	// 3: STABLE fn + RedrawKey bump forces the repaint instead.
+	const TSharedPtr<FRuiDrawFn>& ScatterFn =
+		UseMemo<TSharedPtr<FRuiDrawFn>>([]() { return RUI::Slate::MakeDrawFn(&RuiDemo::DrawScatter); }, RUI::Deps());
+
+	return (
+		<Border Padding="12" BorderImage="WhiteBrush" BorderBackgroundColor={ FLinearColor(0.02f, 0.02f, 0.03f, 0.85f) } Slot.Padding="0,10,0,0">
+			<VerticalBox>
+				<TextBlock Text="Custom Rendering Demo (RuiCanvas draw_fn)" Font.Size={ 16.0f } ColorAndOpacity={ FLinearColor(0.4f, 0.8f, 1.0f) } />
+				<Spacer Size={ FVector2D(1.0f, 6.0f) } />
+				<TextBlock Text="1. Polygon -- redraws when 'sides' state changes" />
+				<RuiCanvas DrawFn={ PolyFn } CanvasSize={ FVector2D(360.0f, 110.0f) } />
+				<Spacer Size={ FVector2D(1.0f, 6.0f) } />
+				<HorizontalBox>
+					<Button OnClicked={ SetSidesFn(SidesNow + 1) } ContentPadding="12,4" Slot.Padding="0,0,6,0">Add side</Button>
+					<Button OnClicked={ SetSidesFn(3) } ContentPadding="12,4" Slot.Padding="0,0,6,0">Reset</Button>
+					<TextBlock Text={ FText::FromString(FString::Printf(TEXT("  sides = %d"), SidesNow)) } />
+				</HorizontalBox>
+				<Spacer Size={ FVector2D(1.0f, 6.0f) } />
+				<TextBlock Text="2. Tinted quad -- toggles color" />
+				<RuiCanvas DrawFn={ QuadFn } CanvasSize={ FVector2D(360.0f, 110.0f) } />
+				<Spacer Size={ FVector2D(1.0f, 6.0f) } />
+				<HorizontalBox>
+					<Button OnClicked={ SetBlueFn(!bBlueNow) } ContentPadding="12,4" Slot.Padding="0,0,6,0">Toggle color</Button>
+					<TextBlock Text={ FText::FromString(bBlueNow ? TEXT("  blue") : TEXT("  orange")) } />
+				</HorizontalBox>
+				<Spacer Size={ FVector2D(1.0f, 6.0f) } />
+				<TextBlock Text="3. Stable callback + RedrawKey -- repaint on demand" />
+				<RuiCanvas DrawFn={ ScatterFn } RedrawKey={ TickNow } CanvasSize={ FVector2D(360.0f, 110.0f) } />
+				<Spacer Size={ FVector2D(1.0f, 6.0f) } />
+				<HorizontalBox>
+					<Button OnClicked={ SetTickFn(TickNow + 1) } ContentPadding="12,4" Slot.Padding="0,0,6,0">Shuffle (bump RedrawKey)</Button>
+					<TextBlock Text={ FText::FromString(FString::Printf(TEXT("  redrawKey = %d"), TickNow)) } />
+				</HorizontalBox>
+			</VerticalBox>
+		</Border>
+	);
+}

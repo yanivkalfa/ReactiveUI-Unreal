@@ -1,0 +1,17 @@
+// AcceptanceLab.style.uetkx — a COMPANION MODULE (style palette) for the AcceptanceLab screen.
+//
+// WHAT TO TEST HERE (maps to OWNER_ACCEPTANCE_CHECKLIST.md):
+//   D/E · MODULE DECL + IMPORT — AcceptanceLab.uetkx does
+//         `import { LabStyle } from "./AcceptanceLab.style"` and references `LabStyle::Accent`
+//         etc. F12 on `LabStyle` should jump HERE; the import braces complete `LabStyle`.
+//   D/E · MODULE COLORS — `export module`, the name, and the C++ `inline const` constants colorize.
+//
+// A `module` is a namespace of verbatim C++ (colors, types, statics) that other .uetkx files
+// reach through `LabStyle::Name`. Non-exported members would be private to this file.
+
+export module LabStyle {
+	inline const FLinearColor Accent{0.36f, 0.75f, 1.0f, 1.0f};
+	inline const FLinearColor Good{0.45f, 0.90f, 0.50f, 1.0f};
+	inline const FLinearColor Warn{0.98f, 0.72f, 0.25f, 1.0f};
+	inline const FLinearColor Panel{0.02f, 0.02f, 0.03f, 0.85f};
+}

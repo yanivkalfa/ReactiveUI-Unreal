@@ -2,8 +2,9 @@
 <!-- VS2022 VSIX (legacy project format — requires VS2022 + the "Visual Studio extension development"
      workload / Microsoft.VSSDK.BuildTools to build). A MEF ILanguageClient that launches the shared
      Node uetkx-language-server over stdio; the TextMate grammar under Syntaxes\ is registered by
-     uetkx.pkgdef. Before packaging, copy the built server into .\server (bundle-server.mjs in the
-     VS Code sibling produces the same layout) and optionally a Windows node.exe beside it. -->
+     uetkx.pkgdef. The bundled server under .\server must be populated BEFORE building — run
+     ..\build-local.ps1 (does npm builds + the mirror copy + msbuild in one go), or copy the VS Code
+     sibling's bundle-server.mjs output by hand; optionally a Windows node.exe beside it. -->
 <Project ToolsVersion="Current" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
@@ -14,12 +15,21 @@
     <RootNamespace>UetkxVsix</RootNamespace>
     <AssemblyName>UetkxVsix</AssemblyName>
     <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
+    <!-- true: UetkxPackage (options page + format-on-save) carries [PackageRegistration] +
+         [ProvideOptionPage] + [ProvideAutoLoad], so CreatePkgDef generates UetkxVsix.pkgdef from
+         them. The hand-written uetkx.pkgdef (TextMate grammar registration) is kept alongside it —
+         VS merges every .pkgdef in the extension. -->
     <GeneratePkgDefFile>true</GeneratePkgDefFile>
     <IncludeAssemblyInVSIXContainer>true</IncludeAssemblyInVSIXContainer>
     <IncludeDebugSymbolsInVSIXContainer>false</IncludeDebugSymbolsInVSIXContainer>
     <CopyBuildOutputToOutputDirectory>true</CopyBuildOutputToOutputDirectory>
     <CreateVsixContainer>true</CreateVsixContainer>
     <DeployExtension>true</DeployExtension>
+    <!-- F5 = launch the VS experimental instance with the freshly-deployed VSIX (Unity-sibling
+         parity; without these a Library project has nothing to start and F5 errors out). -->
+    <StartAction>Program</StartAction>
+    <StartProgram>$(DevEnvDir)devenv.exe</StartProgram>
+    <StartArguments>/rootsuffix Exp</StartArguments>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -41,6 +51,8 @@
   <ItemGroup>
     <Compile Include="UetkxContentDefinition.cs" />
     <Compile Include="UetkxLanguageClient.cs" />
+    <Compile Include="UetkxOptionsPage.cs" />
+    <Compile Include="UetkxPackage.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="source.extension.vsixmanifest">

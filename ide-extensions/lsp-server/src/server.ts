@@ -14,27 +14,59 @@ import {
   CompletionItemKind,
   DiagnosticSeverity,
   type CompletionItem,
+  type Definition,
   type Diagnostic,
+  type Hover,
   type InitializeParams,
+  type Location,
 } from "vscode-languageserver/node";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import { URI } from "./uri";
+import * as fs from "node:fs";
 import * as path from "node:path";
 import { codePointToUtf16, utf16ToCodePoint } from "./codePoints";
 import { classifyCursor, DIRECTIVES } from "./context";
+import { enclosingAttrName, fieldForKind, PAYLOAD_FIELDS } from "./eventPayload";
 import { readSidecarDiags } from "./diagsSidecar";
 import { formatUetkx, UetkxFormatOptions, DEFAULT_FORMAT_OPTIONS } from "./formatUetkx";
 import { scanFile } from "./uetkxFileScan";
 import { loadFormatterConfig, schemaForFile, UetkxSchema } from "./uetkxSchema";
+import {
+  findExporter,
+  getDecls,
+  importCursorAt,
+  resolveDiagnostics,
+  resolveSpecifier,
+  suggestSpecifier,
+  sweptUetkxFiles,
+  workspaceRootFor,
+} from "./uetkxWorkspace";
+import { ClangdProxy } from "./clangdProxy";
+import { buildEmbeddedView, embeddedPositionRequest, isEmbeddedOffset, virtualUriOf } from "./embeddedIntel";
 
 const connection = createConnection(ProposedFeatures.all);
 const documents = new TextDocuments(TextDocument);
 
+// ── embedded-C++ intelligence: one clangd proxy per server, started lazily on the first request
+//    that lands inside a setup/hook/module body. start() is idempotent and resolves false when
+//    clangd is absent — every embedded path then returns null and falls back to the markup baseline
+//    (the family's documented degradation), so the server never hard-depends on clangd.
+let clangd: ClangdProxy | null = null;
+async function embeddedProxy(doc: TextDocument): Promise<ClangdProxy | null> {
+  if (!clangd) {
+    const root = workspaceRootFor(fsPathOf(doc)) ?? path.dirname(fsPathOf(doc));
+    clangd = new ClangdProxy("clangd", root);
+  }
+  await clangd.start();
+  return clangd.isAvailable() ? clangd : null;
+}
+
 connection.onInitialize((_params: InitializeParams) => ({
   capabilities: {
     textDocumentSync: TextDocumentSyncKind.Incremental,
-    completionProvider: { triggerCharacters: ["<", "@", ".", " "] },
+    completionProvider: { triggerCharacters: ["<", "@", ".", " ", "{", '"', "/"] },
     hoverProvider: true,
+    definitionProvider: true,
     documentFormattingProvider: true,
   },
 }));
@@ -64,10 +96,25 @@ function validate(doc: TextDocument): void {
     });
   };
   const scan = scanFile(text, path.basename(fsPathOf(doc), ".uetkx"));
-  for (const d of scan.diags) push(d.offset, d.length, d.severity, d.code, d.message);
+  const seen = new Set<string>();
+  for (const d of scan.diags) {
+    seen.add(`${d.code}@${d.offset}:${d.length}`);
+    push(d.offset, d.length, d.severity, d.code, d.message);
+  }
   if (!scan.diags.some((d) => d.severity === 0)) {
-    // clean parse: surface the compiler's full verdict for THIS content (hash-gated)
-    for (const d of readSidecarDiags(fsPathOf(doc), text)) push(d.off, d.len, d.severity, d.code, d.message);
+    // clean parse: live import resolution (2300/2301/2302/2308) off the workspace, then the
+    // compiler's full hash-gated verdict for the rest — de-duped by code+range so a code the live
+    // pass already produced does not double when the sidecar is fresh.
+    for (const d of resolveDiagnostics(scan, fsPathOf(doc))) {
+      const key = `${d.code}@${d.off}:${d.len}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        push(d.off, d.len, d.severity, d.code, d.message);
+      }
+    }
+    for (const d of readSidecarDiags(fsPathOf(doc), text)) {
+      if (!seen.has(`${d.code}@${d.off}:${d.len}`)) push(d.off, d.len, d.severity, d.code, d.message);
+    }
   }
   connection.sendDiagnostics({ uri: doc.uri, diagnostics: diags });
 }
@@ -81,15 +128,101 @@ connection.onCompletion((params): CompletionItem[] => {
   const doc = documents.get(params.textDocument.uri);
   if (!doc) return [];
   const text = doc.getText();
+
+  // Import intelligence takes precedence in the preamble: a `import { … } from "…"` cursor
+  // completes exported NAMES of the resolved target, or workspace-relative SPECIFIER paths.
+  const imp = importCursorAt(text, doc.offsetAt(params.position));
+  if (imp) {
+    const fsPath = fsPathOf(doc);
+    if (imp.kind === "import-specifier") {
+      const importerDir = path.dirname(fsPath);
+      const items: CompletionItem[] = [];
+      for (const file of sweptUetkxFiles(fsPath)) {
+        if (path.resolve(file) === path.resolve(fsPath)) continue; // never import yourself
+        const decls = (getDecls(file) ?? []).filter((d) => d.exported);
+        if (decls.length === 0) continue;
+        const spec = suggestSpecifier(fsPath, file);
+        items.push({
+          label: spec,
+          kind: CompletionItemKind.File,
+          detail: decls.map((d) => d.name).join(", "),
+          insertText: spec,
+          documentation: path.relative(importerDir, file).replace(/\\/g, "/"),
+        });
+      }
+      return items;
+    }
+    // import-name: exported decls of the resolved specifier (or, if the specifier is not yet
+    // typed/resolvable, every exported name in the workspace so the author can pick then fix up).
+    const key = imp.specifier ? resolveSpecifier(fsPath, imp.specifier) : null;
+    const seen = new Set<string>();
+    const items: CompletionItem[] = [];
+    const add = (name: string, kind: string) => {
+      if (seen.has(name)) return;
+      seen.add(name);
+      items.push({ label: name, kind: kind === "hook" ? CompletionItemKind.Function : kind === "module" ? CompletionItemKind.Module : CompletionItemKind.Class, detail: kind });
+    };
+    if (key) {
+      for (const d of getDecls(key) ?? []) if (d.exported) add(d.name, d.kind);
+    } else {
+      for (const file of sweptUetkxFiles(fsPath)) {
+        if (path.resolve(file) === path.resolve(fsPath)) continue;
+        for (const d of getDecls(file) ?? []) if (d.exported) add(d.name, d.kind);
+      }
+    }
+    return items;
+  }
+
+  const schema = schemaOf(doc);
+
+  // TD-016: typed event payload — `Value.<field>` inside an event handler expression completes the
+  // FRuiValue field, with the ENCLOSING event's field first (OnTextChanged → Value.TextValue).
+  const off = doc.offsetAt(params.position);
+  const before = text.slice(Math.max(0, off - 48), off);
+  if (/\bValue\.[A-Za-z0-9_]*$/.test(before)) {
+    const attr = enclosingAttrName(text, off);
+    const want = fieldForKind(attr && schema.eventPayloads ? schema.eventPayloads[attr] : undefined);
+    const items: CompletionItem[] = [];
+    if (want) {
+      items.push({ label: want.field, kind: CompletionItemKind.Field, detail: `${want.type} — ${attr} payload`, sortText: "0" });
+    }
+    for (const f of PAYLOAD_FIELDS) {
+      if (want && f.field === want.field) continue;
+      items.push({ label: f.field, kind: CompletionItemKind.Field, detail: f.type, sortText: "1" + f.field });
+    }
+    return items;
+  }
+
   const cp = utf16ToCodePoint(text, doc.offsetAt(params.position));
   const ctx = classifyCursor(text, cp);
-  const schema = schemaOf(doc);
   if (ctx.kind === "tag") {
-    return Object.keys(schema.elements).map((tag) => ({
+    const items: CompletionItem[] = Object.keys(schema.elements).map((tag) => ({
       label: tag,
       kind: CompletionItemKind.Class,
       detail: schema.elements[tag].factory,
     }));
+    // Import intelligence: a component declared in THIS file or imported here is renderable as a
+    // `<Tag>` too — fold those in after the host elements (host names win a collision).
+    const fsPath = fsPathOf(doc);
+    const scan = scanFile(text, path.basename(fsPath, ".uetkx"));
+    const seen = new Set<string>(Object.keys(schema.elements));
+    const addComp = (name: string, detail: string) => {
+      if (seen.has(name)) return;
+      seen.add(name);
+      items.push({ label: name, kind: CompletionItemKind.Class, detail });
+    };
+    for (const c of scan.components) addComp(c.name, "component (this file)");
+    for (const imp of scan.imports) {
+      const key = resolveSpecifier(fsPath, imp.specifier);
+      const decls = key ? getDecls(key) : null;
+      for (const nm of imp.names) {
+        // A resolved import: offer it only when it is (or is presumed) a component; a known hook/
+        // module is not a tag. Unresolved (decls null) → offer it, the author knows their intent.
+        const d = decls?.find((x) => x.name === nm);
+        if (!d || d.kind === "component") addComp(nm, "component (imported)");
+      }
+    }
+    return items;
   }
   if (ctx.kind === "attr") {
     const items: CompletionItem[] = [];
@@ -113,11 +246,23 @@ connection.onCompletion((params): CompletionItem[] => {
 
 // ── hover ──────────────────────────────────────────────────────────────────────────────────
 
-connection.onHover((params) => {
+connection.onHover(async (params) => {
   const doc = documents.get(params.textDocument.uri);
   if (!doc) return null;
   const text = doc.getText();
   const offset = doc.offsetAt(params.position);
+
+  // Embedded C++ takes precedence when the cursor is inside a setup/hook/module body: forward to
+  // clangd over the virtual document. A null (not embedded, clangd absent, or no hover) falls
+  // through to the markup baseline below.
+  if (isEmbeddedOffset(text, offset)) {
+    const proxy = await embeddedProxy(doc);
+    if (proxy) {
+      const hover = await embeddedPositionRequest(proxy, "textDocument/hover", doc.uri, text, offset);
+      if (hover) return translateEmbeddedHover(hover as Hover, doc, text);
+    }
+  }
+
   let start = offset;
   let end = offset;
   const isWord = (c: string) => /[A-Za-z0-9_.]/.test(c);
@@ -144,8 +289,138 @@ connection.onHover((params) => {
   if (schema.styleKeys.includes(word)) {
     return { contents: { kind: "markdown" as const, value: `**${word}** — style key (host-applied; resets on removal)` } };
   }
+  // TD-016: an event attribute — show the payload its handler's `Value` carries.
+  if (schema.eventPayloads && schema.eventPayloads[word] !== undefined) {
+    const f = fieldForKind(schema.eventPayloads[word]);
+    const payload = f ? `the payload arrives as \`Value.${f.field}\` (\`${f.type}\`)` : "zero-payload — ignore `Value`";
+    return { contents: { kind: "markdown" as const, value: `**${word}** — event; ${payload}` } };
+  }
   return null;
 });
+
+// ── go-to-definition (imports + workspace-exported references) ───────────────────────────────
+
+connection.onDefinition(async (params): Promise<Definition | null> => {
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc) return null;
+  const markup = markupDefinition(doc, params);
+  if (markup) return markup;
+
+  // Fallback: a cursor inside embedded C++ that the markup index could not resolve — forward to
+  // clangd. Locations clangd returns INTO the virtual doc are translated back to .uetkx; real
+  // engine-header locations pass through. Null (not embedded / clangd absent / no result) is fine.
+  const text = doc.getText();
+  const offset = doc.offsetAt(params.position);
+  if (isEmbeddedOffset(text, offset)) {
+    const proxy = await embeddedProxy(doc);
+    if (proxy) {
+      const result = await embeddedPositionRequest(proxy, "textDocument/definition", doc.uri, text, offset);
+      const translated = translateEmbeddedDefinition(result, doc, text);
+      if (translated) return translated;
+    }
+  }
+  return null;
+});
+
+/** Translate an embedded (clangd) hover: its `range` is in VIRTUAL-doc coordinates, so map it back to
+ *  the .uetkx source range before returning (bughunt LSP-2 — an untranslated range highlights the wrong
+ *  span, or lands out of bounds). A range in the prelude scaffolding is dropped (keep the contents). */
+function translateEmbeddedHover(hover: Hover, doc: TextDocument, source: string): Hover {
+  const h = hover as Hover & {
+    range?: { start: { line: number; character: number }; end: { line: number; character: number } };
+  };
+  if (!h.range) return hover;
+  const view = buildEmbeddedView(source);
+  const startOff = view.sourceOffsetOf(h.range.start);
+  const endOff = view.sourceOffsetOf(h.range.end);
+  if (startOff === null || endOff === null) {
+    return { contents: h.contents };
+  }
+  return { contents: h.contents, range: { start: doc.positionAt(startOff), end: doc.positionAt(endOff) } };
+}
+
+/** Translate a clangd definition result: locations pointing back into THIS document's virtual C++
+ *  are mapped to .uetkx ranges; locations in real files (engine headers) pass through unchanged;
+ *  anything landing in the prelude scaffolding is dropped. */
+function translateEmbeddedDefinition(result: unknown, doc: TextDocument, source: string): Definition | null {
+  if (!result) return null;
+  const virtualUri = virtualUriOf(doc.uri);
+  const view = buildEmbeddedView(source);
+  const locs = (Array.isArray(result) ? result : [result]) as Location[];
+  const out: Location[] = [];
+  for (const loc of locs) {
+    if (!loc || typeof loc.uri !== "string") continue;
+    if (!URI.sameUri(loc.uri, virtualUri)) {
+      out.push(loc); // a real file (engine header) — pass through
+      continue;
+    }
+    const startOff = view.sourceOffsetOf(loc.range.start);
+    const endOff = view.sourceOffsetOf(loc.range.end);
+    if (startOff === null || endOff === null) continue; // in the prelude — not addressable in .uetkx
+    out.push({
+      uri: doc.uri,
+      range: { start: doc.positionAt(startOff), end: doc.positionAt(endOff) },
+    });
+  }
+  if (out.length === 0) return null;
+  return out.length === 1 ? out[0] : out;
+}
+
+function markupDefinition(doc: TextDocument, params: { position: { line: number; character: number } }): Definition | null {
+  const text = doc.getText();
+  const fsPath = fsPathOf(doc);
+  const cpOff = utf16ToCodePoint(text, doc.offsetAt(params.position));
+  const scan = scanFile(text, path.basename(fsPath, ".uetkx"));
+
+  // A location at a name inside a target file, given the name's code-point offset there.
+  const locAtDecl = (targetFsPath: string, nameAt: number, nameLen: number): Definition | null => {
+    let src: string;
+    try {
+      src = fs.readFileSync(targetFsPath, "utf8");
+    } catch {
+      return null;
+    }
+    const startU16 = codePointToUtf16(src, nameAt);
+    const tdoc = TextDocument.create(URI.fromFsPath(targetFsPath), "uetkx", 0, src);
+    return { uri: tdoc.uri, range: { start: tdoc.positionAt(startU16), end: tdoc.positionAt(startU16 + nameLen) } };
+  };
+
+  // 1. Cursor on an import: a NAME jumps to its export in the target; the SPECIFIER opens the file.
+  for (const impDecl of scan.imports) {
+    for (let n = 0; n < impDecl.names.length; n++) {
+      const at = impDecl.nameAts[n];
+      if (cpOff >= at && cpOff <= at + impDecl.names[n].length) {
+        const key = resolveSpecifier(fsPath, impDecl.specifier);
+        if (!key) return null;
+        const d = (getDecls(key) ?? []).find((x) => x.name === impDecl.names[n]);
+        return d ? locAtDecl(key, d.nameAt, d.name.length) : null;
+      }
+    }
+    const sq = impDecl.specifierAt; // opening quote; specifier text runs (sq, sq+len]
+    if (cpOff > sq && cpOff <= sq + impDecl.specifier.length + 1) {
+      const key = resolveSpecifier(fsPath, impDecl.specifier);
+      if (!key) return null;
+      const tdoc = TextDocument.create(URI.fromFsPath(key), "uetkx", 0, "");
+      return { uri: tdoc.uri, range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } } };
+    }
+  }
+
+  // 2. Cursor on a bare identifier (markup tag / hook / module ref): jump to its workspace exporter.
+  let start = cpOff;
+  let end = cpOff;
+  const srcCp = [...text].map((c) => c.codePointAt(0)!);
+  const isIdent = (c: number) => c === 95 || (c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122);
+  while (start > 0 && isIdent(srcCp[start - 1])) start--;
+  while (end < srcCp.length && isIdent(srcCp[end])) end++;
+  if (end <= start) return null;
+  const word = String.fromCodePoint(...srcCp.slice(start, end));
+  // same-file decl first
+  for (const c of scan.components) if (c.name === word) return locAtDecl(fsPath, c.nameAt, word.length);
+  for (const h of scan.hooks) if (h.name === word) return locAtDecl(fsPath, h.nameAt, word.length);
+  for (const m of scan.modules) if (m.name === word) return locAtDecl(fsPath, m.nameAt, word.length);
+  const hit = findExporter(word, fsPath);
+  return hit ? locAtDecl(hit.file, hit.nameAt, word.length) : null;
+}
 
 // ── formatting (uetkx.config.json walk-up, tab default) ────────────────────────────────────
 

@@ -11,6 +11,7 @@
 #include "Misc/Paths.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
+#include "UetkxFileScan.h"
 #include "UetkxLexer.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -93,6 +94,147 @@ bool FRuiUetkxScannerTest::RunTest(const FString&)
 		{
 			const TSharedPtr<FJsonObject> Case = Value->AsObject();
 			RunCase(Case->GetStringField(TEXT("section")), Case);
+		}
+	}
+
+	// ── fileScan sections: run FUetkxFileScan::Scan over a whole source, assert the parsed shape.
+	// Family-core import/export/mixed-decl grammar (`fileScan`) + per-leg hook casing (`fileScanLeg`)
+	// — the same cases run by lsp-server's node --test (the mirror contract, A4).
+	auto Join = [](const TArray<FString>& A, const TCHAR* Sep) { return FString::Join(A, Sep); };
+	auto KindName = [](EUetkxDeclKind K)
+	{
+		return K == EUetkxDeclKind::Component ? TEXT("component")
+			   : K == EUetkxDeclKind::Hook	  ? TEXT("hook")
+											  : TEXT("module");
+	};
+	auto RunFileScan = [this, &Total, &Join, &KindName](const TSharedPtr<FJsonObject>& Case)
+	{
+		const FString Name = Case->GetStringField(TEXT("name"));
+		const FString Input = Case->GetStringField(TEXT("input"));
+		FString Basename;
+		Case->TryGetStringField(TEXT("basename"), Basename);
+		const TSharedPtr<FJsonObject> Expect = Case->GetObjectField(TEXT("expect"));
+		const FUetkxFileScanResult Scan = FUetkxFileScan::Scan(Input, Basename);
+		const FString Label = FString::Printf(TEXT("[fileScan] %s"), *Name);
+		++Total;
+
+		const TArray<TSharedPtr<FJsonValue>>* Exp = nullptr;
+		if (Expect->TryGetArrayField(TEXT("imports"), Exp))
+		{
+			TArray<FString> ExpS;
+			for (const TSharedPtr<FJsonValue>& V : *Exp)
+			{
+				const TSharedPtr<FJsonObject> O = V->AsObject();
+				TArray<FString> Ns;
+				for (const TSharedPtr<FJsonValue>& NV : O->GetArrayField(TEXT("names")))
+				{
+					Ns.Add(NV->AsString());
+				}
+				ExpS.Add(FString::Printf(TEXT("%s<-%s"), *Join(Ns, TEXT("|")), *O->GetStringField(TEXT("specifier"))));
+			}
+			TArray<FString> ActS;
+			for (const FUetkxImportDecl& I : Scan.Imports)
+			{
+				ActS.Add(FString::Printf(TEXT("%s<-%s"), *Join(I.Names, TEXT("|")), *I.Specifier));
+			}
+			TestEqual(Label + TEXT(" imports"), Join(ActS, TEXT(";")), Join(ExpS, TEXT(";")));
+		}
+
+		auto CheckDecls = [&](const TCHAR* Field, const TArray<FString>& ActNames, const TArray<bool>& ActExported)
+		{
+			const TArray<TSharedPtr<FJsonValue>>* E = nullptr;
+			if (!Expect->TryGetArrayField(Field, E))
+			{
+				return;
+			}
+			TArray<FString> ExpS;
+			for (const TSharedPtr<FJsonValue>& V : *E)
+			{
+				const TSharedPtr<FJsonObject> O = V->AsObject();
+				bool Exported = false;
+				O->TryGetBoolField(TEXT("exported"), Exported);
+				ExpS.Add(
+					FString::Printf(TEXT("%s:%s"), *O->GetStringField(TEXT("name")), Exported ? TEXT("E") : TEXT("P")));
+			}
+			TArray<FString> ActS;
+			for (int32 x = 0; x < ActNames.Num(); ++x)
+			{
+				ActS.Add(FString::Printf(TEXT("%s:%s"), *ActNames[x], ActExported[x] ? TEXT("E") : TEXT("P")));
+			}
+			TestEqual(Label + TEXT(" ") + Field, Join(ActS, TEXT(",")), Join(ExpS, TEXT(",")));
+		};
+		TArray<FString> CNames, HNames, MNames;
+		TArray<bool> CExp, HExp, MExp;
+		for (const FUetkxComponentDecl& D : Scan.Components)
+		{
+			CNames.Add(D.Name);
+			CExp.Add(D.bExported);
+		}
+		for (const FUetkxHookDecl& D : Scan.Hooks)
+		{
+			HNames.Add(D.Name);
+			HExp.Add(D.bExported);
+		}
+		for (const FUetkxModuleDecl& D : Scan.Modules)
+		{
+			MNames.Add(D.Name);
+			MExp.Add(D.bExported);
+		}
+		CheckDecls(TEXT("components"), CNames, CExp);
+		CheckDecls(TEXT("hooks"), HNames, HExp);
+		CheckDecls(TEXT("modules"), MNames, MExp);
+
+		if (Expect->TryGetArrayField(TEXT("order"), Exp))
+		{
+			TArray<FString> ExpS;
+			for (const TSharedPtr<FJsonValue>& V : *Exp)
+			{
+				ExpS.Add(V->AsString());
+			}
+			TArray<FString> ActS;
+			for (const TPair<EUetkxDeclKind, int32>& P : Scan.Order)
+			{
+				const FString Nm = P.Key == EUetkxDeclKind::Component ? Scan.Components[P.Value].Name
+								   : P.Key == EUetkxDeclKind::Hook	  ? Scan.Hooks[P.Value].Name
+																	  : Scan.Modules[P.Value].Name;
+				ActS.Add(FString::Printf(TEXT("%s:%s"), KindName(P.Key), *Nm));
+			}
+			TestEqual(Label + TEXT(" order"), Join(ActS, TEXT(",")), Join(ExpS, TEXT(",")));
+		}
+
+		if (Expect->TryGetArrayField(TEXT("diags"), Exp))
+		{
+			TArray<FString> ExpS;
+			for (const TSharedPtr<FJsonValue>& V : *Exp)
+			{
+				ExpS.Add(V->AsString());
+			}
+			ExpS.Sort();
+			TArray<FString> ActS;
+			for (const FUetkxDiag& D : Scan.Diags)
+			{
+				ActS.Add(D.Code);
+			}
+			ActS.Sort();
+			TestEqual(Label + TEXT(" diags"), Join(ActS, TEXT(",")), Join(ExpS, TEXT(",")));
+		}
+
+		bool NoError = false;
+		if (Expect->TryGetBoolField(TEXT("noError"), NoError) && NoError)
+		{
+			TestFalse(Label + TEXT(" no error"), Scan.HasError());
+		}
+	};
+	for (const FString& Section : {FString(TEXT("fileScan")), FString(TEXT("fileScanLeg"))})
+	{
+		const TArray<TSharedPtr<FJsonValue>>* Cases = nullptr;
+		if (TestTrue(FString::Printf(TEXT("section '%s' exists"), *Section),
+					 RootObject->TryGetArrayField(Section, Cases)))
+		{
+			for (const TSharedPtr<FJsonValue>& Value : *Cases)
+			{
+				RunFileScan(Value->AsObject());
+			}
 		}
 	}
 

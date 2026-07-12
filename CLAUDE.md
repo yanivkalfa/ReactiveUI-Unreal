@@ -9,7 +9,14 @@ A **React-style reactive UI library for Unreal Engine 5.6+, in pure C++** — th
 ReactiveUIToolKit (Unity/C#) and ReactiveUI-Godot (GDScript). Function components return a
 virtual tree; a fiber reconciler patches real **Slate** widgets. `.uetkx` markup (grammar
 byte-compatible with the family's `.guitkx`/`.uitkx`) compiles to C++ for shipping and
-interprets live in dev.
+hot-reloads live in dev via **Unreal Live Coding** (whole-project, state preserved; HMR v2 —
+the old dev-loop interpreter was deleted).
+
+`.uetkx` files use **static imports** (strict from day one): `import { A, B } from "./x"` /
+`~/root-alias`, extensionless, named-only, preamble-only; `export` on a `component`/`hook`/
+`module` makes it cross-file addressable (non-exported = private, tree-shaken). A file is a free
+sequence of components + hooks + modules. `-run=RUIMigrateImports` is the idempotent codemod that
+adds `export` + the needed imports to an existing tree (`RUICompile -check` enforces resolution).
 
 **The plans are the source of truth**: [plans/ROADMAP.md](plans/ROADMAP.md) (living status
 table) and [plans/MASTER_PLAN.md](plans/MASTER_PLAN.md) (locked decisions D-01..D-32, the 10
@@ -72,8 +79,10 @@ talks to engines only through `IRuiHostConfig`. `ReactiveUISlate` implements the
 per-widget adapters (typed props structs + set-bitmask, setter tables, reconstruct masks, event
 proxies). `ReactiveUIUMG`/`ReactiveUICommonUI`/`ReactiveUIMVVMBridge` are the Epic-interop
 modules. `ReactiveUIInterp` (Runtime, `TargetConfigurationDenyList: ["Shipping"]`) owns the
-markup lexer/parser + the dev-loop interpreter; `ReactiveUIToolchain` (UncookedOnly) consumes the
-parser for codegen; `ReactiveUIEditor` (Editor) hosts the watcher/commandlets. Full reasoning:
+markup lexer/parser (parser-only since HMR v2 — the dev-loop interpreter was deleted);
+`ReactiveUIToolchain` (UncookedOnly) consumes the parser for codegen; `ReactiveUIEditor` (Editor)
+hosts the watcher/commandlets + the Live-Coding HMR controller (`FUetkxHmrController`) and the
+`ReactiveUetkx` menu/window. Full reasoning:
 MASTER_PLAN §1; module table: D-27.
 
 ## Conventions (enforce; don't re-litigate)

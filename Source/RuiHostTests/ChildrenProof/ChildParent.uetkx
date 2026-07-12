@@ -1,0 +1,10 @@
+import { ChildHost } from "./ChildHost"
+
+export component ChildParent {
+	return (
+		<ChildHost>
+			<TextBlock Text="FORWARDED-A" />
+			<TextBlock Text="FORWARDED-B" />
+		</ChildHost>
+	);
+}

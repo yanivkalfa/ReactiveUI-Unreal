@@ -14,8 +14,14 @@
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Input/SSlider.h"
+#include "Widgets/Input/SMultiLineEditableTextBox.h"
+#include "Widgets/Input/SSearchBox.h"
+#include "Widgets/Input/SSpinBox.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
+#include "Widgets/Layout/SSeparator.h"
+#include "Widgets/Layout/SWidgetSwitcher.h"
+#include "Widgets/Text/SRichTextBlock.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -274,6 +280,225 @@ bool FRuiWidgetsScrollCanvasTest::RunTest(const FString&)
 
 	Canvas->SlatePrepass(1.0f);
 	TestTrue(TEXT("canvas desired size"), Canvas->GetDesiredSize() == FVector2D(64.0f, 48.0f));
+	return true;
+}
+
+// ── batch 2 (Phase 7): WidgetSwitcher + ScaleBox + Throbber + WrapBox ──────────────────────
+
+static FRuiNodeArray WidgetsBatch2Comp(FRuiContext& Ctx, const FRuiEmptyProps&, const TArray<FRuiNode>&)
+{
+	auto [Page, SetPage] = Ctx.UseState<int32>(0);
+	WidgetTest::IntSetter = SetPage;
+
+	FRuiWidgetSwitcherProps SwitcherProps;
+	SwitcherProps.SetWidgetIndex(Page);
+
+	FRuiScaleBoxProps ScaleProps;
+	ScaleProps.SetStretch(FName(TEXT("scaleToFit")));
+	ScaleProps.SetStretchDirection(FName(TEXT("downOnly")));
+
+	FRuiThrobberProps ThrobProps;
+	ThrobProps.SetNumPieces(5);
+	ThrobProps.SetAnimate(FName(TEXT("verticalAndOpacity")));
+
+	FRuiWrapBoxProps WrapProps;
+	WrapProps.SetOrientation(FName(TEXT("horizontal")));
+	WrapProps.SetWrapSize(120.0f);
+
+	return {RUI::Slate::VerticalBox(
+		FRuiVerticalBoxProps(),
+		{RUI::Slate::WidgetSwitcher(
+			 MoveTemp(SwitcherProps),
+			 {RUI::TextBlock(TEXT("page A")), RUI::TextBlock(TEXT("page B")), RUI::TextBlock(TEXT("page C"))}),
+		 RUI::Slate::ScaleBox(MoveTemp(ScaleProps), {RUI::TextBlock(TEXT("scaled"))}),
+		 RUI::Slate::Throbber(MoveTemp(ThrobProps)),
+		 RUI::Slate::WrapBox(MoveTemp(WrapProps),
+							 {RUI::TextBlock(TEXT("w0")), RUI::TextBlock(TEXT("w1")), RUI::TextBlock(TEXT("w2"))})})};
+}
+RUI_COMPONENT(WidgetsBatch2Comp)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRuiWidgetsBatch2Test, "ReactiveUI.Widgets.Batch2", RUI_WIDGET_TEST_FLAGS)
+bool FRuiWidgetsBatch2Test::RunTest(const FString&)
+{
+	WidgetTest::Reset();
+	TSharedRef<FRuiRoot> Root = FRuiRoot::Create(RUI::FC(&WidgetsBatch2Comp));
+	TSharedPtr<SWidget> Panel = WidgetTest::RootChild(*Root);
+	if (!TestTrue(TEXT("panel mounted"), Panel.IsValid()))
+	{
+		return false;
+	}
+	TSharedRef<SWidget> SwitcherW = Panel->GetChildren()->GetChildAt(0);
+	TSharedRef<SWidget> ScaleW = Panel->GetChildren()->GetChildAt(1);
+	TSharedRef<SWidget> ThrobW = Panel->GetChildren()->GetChildAt(2);
+	TSharedRef<SWidget> WrapW = Panel->GetChildren()->GetChildAt(3);
+
+	// Right Slate types mounted.
+	TestEqual(TEXT("switcher type"), SwitcherW->GetType(), FName(TEXT("SWidgetSwitcher")));
+	TestEqual(TEXT("scalebox type"), ScaleW->GetType(), FName(TEXT("SScaleBox")));
+	TestEqual(TEXT("throbber type"), ThrobW->GetType(), FName(TEXT("SThrobber")));
+	TestEqual(TEXT("wrapbox type"), WrapW->GetType(), FName(TEXT("SWrapBox")));
+
+	// WidgetSwitcher: three pages, index prop applied.
+	SWidgetSwitcher& Switcher = static_cast<SWidgetSwitcher&>(*SwitcherW);
+	TestEqual(TEXT("switcher has 3 pages"), Switcher.GetNumWidgets(), 3);
+	TestEqual(TEXT("active index applied"), Switcher.GetActiveWidgetIndex(), 0);
+
+	// ScaleBox wraps one child; WrapBox flowed three children.
+	TestEqual(TEXT("scalebox has content"), ScaleW->GetChildren()->Num(), 1);
+	TestEqual(TEXT("wrapbox has 3 children"), WrapW->GetChildren()->Num(), 3);
+
+	// State flip drives the switcher index (runtime setter path).
+	AddInfo(TEXT("[switcher] state flip retargets the active page"));
+	WidgetTest::IntSetter(2);
+	Root->FlushSync();
+	TestEqual(TEXT("active index retargeted"), Switcher.GetActiveWidgetIndex(), 2);
+	return true;
+}
+
+// ── batch 2b: text inputs + safe containers + Separator (TD-011 reconstruct mask) ─────────
+
+static FRuiNodeArray WidgetsBatch2bComp(FRuiContext& Ctx, const FRuiEmptyProps&, const TArray<FRuiNode>&)
+{
+	// state 0: thin/white · 1: thin/red (runtime color only) · 2: thick/red (construct change)
+	auto [Phase, SetPhase] = Ctx.UseState<int32>(0);
+	WidgetTest::IntSetter = SetPhase;
+
+	FRuiMultiLineEditableTextBoxProps MultiProps;
+	MultiProps.SetText(FText::FromString(TEXT("line one")));
+	MultiProps.SetHintText(FText::FromString(TEXT("notes")));
+
+	FRuiSearchBoxProps SearchProps;
+	SearchProps.SetHintText(FText::FromString(TEXT("search")));
+
+	FRuiSafeZoneProps SafeProps;
+	SafeProps.SetbIsTitleSafe(true);
+
+	FRuiDPIScalerProps DpiProps;
+	DpiProps.SetDPIScale(1.5f);
+
+	FRuiSeparatorProps SepProps;
+	SepProps.SetThickness(Phase >= 2 ? 6.0f : 2.0f);
+	SepProps.SetColorAndOpacity(Phase >= 1 ? FLinearColor::Red : FLinearColor::White);
+
+	return {RUI::Slate::VerticalBox(FRuiVerticalBoxProps(),
+									{RUI::Slate::MultiLineEditableTextBox(MoveTemp(MultiProps)),
+									 RUI::Slate::SearchBox(MoveTemp(SearchProps)),
+									 RUI::Slate::SafeZone(MoveTemp(SafeProps), {RUI::TextBlock(TEXT("safe"))}),
+									 RUI::Slate::DPIScaler(MoveTemp(DpiProps), {RUI::TextBlock(TEXT("scaled"))}),
+									 RUI::Slate::Separator(MoveTemp(SepProps))})};
+}
+RUI_COMPONENT(WidgetsBatch2bComp)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRuiWidgetsBatch2bTest, "ReactiveUI.Widgets.Batch2b", RUI_WIDGET_TEST_FLAGS)
+bool FRuiWidgetsBatch2bTest::RunTest(const FString&)
+{
+	WidgetTest::Reset();
+	TSharedRef<FRuiRoot> Root = FRuiRoot::Create(RUI::FC(&WidgetsBatch2bComp));
+	TSharedPtr<SWidget> Panel = WidgetTest::RootChild(*Root);
+	if (!TestTrue(TEXT("panel mounted"), Panel.IsValid()))
+	{
+		return false;
+	}
+	TSharedRef<SWidget> MultiW = Panel->GetChildren()->GetChildAt(0);
+	TSharedRef<SWidget> SearchW = Panel->GetChildren()->GetChildAt(1);
+	TSharedRef<SWidget> SafeW = Panel->GetChildren()->GetChildAt(2);
+	TSharedRef<SWidget> DpiW = Panel->GetChildren()->GetChildAt(3);
+
+	TestEqual(TEXT("multiline type"), MultiW->GetType(), FName(TEXT("SMultiLineEditableTextBox")));
+	TestEqual(TEXT("searchbox type"), SearchW->GetType(), FName(TEXT("SSearchBox")));
+	TestEqual(TEXT("safezone type"), SafeW->GetType(), FName(TEXT("SSafeZone")));
+	TestEqual(TEXT("dpiscaler type"), DpiW->GetType(), FName(TEXT("SDPIScaler")));
+	TestEqual(TEXT("multiline initial text"), static_cast<SMultiLineEditableTextBox&>(*MultiW).GetText().ToString(),
+			  FString(TEXT("line one")));
+
+	// ── TD-011 in production: the Separator's Thickness is construct-only ────────────────────
+	SWidget* Sep0 = &Panel->GetChildren()->GetChildAt(4).Get();
+	TestEqual(TEXT("separator type"), Sep0->GetType(), FName(TEXT("SSeparator")));
+
+	AddInfo(TEXT("[reconstruct] a runtime-only change (ColorAndOpacity) must NOT replace the widget"));
+	WidgetTest::IntSetter(1);
+	Root->FlushSync();
+	SWidget* Sep1 = &Panel->GetChildren()->GetChildAt(4).Get();
+	TestEqual(TEXT("color-only change reused the same SSeparator"), (void*)Sep1, (void*)Sep0);
+
+	AddInfo(TEXT("[reconstruct] a construct-only change (Thickness) MUST replace the widget"));
+	WidgetTest::IntSetter(2);
+	Root->FlushSync();
+	SWidget* Sep2 = &Panel->GetChildren()->GetChildAt(4).Get();
+	TestNotEqual(TEXT("thickness change replaced the SSeparator"), (void*)Sep2, (void*)Sep1);
+	TestEqual(TEXT("replacement is still an SSeparator"), Sep2->GetType(), FName(TEXT("SSeparator")));
+	return true;
+}
+
+// ── batch 2c: SpinBox + UniformWrapPanel + RichTextBlock + Grid/UniformGrid panels ─────────
+
+static FRuiNode CellBox(const TCHAR* Label, int32 Column, int32 Row)
+{
+	FRuiBoxProps BoxProps;
+	TSharedRef<FRuiStyleDict> Slot = MakeShared<FRuiStyleDict>();
+	Slot->Add(FName(TEXT("slot.column")), FRuiValue(Column));
+	Slot->Add(FName(TEXT("slot.row")), FRuiValue(Row));
+	BoxProps.SlotProps = Slot;
+	return RUI::Slate::Box(MoveTemp(BoxProps), {RUI::TextBlock(Label)});
+}
+
+static FRuiNodeArray WidgetsBatch2cComp(FRuiContext& Ctx, const FRuiEmptyProps&, const TArray<FRuiNode>&)
+{
+	auto [Val, SetVal] = Ctx.UseState<int32>(0);
+	WidgetTest::IntSetter = SetVal;
+
+	FRuiSpinBoxProps SpinProps;
+	SpinProps.SetValue(Val == 0 ? 0.25f : 0.75f);
+	SpinProps.SetMinValue(0.0f);
+	SpinProps.SetMaxValue(1.0f);
+
+	FRuiRichTextBlockProps RichProps;
+	RichProps.SetText(FText::FromString(TEXT("rich <b>text</>")));
+	RichProps.SetbAutoWrapText(true);
+
+	return {RUI::Slate::VerticalBox(
+		FRuiVerticalBoxProps(),
+		{RUI::Slate::SpinBox(MoveTemp(SpinProps)),
+		 RUI::Slate::UniformWrapPanel(FRuiUniformWrapPanelProps(),
+									  {RUI::TextBlock(TEXT("u0")), RUI::TextBlock(TEXT("u1"))}),
+		 RUI::Slate::RichTextBlock(MoveTemp(RichProps)),
+		 RUI::Slate::GridPanel(FRuiGridPanelProps(), {CellBox(TEXT("g00"), 0, 0), CellBox(TEXT("g11"), 1, 1)}),
+		 RUI::Slate::UniformGridPanel(FRuiUniformGridPanelProps(),
+									  {CellBox(TEXT("c00"), 0, 0), CellBox(TEXT("c01"), 0, 1)})})};
+}
+RUI_COMPONENT(WidgetsBatch2cComp)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRuiWidgetsBatch2cTest, "ReactiveUI.Widgets.Batch2c", RUI_WIDGET_TEST_FLAGS)
+bool FRuiWidgetsBatch2cTest::RunTest(const FString&)
+{
+	WidgetTest::Reset();
+	TSharedRef<FRuiRoot> Root = FRuiRoot::Create(RUI::FC(&WidgetsBatch2cComp));
+	TSharedPtr<SWidget> Panel = WidgetTest::RootChild(*Root);
+	if (!TestTrue(TEXT("panel mounted"), Panel.IsValid()))
+	{
+		return false;
+	}
+	SSpinBox<float>& Spin = static_cast<SSpinBox<float>&>(Panel->GetChildren()->GetChildAt(0).Get());
+	TSharedRef<SWidget> WrapW = Panel->GetChildren()->GetChildAt(1);
+	SRichTextBlock& Rich = static_cast<SRichTextBlock&>(Panel->GetChildren()->GetChildAt(2).Get());
+	TSharedRef<SWidget> GridW = Panel->GetChildren()->GetChildAt(3);
+	TSharedRef<SWidget> UGridW = Panel->GetChildren()->GetChildAt(4);
+
+	TestEqual(TEXT("uniformwrap type"), WrapW->GetType(), FName(TEXT("SUniformWrapPanel")));
+	TestEqual(TEXT("richtext type"), Rich.GetType(), FName(TEXT("SRichTextBlock")));
+	TestEqual(TEXT("gridpanel type"), GridW->GetType(), FName(TEXT("SGridPanel")));
+	TestEqual(TEXT("uniformgrid type"), UGridW->GetType(), FName(TEXT("SUniformGridPanel")));
+
+	TestEqual(TEXT("spinbox value applied"), Spin.GetValue(), 0.25f);
+	TestEqual(TEXT("richtext text applied"), Rich.GetText().ToString(), FString(TEXT("rich <b>text</>")));
+	TestEqual(TEXT("uniformwrap has 2 children"), WrapW->GetChildren()->Num(), 2);
+	TestEqual(TEXT("gridpanel placed 2 cells"), GridW->GetChildren()->Num(), 2);
+	TestEqual(TEXT("uniformgrid placed 2 cells"), UGridW->GetChildren()->Num(), 2);
+
+	AddInfo(TEXT("[spinbox] state flip retargets the value (self-notifying skip path)"));
+	WidgetTest::IntSetter(1);
+	Root->FlushSync();
+	TestEqual(TEXT("spinbox value retargeted"), Spin.GetValue(), 0.75f);
 	return true;
 }
 
