@@ -13,8 +13,8 @@
 DEFINE_LOG_CATEGORY_STATIC(LogRuiCmd, Log, All);
 
 FReactiveUetkxCommands::FReactiveUetkxCommands()
-	: TCommands<FReactiveUetkxCommands>(TEXT("ReactiveUetkx"), LOCTEXT("ContextDesc", "ReactiveUetkx"),
-										NAME_None, FAppStyle::GetAppStyleSetName())
+	: TCommands<FReactiveUetkxCommands>(TEXT("ReactiveUetkx"), LOCTEXT("ContextDesc", "ReactiveUetkx"), NAME_None,
+										FAppStyle::GetAppStyleSetName())
 {
 }
 

@@ -73,7 +73,7 @@ namespace BugfixTest
 	static FRuiNodeArray PresenceMixComp(FRuiContext&, const FRuiEmptyProps&, const TArray<FRuiNode>&)
 	{
 		TArray<FRuiNode> Kids;
-		Kids.Add(RUI::TextBlock(FString(TEXT("UNKEYED"))));  // no key -> positional fallback
+		Kids.Add(RUI::TextBlock(FString(TEXT("UNKEYED")))); // no key -> positional fallback
 		FRuiNode Keyed = RUI::TextBlock(FString(TEXT("KEYEDZERO")));
 		Keyed.Key = FRuiKey(0); // user integer key 0 — must NOT collide with the fallback
 		Kids.Add(MoveTemp(Keyed));
@@ -98,7 +98,8 @@ bool FRuiBugfixRouterTest::RunTest(const FString&)
 	const FString Resolved = RUI::ResolvePath(TEXT("child?tab=1"), TEXT("/parent/page"));
 	// ResolvePath now sees a raw segment (query still embedded — that's expected of ResolvePath); the
 	// router's Navigate strips first. Assert ParseLocation of a correctly-assembled href has a single tail:
-	const FRuiLocation Loc = RUI::ParseLocation(TEXT("/parent/page/child") + RUI::BuildSearch({{TEXT("tab"), TEXT("1")}}));
+	const FRuiLocation Loc =
+		RUI::ParseLocation(TEXT("/parent/page/child") + RUI::BuildSearch({{TEXT("tab"), TEXT("1")}}));
 	TestEqual(TEXT("B2: search is a single ?tab=1"), Loc.Search, FString(TEXT("?tab=1")));
 	TestFalse(TEXT("B2: no doubled '?'"), Loc.Search.Contains(TEXT("?tab=1?")));
 	(void)Resolved;
@@ -276,8 +277,8 @@ bool FRuiBugfixComboBoxTest::RunTest(const FString&)
 		return false;
 	}
 	TArray<TSharedPtr<FRuiValue>> Options{MakeShared<FRuiValue>(10), MakeShared<FRuiValue>(20)};
-	auto Renderer =
-		MakeItemRenderer([](const FRuiValue& V, int32) -> FRuiNode { return RUI::TextBlock(FString::FromInt((int32)V.IntValue)); });
+	auto Renderer = MakeItemRenderer([](const FRuiValue& V, int32) -> FRuiNode
+									 { return RUI::TextBlock(FString::FromInt((int32)V.IntValue)); });
 
 	int32 Fires = 0;
 	int32 LastIndex = -1;
@@ -286,7 +287,11 @@ bool FRuiBugfixComboBoxTest::RunTest(const FString&)
 	Props.SetRenderOption(Renderer);
 	Props.SetSelectedIndex(0);
 	Props.SetOnSelectionChanged(FRuiCallback::Create(
-		[&Fires, &LastIndex](const FRuiValue& V) { ++Fires; LastIndex = (int32)V.IntValue; }));
+		[&Fires, &LastIndex](const FRuiValue& V)
+		{
+			++Fires;
+			LastIndex = (int32)V.IntValue;
+		}));
 
 	TSharedRef<SWidget> Widget = Adapter->CreateWidget(Props, nullptr);
 	SRuiComboBox& Combo = static_cast<SRuiComboBox&>(Widget.Get());
@@ -348,7 +353,8 @@ bool FRuiBugfixMvvmSubclassTest::RunTest(const FString&)
 			 RUI::Mvvm::FindGlobalViewModel(GI, FName(TEXT("SubStats"))) == Sub);
 	// The concrete-class find still works too.
 	TestTrue(TEXT("P1: resolves via the concrete subclass"),
-			 RUI::Mvvm::FindGlobalViewModel(GI, FName(TEXT("SubStats")), URuiTestMvvmSubViewModel::StaticClass()) == Sub);
+			 RUI::Mvvm::FindGlobalViewModel(GI, FName(TEXT("SubStats")), URuiTestMvvmSubViewModel::StaticClass()) ==
+				 Sub);
 
 	GI->Shutdown();
 	GI->RemoveFromRoot();

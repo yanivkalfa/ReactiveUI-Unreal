@@ -16,7 +16,7 @@
 // an approximation; its effects run as they would in PIE.
 
 TSharedRef<FUetkxPreview> FUetkxPreview::FromSource(const FString& Source, const FString& Basename,
-												   FName InComponentName)
+													FName InComponentName)
 {
 	TSharedRef<FUetkxPreview> Preview = MakeShared<FUetkxPreview>();
 

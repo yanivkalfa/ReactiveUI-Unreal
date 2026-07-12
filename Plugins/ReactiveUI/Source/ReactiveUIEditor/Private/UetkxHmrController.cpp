@@ -27,7 +27,7 @@ namespace
 
 #if PLATFORM_WINDOWS
 	// Epic's Live Coding console is a separate process; its window title is "<Project> - Live Coding".
-	HWND GLiveCodingConsoleHwnd = nullptr;	 // the console window, once discovered
+	HWND GLiveCodingConsoleHwnd = nullptr;	  // the console window, once discovered
 	HWINEVENTHOOK GConsoleShowHook = nullptr; // fires when Epic re-shows the console → we hide it instantly
 
 	BOOL CALLBACK FindLiveCodingConsoleProc(HWND Hwnd, LPARAM)
@@ -47,8 +47,7 @@ namespace
 	// delivers this on the editor's message-pumping thread.
 	void CALLBACK OnConsoleShowEvent(HWINEVENTHOOK, DWORD Event, HWND Hwnd, LONG idObject, LONG, DWORD, DWORD)
 	{
-		if (Event == EVENT_OBJECT_SHOW && idObject == OBJID_WINDOW && Hwnd == GLiveCodingConsoleHwnd &&
-			Hwnd != nullptr)
+		if (Event == EVENT_OBJECT_SHOW && idObject == OBJID_WINDOW && Hwnd == GLiveCodingConsoleHwnd && Hwnd != nullptr)
 		{
 			::ShowWindow(Hwnd, SW_HIDE);
 		}
@@ -199,9 +198,8 @@ bool FUetkxHmrController::ConsoleHiderTick(float)
 		{
 			DWORD ProcessId = 0;
 			::GetWindowThreadProcessId(GLiveCodingConsoleHwnd, &ProcessId);
-			GConsoleShowHook = ::SetWinEventHook(EVENT_OBJECT_SHOW, EVENT_OBJECT_SHOW, nullptr,
-												 &OnConsoleShowEvent, ProcessId, 0,
-												 WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
+			GConsoleShowHook = ::SetWinEventHook(EVENT_OBJECT_SHOW, EVENT_OBJECT_SHOW, nullptr, &OnConsoleShowEvent,
+												 ProcessId, 0, WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
 		}
 		if (::IsWindowVisible(GLiveCodingConsoleHwnd))
 		{
@@ -235,8 +233,7 @@ void FUetkxHmrController::RegisterPieHooks()
 	{
 		return;
 	}
-	PiePostStartedHandle =
-		FEditorDelegates::PostPIEStarted.AddRaw(this, &FUetkxHmrController::OnPiePostStarted);
+	PiePostStartedHandle = FEditorDelegates::PostPIEStarted.AddRaw(this, &FUetkxHmrController::OnPiePostStarted);
 	PieEndedHandle = FEditorDelegates::EndPIE.AddRaw(this, &FUetkxHmrController::OnPieEnded);
 }
 
@@ -284,9 +281,9 @@ void FUetkxHmrController::NotifyCodegen(int32 NumChanged, int32 NumErrors, const
 	if (NumErrors > 0)
 	{
 		// Keep a short, newest-first tail for the window; the "ReactiveUI" Message Log has the detail.
-		RecentErrors.Insert({FDateTime::Now().ToString(TEXT("%H:%M")),
-							  FString::Printf(TEXT("%s — %d error(s)"), *Reason, NumErrors)},
-							 0);
+		RecentErrors.Insert(
+			{FDateTime::Now().ToString(TEXT("%H:%M")), FString::Printf(TEXT("%s — %d error(s)"), *Reason, NumErrors)},
+			0);
 		constexpr int32 MaxRecent = 20;
 		if (RecentErrors.Num() > MaxRecent)
 		{
@@ -337,9 +334,9 @@ void FUetkxHmrController::OnPatchComplete()
 		   Status.Swaps);
 	if (GetDefault<UReactiveUetkxEditorSettings>()->bShowNotifications)
 	{
-		FNotificationInfo Info(FText::FromString(FString::Printf(
-			TEXT("HMR: patched %s (%.0f ms)"),
-			Status.LastReason.IsEmpty() ? TEXT("live UI") : *Status.LastReason, Status.LastMs)));
+		FNotificationInfo Info(FText::FromString(
+			FString::Printf(TEXT("HMR: patched %s (%.0f ms)"),
+							Status.LastReason.IsEmpty() ? TEXT("live UI") : *Status.LastReason, Status.LastMs)));
 		Info.ExpireDuration = 2.5f;
 		FSlateNotificationManager::Get().AddNotification(Info);
 	}

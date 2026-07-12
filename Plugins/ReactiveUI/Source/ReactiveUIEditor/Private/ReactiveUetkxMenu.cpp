@@ -34,8 +34,7 @@ namespace
 		int32 LiveRoots = 0;
 		FRuiReconciler::ForEachLive([&LiveRoots](FRuiReconciler&) { ++LiveRoots; });
 		const FUetkxHmrStatus& Status = Controller.GetStatus();
-		UE_LOG(LogRuiMenu, Display,
-			   TEXT("[ReactiveUetkx] HMR %s — live roots: %d, swaps: %d, errors: %d"),
+		UE_LOG(LogRuiMenu, Display, TEXT("[ReactiveUetkx] HMR %s — live roots: %d, swaps: %d, errors: %d"),
 			   Controller.IsActive() ? TEXT("ACTIVE") : TEXT("idle"), LiveRoots, Status.Swaps, Status.Errors);
 	}
 
@@ -47,22 +46,20 @@ namespace
 						  FSlateIcon(),
 						  FUIAction(FExecuteAction::CreateStatic(&InvokeTab, ReactiveUetkxTabs::HmrWindow)));
 		Main.AddMenuEntry("Preview", LOCTEXT("Preview", "Preview"),
-						  LOCTEXT("PreviewTip", "Open the read-only .uetkx component preview."),
-						  FSlateIcon(),
+						  LOCTEXT("PreviewTip", "Open the read-only .uetkx component preview."), FSlateIcon(),
 						  FUIAction(FExecuteAction::CreateStatic(&InvokeTab, ReactiveUetkxTabs::Preview)));
 
 		FToolMenuSection& Debug = Menu->FindOrAddSection("Debug");
-		Debug.AddSubMenu(
-			"Debug", LOCTEXT("Debug", "Debug"), LOCTEXT("DebugTip", "ReactiveUetkx diagnostics."),
-			FNewToolMenuDelegate::CreateLambda(
-				[](UToolMenu* Sub)
-				{
-					FToolMenuSection& S = Sub->FindOrAddSection("DebugSection");
-					S.AddMenuEntry(
-						"CheckRegistry", LOCTEXT("CheckRegistry", "Check Registry"),
-						LOCTEXT("CheckRegistryTip", "Log the HMR status + live reconciler roots to LogRuiEditor."),
-						FSlateIcon(), FUIAction(FExecuteAction::CreateStatic(&CheckRegistry)));
-				}));
+		Debug.AddSubMenu("Debug", LOCTEXT("Debug", "Debug"), LOCTEXT("DebugTip", "ReactiveUetkx diagnostics."),
+						 FNewToolMenuDelegate::CreateLambda(
+							 [](UToolMenu* Sub)
+							 {
+								 FToolMenuSection& S = Sub->FindOrAddSection("DebugSection");
+								 S.AddMenuEntry("CheckRegistry", LOCTEXT("CheckRegistry", "Check Registry"),
+												LOCTEXT("CheckRegistryTip",
+														"Log the HMR status + live reconciler roots to LogRuiEditor."),
+												FSlateIcon(), FUIAction(FExecuteAction::CreateStatic(&CheckRegistry)));
+							 }));
 	}
 } // namespace
 

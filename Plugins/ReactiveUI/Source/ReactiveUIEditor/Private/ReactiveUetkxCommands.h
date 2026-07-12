@@ -19,8 +19,8 @@ public:
 
 	virtual void RegisterCommands() override;
 
-	TSharedPtr<FUICommandInfo> ToggleHmr;		 // Start/Stop the HMR mode
-	TSharedPtr<FUICommandInfo> ToggleHmrWindow;	 // open/close the Hot Reload window
+	TSharedPtr<FUICommandInfo> ToggleHmr;		// Start/Stop the HMR mode
+	TSharedPtr<FUICommandInfo> ToggleHmrWindow; // open/close the Hot Reload window
 
 	/** Run the action a command is bound to (shared by the input processor + any menu wiring). */
 	static void ExecuteToggleHmr();

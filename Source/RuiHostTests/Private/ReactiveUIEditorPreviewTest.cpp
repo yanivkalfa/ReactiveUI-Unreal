@@ -108,7 +108,8 @@ bool FRuiEditorPreviewTest::RunTest(const FString&)
 	{
 		const FString Source = TEXT("component First {\n\treturn ( <VerticalBox></VerticalBox> );\n}\n")
 			TEXT("component PreviewHello {\n\treturn ( <HorizontalBox></HorizontalBox> );\n}\n");
-		TSharedRef<FUetkxPreview> Preview = FUetkxPreview::FromSource(Source, TEXT("Multi"), FName(TEXT("PreviewHello")));
+		TSharedRef<FUetkxPreview> Preview =
+			FUetkxPreview::FromSource(Source, TEXT("Multi"), FName(TEXT("PreviewHello")));
 		TestTrue(TEXT("named compiled component mounts"), Preview->IsValid());
 		TestEqual(TEXT("picked the named component"), Preview->GetComponentName(), FString(TEXT("PreviewHello")));
 

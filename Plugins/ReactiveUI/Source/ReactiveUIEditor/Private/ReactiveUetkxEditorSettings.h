@@ -24,8 +24,7 @@ public:
 	virtual FName GetCategoryName() const override { return FName(TEXT("Plugins")); }
 
 	/** Post a transient editor notification each time HMR applies a live patch. */
-	UPROPERTY(config, EditAnywhere, Category = "Hot Reload",
-			  meta = (DisplayName = "Show swap notifications"))
+	UPROPERTY(config, EditAnywhere, Category = "Hot Reload", meta = (DisplayName = "Show swap notifications"))
 	bool bShowNotifications = true;
 
 	/** Log every watcher event + sweep decision to LogRuiEditor (noisy; for diagnosing missed reloads). */
@@ -53,8 +52,8 @@ public:
 	bool bDisableSessionOnStop = false;
 
 	/** Coalesce a burst of file events into one sweep after this quiet period (ms). */
-	UPROPERTY(config, EditAnywhere, Category = "Hot Reload", meta = (ClampMin = "0", ClampMax = "2000",
-			  DisplayName = "Debounce (ms)"))
+	UPROPERTY(config, EditAnywhere, Category = "Hot Reload",
+			  meta = (ClampMin = "0", ClampMax = "2000", DisplayName = "Debounce (ms)"))
 	int32 DebounceMs = 300;
 
 	/** Project-relative roots the watcher scans for .uetkx changes. */

@@ -24,7 +24,7 @@ namespace
 {
 	const FName GRuiPreviewTabId(TEXT("ReactiveUIPreview"));
 	const FName GRuiHmrTabId(TEXT("ReactiveUetkxHmr"));
-}
+} // namespace
 
 class FReactiveUIEditorModule : public IModuleInterface
 {
@@ -130,8 +130,7 @@ private:
 			return; // headless (commandlet) — no window UI
 		}
 		FGlobalTabmanager::Get()
-			->RegisterNomadTabSpawner(GRuiHmrTabId,
-									  FOnSpawnTab::CreateRaw(this, &FReactiveUIEditorModule::SpawnHmrTab))
+			->RegisterNomadTabSpawner(GRuiHmrTabId, FOnSpawnTab::CreateRaw(this, &FReactiveUIEditorModule::SpawnHmrTab))
 			.SetDisplayName(NSLOCTEXT("ReactiveUetkx", "HmrTabTitle", "ReactiveUetkx Hot Reload"))
 			.SetTooltipText(
 				NSLOCTEXT("ReactiveUetkx", "HmrTabTooltip", "Start/Stop .uetkx Hot Module Reload (Live Coding)"))
@@ -185,7 +184,7 @@ private:
 	}
 
 	TUniquePtr<FUetkxWatcher> Watcher;
-	TArray<TUniquePtr<FAutoConsoleCommand>> HmrCommands; // ReactiveUetkx.HMR.Start/Stop/Toggle
+	TArray<TUniquePtr<FAutoConsoleCommand>> HmrCommands;	 // ReactiveUetkx.HMR.Start/Stop/Toggle
 	TSharedPtr<FReactiveUetkxInputProcessor> InputProcessor; // global shortcut handler (Phase 3)
 };
 

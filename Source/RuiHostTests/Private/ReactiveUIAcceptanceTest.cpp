@@ -118,7 +118,8 @@ bool FRuiAcceptanceTest::RunTest(const FString&)
 								  []() { return RUI::FC(&AcceptanceTest::RefreshCounter); });
 		TSharedRef<FRuiRoot> Root = FRuiRoot::Create(RUI::Named(FName(TEXT("RefreshCounterAcc"))));
 		Root->FlushSync();
-		TestTrue(TEXT("5. counter mounts at 0"), AcceptanceTest::ContainsText(Root->GetWidget().Get(), TEXT("count=0")));
+		TestTrue(TEXT("5. counter mounts at 0"),
+				 AcceptanceTest::ContainsText(Root->GetWidget().Get(), TEXT("count=0")));
 
 		AcceptanceTest::GRefreshCounterSetter(7); // user interacted before the edit
 		Root->FlushSync();

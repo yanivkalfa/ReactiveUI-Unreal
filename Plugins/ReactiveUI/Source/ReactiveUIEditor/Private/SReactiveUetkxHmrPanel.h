@@ -66,6 +66,6 @@ private:
 
 	TSharedPtr<SVerticalBox> ErrorListBox;
 	FDelegateHandle StatusChangedHandle;
-	uint64 BaselineRamBytes = 0;	 // RAM at window open, for the "+N since open" delta
+	uint64 BaselineRamBytes = 0;	   // RAM at window open, for the "+N since open" delta
 	int32 RecordingIndex = INDEX_NONE; // which shortcut row is capturing a key (INDEX_NONE = not recording)
 };
