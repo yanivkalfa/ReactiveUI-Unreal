@@ -236,11 +236,26 @@ referenced from plans/PRs.
     the picked index. Test `ReactiveUI.Widgets.SegmentedControl` (adapter-driven): segment count from
     labels, controlled selection move, the Labels reconstruct-mask gate (same → no rebuild, changed →
     rebuild), and a relabelled widget's new segment count.
-  - **REMAINING (tracked, not blocking):** the batch-2 specials still needing bespoke designs whose
-    CORE value is not cleanly verifiable headless — SComboBox (dropdown rows generate only under a
-    live menu stack), SSuggestionTextBox (suggestion menu, same), SNumericEntryBox (attribute-driven
-    value + inner SEditableText — value display only verifiable interactively); STreeView (hierarchical
-    item model — TD-022 note); and the batch-3 long tail (color
+  - **Interaction harness + NumericEntryBox + ComboBox + SuggestionTextBox: DONE 2026-07-12.** Built
+    a reusable headless **Slate interaction harness** (`Source/RuiHostTests/Private/RuiSlateTestHarness.h`:
+    `FindDescendantByType`/`FindInAllWindowsByType` RTTI-off widget-tree walk, `FTestWindow` live
+    window + prepass, menu/window diagnostics) — the thing that was actually missing to verify the
+    "interactive-only" widgets. On it:
+    - **NumericEntryBox** (`RuiNumericEntryBox.h/.cpp`) — controlled numeric field over
+      `SNumericEntryBox<float>` (no value setter → the controlled value lives in a member its Value
+      attribute reads; skip-when-equal D-16). Test READS THE VALUE BACK from the inner `SEditableText`
+      (a real display round-trip): 42.5 shown, re-render 7 → 7 shown.
+    - **ComboBox** (`RuiComboBox.h/.cpp`) — dropdown over `SComboBox<TSharedPtr<FRuiValue>>` reusing
+      the ListView render-prop for BOTH the selected display and the generated rows (each an FRuiRoot
+      sub-root). Controlled `SelectedIndex`; `OnSelectionChanged` fires only on a user pick. Test drives
+      the REAL menu — opens it, ticks the pushed `SComboListType` with geometry, asserts all 3 option-row
+      sub-roots generate — plus selected-display read-back + controlled move.
+    - **SuggestionTextBox** (`RuiSuggestionTextBox.h/.cpp`) — autocomplete over `SSuggestionTextBox`;
+      `OnShowingSuggestions` delegates to a case-insensitive substring filter over `Suggestions` (the
+      real behaviour behind the dropdown). Test verifies the filter (substring, case-insensitive, empty
+      → none) + controlled text round-trip through the live widget.
+  - **REMAINING (tracked, not blocking):** STreeView (hierarchical item model — TD-022 note); and the
+    batch-3 long tail (color
     pickers, gradients, vector inputs, virtual controls, etc.). Each wraps onto the established
     production line as demand surfaces; the ones above are deferred specifically because their core
     value (menu dropdowns / inner-text-widget behavior) is not cleanly verifiable headless — shipping

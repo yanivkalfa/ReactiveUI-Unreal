@@ -575,7 +575,8 @@ namespace RUI::Slate
 		void RegisterExpandableAreaAdapter();	// RuiExpandableArea.cpp (TD-012 tail; two role slots)
 		void RegisterSegmentedControlAdapter(); // RuiSegmentedControl.cpp (TD-012 tail; tab bar)
 		void RegisterNumericEntryBoxAdapter();	// RuiNumericEntryBox.cpp (TD-012 tail; numeric field)
-		void RegisterComboBoxAdapter();			// RuiComboBox.cpp (TD-012 tail; dropdown selector)
+		void RegisterComboBoxAdapter();			 // RuiComboBox.cpp (TD-012 tail; dropdown selector)
+		void RegisterSuggestionTextBoxAdapter(); // RuiSuggestionTextBox.cpp (TD-012 tail; autocomplete)
 	} // namespace Detail
 
 	void RegisterBuiltinAdapters()
@@ -593,5 +594,6 @@ namespace RUI::Slate
 		Detail::RegisterSegmentedControlAdapter();
 		Detail::RegisterNumericEntryBoxAdapter();
 		Detail::RegisterComboBoxAdapter();
+		Detail::RegisterSuggestionTextBoxAdapter();
 	}
 } // namespace RUI::Slate

@@ -61,9 +61,9 @@ to wrap) · `SPECIAL` (covered by a dedicated mechanism, not a plain adapter).
 
 | Widget | Notes |
 |---|---|
-| SComboBox / SComboButton | templated items → item-model treatment shares SListView design (TD-022) |
-| SNumericEntryBox | numeric input variant (SSpinBox ✅ shipped) |
-| SSuggestionTextBox | text-input family (SSearchBox ✅ shipped) |
+| SComboBox | ✅ **shipped** (TD-012 tail) as `RUI::Slate::ComboBox` — dropdown reusing the ListView render-prop for the selected display + generated rows (FRuiRoot sub-roots); controlled `SelectedIndex`; menu verified headless via the interaction harness |
+| SNumericEntryBox | ✅ **shipped** (TD-012 tail) as `RUI::Slate::NumericEntryBox` — controlled numeric field; display read back from the inner editable text via the harness |
+| SSuggestionTextBox | ✅ **shipped** (TD-012 tail) as `RUI::Slate::SuggestionTextBox` — controlled text + case-insensitive substring suggestion filter (`OnShowingSuggestions`) |
 | SSegmentedControl | ✅ **shipped** (TD-012 tail) as `RUI::Slate::SegmentedControl` — labelled tab-bar selector (`Labels` bake the segments = construct-only reconstruct mask; `SelectedIndex` controlled; `OnSelectionChanged` fires the index) |
 | SExpandableArea | ✅ **shipped** (TD-012 tail) as `RUI::Slate::ExpandableArea` — the family's first TWO-NAMED-SLOT widget (children carry `slot.role="header"`/`"body"`; controlled `bIsExpanded` + `OnExpansionChanged`; `SRuiExpandableArea` reparents into two SBox holders) |
 | SListView / STileView | ✅ **shipped** (TD-022) as `RUI::Slate::ListView` / `TileView` — the family's item-model treatment (declarative `Items` + `RenderItem` render-prop → per-row `FRuiRoot` sub-roots over SListView's virtualized generate/recycle). C++-first (render closure not markup-expressible). |
