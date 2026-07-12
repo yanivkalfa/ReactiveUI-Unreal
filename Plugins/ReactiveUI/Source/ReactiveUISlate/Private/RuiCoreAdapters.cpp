@@ -572,6 +572,7 @@ namespace RUI::Slate
 		void RegisterBatch2WidgetAdapters(); // RuiWidgetAdaptersB2.cpp (Phase 7 batch-2 set)
 		void RegisterItemViewAdapters();	 // RuiListView.cpp (TD-022 virtualized ListView/TileView)
 		void RegisterDragDropAdapters();	 // RuiDragDrop.cpp (TD-004 DragSource/DropTarget)
+		void RegisterExpandableAreaAdapter(); // RuiExpandableArea.cpp (TD-012 tail; two role slots)
 	} // namespace Detail
 
 	void RegisterBuiltinAdapters()
@@ -585,5 +586,6 @@ namespace RUI::Slate
 		Detail::RegisterBatch2WidgetAdapters();
 		Detail::RegisterItemViewAdapters();
 		Detail::RegisterDragDropAdapters();
+		Detail::RegisterExpandableAreaAdapter();
 	}
 } // namespace RUI::Slate

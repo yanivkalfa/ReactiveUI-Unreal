@@ -65,7 +65,7 @@ to wrap) · `SPECIAL` (covered by a dedicated mechanism, not a plain adapter).
 | SNumericEntryBox | numeric input variant (SSpinBox ✅ shipped) |
 | SSuggestionTextBox | text-input family (SSearchBox ✅ shipped) |
 | SSegmentedControl | templated selector |
-| SExpandableArea | header+body — needs a two-named-slot design |
+| SExpandableArea | ✅ **shipped** (TD-012 tail) as `RUI::Slate::ExpandableArea` — the family's first TWO-NAMED-SLOT widget (children carry `slot.role="header"`/`"body"`; controlled `bIsExpanded` + `OnExpansionChanged`; `SRuiExpandableArea` reparents into two SBox holders) |
 | SListView / STileView | ✅ **shipped** (TD-022) as `RUI::Slate::ListView` / `TileView` — the family's item-model treatment (declarative `Items` + `RenderItem` render-prop → per-row `FRuiRoot` sub-roots over SListView's virtualized generate/recycle). C++-first (render closure not markup-expressible). |
 | STreeView | item-model with a hierarchical data shape — needs a per-item child accessor the flat `FRuiValue` item type doesn't carry; separate design (TD-022 note) |
 | SHeaderRow | column headers for the item views (TD-022) |

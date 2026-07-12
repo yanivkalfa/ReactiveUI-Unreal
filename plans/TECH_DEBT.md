@@ -217,11 +217,26 @@ referenced from plans/PRs.
   TD-011 reconstruct mask (Orientation/Thickness construct-only → widget replacement; the test
   proves a color-only change reuses the widget while a thickness change replaces it). Grid
   panels place children by `slot.column`/`slot.row`. Schema grew 15 → 29 host tags. Full suite
-  64/64. **REMAINING (tracked, not blocking):** the item-model views (SListView/STileView/
-  STreeView/SComboBox/SHeaderRow) are TD-022's dedicated `items`-delegate mechanism, NOT plain
-  adapters; the batch-2 specials (SegmentedControl, ExpandableArea two-slot, SuggestionTextBox)
-  and the batch-3 long tail (color pickers, gradients, vector inputs, virtual controls, etc.)
-  wrap onto this exact production line as demand surfaces.
+  64/64. Schema later held at 29 (ListView/TileView are C++-first render-prop APIs, not markup
+  tags — see TD-022). Full suite 71/71.
+  - **ExpandableArea (two-named-slot special): DONE 2026-07-12.** `RUI::Slate::ExpandableArea`
+    (`RuiExpandableArea.h/.cpp`, exported `SRuiExpandableArea`) — the family's FIRST two-named-slot
+    widget. Children carry `slot.role = "header" | "body"`; the wrapper builds SExpandableArea once
+    around two persistent SBox holders (its HeaderContent/BodyContent are construct-time named slots
+    with no runtime setters) and the MultiSlot adapter reparents role-tagged children into them
+    (role-less → body). Expansion is CONTROLLED: `bIsExpanded` applied skip-when-equal against the
+    live state (D-16); `OnExpansionChanged` forwards the user toggle. Test
+    `ReactiveUI.Widgets.ExpandableArea` (adapter-driven, like the slot suite): role routing
+    (header/body/default), controlled collapse+re-expand, and body-holder clear on remove.
+  - **REMAINING (tracked, not blocking):** the batch-2 specials still needing bespoke designs —
+    SComboBox (dropdown rows generate only under a live menu stack — poor headless testability),
+    SSuggestionTextBox (suggestion menu, same), SNumericEntryBox (attribute-driven value + inner
+    SEditableText — value display only verifiable interactively), SSegmentedControl (templated
+    tabs); STreeView (hierarchical item model — TD-022 note); and the batch-3 long tail (color
+    pickers, gradients, vector inputs, virtual controls, etc.). Each wraps onto the established
+    production line as demand surfaces; the ones above are deferred specifically because their core
+    value (menu dropdowns / inner-text-widget behavior) is not cleanly verifiable headless — shipping
+    them now would mean weak tests, against the quality bar.
 
 ## TD-013 — Typed authoring API for style dicts + slot.* props
 - **Where:** `ReactiveUISlate` (would live next to RuiStyle.h)
