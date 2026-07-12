@@ -12,15 +12,20 @@ markup (same grammar as the siblings' `.guitkx`/`.uitkx`) that **compiles to nat
 shipping builds** and **hot-reloads live in PIE** during development: save the file, see the UI
 update in under a second, no C++ recompile, no script VM in your shipped game.
 
-> **Status: alpha — the core loop works end to end.** The reconciler (23 hooks, all stub-free),
-> 15 wrapped Slate widgets with setter styling, the `.uetkx` compiler (committed codegen +
+> **Status: beta — the product is built end to end.** The reconciler (23 core hooks, all
+> stub-free), 35+ wrapped Slate widgets with setter styling (the core set + the batch-2 everyday
+> widgets + specials — ExpandableArea/SegmentedControl/NumericEntryBox/ComboBox/SuggestionTextBox)
+> plus **virtualized `ListView`/`TileView`**, the `.uetkx` compiler (committed codegen +
 > `RUICompile`/drift-gate/contract commandlets), live hot reload mid-session (expression VM +
-> interpreter + editor watcher), the UMG/FieldNotify interop core, and VS Code/VS2022 language
-> tooling are implemented and green under a 52-suite headless battery. The demo gallery's 11
-> screens all compile from `.uetkx`. Open `ReactiveUIUnrealDemo.uproject` (UE 5.6.1+) and press
-> Play. Remaining before v1: the widget-inventory sweep, asset brushes, CommonUI/MVVM plugin
-> layers, docs site — tracked in [plans/ROADMAP.md](plans/ROADMAP.md) and
-> [plans/TECH_DEBT.md](plans/TECH_DEBT.md).
+> interpreter + editor watcher), the full **router** subsystem (17 hooks), **`@theme`/`@uss`
+> stylesheets**, **exit animations** (`<Presence>`), **drag-and-drop** + keyboard shortcuts,
+> first-class **CommonUI/MVVM citizenship** (activatable screens, MVVM global collection, UMG
+> prop-map bridge), an **in-editor `.uetkx` live preview**, and VS Code/VS2022 language tooling
+> (with embedded-C++ clangd intelligence) are implemented and green under an **80-suite headless
+> battery**. The demo gallery's 11 screens all compile from `.uetkx`. Open
+> `ReactiveUIUnrealDemo.uproject` (UE 5.6.1+) and press Play. Remaining before v1: **localization**
+> (FText gathering) and the **docs-site content** — tracked in [plans/ROADMAP.md](plans/ROADMAP.md)
+> and [plans/TECH_DEBT.md](plans/TECH_DEBT.md).
 
 **Quick taste** — `Source/RuiDemo/Screens/SimpleCounter.uetkx` (compiles to the committed
 sibling `.inl`; edit it while the editor runs and the screen hot-swaps in place):

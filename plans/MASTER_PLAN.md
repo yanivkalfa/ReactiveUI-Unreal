@@ -1,7 +1,12 @@
 # ReactiveUI-Unreal — Master Plan (AI-first)
 
 > **Status:** IN PROGRESS
-> **Branch:** `chore/post-merge-tidy` → `dev`   **PR:** pending owner merge   **Phases:** 1/10 done
+> **Branch:** `feat/uetkx-imports` → `dev`   **PR:** pending owner merge   **Phases:** 6/10 done + Phase 7 substantially delivered (localization deferred), Phase 8 in progress
+> **STATUS RECONCILIATION — 2026-07-12.** This banner's `1/10 done` had lagged the delivered
+> state. Phases 1–6 shipped across `feat/core-library` + `feat/uetkx-compiler` + `feat/uetkx-imports`;
+> Phase 7 is substantially delivered (lists/focus/animation/portals/DnD/widget-batch-2 done —
+> localization deferred); Phase 8 (docs) in progress; Phase 9 (release) owner-gated. The live status
+> table is [ROADMAP §7](ROADMAP.md); evidence is `plans/PENDING_CHANGELOG.md` + the 80/80 battery.
 > **STATUS UPDATE — 2026-07-10 (Phase 0 COMPLETE).** PR #4 merged (`657f279`), `master`
 > fast-forwarded. The compile gate ran on the owner's fresh UE 5.6 install: **Development
 > Editor build succeeded, 45/45 actions, 51 s** — all 8 plugin modules + both host modules
