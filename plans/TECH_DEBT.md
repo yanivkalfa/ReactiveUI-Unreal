@@ -351,7 +351,25 @@ referenced from plans/PRs.
   pattern; HookStubs.h parity test), sourceMap.ts spans, clangdProxy.ts child process with
   graceful-degradation notice. The VS2022 polish set (options page, format-on-save, smart
   indent, brace completion — present in the Godot sibling) rides the same follow-up.
-- **Status:** OPEN
+- **Status:** SUBSTANTIALLY DELIVERED (core modules) 2026-07-12 — the three
+  `ide-extensions/lsp-server` modules landed with `node --test` coverage:
+  - **`sourceMap.ts`** — a bidirectional span-based map (.uetkx ↔ virtual C++), binary-searched,
+    plus offset↔position helpers; a virtual offset inside synthetic scaffolding maps to null.
+  - **`virtualDoc.ts`** — `buildVirtualCpp(source)` scans the file and lifts every embedded-C++
+    region (component `setup` blocks, `hook`/`module` bodies) VERBATIM into synthetic
+    functions/namespaces clangd can reason about, each contributing a 1:1 span; markup regions
+    contribute nothing.
+  - **`clangdProxy.ts`** — a clangd child-process client (Content-Length LSP framing, request
+    correlation, `initialize` handshake, `compile_commands.json` walk-up via
+    `findCompileCommands`) with the GRACEFUL-DEGRADATION contract: no clangd on PATH → `start()`
+    resolves false and every `positionRequest` returns null (the LSP falls back to the
+    fully-supported markup baseline — never an error).
+  Test `embeddedCpp.test.ts`: source-map round-trips, position conversions, a lifted hook body +
+  component setup mapped back to source, markup offsets → null, and the clangd-absent degradation
+  path. LSP suite 22/22 (server.test.ts host-tag count updated 15 → 29 for the TD-012 widgets).
+  **REMAINING:** wiring `server.ts` to consult the proxy for hover/completion/definition when the
+  caret is inside a mapped region (the request handlers), and the VS2022 polish set — both
+  meaningfully verifiable only interactively with clangd present.
 
 ## TD-021 — CommonUI activatables + MVVM-plugin glue + UMG prop-map bridge
 - **Where:** `ReactiveUICommonUI`, `ReactiveUIMVVMBridge`, `ReactiveUIUMG`

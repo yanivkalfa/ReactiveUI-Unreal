@@ -39,8 +39,10 @@ test("cursor classification", () => {
 test("shipped schema is the committed compiler export", () => {
   const schema = shippedSchema();
   assert.strictEqual(schema.v, 1);
-  assert.strictEqual(Object.keys(schema.elements).length, 15);
+  // 15 Phase-2 widgets + 14 Batch-2 (Phase 7, TD-012).
+  assert.strictEqual(Object.keys(schema.elements).length, 29);
   assert.strictEqual(schema.elements.Button.attrs.OnClicked, "event");
+  assert.strictEqual(schema.elements.WidgetSwitcher.attrs.WidgetIndex, "int");
   assert.strictEqual(schema.hooks.length, 20);
   assert.ok(schema.styleKeys.includes("RenderOpacity"));
   // TD-016: event payload kinds present + correct.
