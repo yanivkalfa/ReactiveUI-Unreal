@@ -360,7 +360,23 @@ referenced from plans/PRs.
 - **Production-grade resolution:** each lands as its own production line with suites; asset
   brushes first (unblocks real-game UIs), then SListView (the family item_list/tree port
   completes the ledger), then focus.
-- **Status:** OPEN
+- **Status:** PARTIAL — 2 of 3 sub-surfaces delivered 2026-07-12:
+  - **Asset brushes (D-17): DONE.** `RUI::Umg::MakeAssetBrush(UObject*, size, tint, drawAs)`
+    (ReactiveUIUMG) builds an FSlateBrush and registers it with a process-wide FGCObject
+    (`FRuiAssetBrushRoot`) that keeps every live brush's resource object referenced against GC;
+    dead brushes are compacted. `FRuiImageProps::Brush` + `FRuiBorderProps::BorderImageBrush`
+    (TSharedPtr<FSlateBrush>, identity-compared) carry it; the Image/Border adapters apply it
+    (asset brush wins over an FCoreStyle name). Test `ReactiveUI.Umg.AssetBrush` proves the
+    texture survives a full GC while the brush is live and the root compacts on release.
+  - **Focus extensions: DONE.** `RUI::Slate::UseFocus(Ctx) -> {Ref, Focus(), IsFocused()}`
+    (a UseRef weak-widget box the ref lifecycle syncs) + imperative `FocusWidget(handle)` /
+    `ClearFocus()`. Test `ReactiveUI.Slate.Focus` drives the full round-trip through a real
+    SWindow.
+  - **Item-model views (SListView/STileView/STreeView): REMAINING.** The virtualized
+    item-model adapter is the one genuinely large sub-surface here — each generated/recycled
+    row must host its own reconciler subtree (per-row sub-root over SListView's
+    generate/recycle lifecycle). Tracked as the follow-on; the declarative `items`-delegate
+    shape is designed but not yet built.
 
 ## TD-023 — Two-phase fwd-decl aggregator + `#line` project-relative (uetkx-imports M6/M7)
 - **Where:** `UetkxCodegen.cpp` (emit), `UetkxDriver.cpp::BuildAggregators`, `UetkxDriver.h::CodegenVersion`
