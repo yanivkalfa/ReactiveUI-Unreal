@@ -121,10 +121,25 @@ void FRuiReconciler::ScheduleUpdateOnFiber(FRuiFiber* Fiber)
 		return; // torn down — ignore late setState/effect callbacks [audit]
 	}
 	FRuiFiber* Target = Fiber ? Fiber : RootCurrent;
+	// Mark the target AND its alternate twin, and set the subtree flag on every ancestor AND
+	// its twin (React's markUpdateLaneFromFiberToRoot parity). A shared state's Fiber may point
+	// at whichever buffer last rendered THIS component — but a bailed-out ancestor is reached
+	// through the OTHER buffer next pass (ReconcileFiber copies the flag from the committed
+	// side). Marking both twins guarantees the flag survives onto the WIP regardless of which
+	// buffer the async setState (frame/timer callback) happened to land on. [audit: async
+	// setState through a bailing intermediate — TD-003 Presence exposed it].
 	Target->bHasPendingUpdate = true;
+	if (Target->Alternate != nullptr)
+	{
+		Target->Alternate->bHasPendingUpdate = true;
+	}
 	for (FRuiFiber* P = Target->Parent; P != nullptr; P = P->Parent)
 	{
 		P->bSubtreeHasUpdates = true;
+		if (P->Alternate != nullptr)
+		{
+			P->Alternate->bSubtreeHasUpdates = true;
+		}
 	}
 	if (bIsCommitting)
 	{

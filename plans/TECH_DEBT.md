@@ -37,7 +37,23 @@ referenced from plans/PRs.
   though shipping may slip past v1 (critique gap 3 resolution).
 - **Production-grade resolution:** design doc committed in Phase 7; implementation + tests +
   docs in v1.x.
-- **Status:** OPEN
+- **Status:** RESOLVED 2026-07-12. Shipped as the React-community `<Presence>` boundary
+  (framer-motion's AnimatePresence shape) — a pure userland composition over the existing hooks,
+  NOT reconciler surgery, so core risk stayed low and the design is portable to the Unity/Godot
+  siblings as-is. `RUI::Presence(Children, MaxExitSeconds=2)` keeps a removed keyed child mounted
+  ("exiting") instead of deleting it, and `UsePresence(Ctx) -> {bPresent, NotifyDone}` (context)
+  flips `bPresent=false` into the kept child; the child animates via its existing
+  `UseAnimate(bPresent)` and calls `NotifyDone()` when settled, which performs the real unmount.
+  A per-child `MaxExitSeconds` timeout fence (host-clock frame-poll) force-unmounts a child that
+  never notifies; re-entry (the key reappearing mid-exit) cancels the exit with the SAME fiber, so
+  tween state continues from the current value. State preservation falls out for free: because the
+  boundary keeps rendering the same keyed child, the reconciler keeps the same fiber.
+  Files: `RuiPresence.h/.cpp` (ReactiveUICore). Test `ReactiveUI.Core.Presence`: deferred deletion,
+  NotifyDone-driven unmount, timeout fence, re-entry cancel. **Reconciler hardening (same commit):**
+  `ScheduleUpdateOnFiber` now marks the alternate twins too (React's `markUpdateLaneFromFiberToRoot`
+  parity) — a latent bug where an async `setState` (frame/timer callback) on a component reached
+  through a bailed-out intermediate marked the wrong double-buffer and got skipped; Presence's
+  timeout/NotifyDone through `PresenceHost` exposed it. Full suite 61/61.
 
 ## TD-004 — Drag-and-drop + keyboard-shortcut APIs
 - **Where:** `ReactiveUISlate` event layer
