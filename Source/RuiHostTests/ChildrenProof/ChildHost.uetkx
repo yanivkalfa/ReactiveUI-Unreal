@@ -1,0 +1,9 @@
+export component ChildHost {
+	return (
+		<VerticalBox>
+			<TextBlock Text="HOST-HEADER" />
+			{children}
+			<TextBlock Text="HOST-FOOTER" />
+		</VerticalBox>
+	);
+}

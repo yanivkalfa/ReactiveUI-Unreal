@@ -56,11 +56,11 @@ bool FRuiAcceptanceTest::RunTest(const FString&)
 		const FUetkxCheckResult Drift = FUetkxDriver::CheckDrift(Roots);
 		TestEqual(TEXT("1. no .uetkx drift"), Drift.Drift, 0);
 		TestEqual(TEXT("1. no .uetkx compile errors"), Drift.Errors, 0);
-		// 21 = 12 screens + 3 subcomponents (DemoContextPanel, SignalPanel, LabCard — one component
+		// 23 = 12 screens + 3 subcomponents (DemoContextPanel, SignalPanel, LabCard — one component
 		// per file, components/ convention) + 4 support files (ContextDemo.style, SimpleCounter.hooks,
-		// AcceptanceLab.style, AcceptanceLab.hooks) + the 2 CycleProof files (CycleA/CycleB —
-		// cross-file component-cycle parity, M6). AcceptanceLab is the versatile owner-acceptance screen.
-		TestEqual(TEXT("1. all 21 swept .uetkx files (gallery + cycle proof)"), Drift.Total, 21);
+		// AcceptanceLab.style, AcceptanceLab.hooks) + 2 CycleProof (CycleA/CycleB — cross-file cycle
+		// parity, M6) + 2 ChildrenProof (ChildHost/ChildParent — {children} forwarding, TD-015).
+		TestEqual(TEXT("1. all 23 swept .uetkx files (gallery + cycle + children proof)"), Drift.Total, 23);
 	}
 
 	// 2. The contract goldens hold (codegen shape is what the fixtures pinned).

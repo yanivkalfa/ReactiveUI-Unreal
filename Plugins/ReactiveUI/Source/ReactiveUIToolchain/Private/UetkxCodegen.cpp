@@ -880,6 +880,13 @@ namespace
 			}
 			default:
 			{
+				// TD-015: `{children}` SPLICES the component's forwarded children (Ch.Append) rather
+				// than adding a single node — lets a component wrap arbitrary children.
+				if (Child.Type == EUetkxNodeType::Expr && Child.Code.TrimStartAndEnd() == TEXT("children"))
+				{
+					Out += Indent + TEXT("Ch.Append(children);\n");
+					break;
+				}
 				const FString Expr = EmitNodeExpr(Child, AbsAt);
 				if (!Expr.IsEmpty())
 				{
@@ -922,6 +929,11 @@ namespace
 		{
 			if (Node.IsValid() && Node->Type != EUetkxNodeType::Comment)
 			{
+				if (Node->Type == EUetkxNodeType::Expr && Node->Code.TrimStartAndEnd() == TEXT("children"))
+				{
+					Out += Indent + TEXT("Ch.Append(children);\n"); // TD-015 children splice (directive body)
+					continue;
+				}
 				Out += FString::Printf(TEXT("%sCh.Add(%s);\n"), *Indent, *EmitNodeExpr(*Node, AbsAt));
 			}
 		}

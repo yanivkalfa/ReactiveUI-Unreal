@@ -202,7 +202,15 @@ referenced from plans/PRs.
 - **Production-grade resolution:** port the family's Phase-C early-return splitter; add a
   `{children}` splice node lowered to `Ch.Append(children)`; classes ternary sugar can ride
   the schema. Each lands with corpus + codegen-test pins.
-- **Status:** OPEN
+- **Status:** PARTIAL — gap (2) CHILDREN FORWARDING RESOLVED 2026-07-12: `{children}` (an Expr node
+  whose code is exactly `children`) now SPLICES the component's forwarded children via
+  `Ch.Append(children)` at both child-list emit sites (EmitChildren + directive-body EmitBody), so a
+  component can wrap arbitrary children (the reason gallery cards were inlined per-screen). Pinned by
+  the `ChildrenForward` contract golden AND proven end-to-end by `ReactiveUI.Uetkx.Children`
+  (ChildParent wraps two rows in ChildHost → HOST-HEADER + FORWARDED-A/B + HOST-FOOTER all render).
+  REMAINING: (1) early component-level markup returns (family Phase-C splitter port), (3)
+  `classes={expr}` string-form conditional classes, (4) UETKX3002/3003 short-circuit + spread attrs
+  (post-v1 in the family too).
 
 ## TD-016 — Event payload surface is the single magic `Value` (FRuiValue)
 - **Where:** `ReactiveUIToolchain` codegen (event attr lowering)
