@@ -14,7 +14,8 @@
 #include "RuiCoreElements.h"
 #include "RuiNode.h"
 #include "RuiPropsBase.h"
-#include "SRuiCanvas.h" // FRuiDrawFn
+#include "SRuiCanvas.h"			// FRuiDrawFn
+#include "Styling/SlateBrush.h" // FSlateBrush (asset brushes, D-17)
 
 /** SVerticalBox (MultiSlot). Layout comes from the children's slot.* props. */
 struct REACTIVEUISLATE_API FRuiVerticalBoxProps final : public FRuiPropsBase
@@ -56,8 +57,9 @@ struct REACTIVEUISLATE_API FRuiBorderProps final : public FRuiPropsBase
 	RUI_PROP(FName, HAlign, 2)
 	RUI_PROP(FName, VAlign, 3)
 	RUI_PROP(FName, BorderImage, 4)
-	RUI_PROPS_BODY(FRuiBorderProps,
-				   RUI_EQ(Padding) RUI_EQ(BorderBackgroundColor) RUI_EQ(HAlign) RUI_EQ(VAlign) RUI_EQ(BorderImage))
+	RUI_PROP(TSharedPtr<FSlateBrush>, BorderImageBrush, 5) // asset brush (D-17); wins over BorderImage name
+	RUI_PROPS_BODY(FRuiBorderProps, RUI_EQ(Padding) RUI_EQ(BorderBackgroundColor) RUI_EQ(HAlign) RUI_EQ(VAlign)
+										RUI_EQ(BorderImage) RUI_EQ(BorderImageBrush))
 };
 
 /** SBox (SingleContent): size overrides + content alignment. Overrides are settable, not
@@ -77,13 +79,15 @@ struct REACTIVEUISLATE_API FRuiBoxProps final : public FRuiPropsBase
 					   RUI_EQ(MaxDesiredWidth) RUI_EQ(MaxDesiredHeight) RUI_EQ(HAlign) RUI_EQ(VAlign))
 };
 
-/** SImage (Leaf) v1: tint + desired size. Brush CONTENT (textures/materials) is the D-17
- *  GC-root work — it arrives with the style/asset layer, not here. */
+/** SImage (Leaf): tint + desired size + an optional asset Brush (D-17). Build the brush ONCE
+ *  with RUI::Umg::MakeAssetBrush (it GC-roots the texture/material) and pass it by identity —
+ *  RUI_EQ(Brush) compares the shared pointer, so wrap it in UseMemo/UseRef to avoid re-applying. */
 struct REACTIVEUISLATE_API FRuiImageProps final : public FRuiPropsBase
 {
 	RUI_PROP(FLinearColor, ColorAndOpacity, 0)
 	RUI_PROP(FVector2D, DesiredSizeOverride, 1)
-	RUI_PROPS_BODY(FRuiImageProps, RUI_EQ(ColorAndOpacity) RUI_EQ(DesiredSizeOverride))
+	RUI_PROP(TSharedPtr<FSlateBrush>, Brush, 2)
+	RUI_PROPS_BODY(FRuiImageProps, RUI_EQ(ColorAndOpacity) RUI_EQ(DesiredSizeOverride) RUI_EQ(Brush))
 };
 
 /** SScrollBox (MultiSlot). Orientation is runtime-settable (header-sweep verified). */

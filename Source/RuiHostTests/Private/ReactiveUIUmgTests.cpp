@@ -11,17 +11,22 @@
 
 #include "Blueprint/UserWidget.h"
 #include "Engine/GameInstance.h"
+#include "Engine/Texture2D.h"
 #include "Engine/World.h"
 #include "Misc/AutomationTest.h"
+#include "RuiAssetBrush.h"
 #include "RuiCoreElements.h"
 #include "RuiFieldHooks.h"
 #include "RuiHostWidget.h"
 #include "RuiNode.h"
 #include "RuiReconciler.h"
 #include "RuiRoot.h"
+#include "RuiSlateElements.h"
 #include "RuiTestViewModel.h"
 #include "RuiUmgElement.h"
 #include "RuiWorldSubsystem.h"
+#include "UObject/StrongObjectPtr.h"
+#include "Widgets/Images/SImage.h"
 #include "Widgets/Text/STextBlock.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -163,6 +168,67 @@ bool FRuiMvvmTest::RunTest(const FString&)
 
 	Vm->RemoveFromRoot();
 	UmgTest::GViewModel = nullptr;
+	return true;
+}
+
+// ── TD-022 / D-17: asset brushes — GC-rooted texture/material brushes on SImage ────────────
+
+namespace UmgTest
+{
+	static TSharedPtr<FSlateBrush> GBrush;
+
+	static FRuiNodeArray AssetImageComp(FRuiContext&, const FRuiEmptyProps&, const TArray<FRuiNode>&)
+	{
+		FRuiImageProps P;
+		P.SetBrush(GBrush);
+		P.SetDesiredSizeOverride(FVector2D(16.0f, 16.0f));
+		return {RUI::Slate::Image(MoveTemp(P))};
+	}
+	RUI_COMPONENT(AssetImageComp)
+} // namespace UmgTest
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRuiAssetBrushTest, "ReactiveUI.Umg.AssetBrush",
+								 EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+bool FRuiAssetBrushTest::RunTest(const FString&)
+{
+	const int32 Baseline = RUI::Umg::NumTrackedAssetBrushes();
+
+	UTexture2D* Texture = UTexture2D::CreateTransient(4, 4);
+	if (!TestNotNull(TEXT("transient texture created"), Texture))
+	{
+		return false;
+	}
+	FWeakObjectPtr WeakTexture(Texture);
+
+	UmgTest::GBrush = RUI::Umg::MakeAssetBrush(Texture, FVector2D(16.0f, 16.0f), FLinearColor::White);
+	if (!TestTrue(TEXT("brush built"), UmgTest::GBrush.IsValid()))
+	{
+		return false;
+	}
+	TestTrue(TEXT("brush resource is the texture"), UmgTest::GBrush->GetResourceObject() == Texture);
+	TestTrue(TEXT("tracked count grew"), RUI::Umg::NumTrackedAssetBrushes() > Baseline);
+
+	// The Image adapter applies the brush onto a real SImage. Scoped so the host (and its GO-05
+	// node pool, which stashes the released widget's props — and thus a brush ref) is destroyed
+	// before the final baseline check.
+	{
+		TSharedRef<FRuiRoot> Root = FRuiRoot::Create(RUI::FC(&UmgTest::AssetImageComp));
+		Root->FlushSync();
+		TSharedRef<SWidget> ImageW = Root->GetWidget()->GetRootPanel()->GetChildren()->GetChildAt(0);
+		TestEqual(TEXT("SImage mounted"), ImageW->GetType(), FName(TEXT("SImage")));
+
+		// D-17: the texture survives GC while the brush is live (the FGCObject root references it).
+		Texture = nullptr;
+		CollectGarbage(RF_NoFlags, /*bPerformFullPurge*/ true);
+		TestTrue(TEXT("texture survives GC while its brush is live"), WeakTexture.IsValid());
+
+		Root->Unmount();
+	}
+
+	// Release: the brush drops, the root compacts the dead entry, the asset is free again.
+	UmgTest::GBrush.Reset();
+	CollectGarbage(RF_NoFlags, /*bPerformFullPurge*/ true);
+	TestEqual(TEXT("tracked count returns to baseline after release"), RUI::Umg::NumTrackedAssetBrushes(), Baseline);
 	return true;
 }
 

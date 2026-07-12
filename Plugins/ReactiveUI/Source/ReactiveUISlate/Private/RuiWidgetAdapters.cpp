@@ -103,6 +103,8 @@ public:
 		RUI_ROW(HAlign, W.SetHAlign(HAlignOf(N.HAlign)))
 		RUI_ROW(VAlign, W.SetVAlign(VAlignOf(N.VAlign)))
 		RUI_ROW(BorderImage, W.SetBorderImage(FCoreStyle::Get().GetBrush(N.BorderImage)))
+		// Asset brush (D-17) wins over the FCoreStyle name (applied last); GC-rooted by MakeAssetBrush.
+		RUI_ROW(BorderImageBrush, W.SetBorderImage(N.BorderImageBrush.Get()))
 	}
 
 	virtual void SetContent(SWidget& Parent, const TSharedPtr<SWidget>& Child) override
@@ -167,6 +169,9 @@ public:
 		const FRuiImageProps* O = static_cast<const FRuiImageProps*>(Old);
 		RUI_ROW(ColorAndOpacity, W.SetColorAndOpacity(FSlateColor(N.ColorAndOpacity)))
 		RUI_ROW(DesiredSizeOverride, W.SetDesiredSizeOverride(N.DesiredSizeOverride))
+		// Asset brush (D-17): the committed props own the TSharedPtr, so the raw pointer SImage
+		// stores stays valid while mounted; RUI::Umg::MakeAssetBrush GC-roots its resource object.
+		RUI_ROW(Brush, W.SetImage(N.Brush.Get()))
 	}
 };
 
