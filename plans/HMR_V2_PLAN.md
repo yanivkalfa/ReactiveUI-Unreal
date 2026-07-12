@@ -1,5 +1,17 @@
 # HMR v2 + ReactiveUetkx editor menu/window — implementation plan
 
+> **Status:** ✅ SHIPPED (all three phases). Engine `1253510`, menu+window `fa819dc`, shortcuts+settings
+> (this campaign). Build OK; drift 23/0/0; suite 99/99; gates green. Owner still verifies the live
+> Live-Coding loop in-editor (the one leg no headless test can cover) per the acceptance checklist.
+>
+> **Two implementation deviations from the plan's names, both deliberate:**
+> - The controller is **`FUetkxHmrController`** (editor module), not `FRuiHmr` — the old `FRuiHmr` was
+>   the deleted interpreter swapper; a new name avoids implying continuity with it.
+> - The two shortcut chords live **only in the input binding manager** (`EditorKeyBindings.ini`, edited
+>   from Editor Preferences ▸ Keyboard Shortcuts AND the in-window recorder), **not** duplicated in the
+>   settings object. One source of truth — nothing to keep in sync (the plan's "stay in sync" concern is
+>   dissolved rather than managed). `UReactiveUetkxEditorSettings` keeps the non-chord settings.
+
 > **Status:** FINALIZED for build (owner decisions locked, §2 + §7). Replaces the interpreter-based
 > hot-swap (deleted) with a Live-Coding-driven, whole-project HMR, and adds a `ReactiveUetkx` editor
 > menu + a Start/Stop **HMR window** + two rebindable shortcuts — **modeled 1:1 on the Unity sibling**

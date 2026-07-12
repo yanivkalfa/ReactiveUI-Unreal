@@ -2,12 +2,18 @@
 
 #include "SReactiveUetkxHmrPanel.h"
 
+#include "Framework/Application/SlateApplication.h"
+#include "Framework/Commands/InputBindingManager.h"
+#include "Framework/Commands/UICommandInfo.h"
 #include "HAL/PlatformMemory.h"
 #include "Logging/LogMacros.h"
+#include "ReactiveUetkxCommands.h"
+#include "ReactiveUetkxEditorSettings.h"
 #include "Styling/AppStyle.h"
 #include "Styling/CoreStyle.h"
 #include "UetkxHmrController.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SScrollBox.h"
@@ -82,6 +88,26 @@ void SReactiveUetkxHmrPanel::Construct(const FArguments&)
 				  + SVerticalBox::Slot().AutoHeight().Padding(0, 1)
 						[StatRow(LOCTEXT("Ram", "RAM"),
 								 TAttribute<FText>(this, &SReactiveUetkxHmrPanel::GetRamText))]
+				  // ── settings ─────────────────────────────────────────────────────────────
+				  + SVerticalBox::Slot().AutoHeight().Padding(0, 12, 0, 1)
+						[SNew(SCheckBox)
+							 .IsChecked(this, &SReactiveUetkxHmrPanel::IsNotificationsChecked)
+							 .OnCheckStateChanged(this, &SReactiveUetkxHmrPanel::OnNotificationsChanged)
+								 [SNew(STextBlock)
+									  .Font(StatFont)
+									  .Text(LOCTEXT("ShowNotifs", "Show swap notifications"))]]
+				  + SVerticalBox::Slot().AutoHeight().Padding(0, 1)
+						[SNew(SCheckBox)
+							 .IsChecked(this, &SReactiveUetkxHmrPanel::IsVerboseChecked)
+							 .OnCheckStateChanged(this, &SReactiveUetkxHmrPanel::OnVerboseChanged)
+								 [SNew(STextBlock)
+									  .Font(StatFont)
+									  .Text(LOCTEXT("Verbose", "Verbose watcher trace"))]]
+				  // ── rebindable shortcuts (default unbound) ─────────────────────────────────
+				  + SVerticalBox::Slot().AutoHeight().Padding(0, 6, 0, 1)
+						[BuildShortcutRow(0, LOCTEXT("ToggleHmrShort", "Toggle HMR"))]
+				  + SVerticalBox::Slot().AutoHeight().Padding(0, 1)
+						[BuildShortcutRow(1, LOCTEXT("ToggleWindowShort", "Open Window"))]
 				  // ── warning ──────────────────────────────────────────────────────────────
 				  + SVerticalBox::Slot().AutoHeight().Padding(0, 12, 0, 4)
 						[SNew(STextBlock)
@@ -177,6 +203,120 @@ FText SReactiveUetkxHmrPanel::GetRamText() const
 	const int64 DeltaMB = (static_cast<int64>(Now) - static_cast<int64>(BaselineRamBytes)) / (1024 * 1024);
 	return FText::FromString(
 		FString::Printf(TEXT("%s MB (%+lld since open)"), *RamToText(Now).ToString(), DeltaMB));
+}
+
+// ── settings checkboxes (bound to UReactiveUetkxEditorSettings, persisted immediately) ──────────
+ECheckBoxState SReactiveUetkxHmrPanel::IsNotificationsChecked() const
+{
+	return GetDefault<UReactiveUetkxEditorSettings>()->bShowNotifications ? ECheckBoxState::Checked
+																		  : ECheckBoxState::Unchecked;
+}
+
+void SReactiveUetkxHmrPanel::OnNotificationsChanged(ECheckBoxState NewState)
+{
+	UReactiveUetkxEditorSettings* Settings = GetMutableDefault<UReactiveUetkxEditorSettings>();
+	Settings->bShowNotifications = (NewState == ECheckBoxState::Checked);
+	Settings->SaveConfig();
+}
+
+ECheckBoxState SReactiveUetkxHmrPanel::IsVerboseChecked() const
+{
+	return GetDefault<UReactiveUetkxEditorSettings>()->bVerboseWatcher ? ECheckBoxState::Checked
+																	   : ECheckBoxState::Unchecked;
+}
+
+void SReactiveUetkxHmrPanel::OnVerboseChanged(ECheckBoxState NewState)
+{
+	UReactiveUetkxEditorSettings* Settings = GetMutableDefault<UReactiveUetkxEditorSettings>();
+	Settings->bVerboseWatcher = (NewState == ECheckBoxState::Checked);
+	Settings->SaveConfig();
+}
+
+// ── in-window shortcut recorder (edits the command's active chord — the single source of truth) ──
+TSharedPtr<FUICommandInfo> SReactiveUetkxHmrPanel::CommandFor(int32 RecordIndex) const
+{
+	const FReactiveUetkxCommands& Commands = FReactiveUetkxCommands::Get();
+	return RecordIndex == 0 ? Commands.ToggleHmr : Commands.ToggleHmrWindow;
+}
+
+FText SReactiveUetkxHmrPanel::GetShortcutText(int32 RecordIndex) const
+{
+	if (RecordingIndex == RecordIndex)
+	{
+		return LOCTEXT("PressAKey", "press a key…");
+	}
+	TSharedPtr<FUICommandInfo> Command = CommandFor(RecordIndex);
+	const FText Chord = Command.IsValid() ? Command->GetInputText() : FText::GetEmpty();
+	return Chord.IsEmpty() ? LOCTEXT("None", "None") : Chord;
+}
+
+FReply SReactiveUetkxHmrPanel::OnRecordClicked(int32 RecordIndex)
+{
+	RecordingIndex = RecordIndex;
+	// Route the next key press to this panel so OnKeyDown captures the chord.
+	FSlateApplication::Get().SetKeyboardFocus(SharedThis(this), EFocusCause::SetDirectly);
+	return FReply::Handled();
+}
+
+FReply SReactiveUetkxHmrPanel::OnClearShortcut(int32 RecordIndex)
+{
+	if (TSharedPtr<FUICommandInfo> Command = CommandFor(RecordIndex))
+	{
+		Command->RemoveActiveChord(EMultipleKeyBindingIndex::Primary);
+		FInputBindingManager::Get().NotifyActiveChordChanged(*Command, EMultipleKeyBindingIndex::Primary);
+	}
+	if (RecordingIndex == RecordIndex)
+	{
+		RecordingIndex = INDEX_NONE;
+	}
+	return FReply::Handled();
+}
+
+FReply SReactiveUetkxHmrPanel::OnKeyDown(const FGeometry& Geometry, const FKeyEvent& KeyEvent)
+{
+	if (RecordingIndex == INDEX_NONE)
+	{
+		return SCompoundWidget::OnKeyDown(Geometry, KeyEvent);
+	}
+	const FKey Key = KeyEvent.GetKey();
+	if (Key == EKeys::Escape)
+	{
+		RecordingIndex = INDEX_NONE; // cancel, leave the binding unchanged
+		return FReply::Handled();
+	}
+	if (Key.IsModifierKey())
+	{
+		return FReply::Handled(); // wait for the real key that completes the chord
+	}
+	const FInputChord Chord(Key, KeyEvent.IsShiftDown(), KeyEvent.IsControlDown(), KeyEvent.IsAltDown(),
+							KeyEvent.IsCommandDown());
+	if (TSharedPtr<FUICommandInfo> Command = CommandFor(RecordingIndex))
+	{
+		Command->SetActiveChord(Chord, EMultipleKeyBindingIndex::Primary);
+		FInputBindingManager::Get().NotifyActiveChordChanged(*Command, EMultipleKeyBindingIndex::Primary);
+	}
+	RecordingIndex = INDEX_NONE;
+	return FReply::Handled();
+}
+
+TSharedRef<SWidget> SReactiveUetkxHmrPanel::BuildShortcutRow(int32 RecordIndex, const FText& Label)
+{
+	const FSlateFontInfo Font = FCoreStyle::GetDefaultFontStyle("Regular", 9);
+	return SNew(SHorizontalBox)
+		   + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0, 0, 8, 0)
+				 [SNew(SBox).WidthOverride(84)[SNew(STextBlock).Font(Font).Text(Label)]]
+		   + SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
+				 [SNew(SButton)
+					  .ToolTipText(LOCTEXT("RecordTip", "Click, then press a key combo (Esc to cancel)."))
+					  .OnClicked(this, &SReactiveUetkxHmrPanel::OnRecordClicked, RecordIndex)
+						  [SNew(STextBlock)
+							   .Font(Font)
+							   .Text(this, &SReactiveUetkxHmrPanel::GetShortcutText, RecordIndex)]]
+		   + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(4, 0, 0, 0)
+				 [SNew(SButton)
+					  .ToolTipText(LOCTEXT("ClearTip", "Clear this shortcut (unbind)."))
+					  .OnClicked(this, &SReactiveUetkxHmrPanel::OnClearShortcut, RecordIndex)
+						  [SNew(STextBlock).Font(Font).Text(LOCTEXT("ClearX", "×"))]];
 }
 
 void SReactiveUetkxHmrPanel::RebuildErrorList()

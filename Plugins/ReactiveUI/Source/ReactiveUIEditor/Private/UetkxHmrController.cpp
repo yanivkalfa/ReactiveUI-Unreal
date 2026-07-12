@@ -2,9 +2,12 @@
 
 #include "UetkxHmrController.h"
 
+#include "Framework/Notifications/NotificationManager.h"
 #include "ILiveCodingModule.h"
 #include "Modules/ModuleManager.h"
+#include "ReactiveUetkxEditorSettings.h"
 #include "RuiReconciler.h"
+#include "Widgets/Notifications/SNotificationList.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogUetkxHmr, Log, All);
 
@@ -69,6 +72,8 @@ void FUetkxHmrController::Stop()
 	{
 		return;
 	}
+	// Honour the current setting (the window checkbox / Project Settings drive this).
+	bDisableSessionOnStop = GetDefault<UReactiveUetkxEditorSettings>()->bDisableSessionOnStop;
 	if (ILiveCodingModule* LC = LiveCoding())
 	{
 		if (PatchCompleteHandle.IsValid())
@@ -150,6 +155,14 @@ void FUetkxHmrController::OnPatchComplete()
 	Status.LastMs = (FPlatformTime::Seconds() - CycleStartSeconds) * 1000.0;
 	UE_LOG(LogUetkxHmr, Display, TEXT("[RUI HMR] patch applied — refreshed live UI (%.0f ms), %d total"), Status.LastMs,
 		   Status.Swaps);
+	if (GetDefault<UReactiveUetkxEditorSettings>()->bShowNotifications)
+	{
+		FNotificationInfo Info(FText::FromString(FString::Printf(
+			TEXT("HMR: patched %s (%.0f ms)"),
+			Status.LastReason.IsEmpty() ? TEXT("live UI") : *Status.LastReason, Status.LastMs)));
+		Info.ExpireDuration = 2.5f;
+		FSlateNotificationManager::Get().AddNotification(Info);
+	}
 	OnStatusChanged.Broadcast();
 	if (bDirtyAgain) // changes arrived during the compile — land the latest
 	{

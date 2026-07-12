@@ -3,8 +3,10 @@
 #include "Framework/Docking/TabManager.h"
 #include "HAL/IConsoleManager.h"
 #include "Logging/LogMacros.h"
+#include "Framework/Application/SlateApplication.h"
 #include "MessageLogModule.h"
 #include "Modules/ModuleManager.h"
+#include "ReactiveUetkxCommands.h"
 #include "ReactiveUetkxMenu.h"
 #include "SReactiveUetkxHmrPanel.h"
 #include "SUetkxPreviewPanel.h"
@@ -41,6 +43,15 @@ public:
 		RegisterHmrConsoleCommands();
 		RegisterPreviewTab();
 		RegisterHmrWindowTab();
+
+		// Rebindable, default-unbound shortcuts (D-HMR-6) + a global key preprocessor to fire them.
+		FReactiveUetkxCommands::Register();
+		if (FSlateApplication::IsInitialized())
+		{
+			InputProcessor = MakeShared<FReactiveUetkxInputProcessor>();
+			FSlateApplication::Get().RegisterInputPreProcessor(InputProcessor);
+		}
+
 		// The main-menu bar isn't up yet at module load — register once ToolMenus is ready.
 		UToolMenus::RegisterStartupCallback(
 			FSimpleMulticastDelegate::FDelegate::CreateStatic(&FReactiveUetkxMenu::Register));
@@ -53,6 +64,12 @@ public:
 	{
 		FReactiveUetkxMenu::Unregister();
 		UToolMenus::UnRegisterStartupCallback(this);
+		if (InputProcessor.IsValid() && FSlateApplication::IsInitialized())
+		{
+			FSlateApplication::Get().UnregisterInputPreProcessor(InputProcessor);
+		}
+		InputProcessor.Reset();
+		FReactiveUetkxCommands::Unregister();
 		FUetkxHmrController::Get().Shutdown();
 		HmrCommands.Reset();
 		if (Watcher.IsValid())
@@ -164,6 +181,7 @@ private:
 
 	TUniquePtr<FUetkxWatcher> Watcher;
 	TArray<TUniquePtr<FAutoConsoleCommand>> HmrCommands; // ReactiveUetkx.HMR.Start/Stop/Toggle
+	TSharedPtr<FReactiveUetkxInputProcessor> InputProcessor; // global shortcut handler (Phase 3)
 };
 
 IMPLEMENT_MODULE(FReactiveUIEditorModule, ReactiveUIEditor)

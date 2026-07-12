@@ -32,6 +32,7 @@ private:
 	void ReportDiags(const FString& UetkxPath, const TArray<FString>& Errors);
 
 	FTSTicker::FDelegateHandle TickerHandle;
+	TArray<FString> Roots;						 // resolved watched roots (settings.WatchedRoots at Start, else default)
 	TMap<FString, FDelegateHandle> WatchHandles; // root dir -> directory-watcher handle
 	FDelegateHandle ActivationHandle;
 	TMap<FString, FString> LastDiags; // path -> last-reported body (dedup)
