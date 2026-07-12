@@ -27,17 +27,31 @@ namespace
 
 #if PLATFORM_WINDOWS
 	// Epic's Live Coding console is a separate process; its window title is "<Project> - Live Coding".
-	HWND GFoundLiveCodingConsole = nullptr;
+	HWND GLiveCodingConsoleHwnd = nullptr;	 // the console window, once discovered
+	HWINEVENTHOOK GConsoleShowHook = nullptr; // fires when Epic re-shows the console → we hide it instantly
+
 	BOOL CALLBACK FindLiveCodingConsoleProc(HWND Hwnd, LPARAM)
 	{
 		WCHAR Title[256] = {};
 		::GetWindowTextW(Hwnd, Title, UE_ARRAY_COUNT(Title));
 		if (FString(Title).EndsWith(TEXT(" - Live Coding")))
 		{
-			GFoundLiveCodingConsole = Hwnd;
+			GLiveCodingConsoleHwnd = Hwnd;
 			return 0; // found it — stop enumerating (FALSE)
 		}
 		return 1; // keep enumerating (TRUE)
+	}
+
+	// Event-driven re-hide: the console's process raises EVENT_OBJECT_SHOW when BringToFront un-hides it on a
+	// compile; we SW_HIDE it in the same beat, so it never actually paints on screen. WINEVENT_OUTOFCONTEXT
+	// delivers this on the editor's message-pumping thread.
+	void CALLBACK OnConsoleShowEvent(HWINEVENTHOOK, DWORD Event, HWND Hwnd, LONG idObject, LONG, DWORD, DWORD)
+	{
+		if (Event == EVENT_OBJECT_SHOW && idObject == OBJID_WINDOW && Hwnd == GLiveCodingConsoleHwnd &&
+			Hwnd != nullptr)
+		{
+			::ShowWindow(Hwnd, SW_HIDE);
+		}
 	}
 #endif
 } // namespace
@@ -140,12 +154,11 @@ void FUetkxHmrController::StartConsoleHider()
 	{
 		return;
 	}
-	CachedConsoleHwnd = nullptr;
-	// A light poll (every ~0.2s) is needed because Live Coding re-shows its console (BringToFront) on
-	// every compile — a config setting cannot stop that (known engine limitation). Only runs while active.
+	// A SLOW poll (1s) only discovers the console window and installs the event hook; the hook does the
+	// instant re-hiding (the console may not exist until the first compile, hence the discovery loop).
 	ConsoleHiderHandle = FTSTicker::GetCoreTicker().AddTicker(
-		FTickerDelegate::CreateRaw(this, &FUetkxHmrController::ConsoleHiderTick), 0.2f);
-	ConsoleHiderTick(0.0f); // hide immediately if it's already up
+		FTickerDelegate::CreateRaw(this, &FUetkxHmrController::ConsoleHiderTick), 1.0f);
+	ConsoleHiderTick(0.0f); // discover + hide immediately if it's already up
 }
 
 void FUetkxHmrController::StopConsoleHider()
@@ -155,7 +168,14 @@ void FUetkxHmrController::StopConsoleHider()
 		FTSTicker::GetCoreTicker().RemoveTicker(ConsoleHiderHandle);
 		ConsoleHiderHandle.Reset();
 	}
-	CachedConsoleHwnd = nullptr;
+#if PLATFORM_WINDOWS
+	if (GConsoleShowHook != nullptr)
+	{
+		::UnhookWinEvent(GConsoleShowHook);
+		GConsoleShowHook = nullptr;
+	}
+	GLiveCodingConsoleHwnd = nullptr;
+#endif
 	// We do NOT restore the window: Live Coding re-shows it (BringToFront) on the user's next compile, so
 	// stopping the hider is enough — their own C++ builds get Epic's console back with no action from us.
 }
@@ -163,20 +183,33 @@ void FUetkxHmrController::StopConsoleHider()
 bool FUetkxHmrController::ConsoleHiderTick(float)
 {
 #if PLATFORM_WINDOWS
-	HWND Hwnd = static_cast<HWND>(CachedConsoleHwnd);
-	if (Hwnd == nullptr || !::IsWindow(Hwnd))
+	if (GLiveCodingConsoleHwnd == nullptr || !::IsWindow(GLiveCodingConsoleHwnd))
 	{
-		GFoundLiveCodingConsole = nullptr;
-		::EnumWindows(&FindLiveCodingConsoleProc, 0);
-		Hwnd = GFoundLiveCodingConsole;
-		CachedConsoleHwnd = Hwnd;
+		GLiveCodingConsoleHwnd = nullptr;
+		if (GConsoleShowHook != nullptr) // window went away — drop the stale hook, we'll reinstall on rediscovery
+		{
+			::UnhookWinEvent(GConsoleShowHook);
+			GConsoleShowHook = nullptr;
+		}
+		::EnumWindows(&FindLiveCodingConsoleProc, 0); // sets GLiveCodingConsoleHwnd if found
 	}
-	if (Hwnd != nullptr && ::IsWindowVisible(Hwnd))
+	if (GLiveCodingConsoleHwnd != nullptr)
 	{
-		::ShowWindow(Hwnd, SW_HIDE);
+		if (GConsoleShowHook == nullptr) // install the event hook scoped to the console's process
+		{
+			DWORD ProcessId = 0;
+			::GetWindowThreadProcessId(GLiveCodingConsoleHwnd, &ProcessId);
+			GConsoleShowHook = ::SetWinEventHook(EVENT_OBJECT_SHOW, EVENT_OBJECT_SHOW, nullptr,
+												 &OnConsoleShowEvent, ProcessId, 0,
+												 WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
+		}
+		if (::IsWindowVisible(GLiveCodingConsoleHwnd))
+		{
+			::ShowWindow(GLiveCodingConsoleHwnd, SW_HIDE);
+		}
 	}
 #endif
-	return true; // keep ticking while active
+	return true; // keep the slow discovery poll alive while active
 }
 
 void FUetkxHmrController::RefreshConsoleHiderState()

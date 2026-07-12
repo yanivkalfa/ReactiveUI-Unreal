@@ -84,10 +84,12 @@ private:
 	void OnPieEnded(bool bSimulating);
 
 	// Epic's Live Coding console can't be suppressed by config (AutomaticButHidden still re-shows on every
-	// compile — a known, unfixed engine limitation). While HMR is active + bHideLiveCodingConsole, a short
-	// ticker finds that external window and keeps it hidden (SW_HIDE), so our HMR window is the only UI.
-	// Scoped to HMR-active so we never touch Epic's console when the user isn't using our HMR. Windows-only
-	// (Live Coding itself is Windows-only). Non-invasive: no config/engine changes, window visibility only.
+	// compile via BringToFront — a known, unfixed engine limitation; no LiveCoding cvar controls it). While
+	// HMR is active + bHideLiveCodingConsole we hide that external window (SW_HIDE) so our HMR window is the
+	// only UI. A SetWinEventHook on the console's process reacts to EVENT_OBJECT_SHOW and re-hides it the
+	// instant Epic shows it (near-flicker-free, event-driven), with a slow poll only to first discover the
+	// window + reinstall the hook. Scoped to HMR-active; Windows-only (Live Coding is Windows-only);
+	// non-invasive — window visibility only, no config/engine changes, fully reversible on stop.
 	void StartConsoleHider();
 	void StopConsoleHider();
 	bool ConsoleHiderTick(float);
@@ -100,6 +102,5 @@ private:
 	FDelegateHandle PatchCompleteHandle;
 	FDelegateHandle PiePostStartedHandle;
 	FDelegateHandle PieEndedHandle;
-	FTSTicker::FDelegateHandle ConsoleHiderHandle;
-	void* CachedConsoleHwnd = nullptr; // HWND of Epic's "<Project> - Live Coding" window, once found
+	FTSTicker::FDelegateHandle ConsoleHiderHandle; // slow poll: discover the console window + (re)install the hook
 };
