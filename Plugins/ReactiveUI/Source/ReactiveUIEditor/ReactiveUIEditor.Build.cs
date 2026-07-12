@@ -27,7 +27,7 @@ public class ReactiveUIEditor : ModuleRules
 			"Projects",			 // sweep roots
 			"ReactiveUICore",	 // FRuiNode / FRuiRoot (the preview panel, TD-006)
 			"ReactiveUISlate",	 // FRuiRoot mount surface (the preview panel, TD-006)
-			"ReactiveUIInterp",	 // FRuiHmr + FUetkxInterpDef (editor-only module — Interp linkage rule allows it)
+			"ReactiveUIInterp",	 // FUetkxFileScan parser (preview scan — HMR v2 deleted the interpreter)
 			"ReactiveUIToolchain", // FUetkxDriver / FUetkxCodegen
 			"InputCore",			 // SEditableTextBox in the preview panel
 			"WorkspaceMenuStructure", // group the preview tab under Window > Tools (single, grouped entry)
@@ -35,7 +35,7 @@ public class ReactiveUIEditor : ModuleRules
 			"Slate",			 // window-activation trigger
 			"SlateCore",
 			"MessageLog",  // the "ReactiveUI" dock listing
-			"LiveCoding",  // optional rui.Hmr.AutoLiveCoding trigger
+			"LiveCoding",  // FUetkxHmrController drives the Live Coding session (HMR v2, D-HMR-8)
 		});
 	}
 }

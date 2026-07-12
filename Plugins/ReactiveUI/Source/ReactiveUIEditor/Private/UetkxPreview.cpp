@@ -4,14 +4,19 @@
 
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "RuiCoreElements.h"
 #include "RuiNode.h"
 #include "RuiRoot.h"
 #include "UetkxFileScan.h"
-#include "UetkxInterpComponent.h"
 #include "Widgets/Text/STextBlock.h"
 
+// HMR v2 (D-HMR-8): the interpreter is deleted, so the preview mounts the COMPILED component by name
+// (the one HMR/RUICompile registered). It reflects the LAST COMPILED state — after an edit, a save
+// recompiles it (and, with HMR mode on, Live Coding patches it live). This is the real component, not
+// an approximation; its effects run as they would in PIE.
+
 TSharedRef<FUetkxPreview> FUetkxPreview::FromSource(const FString& Source, const FString& Basename,
-													FName InComponentName)
+												   FName InComponentName)
 {
 	TSharedRef<FUetkxPreview> Preview = MakeShared<FUetkxPreview>();
 
@@ -22,75 +27,45 @@ TSharedRef<FUetkxPreview> FUetkxPreview::FromSource(const FString& Source, const
 		Preview->Messages.Add(FString::Printf(TEXT("[%s %s] %s"), Sev, *Diag.Code, *Diag.Message));
 	}
 
-	// The live preview INTERPRETS this single file and runs inline `UseState` only — it does not resolve
-	// imports or execute user/imported hooks. So a component whose interactivity lives in an imported
-	// hook (e.g. `auto [Count, Inc] = UseCounter(0)`) RENDERS but its buttons/state won't respond here.
-	// Surface that up front so a dead "+" is understood, not mistaken for a broken preview. Full behavior
-	// (imported hooks, effects, compiled logic) is the PIE path.
-	if (Scan.Imports.Num() > 0)
-	{
-		Preview->Messages.Add(
-			TEXT("[preview] limited interactivity: this file imports from other files, which the "
-				 "preview does NOT run. Buttons/state driven by an imported hook (e.g. UseCounter) "
-				 "won't respond here — use PIE for full behavior. Inline `UseState` IS interactive."));
-	}
-
 	if (Scan.Components.Num() == 0)
 	{
 		Preview->Messages.Add(TEXT("[preview] no component declaration to render."));
 		return Preview;
 	}
 
-	const FUetkxComponentDecl* Decl = nullptr;
-	if (InComponentName.IsNone())
+	// Pick the requested component, else the first declared.
+	FString Wanted = InComponentName.IsNone() ? Scan.Components[0].Name : InComponentName.ToString();
+	bool bDeclared = false;
+	for (const FUetkxComponentDecl& Candidate : Scan.Components)
 	{
-		Decl = &Scan.Components[0];
-	}
-	else
-	{
-		const FString Wanted = InComponentName.ToString();
-		for (const FUetkxComponentDecl& Candidate : Scan.Components)
+		if (Candidate.Name == Wanted)
 		{
-			if (Candidate.Name == Wanted)
-			{
-				Decl = &Candidate;
-				break;
-			}
+			bDeclared = true;
+			break;
 		}
 	}
-	if (Decl == nullptr)
+	if (!bDeclared)
 	{
-		Preview->Messages.Add(
-			FString::Printf(TEXT("[preview] component '%s' not found."), *InComponentName.ToString()));
+		Preview->Messages.Add(FString::Printf(TEXT("[preview] component '%s' not found in this file."), *Wanted));
 		return Preview;
 	}
 
-	if (Scan.HasError())
+	const FName ComponentId(*Wanted);
+	if (!RUI::HasNamedFactory(ComponentId))
 	{
-		// A parse error was already listed above; the interpreter renders best-effort from what parsed.
-		Preview->Messages.Add(TEXT("[preview] source has parse errors — preview may be incomplete."));
-	}
-
-	TSharedPtr<FUetkxInterpDef> Def = FUetkxInterpDef::Build(*Decl);
-	if (!Def.IsValid())
-	{
-		Preview->Messages.Add(TEXT("[preview] interpreter could not build this component."));
+		Preview->Messages.Add(FString::Printf(
+			TEXT("[preview] component '%s' is not compiled yet — save the file (or run RUICompile) so it registers, "
+				 "then reopen the preview. The preview mounts the COMPILED component."),
+			*Wanted));
 		return Preview;
 	}
-	for (const FString& Note : Def->Notes)
-	{
-		Preview->Messages.Add(FString::Printf(TEXT("[interp] %s"), *Note));
-	}
 
-	// Edit-time safety (bughunt P2): stub referenced COMPILED child components to inert placeholders so
-	// their effects never run live in the editor (URuiHostWidget's design-time discipline, which the
-	// preview otherwise bypasses). The previewed component's own markup still renders.
-	Def->bStubComponents = true;
-
-	Preview->ComponentName = Decl->Name;
-	Preview->Root = FRuiRoot::Create(Def->MakeNode());
+	// Mount the real compiled component (interactive; effects run as in PIE).
+	Preview->ComponentName = Wanted;
+	Preview->Root = FRuiRoot::Create(RUI::Named(ComponentId));
 	Preview->Root->FlushSync();
 	Preview->bMounted = true;
+	Preview->Messages.Add(FString::Printf(TEXT("[preview] mounted the compiled component '%s' (live)."), *Wanted));
 	return Preview;
 }
 

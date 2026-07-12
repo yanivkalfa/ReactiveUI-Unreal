@@ -8,10 +8,11 @@
 #include "Misc/AutomationTest.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "RuiContext.h"
 #include "RuiCoreElements.h"
 #include "RuiDemoScreens.h"
-#include "RuiHmr.h"
 #include "RuiNode.h"
+#include "RuiReconciler.h"
 #include "RuiRoot.h"
 #include "UetkxCodegen.h"
 #include "UetkxContract.h"
@@ -39,6 +40,16 @@ namespace AcceptanceTest
 			}
 		}
 		return false;
+	}
+
+	// A stateful component standing in for a live HMR-refreshed root: its UseState count is heap-resident,
+	// so an HmrRefreshAll (what a Live Coding patch triggers) must re-render it WITHOUT resetting the count.
+	static TRuiSetter<int32> GRefreshCounterSetter;
+	static FRuiNodeArray RefreshCounter(FRuiContext& Ctx, const FRuiEmptyProps&, const TArray<FRuiNode>&)
+	{
+		auto [Count, SetCount] = Ctx.UseState<int32>(0);
+		GRefreshCounterSetter = SetCount;
+		return {RUI::TextBlock(FString::Printf(TEXT("count=%d"), Count))};
 	}
 } // namespace AcceptanceTest
 
@@ -97,19 +108,35 @@ bool FRuiAcceptanceTest::RunTest(const FString&)
 		}
 	}
 
-	// 5. The HMR loop swaps a live definition (the save→screen chain, headless).
+	// 5. The HMR v2 refresh seam re-renders every live root IN PLACE with state preserved (headless half
+	//    of the save→patch→screen chain). The interpreter is deleted (D-HMR-8): in the editor a Live
+	//    Coding patch swaps the compiled code and fires the patch-complete delegate, which drives exactly
+	//    this — FRuiReconciler::ForEachLive → HmrRefreshAll → FlushSync. Because hook cells are heap-
+	//    resident, a code patch cannot reset them; this asserts that invariant without the compiler.
 	{
-		FRuiHmr::ResetSession();
-		TSharedRef<FRuiRoot> Root = FRuiRoot::Create(RUI::Named(FName(TEXT("HelloWorld"))));
+		RUI::RegisterNamedFactory(FName(TEXT("RefreshCounterAcc")),
+								  []() { return RUI::FC(&AcceptanceTest::RefreshCounter); });
+		TSharedRef<FRuiRoot> Root = FRuiRoot::Create(RUI::Named(FName(TEXT("RefreshCounterAcc"))));
 		Root->FlushSync();
-		const FRuiHmrStatus Status = FRuiHmr::ApplySource(
-			TEXT("component HelloWorld {\n\treturn (\n\t\t<TextBlock Text=\"Hot swapped!\" />\n\t);\n}\n"),
-			TEXT("HelloWorld"));
-		TestTrue(TEXT("5. swap applied"), Status.Ok() && Status.Reloaded == 1);
-		TestTrue(TEXT("5. live UI updated in place"),
-				 AcceptanceTest::ContainsText(Root->GetWidget().Get(), TEXT("Hot swapped!")));
+		TestTrue(TEXT("5. counter mounts at 0"), AcceptanceTest::ContainsText(Root->GetWidget().Get(), TEXT("count=0")));
+
+		AcceptanceTest::GRefreshCounterSetter(7); // user interacted before the edit
+		Root->FlushSync();
+		TestTrue(TEXT("5. state advanced"), AcceptanceTest::ContainsText(Root->GetWidget().Get(), TEXT("count=7")));
+
+		// Simulate the Live Coding patch-complete refresh (no code actually changed here).
+		int32 RefreshedRoots = 0;
+		FRuiReconciler::ForEachLive(
+			[&RefreshedRoots](FRuiReconciler& Reconciler)
+			{
+				Reconciler.HmrRefreshAll();
+				Reconciler.FlushSync();
+				++RefreshedRoots;
+			});
+		TestTrue(TEXT("5. at least one live root refreshed"), RefreshedRoots >= 1);
+		TestTrue(TEXT("5. hook state survived the HMR refresh (not reset to 0)"),
+				 AcceptanceTest::ContainsText(Root->GetWidget().Get(), TEXT("count=7")));
 		Root->Unmount();
-		FRuiHmr::ResetSession(); // back to the compiled definition
 	}
 
 	// 6. The schema export (what the IDE tooling consumes) stays coherent with the vocabulary.

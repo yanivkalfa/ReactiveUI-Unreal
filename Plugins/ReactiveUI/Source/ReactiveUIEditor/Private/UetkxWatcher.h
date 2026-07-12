@@ -1,15 +1,17 @@
 // Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 //
 // FUetkxWatcher — compile-on-save (the family's three-trigger design, D-19):
-//   1. FDirectoryWatcher change notifications on Source/ + Plugins/ (.uetkx edits)
+//   1. FDirectoryWatcher change notifications on Source/ + Plugins/ (ANY .uetkx event —
+//      create/delete/rename/copy/modify; the debounce coalesces a burst into one sweep)
 //   2. window activation (tab back into the editor after an external-IDE edit)
 //   3. a standing 2s HasStale poll ("save in VS Code while the editor sits in background" —
 //      a stale file once survived 40 min unnoticed in the field)
 // A sweep compiles stale files (FUetkxDriver), pushes de-duplicated diagnostics to the
 // "ReactiveUI" MessageLog (append-only docks spam — each distinct error set once, a green
-// resolved line when it heals), and hands every compiled file to FRuiHmr (definition swap).
-// Busy guard with a 30s deadman (a crashed sweep costs one 30s outage, not the session);
-// the FIRST sweep logs unconditionally (cold-open proof of life).
+// resolved line when it heals), then hands the codegen result to FUetkxHmrController
+// (HMR v2, D-HMR-4/8): when the HMR mode is active it triggers a Live Coding compile whose
+// patch-complete refreshes every live root. Busy guard with a 30s deadman (a crashed sweep
+// costs one 30s outage, not the session); the FIRST sweep logs unconditionally (cold-open proof).
 
 #pragma once
 

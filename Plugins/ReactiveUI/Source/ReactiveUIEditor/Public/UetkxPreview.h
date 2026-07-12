@@ -1,11 +1,10 @@
 // Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 //
-// TD-006 — the in-editor `.uetkx` READ-ONLY live preview. FUetkxPreview is the headless-testable
-// core: it scans a `.uetkx` source, picks a component, builds the dev-loop interpreter definition,
-// and mounts it as a live ReactiveUI root — collecting parse diagnostics + interp fallback notes for
-// display. The editor tab (SUetkxPreviewPanel) is a thin Slate shell around it: pick a file, see it
-// render, read the notes. Preview only — the interpreter's honest subset (D-20) renders structure +
-// UseState; anything it skips is surfaced as a note, never a silent gap.
+// TD-006 — the in-editor `.uetkx` READ-ONLY preview. FUetkxPreview is the headless-testable core: it
+// scans a `.uetkx` source for its component name and mounts the COMPILED component by name (the one
+// RUICompile/HMR registered) as a live ReactiveUI root — collecting parse diagnostics for display.
+// The editor tab (SUetkxPreviewPanel) is a thin Slate shell: pick a file, see it render. It reflects
+// the LAST COMPILED state; a save recompiles it (HMR v2 D-HMR-8, the interpreter is deleted).
 
 #pragma once
 
