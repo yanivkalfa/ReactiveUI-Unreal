@@ -3,6 +3,7 @@
 #include "UetkxCodegen.h"
 
 #include "Dom/JsonObject.h"
+#include "Misc/Paths.h" // FPaths — seller-repo sentinel probe (D-32a / CG-1)
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 #include "UetkxJsxScan.h"
@@ -471,6 +472,45 @@ namespace
 		}
 	}
 
+	/** Re-indent a verbatim user region: insert a tab after every newline that is OUTSIDE a
+	 *  string/char/raw-string/comment token, so re-indentation never mutates multi-line string-literal
+	 *  CONTENT (bughunt CG-2 — the old blanket `Replace("\n","\n\t")` injected a tab inside raw strings,
+	 *  silently changing the runtime value). Every newline is preserved, so #line mapping is unaffected. */
+	FString IndentRegion(const FString& Body)
+	{
+		const TArray<int32> Src = FUetkxLexer::ToCodePoints(Body);
+		const int32 N = Src.Num();
+		FString Out;
+		int32 i = 0;
+		while (i < N)
+		{
+			const int32 j = FUetkxLexer::SkipNoncode(Src, i);
+			if (j != i)
+			{
+				Out += FUetkxLexer::FromCodePoints(Src, i, j - i); // token verbatim — no indent injected
+				i = j;
+				continue;
+			}
+			const int32 C = Src[i++];
+			Out.AppendChar(static_cast<TCHAR>(C));
+			if (C == static_cast<int32>('\n'))
+			{
+				Out.AppendChar(TEXT('\t'));
+			}
+		}
+		return Out;
+	}
+
+	/** The canonical (case-exact) tag name of a host def — its Factory's last `::` segment, which equals
+	 *  the tag key for every host tag (verified). Derived from the Factory LITERAL, so the casing is
+	 *  reliable (unlike FName::ToString, which reflects the FName pool's first-seen casing). Used to
+	 *  reject a mis-cased tag (<Textblock/>) case-sensitively — HostTags()'s FName match is not (CG-3). */
+	FString CanonicalTagName(const FTagDef& Tag)
+	{
+		int32 Colon = INDEX_NONE;
+		return Tag.Factory.FindLastChar(TEXT(':'), Colon) ? Tag.Factory.RightChop(Colon + 1) : Tag.Factory;
+	}
+
 	/** A `hook` declaration → an inline free function taking FRuiContext& first (built-in hook
 	 *  calls in the body Ctx.-prefixed, nested user hooks Ctx-injected). DECL phase = the forward
 	 *  declaration; BODY phase = the definition. A non-exported hook wraps in the detail namespace. */
@@ -486,8 +526,8 @@ namespace
 		const FString Body = PrefixHookCalls(Hook.Body.TrimStartAndEnd(), Qualified);
 		if (!Body.IsEmpty())
 		{
-			Def += WithLine(TEXT("\t") + Body.Replace(TEXT("\n"), TEXT("\n\t")) + TEXT("\n"),
-							SrcLineOfRegion(Hook.Body, Hook.BodyAt, Line), Line);
+			Def += WithLine(TEXT("\t") + IndentRegion(Body) + TEXT("\n"), SrcLineOfRegion(Hook.Body, Hook.BodyAt, Line),
+							Line);
 		}
 		Def += TEXT("}\n");
 		E.BodyPhase = Def;
@@ -507,7 +547,7 @@ namespace
 		const FString Body = Module.Body.TrimStartAndEnd();
 		if (!Body.IsEmpty())
 		{
-			Out += WithLine(TEXT("\t") + Body.Replace(TEXT("\n"), TEXT("\n\t")) + TEXT("\n"),
+			Out += WithLine(TEXT("\t") + IndentRegion(Body) + TEXT("\n"),
 							SrcLineOfRegion(Module.Body, Module.BodyAt, Line), Line);
 		}
 		Out += FString::Printf(TEXT("} // namespace %s\n"), *Module.Name);
@@ -666,6 +706,19 @@ namespace
 
 		// ── element ────────────────────────────────────────────────────────────────────────
 		const FTagDef* Tag = HostTags().Find(FName(*Node.Tag));
+		// FName match is case-INSENSITIVE; host tags are case-sensitive (1:1 with the Slate class, D-33).
+		// A mis-cased host tag (<Textblock/>) must NOT resolve to the canonical widget — it would emit
+		// uncompilable C++ (TextBlock has no props struct) with no diagnostic (bughunt CG-3). Compare the
+		// authored tag CASE-SENSITIVELY against the matched def's canonical name (its Factory's last `::`
+		// segment, a literal — reliable, unlike FName::ToString / a case-insensitive TSet<FString>).
+		if (Tag != nullptr && !CanonicalTagName(*Tag).Equals(Node.Tag, ESearchCase::CaseSensitive))
+		{
+			Fail(TEXT("UETKX0105"),
+				 FString::Printf(TEXT("unknown tag <%s> — host tags are case-sensitive (1:1 with the Slate class)"),
+								 *Node.Tag),
+				 AbsAt + Node.At);
+			return FString(TEXT("FRuiNode()"));
+		}
 		const bool bComponent = Tag == nullptr;
 		if (bComponent && !(Node.Tag[0] >= 'A' && Node.Tag[0] <= 'Z'))
 		{
@@ -1097,7 +1150,7 @@ namespace
 		const FString Setup = Decl.Setup.TrimStartAndEnd();
 		if (!Setup.IsEmpty())
 		{
-			Impl += WithLine(TEXT("\t") + PrefixHooks(Setup).Replace(TEXT("\n"), TEXT("\n\t")) + TEXT("\n"),
+			Impl += WithLine(TEXT("\t") + IndentRegion(PrefixHooks(Setup)) + TEXT("\n"),
 							 SrcLineOfRegion(Decl.Setup, Decl.SetupAt, Line), Line);
 		}
 		Impl += FString::Printf(TEXT("\treturn { %s };\n}\n"), *EmitNodeExpr(*Decl.Root, Decl.BodyAt));
@@ -1128,8 +1181,29 @@ namespace
 	}
 } // namespace
 
+bool FUetkxCodegen::IsSellerRepo()
+{
+	// The sentinel lives at the seller monorepo's project root, ABOVE Plugins/ReactiveUI/, so it is
+	// never part of the Fab plugin package a customer installs (D-32a). Cached: a process is entirely
+	// in one repo or the other. Tests that need the other banner pass an explicit override instead.
+	static const bool bSeller = FPaths::FileExists(FPaths::ProjectDir() / TEXT(".rui-seller-repo"));
+	return bSeller;
+}
+
+FString FUetkxCodegen::GeneratedCopyrightLine(const FString& Basename, TOptional<bool> bSellerRepoOverride)
+{
+	const bool bSeller = bSellerRepoOverride.IsSet() ? bSellerRepoOverride.GetValue() : IsSellerRepo();
+	if (bSeller)
+	{
+		return TEXT("// Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.\n");
+	}
+	return FString::Printf(
+		TEXT("// Generated by ReactiveUI from %s.uetkx — this generated code belongs to your project.\n"), *Basename);
+}
+
 FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FString& Basename,
-												 const FString& ProjectRelPath, const IUetkxImportResolver* Resolver)
+												 const FString& ProjectRelPath, const IUetkxImportResolver* Resolver,
+												 TOptional<bool> bSellerRepoOverride)
 {
 	FUetkxCompileOutput Out;
 	FUetkxFileScanResult Scan = FUetkxFileScan::Scan(Source, Basename);
@@ -1142,7 +1216,9 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 
 	FString Inl;
 	Inl += TEXT("// AUTO-GENERATED by RUICompile — DO NOT EDIT. Source: ") + Basename + TEXT(".uetkx\n");
-	Inl += TEXT("// Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.\n\n");
+	// D-32(a): seller copyright inside this repo, neutral "belongs to your project" banner in a
+	// customer project (bughunt CG-1 — was an unconditional seller line stamped into customer output).
+	Inl += GeneratedCopyrightLine(Basename, bSellerRepoOverride) + TEXT("\n");
 	for (const FString& Include : Scan.PreambleIncludes)
 	{
 		Inl += Include + TEXT("\n");

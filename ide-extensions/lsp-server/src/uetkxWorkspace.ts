@@ -56,7 +56,9 @@ export function getDecls(fsPath: string): ExportedDecl[] | null {
   } catch {
     return null;
   }
-  const scan = scanFile(source, path.basename(key, ".uetkx"));
+  // Signature-list mode: keep listing exported decls even if one body is mid-edit / malformed, so the
+  // export list matches the C++ ScanPreamble resolver instead of truncating at the error (bughunt LSP-1).
+  const scan = scanFile(source, path.basename(key, ".uetkx"), /*resyncOnBodyError*/ true);
   const decls: ExportedDecl[] = [];
   for (const c of scan.components) decls.push({ name: c.name, kind: "component", exported: c.exported, nameAt: c.nameAt });
   for (const h of scan.hooks) decls.push({ name: h.name, kind: "hook", exported: h.exported, nameAt: h.nameAt });
@@ -169,11 +171,23 @@ export interface ExporterHit {
   nameAt: number;
 }
 
-/** The file that EXPORTS `name` anywhere under the importer's workspace root (first exporter wins,
+/** The compiler's sweep universe under the workspace root: the .uetkx files under `Source/` + `Plugins/`
+ *  (mirrors RUICompileCommandlet::DefaultRoots). The LSP indexes ONLY these so it never offers or
+ *  navigates to an export the compiler never sweeps (bughunt LSP-2). Falls back to the whole workspace
+ *  root when neither Source/ nor Plugins/ exists (a bare fixture tree). Sorted for a stable order. */
+export function sweptUetkxFiles(importerFsPath: string): string[] {
+  const root = workspaceRootFor(importerFsPath);
+  const roots = ["Source", "Plugins"].map((r) => path.join(root, r)).filter((d) => fs.existsSync(d));
+  if (roots.length === 0) return listUetkxFiles(root);
+  const out: string[] = [];
+  for (const r of roots) out.push(...listUetkxFiles(r));
+  return out.sort();
+}
+
+/** The file that EXPORTS `name` under the importer's sweep universe (first exporter wins,
  *  mirroring FUetkxFsResolver::EnsureIndex / FindExporter). null when no file exports it. */
 export function findExporter(name: string, importerFsPath: string): ExporterHit | null {
-  const root = workspaceRootFor(importerFsPath);
-  for (const file of listUetkxFiles(root)) {
+  for (const file of sweptUetkxFiles(importerFsPath)) {
     const decls = getDecls(file);
     if (!decls) continue;
     for (const d of decls) {
@@ -253,26 +267,41 @@ export type ImportCursor =
   | { kind: "import-name"; specifier: string | null; partial: string }
   | { kind: "import-specifier"; partial: string };
 
-/** Classify a cursor sitting inside a preamble `import { … } from "…"` line. Operates on UTF-16
- *  string offsets (import lines + POSIX specifiers are ASCII in practice). null when not in an
- *  import name-list or specifier string. */
+/** Classify a cursor sitting inside a preamble `import { … } from "…"` STATEMENT, which may span
+ *  several physical lines (a multi-line `{ … }` name list). Operates on UTF-16 string offsets (import
+ *  lines + POSIX specifiers are ASCII in practice). null when not in an import name-list or specifier
+ *  string. Walks back to the statement's `import` keyword rather than only inspecting the cursor's own
+ *  physical line (bughunt LSP-3 — a cursor on a continuation line saw no `import` and bailed). */
 export function importCursorAt(text: string, off: number): ImportCursor | null {
-  let ls = off;
-  while (ls > 0 && text[ls - 1] !== "\n") ls--;
-  let le = off;
-  while (le < text.length && text[le] !== "\n") le++;
-  const line = text.slice(ls, le);
-  if (!/^\s*import\b/.test(line)) return null;
-  const rel = off - ls;
-  const before = line.slice(0, rel);
-  // inside the `from "…"` string?
+  // Find the enclosing statement's start: the nearest line-start `import` at/above the cursor. Bounded
+  // to a small window (imports live in the preamble; a name list never spans dozens of lines).
+  let start = -1;
+  let lineStart = off;
+  while (lineStart > 0 && text[lineStart - 1] !== "\n") lineStart--;
+  for (let scanned = 0; scanned < 64; scanned++) {
+    const nl = text.indexOf("\n", lineStart);
+    const lineEnd = nl < 0 ? text.length : nl;
+    if (/^\s*import\b/.test(text.slice(lineStart, lineEnd))) {
+      start = lineStart;
+      break;
+    }
+    if (lineStart === 0) break;
+    let prev = lineStart - 1; // the preceding '\n'
+    while (prev > 0 && text[prev - 1] !== "\n") prev--;
+    lineStart = prev;
+  }
+  if (start < 0) return null;
+  const before = text.slice(start, off);
+  // inside the `from "…"` string? (unterminated quote before the cursor)
   if (/\bfrom\s*"[^"]*$/.test(before)) {
     const q = before.lastIndexOf('"');
     return { kind: "import-specifier", partial: before.slice(q + 1) };
   }
   // inside the `{ … }` name list (open brace with no matching close before the cursor)?
   if (before.lastIndexOf("{") > before.lastIndexOf("}")) {
-    const specMatch = /from\s*"([^"]*)"/.exec(line);
+    // The specifier may be on a LATER line — search the whole statement, not just `before`.
+    const stmt = text.slice(start, Math.min(text.length, off + 400));
+    const specMatch = /from\s*"([^"]*)"/.exec(stmt);
     const partMatch = /([A-Za-z0-9_]*)$/.exec(before);
     return { kind: "import-name", specifier: specMatch ? specMatch[1] : null, partial: partMatch ? partMatch[1] : "" };
   }

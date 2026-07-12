@@ -43,6 +43,7 @@ public:
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
+	virtual ~SRuiComboBox() override;
 
 	void SetOptions(TArray<FItemType> InOptions);
 	void SetRenderer(TSharedPtr<FRuiItemRenderer> InRenderer);
@@ -64,6 +65,10 @@ public:
 private:
 	TSharedRef<SWidget> HandleGenerateRow(FItemType Item);
 	void HandleSelectionChanged(FItemType Item, ESelectInfo::Type SelectInfo);
+	/** Fresh row generation each open: unmount the prior open's row sub-roots (runs their cleanups)
+	 *  instead of leaking them for the widget's lifetime (bughunt IW-2). */
+	void HandleMenuOpening();
+	void UnmountRowRoots();
 	FRuiNode BuildNodeFor(const FItemType& Item) const;
 	void RefreshSelectedDisplay();
 

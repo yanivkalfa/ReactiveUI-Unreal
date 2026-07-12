@@ -33,7 +33,27 @@ export function fieldForKind(kind: string | undefined): PayloadField | null {
 export function enclosingAttrName(text: string, off: number): string | null {
   let depth = 0;
   const limit = Math.max(0, off - 4000);
+  // Mark string/char-literal spans so a `{`/`}`/`<`/`>` INSIDE a handler string (e.g.
+  // `OnClicked={ SetText(TEXT("}")) }`) never miscounts brace depth or fakes a tag boundary (LSP-4).
+  const inStr: boolean[] = new Array(off).fill(false);
+  {
+    let quote: string | null = null;
+    let esc = false;
+    for (let i = limit; i < off; i++) {
+      const c = text[i];
+      if (quote) {
+        inStr[i] = true;
+        if (esc) esc = false;
+        else if (c === "\\") esc = true;
+        else if (c === quote) quote = null;
+      } else if (c === '"' || c === "'") {
+        quote = c;
+        inStr[i] = true;
+      }
+    }
+  }
   for (let i = off - 1; i >= limit; i--) {
+    if (inStr[i]) continue;
     const c = text[i];
     if (c === "}") {
       depth++;

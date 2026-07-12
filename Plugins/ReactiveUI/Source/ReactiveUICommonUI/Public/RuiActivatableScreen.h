@@ -11,9 +11,11 @@
 #include "CommonActivatableWidget.h"
 #include "CoreMinimal.h"
 #include "RuiActivation.h"
+#include "UObject/WeakObjectPtr.h"
 #include "RuiActivatableScreen.generated.h"
 
 class FRuiRoot;
+class UCommonInputSubsystem;
 enum class ECommonInputType : uint8;
 
 UCLASS(meta = (DisplayName = "ReactiveUI Activatable Screen"))
@@ -49,8 +51,14 @@ private:
 	void RefreshInputMethod();
 	/** Bound to UCommonInputSubsystem::OnInputMethodChangedNative so a live device switch re-renders. */
 	void HandleInputMethodChanged(ECommonInputType NewInputType);
+	/** Remove the input-method subscription from the subsystem we actually bound to (not the current
+	 *  owning player's — they may differ, bughunt CMU-1). */
+	void UnbindInputMethod();
 
 	TSharedPtr<FRuiRoot> Root;
 	FRuiActivationState State;
 	FDelegateHandle InputMethodHandle;
+	/** The subsystem InputMethodHandle is registered on — tracked so an owning-player change re-points
+	 *  the subscription and teardown removes it from the RIGHT subsystem (bughunt CMU-1). */
+	TWeakObjectPtr<UCommonInputSubsystem> BoundInputSubsystem;
 };

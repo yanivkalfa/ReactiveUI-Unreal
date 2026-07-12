@@ -168,7 +168,7 @@ struct REACTIVEUIINTERP_API FUetkxSplitReturn
 class REACTIVEUIINTERP_API FUetkxFileScan
 {
 public:
-	/** The 23 hook names (auto-prefix + signature scanning). */
+	/** The 20 hook names (auto-prefix + signature scanning). */
 	static const TArray<FString>& HookNames();
 
 	/** FNV-1a (2166136261/16777619, 32-bit) over the ordered hook-kind sequence. */

@@ -1,9 +1,11 @@
 // Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 
 #include "Framework/Docking/TabManager.h"
+#include "ILiveCodingModule.h"
 #include "Logging/LogMacros.h"
 #include "MessageLogModule.h"
 #include "Modules/ModuleManager.h"
+#include "RuiHmr.h"
 #include "SUetkxPreviewPanel.h"
 #include "Styling/AppStyle.h"
 #include "ToolMenus.h"
@@ -31,12 +33,28 @@ public:
 		Watcher = MakeUnique<FUetkxWatcher>();
 		Watcher->Start();
 
+		// After a Live Coding patch, the RECOMPILED compiled components carry the user's edits — clear the
+		// interp overrides that would otherwise permanently shadow them, so "rebuild for full behavior"
+		// actually takes effect within the session (bughunt HMR-2).
+		if (ILiveCodingModule* LiveCoding = FModuleManager::GetModulePtr<ILiveCodingModule>(TEXT("LiveCoding")))
+		{
+			LiveCodingPatchHandle = LiveCoding->GetOnPatchCompleteDelegate().AddStatic(&FRuiHmr::ResetSession);
+		}
+
 		RegisterPreviewTab();
 		UE_LOG(LogRuiEditor, Display, TEXT("ReactiveUIEditor started — .uetkx watcher armed, preview tab registered"));
 	}
 
 	virtual void ShutdownModule() override
 	{
+		if (LiveCodingPatchHandle.IsValid())
+		{
+			if (ILiveCodingModule* LiveCoding = FModuleManager::GetModulePtr<ILiveCodingModule>(TEXT("LiveCoding")))
+			{
+				LiveCoding->GetOnPatchCompleteDelegate().Remove(LiveCodingPatchHandle);
+			}
+			LiveCodingPatchHandle.Reset();
+		}
 		if (Watcher.IsValid())
 		{
 			Watcher->Stop();
@@ -95,6 +113,7 @@ private:
 	}
 
 	TUniquePtr<FUetkxWatcher> Watcher;
+	FDelegateHandle LiveCodingPatchHandle; // clears interp overrides on a Live Coding rebuild (HMR-2)
 };
 
 IMPLEMENT_MODULE(FReactiveUIEditorModule, ReactiveUIEditor)

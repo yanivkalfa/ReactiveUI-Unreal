@@ -21,6 +21,7 @@ void SRuiComboBox::Construct(const FArguments&)
 		SAssignNew(Combo, SComboBox<FItemType>)
 		.OptionsSource(&Options)
 		.OnGenerateWidget(this, &SRuiComboBox::HandleGenerateRow)
+		.OnComboBoxOpening(this, &SRuiComboBox::HandleMenuOpening)
 		.OnSelectionChanged(this, &SRuiComboBox::HandleSelectionChanged)
 		[
 			SelectedHolder.ToSharedRef()
@@ -29,12 +30,29 @@ void SRuiComboBox::Construct(const FArguments&)
 	// clang-format on
 }
 
+SRuiComboBox::~SRuiComboBox()
+{
+	// Tear down every reconciler sub-root this widget owns (rows + the selected display) so their
+	// hooks/effects clean up rather than leaking with the widget (bughunt IW-2).
+	UnmountRowRoots();
+	if (SelectedRoot.IsValid())
+	{
+		SelectedRoot->Unmount();
+		SelectedRoot.Reset();
+	}
+}
+
 void SRuiComboBox::SetOptions(TArray<FItemType> InOptions)
 {
 	Options = MoveTemp(InOptions);
 	if (Combo.IsValid())
 	{
+		// RefreshOptions can prune a now-absent selection and fire OnSelectionChanged(nullptr, Direct);
+		// that is an engine-originated prune, not a user pick, so suppress our callback around it
+		// (bughunt B6-1 / IW-3 — Direct alone is not a programmatic-vs-user signal).
+		bApplyingSelection = true;
 		Combo->RefreshOptions();
+		bApplyingSelection = false;
 	}
 	RefreshSelectedDisplay();
 }
@@ -106,15 +124,35 @@ void SRuiComboBox::HandleSelectionChanged(FItemType Item, ESelectInfo::Type /*Se
 	RefreshSelectedDisplay();
 	// Fire only for a genuine USER pick — suppressed via the reentrancy flag while WE drive the set,
 	// NOT via ESelectInfo (SComboBox emits Direct for user keyboard-close / gamepad-accept too, B6).
-	if (!bApplyingSelection && OnSelectionChanged.IsBound())
+	// A user pick always resolves to a valid option; an INDEX_NONE here is an engine-originated prune
+	// (the selected option was removed from Options), never a user action — so never report it as one
+	// (bughunt IW-3 / B6-1).
+	if (!bApplyingSelection && Index != INDEX_NONE && OnSelectionChanged.IsBound())
 	{
 		OnSelectionChanged.Execute(FRuiValue(Index));
 	}
 }
 
+void SRuiComboBox::HandleMenuOpening()
+{
+	UnmountRowRoots(); // each open regenerates fresh rows; retire the prior open's sub-roots
+}
+
+void SRuiComboBox::UnmountRowRoots()
+{
+	for (const TSharedPtr<FRuiRoot>& Row : RowRoots)
+	{
+		if (Row.IsValid())
+		{
+			Row->Unmount();
+		}
+	}
+	RowRoots.Reset();
+}
+
 void SRuiComboBox::OpenMenu()
 {
-	RowRoots.Reset(); // a fresh open regenerates the visible rows
+	UnmountRowRoots(); // a fresh open regenerates the visible rows (retire the previous ones)
 	if (Combo.IsValid())
 	{
 		Combo->SetIsOpen(true);

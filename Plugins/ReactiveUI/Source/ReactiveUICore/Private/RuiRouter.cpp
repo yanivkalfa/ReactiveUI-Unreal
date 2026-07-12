@@ -190,7 +190,10 @@ FString RUI::ResolvePath(const FString& To, const FString& From)
 	{
 		return NormalizePathname(To); // absolute
 	}
-	// Relative: join onto From's directory (From is a full pathname; drop its last segment).
+	// Relative: `From` is treated as the BASE directory — its segments are kept IN FULL and the
+	// relative segments append onto them (`child` from `/a/b` -> `/a/b/child`); `..` pops, `.` skips.
+	// (Intentionally does NOT drop From's last segment — resolution anchors on the current location as
+	// a directory; locked by the router resolve test. RECON-4: the old comment claimed the opposite.)
 	TArray<FString> Base = Segments(From);
 	TArray<FString> Rel = Segments(To);
 	for (const FString& Seg : Rel)
@@ -358,9 +361,25 @@ namespace
 			Bump([](const int32& V) { return V + 1; });
 		};
 
-		auto Go = [HistRef, Bump](int32 Delta)
+		auto Go = [HistRef, BlockerList, Bump](int32 Delta)
 		{
 			FRuiHistory& H = HistRef->Current;
+			// A back/forward (POP) navigation is subject to blockers too — the back button must not
+			// bypass a UseBlocker guard that Navigate honors (bughunt RECON-2). Veto on the immediate
+			// target before touching the stacks.
+			FString TargetHref;
+			if (Delta < 0 && H.Back.Num() > 0)
+			{
+				TargetHref = H.Back.Last().ToHref();
+			}
+			else if (Delta > 0 && H.Forward.Num() > 0)
+			{
+				TargetHref = H.Forward[0].ToHref();
+			}
+			if (TargetHref.IsEmpty() || AnyBlockerActive(BlockerList, TargetHref))
+			{
+				return;
+			}
 			if (Delta < 0)
 			{
 				for (int32 n = 0; n < -Delta && H.Back.Num() > 0; ++n)
@@ -480,15 +499,27 @@ namespace
 			{
 				continue;
 			}
-			Params.Append(M.Params);
-			Chain.Add(Route);
 			if (bLayout)
 			{
+				// Stage this branch's params/children so a non-matching branch rolls back cleanly.
 				const FString Rest = StripPrefix(RemainingPath, M.Pathname);
 				TArray<const FRuiRoute*> ChildChain;
-				MatchInto(Route->Children, Rest, Params, ChildChain); // layout matches even with no child
+				TMap<FString, FString> ChildParams = M.Params;
+				const bool bChildMatched = MatchInto(Route->Children, Rest, ChildParams, ChildChain);
+				// A layout with LEFTOVER path that no child consumed does NOT match here — let a sibling
+				// (e.g. a catch-all `*`) try, instead of silently swallowing the trailing segments and
+				// shadowing that sibling (bughunt RECON-1). Rest empty = the layout's own index/outlet.
+				if (!Rest.IsEmpty() && !bChildMatched)
+				{
+					continue;
+				}
+				Params.Append(ChildParams);
+				Chain.Add(Route);
 				Chain.Append(ChildChain);
+				return true;
 			}
+			Params.Append(M.Params);
+			Chain.Add(Route);
 			return true;
 		}
 		return false;
@@ -696,7 +727,9 @@ TTuple<TMap<FString, FString>, TFunction<void(TMap<FString, FString>)>> UseSearc
 	{
 		if (Navigate)
 		{
-			Navigate(Pathname + RUI::BuildSearch(Next), /*bReplace*/ true);
+			// PUSH a new history entry (React-Router's setSearchParams default), so back restores
+			// the prior search state instead of it being lost to an in-place replace (bughunt RECON-3).
+			Navigate(Pathname + RUI::BuildSearch(Next), /*bReplace*/ false);
 		}
 	};
 	return MakeTuple(MoveTemp(Current), MoveTemp(Set));

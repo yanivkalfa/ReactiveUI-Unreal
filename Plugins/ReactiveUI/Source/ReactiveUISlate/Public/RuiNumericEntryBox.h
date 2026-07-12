@@ -42,6 +42,8 @@ public:
 
 	void SetValue(float InValue);
 	float GetValue() const { return CurrentValue; }
+	void SetMinValue(TOptional<float> InMin) { MinValue = InMin; }
+	void SetMaxValue(TOptional<float> InMax) { MaxValue = InMax; }
 	void SetOnValueChanged(FRuiCallback InCb) { OnValueChangedCb = MoveTemp(InCb); }
 	void SetOnValueCommitted(FRuiCallback InCb) { OnValueCommittedCb = MoveTemp(InCb); }
 
@@ -49,8 +51,14 @@ private:
 	TOptional<float> GetOptionalValue() const { return CurrentValue; }
 	void HandleValueChanged(float InValue);
 	void HandleValueCommitted(float InValue, ETextCommit::Type CommitType);
+	/** Clamp to [MinValue, MaxValue] when set. AllowSpin(false) routes typed input through the editable-
+	 *  text path, which does NOT clamp against the engine's Min/Max — so the wrapper enforces the bounds
+	 *  on every forwarded/set value (bughunt IW-1). */
+	float Clamp(float InValue) const;
 
 	float CurrentValue = 0.0f;
+	TOptional<float> MinValue;
+	TOptional<float> MaxValue;
 	FRuiCallback OnValueChangedCb;
 	FRuiCallback OnValueCommittedCb;
 	TSharedPtr<SNumericEntryBox<float>> Entry;

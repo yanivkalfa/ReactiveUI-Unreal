@@ -299,7 +299,10 @@ public:
 	{
 		const FRuiTileViewProps& O = static_cast<const FRuiTileViewProps&>(Old);
 		const FRuiTileViewProps& N = static_cast<const FRuiTileViewProps&>(New);
-		return !(O.ItemWidth == N.ItemWidth) || !(O.ItemHeight == N.ItemHeight);
+		// Has-bit gated (SEP-REBUILD-1 class): removing a cell-size prop is not a construct-only change.
+		const bool bW = N.HasItemWidth() && (!O.HasItemWidth() || !(O.ItemWidth == N.ItemWidth));
+		const bool bH = N.HasItemHeight() && (!O.HasItemHeight() || !(O.ItemHeight == N.ItemHeight));
+		return bW || bH;
 	}
 
 	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase& Props, const TSharedPtr<FRuiEventProxy>&) override

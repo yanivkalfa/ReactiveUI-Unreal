@@ -15,6 +15,7 @@
 #include "RuiElementAdapter.h"
 #include "RuiEventProxy.h"
 #include "RuiSlateElements.h"
+#include "RuiSlotValue.h"
 
 #include "RuiSlateLog.h"
 #include "Styling/CoreStyle.h"
@@ -129,8 +130,7 @@ namespace
 		{
 			if (const FRuiValue* Fill = SlotProps->Find(SlotFillKey))
 			{
-				return Fill->Kind == FRuiValue::EKind::Int ? static_cast<float>(Fill->IntValue)
-														   : static_cast<float>(Fill->FloatValue);
+				return RUI::Slate::SlotValue::AsFloat(*Fill); // String/Name literal forms too (SLOT-1)
 			}
 		}
 		return 0.0f; // absent -> Auto size
@@ -480,7 +480,7 @@ private:
 		{
 			if (const FRuiValue* Z = SlotProps->Find(SlotZOrderKey))
 			{
-				return static_cast<int32>(Z->IntValue);
+				return RUI::Slate::SlotValue::AsInt(*Z, INDEX_NONE); // String/Name literal forms too (SLOT-1)
 			}
 		}
 		return INDEX_NONE;
@@ -568,13 +568,13 @@ namespace RUI::Slate
 
 	namespace Detail
 	{
-		void RegisterBatch2Adapters();		 // RuiWidgetAdapters.cpp
-		void RegisterBatch2WidgetAdapters(); // RuiWidgetAdaptersB2.cpp (Phase 7 batch-2 set)
-		void RegisterItemViewAdapters();	 // RuiListView.cpp (TD-022 virtualized ListView/TileView)
-		void RegisterDragDropAdapters();	 // RuiDragDrop.cpp (TD-004 DragSource/DropTarget)
-		void RegisterExpandableAreaAdapter();	// RuiExpandableArea.cpp (TD-012 tail; two role slots)
-		void RegisterSegmentedControlAdapter(); // RuiSegmentedControl.cpp (TD-012 tail; tab bar)
-		void RegisterNumericEntryBoxAdapter();	// RuiNumericEntryBox.cpp (TD-012 tail; numeric field)
+		void RegisterBatch2Adapters();			 // RuiWidgetAdapters.cpp
+		void RegisterBatch2WidgetAdapters();	 // RuiWidgetAdaptersB2.cpp (Phase 7 batch-2 set)
+		void RegisterItemViewAdapters();		 // RuiListView.cpp (TD-022 virtualized ListView/TileView)
+		void RegisterDragDropAdapters();		 // RuiDragDrop.cpp (TD-004 DragSource/DropTarget)
+		void RegisterExpandableAreaAdapter();	 // RuiExpandableArea.cpp (TD-012 tail; two role slots)
+		void RegisterSegmentedControlAdapter();	 // RuiSegmentedControl.cpp (TD-012 tail; tab bar)
+		void RegisterNumericEntryBoxAdapter();	 // RuiNumericEntryBox.cpp (TD-012 tail; numeric field)
 		void RegisterComboBoxAdapter();			 // RuiComboBox.cpp (TD-012 tail; dropdown selector)
 		void RegisterSuggestionTextBoxAdapter(); // RuiSuggestionTextBox.cpp (TD-012 tail; autocomplete)
 	} // namespace Detail

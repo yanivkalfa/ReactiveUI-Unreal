@@ -41,9 +41,14 @@ namespace
 
 		virtual bool HandleKeyDownEvent(FSlateApplication&, const FKeyEvent& Event) override
 		{
+			// Fire once per physical press: ignore OS auto-repeat while the key is held (bughunt IW-4).
+			// Still consume the matched chord's repeats so they don't leak to other handlers.
 			if (Chord.Matches(Event) && Box->Current)
 			{
-				Box->Current();
+				if (!Event.IsRepeat())
+				{
+					Box->Current();
+				}
 				return true;
 			}
 			return false;

@@ -525,7 +525,26 @@ function parseModule(src: number[], mi: number, exported: boolean, out: UetkxFil
   return bclose + 1;
 }
 
-export function scanFile(source: string, basename: string): UetkxFileScanResult {
+/** Resync to the next top-level declaration keyword at a line start AFTER `from` (best-effort recovery
+ *  for a body parse error). Returns its offset, or -1 if none — used only by the signature-list mode. */
+function resyncToNextDecl(src: number[], from: number): number {
+  // Advance past the rest of the failed declaration's current line first.
+  let i = from;
+  while (i < src.length && src[i] !== C_NL) i++;
+  for (; i < src.length; i++) {
+    if (src[i] !== C_NL) continue;
+    const s = skipWsOnly(src, i + 1);
+    if (keywordAt(src, s, "export") || keywordAt(src, s, "component") || keywordAt(src, s, "hook") || keywordAt(src, s, "module")) {
+      return s;
+    }
+  }
+  return -1;
+}
+
+/** Scan a .uetkx file. `resyncOnBodyError` (signature-list mode, e.g. getDecls) keeps collecting later
+ *  declarations after a malformed body instead of aborting — mirroring the C++ ScanPreamble, which only
+ *  reads decl signatures and so never truncates the exported-decl list on a body error (bughunt LSP-1). */
+export function scanFile(source: string, basename: string, resyncOnBodyError = false): UetkxFileScanResult {
   const out: UetkxFileScanResult = { preambleIncludes: [], imports: [], components: [], hooks: [], modules: [], order: [], diags: [] };
   const src: number[] = [];
   for (const ch of source) src.push(ch.codePointAt(0)!);
@@ -598,7 +617,17 @@ export function scanFile(source: string, basename: string): UetkxFileScanResult 
       );
       return out;
     }
-    if (next < 0) return out; // fatal decl parse error (diag already recorded)
+    if (next < 0) {
+      // Signature-list mode recovers to the next declaration so a body error does not truncate the
+      // exported-decl list (bughunt LSP-1); the compiler path still aborts on the first fatal error.
+      if (resyncOnBodyError) {
+        const r = resyncToNextDecl(src, declStart);
+        if (r < 0) return out;
+        i = r;
+        continue;
+      }
+      return out; // fatal decl parse error (diag already recorded)
+    }
     i = next;
   }
 

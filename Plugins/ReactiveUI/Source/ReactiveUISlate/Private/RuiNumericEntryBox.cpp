@@ -10,6 +10,8 @@
 
 void SRuiNumericEntryBox::Construct(const FArguments& InArgs)
 {
+	MinValue = InArgs._MinValue;
+	MaxValue = InArgs._MaxValue;
 	// clang-format off
 	ChildSlot
 	[
@@ -24,28 +26,48 @@ void SRuiNumericEntryBox::Construct(const FArguments& InArgs)
 	// clang-format on
 }
 
+float SRuiNumericEntryBox::Clamp(float InValue) const
+{
+	float V = InValue;
+	if (MinValue.IsSet())
+	{
+		V = FMath::Max(V, MinValue.GetValue());
+	}
+	if (MaxValue.IsSet())
+	{
+		V = FMath::Min(V, MaxValue.GetValue());
+	}
+	return V;
+}
+
 void SRuiNumericEntryBox::SetValue(float InValue)
 {
+	const float Clamped = Clamp(InValue);
 	// Controlled skip-when-equal (D-16): the field's own edit round-trips to an equal value.
-	if (!FMath::IsNearlyEqual(CurrentValue, InValue))
+	if (!FMath::IsNearlyEqual(CurrentValue, Clamped))
 	{
-		CurrentValue = InValue;
+		CurrentValue = Clamped;
 	}
 }
 
 void SRuiNumericEntryBox::HandleValueChanged(float InValue)
 {
+	// Enforce the documented Min/Max bounds on typed input before forwarding (bughunt IW-1): with
+	// AllowSpin(false) the engine never clamps, so an unclamped value would reach the parent state.
+	const float Clamped = Clamp(InValue);
 	if (OnValueChangedCb.IsBound())
 	{
-		OnValueChangedCb.Execute(FRuiValue(InValue));
+		OnValueChangedCb.Execute(FRuiValue(Clamped));
 	}
 }
 
 void SRuiNumericEntryBox::HandleValueCommitted(float InValue, ETextCommit::Type)
 {
+	const float Clamped = Clamp(InValue);
+	CurrentValue = Clamped; // reflect the clamp in the field immediately (the display reads CurrentValue)
 	if (OnValueCommittedCb.IsBound())
 	{
-		OnValueCommittedCb.Execute(FRuiValue(InValue));
+		OnValueCommittedCb.Execute(FRuiValue(Clamped));
 	}
 }
 
@@ -72,6 +94,16 @@ public:
 		SRuiNumericEntryBox& W = static_cast<SRuiNumericEntryBox&>(Widget);
 		const FRuiNumericEntryBoxProps& N = static_cast<const FRuiNumericEntryBoxProps&>(New);
 		const FRuiNumericEntryBoxProps* O = static_cast<const FRuiNumericEntryBoxProps*>(Old);
+		// Bounds first, so a same-render Value re-application clamps against the new bounds (bughunt IW-1:
+		// ApplyDiff previously never re-applied Min/Max, so a runtime bound change was inert).
+		if (N.HasMinValue() && (O == nullptr || !O->HasMinValue() || !FMath::IsNearlyEqual(N.MinValue, O->MinValue)))
+		{
+			W.SetMinValue(TOptional<float>(N.MinValue));
+		}
+		if (N.HasMaxValue() && (O == nullptr || !O->HasMaxValue() || !FMath::IsNearlyEqual(N.MaxValue, O->MaxValue)))
+		{
+			W.SetMaxValue(TOptional<float>(N.MaxValue));
+		}
 		if (N.HasValue() && (O == nullptr || !O->HasValue() || !FMath::IsNearlyEqual(N.Value, O->Value)))
 		{
 			W.SetValue(N.Value);

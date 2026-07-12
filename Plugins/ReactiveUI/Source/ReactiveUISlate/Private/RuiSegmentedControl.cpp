@@ -71,7 +71,8 @@ public:
 	{
 		const FRuiSegmentedControlProps& O = static_cast<const FRuiSegmentedControlProps&>(Old);
 		const FRuiSegmentedControlProps& N = static_cast<const FRuiSegmentedControlProps&>(New);
-		return !(O.Labels == N.Labels);
+		// Has-bit gated (SEP-REBUILD-1 class): removing Labels is not a construct-only change.
+		return N.HasLabels() && (!O.HasLabels() || !(O.Labels == N.Labels));
 	}
 
 	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase& Props, const TSharedPtr<FRuiEventProxy>&) override

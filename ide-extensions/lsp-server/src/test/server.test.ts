@@ -8,6 +8,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { classifyCursor } from "../context";
+import { drainMessages } from "../clangdProxy";
 import { enclosingAttrName, fieldForKind } from "../eventPayload";
 import { readSidecarDiags } from "../diagsSidecar";
 import { srcHash } from "../cppScanner";
@@ -59,6 +60,11 @@ test("event payload: enclosingAttrName + fieldForKind (TD-016)", () => {
   // a nested brace in the expression doesn't confuse the walk
   const nested = '<Slider OnValueChanged={ Set(FVector2D{1,2}, Value.';
   assert.strictEqual(enclosingAttrName(nested, nested.length), "OnValueChanged");
+  // LSP-4: a `}`/`{` INSIDE a handler STRING must not miscount brace depth or fake a tag boundary
+  const strBrace = '<Button OnClicked={ SetText(TEXT("}")); Value.';
+  assert.strictEqual(enclosingAttrName(strBrace, strBrace.length), "OnClicked");
+  const strAngle = '<Button OnClicked={ Log(TEXT("<not a tag>")); Value.';
+  assert.strictEqual(enclosingAttrName(strAngle, strAngle.length), "OnClicked");
   // outside any attr value → null
   assert.strictEqual(enclosingAttrName("<Button>Value.", "<Button>Value.".length), null);
   // kind → field mapping
@@ -213,6 +219,32 @@ test("importCursorAt: name-list vs specifier vs not-an-import", () => {
   const specCtx = importCursorAt(specSrc, specSrc.indexOf("./B") + 3);
   assert.strictEqual(specCtx?.kind, "import-specifier");
   assert.strictEqual((specCtx as { partial: string }).partial, "./B");
-  // a component body line is not an import
+  // a component body line is not an import (kept below the multi-line case)
   assert.strictEqual(importCursorAt("component App { return ( <Badge\n", 30), null);
+  // LSP-3 (LSW): a MULTI-LINE import statement — a cursor on a continuation line still classifies
+  const multi = "import {\n  Alpha,\n  Be\n} from \"./B\"\n";
+  const multiCtx = importCursorAt(multi, multi.indexOf("Be") + 2);
+  assert.strictEqual(multiCtx?.kind, "import-name");
+  assert.strictEqual((multiCtx as { specifier: string }).specifier, "./B");
+  assert.strictEqual((multiCtx as { partial: string }).partial, "Be");
+});
+
+test("drainMessages: frames by UTF-8 BYTE length, not UTF-16 units (LSP-1)", () => {
+  // A body with multi-byte chars (é = 2 bytes; 🎉 = 4 bytes / 2 UTF-16 units) must frame by byte length —
+  // a UTF-16 string slice would over/under-read and desync the stream.
+  const body = JSON.stringify({ id: 1, result: { label: "café 🎉 end" } });
+  const frame = Buffer.concat([
+    Buffer.from(`Content-Length: ${Buffer.byteLength(body, "utf8")}\r\n\r\n`, "ascii"),
+    Buffer.from(body, "utf8"),
+  ]);
+  const { messages, rest } = drainMessages(frame);
+  assert.strictEqual(messages.length, 1);
+  assert.strictEqual((messages[0] as { result: { label: string } }).result.label, "café 🎉 end");
+  assert.strictEqual(rest.length, 0);
+  // two concatenated frames drain independently (the stream stays in sync past the non-ASCII body)
+  assert.strictEqual(drainMessages(Buffer.concat([frame, frame])).messages.length, 2);
+  // a partial trailing frame stays buffered in `rest`
+  const partial = drainMessages(Buffer.concat([frame, Buffer.from("Content-Length: 99\r\n\r\n{par", "ascii")]));
+  assert.strictEqual(partial.messages.length, 1);
+  assert.ok(partial.rest.length > 0);
 });

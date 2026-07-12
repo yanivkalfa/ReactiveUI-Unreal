@@ -159,17 +159,25 @@ namespace RUI::Slate
 		}
 		for (TPair<FName, FRuiValue>& Pair : Out)
 		{
-			if (IsTokenRef(Pair.Value))
+			// Resolve a `$token` chain transitively — a token whose value is itself `$other` (bughunt
+			// STYLE-3, which previously left the second-hop `$other` string reaching the adapter). Bounded
+			// hop count breaks a cycle (`$a -> $b -> $a`) rather than looping forever.
+			constexpr int32 MaxHops = 8;
+			int32 Hops = 0;
+			while (IsTokenRef(Pair.Value) && Hops++ < MaxHops)
 			{
 				const FName Token(*Pair.Value.StringValue.RightChop(1));
-				if (const FRuiValue* Resolved = Theme->Find(Token))
-				{
-					Pair.Value = *Resolved;
-				}
-				else
+				const FRuiValue* Resolved = Theme->Find(Token);
+				if (Resolved == nullptr)
 				{
 					WarnUnknownKey(FName(*(TEXT("token:") + Token.ToString())));
+					break;
 				}
+				Pair.Value = *Resolved;
+			}
+			if (IsTokenRef(Pair.Value)) // still a ref after the hop budget → a cycle/too-deep chain
+			{
+				WarnUnknownKey(FName(*(TEXT("token-cycle:") + Pair.Value.StringValue)));
 			}
 		}
 	}
@@ -300,8 +308,18 @@ namespace RUI::Slate
 
 	void RegisterTheme(FName ThemeName, FRuiStyleDict Tokens)
 	{
+		// Store token keys BARE: a reference strips its leading `$` before lookup (ResolveThemeTokens),
+		// so a `$token:` declaration form must normalize to `token` or it can never resolve (bughunt
+		// STYLE-1). Both `accent:` and `$accent:` are accepted and stored as `accent`.
+		FRuiStyleDict Normalized;
+		Normalized.Reserve(Tokens.Num());
+		for (const TPair<FName, FRuiValue>& Token : Tokens)
+		{
+			const FString K = Token.Key.ToString();
+			Normalized.Add(K.StartsWith(TEXT("$")) ? FName(*K.RightChop(1)) : Token.Key, Token.Value);
+		}
 		FScopeLock Lock(&GClassLock);
-		GThemes.Add(ThemeName, MoveTemp(Tokens));
+		GThemes.Add(ThemeName, MoveTemp(Normalized));
 	}
 
 	void SetActiveTheme(FName ThemeName)
@@ -358,13 +376,19 @@ namespace RUI::Slate
 		{
 			return FRuiValue(false);
 		}
-		// Vector2: "x,y" (two numbers).
+		// Vector2: "x,y" (two numbers). Trim each component so `"x, y"` (a space after the comma) still
+		// parses as a Vector2 rather than falling through to a Name (bughunt STYLE-2).
 		{
 			TArray<FString> Parts;
 			S.ParseIntoArray(Parts, TEXT(","), true);
-			if (Parts.Num() == 2 && Parts[0].IsNumeric() && Parts[1].IsNumeric())
+			if (Parts.Num() == 2)
 			{
-				return FRuiValue(FVector2D(FCString::Atod(*Parts[0]), FCString::Atod(*Parts[1])));
+				Parts[0].TrimStartAndEndInline();
+				Parts[1].TrimStartAndEndInline();
+				if (Parts[0].IsNumeric() && Parts[1].IsNumeric())
+				{
+					return FRuiValue(FVector2D(FCString::Atod(*Parts[0]), FCString::Atod(*Parts[1])));
+				}
 			}
 		}
 		// Numbers: integer vs float.

@@ -24,6 +24,7 @@ const MIGRATE = `<Engine>\\UnrealEditor-Cmd.exe <proj>.uproject -run=RUIMigrateI
 <Engine>\\UnrealEditor-Cmd.exe <proj>.uproject -run=RUICompile -check`
 
 const DIAGS: Array<[string, string, string]> = [
+  ['UETKX2106', 'err', '`X` is exported by two files — one exported name, one file (rename or keep one private)'],
   ['UETKX2300', 'err', 'unknown import specifier — no file at that path'],
   ['UETKX2301', 'err', '`X` is not exported by that file — add `export` to its declaration'],
   ['UETKX2302', 'err', '`X` is not declared in that file'],
@@ -80,6 +81,12 @@ export const ImportsPage: FC = () => (
       compile.
     </Typography>
     <CodeBlock code={MIGRATE} language="bash" />
+    <Alert severity="warning" sx={{ mt: 1 }}>
+      Because the codemod exports <em>everything</em>, two files that previously held same-named{' '}
+      <em>private</em> declarations now both export that name — a{' '}
+      <code>UETKX2106</code> duplicate-export collision. The codemod reports it (and so does{' '}
+      <code>RUICompile -check</code>); resolve it by renaming one declaration or keeping one private.
+    </Alert>
 
     <Typography variant="h5" component="h2" gutterBottom sx={{ mt: 3 }}>
       Diagnostics

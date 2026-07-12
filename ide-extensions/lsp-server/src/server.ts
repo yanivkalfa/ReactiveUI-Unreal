@@ -35,10 +35,10 @@ import {
   findExporter,
   getDecls,
   importCursorAt,
-  listUetkxFiles,
   resolveDiagnostics,
   resolveSpecifier,
   suggestSpecifier,
+  sweptUetkxFiles,
   workspaceRootFor,
 } from "./uetkxWorkspace";
 import { ClangdProxy } from "./clangdProxy";
@@ -136,9 +136,8 @@ connection.onCompletion((params): CompletionItem[] => {
     const fsPath = fsPathOf(doc);
     if (imp.kind === "import-specifier") {
       const importerDir = path.dirname(fsPath);
-      const root = workspaceRootFor(fsPath);
       const items: CompletionItem[] = [];
-      for (const file of listUetkxFiles(root)) {
+      for (const file of sweptUetkxFiles(fsPath)) {
         if (path.resolve(file) === path.resolve(fsPath)) continue; // never import yourself
         const decls = (getDecls(file) ?? []).filter((d) => d.exported);
         if (decls.length === 0) continue;
@@ -166,7 +165,7 @@ connection.onCompletion((params): CompletionItem[] => {
     if (key) {
       for (const d of getDecls(key) ?? []) if (d.exported) add(d.name, d.kind);
     } else {
-      for (const file of listUetkxFiles(workspaceRootFor(fsPath))) {
+      for (const file of sweptUetkxFiles(fsPath)) {
         if (path.resolve(file) === path.resolve(fsPath)) continue;
         for (const d of getDecls(file) ?? []) if (d.exported) add(d.name, d.kind);
       }
@@ -260,7 +259,7 @@ connection.onHover(async (params) => {
     const proxy = await embeddedProxy(doc);
     if (proxy) {
       const hover = await embeddedPositionRequest(proxy, "textDocument/hover", doc.uri, text, offset);
-      if (hover) return hover as Hover;
+      if (hover) return translateEmbeddedHover(hover as Hover, doc, text);
     }
   }
 
@@ -323,6 +322,23 @@ connection.onDefinition(async (params): Promise<Definition | null> => {
   return null;
 });
 
+/** Translate an embedded (clangd) hover: its `range` is in VIRTUAL-doc coordinates, so map it back to
+ *  the .uetkx source range before returning (bughunt LSP-2 — an untranslated range highlights the wrong
+ *  span, or lands out of bounds). A range in the prelude scaffolding is dropped (keep the contents). */
+function translateEmbeddedHover(hover: Hover, doc: TextDocument, source: string): Hover {
+  const h = hover as Hover & {
+    range?: { start: { line: number; character: number }; end: { line: number; character: number } };
+  };
+  if (!h.range) return hover;
+  const view = buildEmbeddedView(source);
+  const startOff = view.sourceOffsetOf(h.range.start);
+  const endOff = view.sourceOffsetOf(h.range.end);
+  if (startOff === null || endOff === null) {
+    return { contents: h.contents };
+  }
+  return { contents: h.contents, range: { start: doc.positionAt(startOff), end: doc.positionAt(endOff) } };
+}
+
 /** Translate a clangd definition result: locations pointing back into THIS document's virtual C++
  *  are mapped to .uetkx ranges; locations in real files (engine headers) pass through unchanged;
  *  anything landing in the prelude scaffolding is dropped. */
@@ -334,7 +350,7 @@ function translateEmbeddedDefinition(result: unknown, doc: TextDocument, source:
   const out: Location[] = [];
   for (const loc of locs) {
     if (!loc || typeof loc.uri !== "string") continue;
-    if (loc.uri !== virtualUri) {
+    if (!URI.sameUri(loc.uri, virtualUri)) {
       out.push(loc); // a real file (engine header) — pass through
       continue;
     }

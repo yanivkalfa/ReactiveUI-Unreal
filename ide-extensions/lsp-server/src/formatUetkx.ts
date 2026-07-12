@@ -85,6 +85,13 @@ export function formatUetkx(source: string, opts?: Partial<UetkxFormatOptions>):
       preCanonical = false;
       break;
     }
+    // A trailing/standalone comment on a preamble line is NOT reconstructed structurally — emit the
+    // preamble verbatim so the comment survives (bughunt LSP-3). Specifiers/include paths use single
+    // slashes, so `//` or `/*` only ever marks a comment here.
+    if (t && (t.includes("//") || t.includes("/*"))) {
+      preCanonical = false;
+      break;
+    }
   }
   if (!preCanonical) {
     out += pre;

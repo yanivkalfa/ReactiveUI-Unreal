@@ -147,7 +147,7 @@ void FRuiSlateHost::CommitUpdate(const FRuiHostHandle& Handle, FRuiElementTypeId
 		const uint64 TouchedBits = (OldProps->SetBits | NewProps.SetBits) & Mask;
 		if (TouchedBits != 0 && !NewProps.Equals(*OldProps) && Node->Adapter->ConstructOnlyChanged(*OldProps, NewProps))
 		{
-			ReplaceWidget(*Node, NewProps);
+			ReplaceWidget(*Node, OldProps, NewProps);
 			return;
 		}
 	}
@@ -447,7 +447,7 @@ void FRuiSlateHost::RemoveChildFromParent(FRuiSlateNode& Parent, const TSharedRe
 	}
 }
 
-void FRuiSlateHost::ReplaceWidget(FRuiSlateNode& Node, const FRuiPropsBase& NewProps)
+void FRuiSlateHost::ReplaceWidget(FRuiSlateNode& Node, const FRuiPropsBase* OldProps, const FRuiPropsBase& NewProps)
 {
 	TSharedPtr<FRuiSlateNode> Parent = Node.ParentNode.Pin();
 	if (!Parent.IsValid() || !Parent->Widget.IsValid() || Parent->Adapter == nullptr)
@@ -468,7 +468,19 @@ void FRuiSlateHost::ReplaceWidget(FRuiSlateNode& Node, const FRuiPropsBase& NewP
 	//    (bind-once-swap-inner: CreateWidget rebinds the new widget's SLATE_EVENT args to the same
 	//    proxy, SyncEventHandlers refreshes the inner callbacks).
 	const TSharedRef<SWidget> NewWidget = Adapter->CreateWidget(NewProps, Node.Proxy);
-	Adapter->ApplyDiff(*NewWidget, nullptr, NewProps);
+	// Runtime props: restore the LAST-committed props first, then apply this render's changes on top.
+	// The fresh widget starts at its literal defaults, so a runtime prop the new render OMITS but a
+	// prior render set would otherwise reset — violating the family "removed plain props don't reset"
+	// rule on the rebuild path (bughunt SEP-REBUILD-1). Construct-only props ride NewProps via CreateWidget.
+	if (OldProps != nullptr)
+	{
+		Adapter->ApplyDiff(*NewWidget, nullptr, *OldProps);
+		Adapter->ApplyDiff(*NewWidget, OldProps, NewProps);
+	}
+	else
+	{
+		Adapter->ApplyDiff(*NewWidget, nullptr, NewProps);
+	}
 	if (Node.Proxy.IsValid())
 	{
 		Adapter->SyncEventHandlers(*Node.Proxy, NewProps);

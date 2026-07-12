@@ -1,0 +1,5 @@
+ReactiveUI seller-repo marker (D-32a). Its PRESENCE at the project root tells the codegen this is
+ReactiveUI's own monorepo, so generated *.uetkx.inl / *.Uetkx.gen.cpp carry the seller copyright.
+A customer project that installs the Fab plugin never receives this file (it lives ABOVE
+Plugins/ReactiveUI/ and is not part of the plugin package), so their generated code gets the neutral
+"this generated code belongs to your project" banner instead. Do not delete. See FUetkxCodegen::IsSellerRepo.

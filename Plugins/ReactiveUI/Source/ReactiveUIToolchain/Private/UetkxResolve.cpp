@@ -92,7 +92,11 @@ namespace
 					continue;
 				}
 				bMember = (P == '.') || (P == '>' && k > 0 && Src[k - 1] == '-');
-				bScope = (P == ':');
+				// Only a real `::` scope qualifier (a SECOND colon precedes) blocks a fresh reference; a
+				// lone `:` is a ternary / label / case and must NOT drop the ident after it (bughunt
+				// IMPORT-3 — e.g. `cond ? UseA() : UseB()` would lose the UseB reference, then the codemod
+				// blesses un-buildable output because the needed import is never added).
+				bScope = (P == ':') && k > 0 && Src[k - 1] == ':';
 				break;
 			}
 			if (bMember || bScope)
@@ -152,7 +156,7 @@ FString FUetkxFsResolver::ImporterAbs(const FString& ImporterPath) const
 	return NormAbs(FPaths::Combine(BaseDir, ImporterPath));
 }
 
-FString FUetkxFsResolver::Resolve(const FString& Spec, const FString& ImporterPath) const
+FString FUetkxFsResolver::ComputeTargetPath(const FString& Spec, const FString& ImporterPath) const
 {
 	const FString ImporterDir = FPaths::GetPath(ImporterAbs(ImporterPath));
 	FString Target;
@@ -177,8 +181,19 @@ FString FUetkxFsResolver::Resolve(const FString& Spec, const FString& ImporterPa
 	{
 		Target += TEXT(".uetkx");
 	}
-	Target = NormAbs(Target);
-	return IFileManager::Get().FileExists(*Target) ? Target : FString();
+	return NormAbs(Target);
+}
+
+FString FUetkxFsResolver::Resolve(const FString& Spec, const FString& ImporterPath) const
+{
+	const FString Target = ComputeTargetPath(Spec, ImporterPath);
+	return (!Target.IsEmpty() && IFileManager::Get().FileExists(*Target)) ? Target : FString();
+}
+
+FString FUetkxFsResolver::WouldBeLabel(const FString& Spec, const FString& ImporterPath) const
+{
+	const FString Target = ComputeTargetPath(Spec, ImporterPath);
+	return Target.IsEmpty() ? FString() : LabelForKey(Target);
 }
 
 const FUetkxPreambleScan* FUetkxFsResolver::CachedScan(const FString& Key) const
@@ -270,6 +285,10 @@ void FUetkxFsResolver::EnsureIndex() const
 	{
 		TArray<FString> Files;
 		IFileManager::Get().FindFilesRecursive(Files, *Root, TEXT("*.uetkx"), true, false);
+		// Deterministic "first exporter wins": FindFilesRecursive returns an OS-dependent order, so a
+		// duplicate-export tie-break would differ across machines/CI without a stable sort (bughunt
+		// RESOLVE-1). The codemod's chosen specifier must be reproducible.
+		Files.Sort();
 		for (const FString& File : Files)
 		{
 			const FString Norm = NormAbs(File);
@@ -365,8 +384,14 @@ void FUetkxResolve::Apply(const FUetkxFileScanResult& Scan, const TMap<FString, 
 				FString::Printf(TEXT("unknown import specifier `%s` — no file at %s(.uetkx)"), *Imp.Specifier,
 								*Imp.Specifier),
 				Imp.SpecifierAt, FMath::Max(1, Imp.Specifier.Len() + 2));
-			// Record the unresolved specifier so a future file appearing there flips staleness (M8).
-			DepHashes.Add(Imp.Specifier, 0);
+			// Record the unresolved dep under the WOULD-BE label (the project-relative path the specifier
+			// maps to) — the SAME key space resolved deps use — so DepsChanged can reconstruct it and a
+			// future file appearing there flips staleness (M8 / bughunt DRV-2 / IMPORT-1). The raw
+			// specifier was unreconstructable (DepsChanged combined it against the project root, missing
+			// both the importer-relative anchor and the `.uetkx` suffix). Fall back to the specifier only
+			// for a forbidden/anchorless form, which can never resolve anyway.
+			const FString WouldBe = Resolver.WouldBeLabel(Imp.Specifier, ImporterPath);
+			DepHashes.Add(WouldBe.IsEmpty() ? Imp.Specifier : WouldBe, 0);
 			continue;
 		}
 		const FString Label = Resolver.LabelForKey(Key);
@@ -378,6 +403,13 @@ void FUetkxResolve::Apply(const FUetkxFileScanResult& Scan, const TMap<FString, 
 					TEXT("import crosses a module/root boundary (%s -> %s) — imports are module-scoped in v1"),
 					*ImporterPath, *Label),
 				Imp.At);
+			// These names ARE imported (2308 is the resolution to fix), so mark them imported — otherwise
+			// the strict-usage pass ALSO emits a contradictory 2305 "not imported, add this import" for the
+			// exact binding that is already imported (bughunt IMPORT-2).
+			for (const FString& Name : Imp.Names)
+			{
+				ImportedNames.Add(Name);
+			}
 			continue;
 		}
 		TMap<FString, FUetkxTargetDecl> Decls;

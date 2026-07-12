@@ -88,7 +88,7 @@ private:
 	/** TD-011: a construct-only prop changed — rebuild the widget (reusing the event proxy),
 	 *  re-parent its children with their slot props, and swap it into the parent's slot in place.
 	 *  Returns the new widget, or the existing one if replacement was not possible (no parent). */
-	void ReplaceWidget(FRuiSlateNode& Node, const FRuiPropsBase& NewProps);
+	void ReplaceWidget(FRuiSlateNode& Node, const FRuiPropsBase* OldProps, const FRuiPropsBase& NewProps);
 
 	TArray<TFunction<void()>> FrameQueue;
 	FDelegateHandle PreTickHandle;

@@ -445,18 +445,22 @@ void FRuiReconciler::RenderComponent(FRuiFiber* Fiber)
 				{
 					if (Override.bMigrateState)
 					{
-						// TD-019: same-shape representation swap — snapshot exportable state by hook
-						// slot BEFORE the reset so this render's UseState re-seeds from it. Non-
-						// migratable slots (effects/refs/container state) leave a Null and re-init.
+						// TD-019: same-shape representation swap — snapshot exportable state BEFORE the
+						// reset so this render's UseState re-seeds from it. Pack by STATE-ORDINAL, not
+						// absolute hook slot (bughunt HMR-1): the interp materializes only UseState cells,
+						// so its i-th UseState reads MigratedState[i] by state order. A non-State slot
+						// (Ref/Memo/Reducer/effect) has no interp cell and must NOT consume an index; a
+						// non-exportable State cell still consumes one (as Null) to keep the rest aligned.
 						State->MigratedState.Reset();
-						State->MigratedState.SetNum(State->Hooks.Num());
 						for (int32 h = 0; h < State->Hooks.Num(); ++h)
 						{
-							FRuiValue Exported;
-							if (State->Hooks[h].IsValid() && State->Hooks[h]->ExportRuiValue(Exported))
+							if (!State->Hooks[h].IsValid() || State->Hooks[h]->GetKind() != ERuiHookKind::State)
 							{
-								State->MigratedState[h] = MoveTemp(Exported);
+								continue;
 							}
+							FRuiValue Exported;
+							State->MigratedState.Add(State->Hooks[h]->ExportRuiValue(Exported) ? MoveTemp(Exported)
+																							   : FRuiValue());
 						}
 					}
 					State->HmrResetHooks(); // reset (family rule); MigratedState survives for re-seed

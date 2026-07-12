@@ -37,22 +37,43 @@ namespace
 		TArray<FUetkxParam> Out;
 		TArray<FString> Pieces;
 		int32 Depth = 0;
+		// Angle brackets nest ONLY in TYPE position (before a param's `=`): `TArray<TMap<A,B>>`. In a
+		// DEFAULT value (after `=`) a `<`/`>`/`<<`/`>>` is a comparison/shift OPERATOR, not nesting —
+		// counting it there unbalanced the depth and merged/dropped later params (bughunt SCAN-1). A
+		// default's own commas are protected by ()/[]/{} which Depth still tracks; the flag resets at
+		// each top-level comma (the next param starts fresh in type position).
+		bool bInDefault = false;
 		FString Cur;
 		for (int32 i = 0; i < ParamText.Len(); ++i)
 		{
 			const TCHAR C = ParamText[i];
-			if (C == '(' || C == '[' || C == '{' || C == '<')
+			if (C == '(' || C == '[' || C == '{')
 			{
 				++Depth;
 			}
-			else if (C == ')' || C == ']' || C == '}' || C == '>')
+			else if (C == ')' || C == ']' || C == '}')
 			{
 				--Depth;
+			}
+			else if (!bInDefault && C == '<')
+			{
+				++Depth;
+			}
+			else if (!bInDefault && C == '>')
+			{
+				--Depth;
+			}
+			else if (C == '=' && Depth == 0 && (i + 1 >= ParamText.Len() || ParamText[i + 1] != '=') &&
+					 (i == 0 || (ParamText[i - 1] != '=' && ParamText[i - 1] != '!' && ParamText[i - 1] != '<' &&
+								 ParamText[i - 1] != '>')))
+			{
+				bInDefault = true; // entered this param's default value
 			}
 			if (C == ',' && Depth == 0)
 			{
 				Pieces.Add(Cur);
 				Cur.Empty();
+				bInDefault = false;
 				continue;
 			}
 			Cur.AppendChar(C);
@@ -178,9 +199,24 @@ namespace
 			AddDiag(Out.Diags, TEXT("UETKX0304"), 0, TEXT("unclosed `{` in import list"), k);
 			return N;
 		}
+		// Skip whitespace AND comments between names — a `//`/`/* */` inside the brace list must not be
+		// misread as a bad specifier that drops the whole import (bughunt SCAN-2).
+		auto SkipWsAndComments = [&Src](int32 p)
+		{
+			for (;;)
+			{
+				p = SkipWsOnly(Src, p);
+				const int32 nc = FUetkxLexer::SkipNoncode(Src, p);
+				if (nc == p)
+				{
+					return p;
+				}
+				p = nc;
+			}
+		};
 		for (int32 p = k + 1; p < Bclose;)
 		{
-			p = SkipWsOnly(Src, p);
+			p = SkipWsAndComments(p);
 			if (p >= Bclose)
 			{
 				break;
@@ -421,6 +457,18 @@ namespace
 			const int32 Rh = k + 2;
 			while (k < N && Src[k] != C_LBRACE)
 			{
+				// A declaration keyword at a token boundary before the body `{` means the hook's body is
+				// missing — stop so the NEXT declaration is not swallowed as this hook's return/body
+				// (bughunt SCAN-3); the `{`-expected check below then reports UETKX2202.
+				const bool bBoundary = (k == Rh) || Src[k - 1] == C_SPACE || Src[k - 1] == C_TAB ||
+									   Src[k - 1] == C_NL || Src[k - 1] == C_CR;
+				if (bBoundary &&
+					(FUetkxLexer::KeywordAt(Src, k, TEXT("component")) ||
+					 FUetkxLexer::KeywordAt(Src, k, TEXT("hook")) || FUetkxLexer::KeywordAt(Src, k, TEXT("module")) ||
+					 FUetkxLexer::KeywordAt(Src, k, TEXT("export")) || FUetkxLexer::KeywordAt(Src, k, TEXT("import"))))
+				{
+					break;
+				}
 				++k;
 			}
 			Decl.Ret = FUetkxLexer::FromCodePoints(Src, Rh, k - Rh).TrimStartAndEnd();

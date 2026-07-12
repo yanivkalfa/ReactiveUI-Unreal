@@ -840,6 +840,14 @@ FUetkxFormatResult FUetkxFormatter::Format(const FString& Source, const FUetkxFo
 				bPreCanonical = false;
 				break;
 			}
+			// A trailing/standalone comment on a preamble line is NOT reconstructed structurally — emit
+			// the preamble verbatim so it survives (bughunt FMT-1). Specifiers/include paths use single
+			// slashes, so `//` or `/*` here only ever marks a comment.
+			if (!T.IsEmpty() && (T.Contains(TEXT("//")) || T.Contains(TEXT("/*"))))
+			{
+				bPreCanonical = false;
+				break;
+			}
 		}
 	}
 	if (!bPreCanonical)

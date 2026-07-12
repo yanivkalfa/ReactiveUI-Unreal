@@ -72,8 +72,14 @@ public:
 	virtual bool ApplyStyleKey(SWidget& Widget, FName Key, const FRuiValue* Value) { return false; }
 
 	/** Pool eligibility (GO-05): default = event-less leaves only (bound delegates can't
-	 *  re-target a new node's proxy, and panels carry structure). */
-	virtual bool IsPoolable() const { return GetChildKind() == ERuiChildKind::Leaf && !HasEvents(); }
+	 *  re-target a new node's proxy, and panels carry structure). A widget with construct-only props
+	 *  (a non-zero GetReconstructMask, e.g. SSeparator's Thickness/Orientation) is EXCLUDED: those
+	 *  props bake at construction and ApplyDiff cannot re-apply them, so a pooled instance would carry
+	 *  the prior node's baked state into the reused node (bughunt POOL-1). */
+	virtual bool IsPoolable() const
+	{
+		return GetChildKind() == ERuiChildKind::Leaf && !HasEvents() && GetReconstructMask() == 0;
+	}
 
 	// ── children (MultiSlot) ──────────────────────────────────────────────────────────────
 

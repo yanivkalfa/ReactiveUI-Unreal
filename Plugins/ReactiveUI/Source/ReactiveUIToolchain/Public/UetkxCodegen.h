@@ -41,7 +41,19 @@ public:
 	 *  struct + impl + wrapper. */
 	static FUetkxCompileOutput CompileSource(const FString& Source, const FString& Basename,
 											 const FString& ProjectRelPath = FString(),
-											 const IUetkxImportResolver* Resolver = nullptr);
+											 const IUetkxImportResolver* Resolver = nullptr,
+											 TOptional<bool> bSellerRepoOverride = TOptional<bool>());
+
+	/** D-32(a) context-aware generated-code header. TRUE only inside ReactiveUI's OWN repo (the seller's
+	 *  monorepo, marked by a `.rui-seller-repo` sentinel at the project root that never ships in the Fab
+	 *  package) — there generated code carries the seller copyright. In a CUSTOMER project the sentinel
+	 *  is absent, so generated code carries the neutral "belongs to your project" banner. */
+	static bool IsSellerRepo();
+
+	/** The generated-file copyright/attribution header line for `Basename` (seller vs neutral per
+	 *  IsSellerRepo / the explicit override). Includes the trailing newline. */
+	static FString GeneratedCopyrightLine(const FString& Basename,
+										  TOptional<bool> bSellerRepoOverride = TOptional<bool>());
 
 	/** The markup vocabulary as JSON — elements/attrs (typed), style keys, slot keys, hooks.
 	 *  RUIExportSchema writes this to Saved/ReactiveUI/schema.json for the LSP (Phase 5). */

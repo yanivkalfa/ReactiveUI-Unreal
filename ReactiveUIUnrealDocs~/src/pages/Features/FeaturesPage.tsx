@@ -21,11 +21,12 @@ auto                          Nav    = UseNavigate(Ctx);    // Nav(TEXT("/users/
 auto                          Search = UseSearchParams(Ctx);`
 
 const STYLESHEET = `// theme.uss — @theme tokens + $token refs; the cascade is theme < classes < inline.
+// DECLARE tokens BARE; REFERENCE them with a leading $ (a ref strips the $ and matches the bare name).
 @theme dark {
-    $bg: #10131a;
-    $accent: #4f8cff;
+    bg: #10131a;
+    accent: #4f8cff;
 }
-.panel { RenderOpacity: 1; }
+.panel { RenderOpacity: 1; BorderBackgroundColor: $accent; }   // $accent -> #4f8cff under theme "dark"
 
 // C++: register + activate, then reference tokens from style dicts.
 RUI::Slate::LoadStylesheet(Source);

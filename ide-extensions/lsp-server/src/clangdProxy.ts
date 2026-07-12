@@ -36,28 +36,32 @@ export function findCompileCommands(startDir: string): string | null {
   }
 }
 
-/** Length-prefixed LSP message framing over a byte buffer; returns parsed messages + the tail. */
-function drainMessages(buffer: string): { messages: unknown[]; rest: string } {
+/** Length-prefixed LSP message framing over a BYTE buffer. `Content-Length` is a UTF-8 byte count, so
+ *  framing MUST slice the Buffer by bytes — slicing a decoded UTF-16 string by that length desyncs the
+ *  stream on any non-ASCII frame (a multi-byte char counts as 1 UTF-16 unit but >1 byte), silently
+ *  killing embedded intel (bughunt LSP-1). The body is decoded as UTF-8 only after the byte slice. */
+export function drainMessages(buffer: Buffer): { messages: unknown[]; rest: Buffer } {
   const messages: unknown[] = [];
   let rest = buffer;
+  const separator = Buffer.from("\r\n\r\n");
   for (;;) {
-    const headerEnd = rest.indexOf("\r\n\r\n");
+    const headerEnd = rest.indexOf(separator);
     if (headerEnd < 0) {
       break;
     }
-    const header = rest.slice(0, headerEnd);
+    const header = rest.subarray(0, headerEnd).toString("ascii");
     const match = /Content-Length:\s*(\d+)/i.exec(header);
     if (!match) {
-      rest = rest.slice(headerEnd + 4);
+      rest = rest.subarray(headerEnd + separator.length);
       continue;
     }
     const length = parseInt(match[1], 10);
-    const bodyStart = headerEnd + 4;
+    const bodyStart = headerEnd + separator.length;
     if (rest.length < bodyStart + length) {
       break; // wait for more bytes
     }
-    const body = rest.slice(bodyStart, bodyStart + length);
-    rest = rest.slice(bodyStart + length);
+    const body = rest.subarray(bodyStart, bodyStart + length).toString("utf8");
+    rest = rest.subarray(bodyStart + length);
     try {
       messages.push(JSON.parse(body));
     } catch {
@@ -69,7 +73,7 @@ function drainMessages(buffer: string): { messages: unknown[]; rest: string } {
 
 export class ClangdProxy {
   private proc: ChildProcessWithoutNullStreams | null = null;
-  private buffer = "";
+  private buffer: Buffer = Buffer.alloc(0);
   private nextId = 1;
   private readonly pending = new Map<number, (result: unknown) => void>();
   private available = false;
@@ -106,8 +110,8 @@ export class ClangdProxy {
         this.available = false;
         resolve(false);
       });
-      proc.stdout.setEncoding("utf8");
-      proc.stdout.on("data", (chunk: string) => this.onData(chunk));
+      // Keep stdout as raw Buffers (no setEncoding) so LSP framing can slice by BYTE length (LSP-1).
+      proc.stdout.on("data", (chunk: Buffer) => this.onData(chunk));
       this.proc = proc;
 
       this.request("initialize", {
@@ -161,8 +165,8 @@ export class ClangdProxy {
 
   // ── framing ─────────────────────────────────────────────────────────────────────────────
 
-  private onData(chunk: string): void {
-    this.buffer += chunk;
+  private onData(chunk: Buffer): void {
+    this.buffer = Buffer.concat([this.buffer, chunk]);
     const { messages, rest } = drainMessages(this.buffer);
     this.buffer = rest;
     for (const msg of messages) {

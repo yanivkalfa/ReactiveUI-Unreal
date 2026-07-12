@@ -10,6 +10,7 @@
 #include "RuiEventProxy.h"
 #include "RuiSlateElements.h"
 #include "RuiSlateLog.h"
+#include "RuiSlotValue.h"
 
 #include "Widgets/Images/SThrobber.h"
 #include "Widgets/Input/SMultiLineEditableTextBox.h"
@@ -141,9 +142,9 @@ namespace
 		}
 		if (const FRuiValue* Padding = SlotProps->Find(FName(TEXT("slot.padding"))))
 		{
-			const float Uniform = Padding->Kind == FRuiValue::EKind::Int ? static_cast<float>(Padding->IntValue)
-																		 : static_cast<float>(Padding->FloatValue);
-			Slot.Padding(FMargin(Uniform));
+			// Full parser (String "l,t,r,b"/"h,v"/"u", Vector2, uniform) so these panels honor
+			// slot.padding identically to the box panels (bughunt SLOT-2).
+			Slot.Padding(RUI::Slate::SlotValue::AsMargin(*Padding));
 		}
 		if (const FRuiValue* H = SlotProps->Find(FName(TEXT("slot.halign"))))
 		{
@@ -153,6 +154,21 @@ namespace
 		{
 			Slot.VAlign(VAlignB2(V->Kind == FRuiValue::EKind::Name ? V->NameValue : FName(*V->StringValue)));
 		}
+	}
+
+	/** Apply the common slot.* keys to a LIVE FSlot in place (padding/halign/valign), resetting absent
+	 *  keys to the slot defaults so a live update mirrors a fresh insert — WITHOUT detach/re-add, which
+	 *  on an append-only panel (SWrapBox) would jump the child to the end (bughunt WRAP-1). */
+	template <typename TSlot> void ConfigureCommonSlotLive(TSlot& Slot, const FRuiStyleDict* SlotProps)
+	{
+		const FRuiValue* Padding = SlotProps ? SlotProps->Find(FName(TEXT("slot.padding"))) : nullptr;
+		Slot.SetPadding(Padding ? RUI::Slate::SlotValue::AsMargin(*Padding) : FMargin(0.0f));
+		const FRuiValue* H = SlotProps ? SlotProps->Find(FName(TEXT("slot.halign"))) : nullptr;
+		Slot.SetHorizontalAlignment(
+			H ? HAlignB2(H->Kind == FRuiValue::EKind::Name ? H->NameValue : FName(*H->StringValue)) : HAlign_Fill);
+		const FRuiValue* V = SlotProps ? SlotProps->Find(FName(TEXT("slot.valign"))) : nullptr;
+		Slot.SetVerticalAlignment(
+			V ? VAlignB2(V->Kind == FRuiValue::EKind::Name ? V->NameValue : FName(*V->StringValue)) : VAlign_Fill);
 	}
 
 	bool ChildPresent(FChildren* Children, const TSharedRef<SWidget>& Child)
@@ -167,15 +183,15 @@ namespace
 		return false;
 	}
 
-	/** Read an integer slot.* key (grid column/row); absent -> Def. */
+	/** Read an integer slot.* key (grid column/row); absent -> Def. Parses the String/Name literal forms
+	 *  the toolchain emits for a literal `Slot.Column="1"`, not just the expression Int form (SLOT-1). */
 	int32 SlotIntOf(const FRuiStyleDict* SlotProps, const TCHAR* Key, int32 Def)
 	{
 		if (SlotProps != nullptr)
 		{
 			if (const FRuiValue* V = SlotProps->Find(FName(Key)))
 			{
-				return V->Kind == FRuiValue::EKind::Int ? static_cast<int32>(V->IntValue)
-														: static_cast<int32>(V->FloatValue);
+				return RUI::Slate::SlotValue::AsInt(*V, Def);
 			}
 		}
 		return Def;
@@ -366,13 +382,20 @@ public:
 	virtual void UpdateChildSlotProps(SWidget& Parent, const TSharedRef<SWidget>& Child,
 									  const FRuiStyleDict* SlotProps) override
 	{
+		// Mutate the LIVE FSlot in place (like the box panels' TD-010(a) path) instead of remove+append,
+		// which on SWrapBox (append-only, no InsertSlot) jumped a non-last child to the end (bughunt WRAP-1).
 		SWrapBox& W = static_cast<SWrapBox&>(Parent);
-		if (ChildPresent(W.GetChildren(), Child))
+		FChildren* Children = W.GetChildren();
+		for (int32 i = 0; i < Children->Num(); ++i)
 		{
-			W.RemoveSlot(Child);
-			SWrapBox::FScopedWidgetSlotArguments Slot = W.AddSlot();
-			Slot.AttachWidget(Child);
-			ConfigureCommonSlot(Slot, SlotProps);
+			if (&Children->GetChildAt(i).Get() == &Child.Get())
+			{
+				SWrapBox::FSlot& Slot =
+					const_cast<SWrapBox::FSlot&>(static_cast<const SWrapBox::FSlot&>(Children->GetSlotAt(i)));
+				ConfigureCommonSlotLive(Slot, SlotProps);
+				W.Invalidate(EInvalidateWidgetReason::Layout);
+				return;
+			}
 		}
 	}
 };
@@ -549,7 +572,12 @@ public:
 	{
 		const FRuiSeparatorProps& O = static_cast<const FRuiSeparatorProps&>(Old);
 		const FRuiSeparatorProps& N = static_cast<const FRuiSeparatorProps&>(New);
-		return !(O.Orientation == N.Orientation) || !(O.Thickness == N.Thickness);
+		// Gate on the Has-bits (bughunt SEP-REBUILD-1): merely REMOVING a construct-only prop in the new
+		// render is not a change (removed plain props don't reset) — comparing raw values would see
+		// old!=default and force a spurious rebuild that resets the widget to its literal default.
+		const bool bOrient = N.HasOrientation() && (!O.HasOrientation() || !(O.Orientation == N.Orientation));
+		const bool bThickness = N.HasThickness() && (!O.HasThickness() || !(O.Thickness == N.Thickness));
+		return bOrient || bThickness;
 	}
 
 	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase& Props, const TSharedPtr<FRuiEventProxy>&) override
@@ -732,6 +760,24 @@ public:
 		Rebuild(static_cast<SGridPanel&>(Parent), Child);
 	}
 
+	virtual void UpdateChildSlotProps(SWidget& Parent, const TSharedRef<SWidget>& Child,
+									  const FRuiStyleDict* SlotProps) override
+	{
+		// A grid places by cell, not by child order, so re-place the child at its (possibly new)
+		// column/row on any slot-prop change (bughunt GRID-1: previously the base no-op left the
+		// child stuck in its original cell). SGridPanel::FSlot has no runtime column/row setter.
+		SGridPanel& W = static_cast<SGridPanel&>(Parent);
+		if (!ChildPresent(W.GetChildren(), Child))
+		{
+			return;
+		}
+		W.RemoveSlot(Child);
+		SGridPanel::FScopedWidgetSlotArguments Slot =
+			W.AddSlot(SlotIntOf(SlotProps, TEXT("slot.column"), 0), SlotIntOf(SlotProps, TEXT("slot.row"), 0));
+		Slot.AttachWidget(Child);
+		ConfigureCommonSlot(Slot, SlotProps);
+	}
+
 	virtual void ReorderChildren(SWidget& Parent, const TArray<TSharedRef<SWidget>>& Ordered,
 								 TFunctionRef<const FRuiStyleDict*(const TSharedRef<SWidget>&)> SlotPropsOf) override
 	{
@@ -789,6 +835,21 @@ public:
 	virtual void RemoveChild(SWidget& Parent, const TSharedRef<SWidget>& Child) override
 	{
 		static_cast<SUniformGridPanel&>(Parent).RemoveSlot(Child);
+	}
+
+	virtual void UpdateChildSlotProps(SWidget& Parent, const TSharedRef<SWidget>& Child,
+									  const FRuiStyleDict* SlotProps) override
+	{
+		// Re-place at the (possibly new) column/row on a slot-prop change (bughunt GRID-1).
+		SUniformGridPanel& W = static_cast<SUniformGridPanel&>(Parent);
+		if (!ChildPresent(W.GetChildren(), Child))
+		{
+			return;
+		}
+		W.RemoveSlot(Child);
+		SUniformGridPanel::FScopedWidgetSlotArguments Slot =
+			W.AddSlot(SlotIntOf(SlotProps, TEXT("slot.column"), 0), SlotIntOf(SlotProps, TEXT("slot.row"), 0));
+		Slot.AttachWidget(Child);
 	}
 
 	virtual void ReorderChildren(SWidget& Parent, const TArray<TSharedRef<SWidget>>& Ordered,

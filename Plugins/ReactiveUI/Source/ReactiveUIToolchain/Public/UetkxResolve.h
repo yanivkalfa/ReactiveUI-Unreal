@@ -41,6 +41,11 @@ public:
 	/** A machine-stable label for a key (project-relative path) for messages + sidecar dep_hashes. */
 	virtual FString LabelForKey(const FString& Key) const = 0;
 
+	/** The project-relative LABEL a specifier WOULD resolve to even if that file does NOT exist yet —
+	 *  the reverse-staleness key an UNRESOLVED import records, so creating the missing file re-stales the
+	 *  importer (M8 / bughunt DRV-2 / IMPORT-1). "" for a forbidden or anchorless specifier. */
+	virtual FString WouldBeLabel(const FString& Spec, const FString& ImporterPath) const = 0;
+
 	/** GLOBAL: the key of ANY file that EXPORTS Name (2305 vs 2307). "" if none exports it. */
 	virtual FString FindExporter(const FString& Name, EUetkxDeclKind& OutKind) const = 0;
 
@@ -62,11 +67,14 @@ public:
 	virtual bool CrossesModuleBoundary(const FString& ImporterPath, const FString& Key) const override;
 	virtual uint32 ExportHashOf(const FString& Key) const override;
 	virtual FString LabelForKey(const FString& Key) const override;
+	virtual FString WouldBeLabel(const FString& Spec, const FString& ImporterPath) const override;
 	virtual FString FindExporter(const FString& Name, EUetkxDeclKind& OutKind) const override;
 	virtual FString SuggestSpecifier(const FString& ImporterPath, const FString& Key) const override;
 
 private:
 	FString ImporterAbs(const FString& ImporterPath) const;
+	/** The absolute .uetkx path a specifier maps to, WITHOUT the existence check ("" = forbidden/anchorless). */
+	FString ComputeTargetPath(const FString& Spec, const FString& ImporterPath) const;
 	const FUetkxPreambleScan* CachedScan(const FString& Key) const; // (mtime, hash)-cached; null if unreadable
 	void EnsureIndex() const;
 

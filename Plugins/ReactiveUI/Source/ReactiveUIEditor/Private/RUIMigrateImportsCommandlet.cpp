@@ -152,6 +152,10 @@ int32 URUIMigrateImportsCommandlet::Main(const FString& Params)
 
 	// ── Gate: compile the whole tree WITH resolution; require ZERO diagnostics (strict day one). ──
 	int32 Errors = CrossModule;
+	// Cross-file duplicate-export ledger: export-everything can make two files export the same name — a
+	// CROSS-FILE UETKX2106 collision that a per-file compile cannot see, so the codemod would green-light
+	// a tree that RUICompile -check then rejects (bughunt MIGRATE-1). Enforce the same invariant here.
+	TMap<FString, FString> NameToFile;
 	for (const FString& File : Files)
 	{
 		FString Source;
@@ -162,6 +166,21 @@ int32 URUIMigrateImportsCommandlet::Main(const FString& Params)
 		const FString Rel = ProjectRelPathFor(File);
 		const FUetkxCompileOutput Out =
 			FUetkxCodegen::CompileSource(Source, FPaths::GetBaseFilename(File), Rel, &Resolver);
+		for (const FString& Name : Out.ExportedNames)
+		{
+			if (const FString* Incumbent = NameToFile.Find(Name))
+			{
+				UE_LOG(LogRUIMigrate, Error,
+					   TEXT("%s: UETKX2106: exported binding `%s` is already bound by %s (one exported name, one "
+							"file) — rename or keep one private"),
+					   *Rel, *Name, *ProjectRelPathFor(*Incumbent));
+				++Errors;
+			}
+			else
+			{
+				NameToFile.Add(Name, File);
+			}
+		}
 		for (const FUetkxDiag& Diag : Out.Diags)
 		{
 			if (Diag.Severity == 0)
