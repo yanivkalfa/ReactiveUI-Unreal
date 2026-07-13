@@ -174,7 +174,8 @@ jobs:
         run: |
           (cd ide-extensions/lsp-server && npm ci && npm run build)
           node ide-extensions/scripts/changelog.mjs extract --ide vscode --out ide-extensions/vscode-uetkx/CHANGELOG.md
-          (cd ide-extensions/vscode-uetkx && npm ci && node scripts/bundle-server.js && npm run build)
+          # `npm run build` = tsc + scripts/bundle-server.mjs (bundles the just-built lsp-server) — no separate call.
+          (cd ide-extensions/vscode-uetkx && npm ci && npm run build)
       - name: Package VSIX
         if: steps.check.outputs.skip == 'false'
         working-directory: ide-extensions/vscode-uetkx
@@ -248,7 +249,7 @@ jobs:
         shell: pwsh
         run: |
           Push-Location ide-extensions/lsp-server; npm ci; npm run build; Pop-Location
-          Push-Location ide-extensions/vscode-uetkx; npm ci; node scripts/bundle-server.js; Pop-Location
+          Push-Location ide-extensions/vscode-uetkx; npm ci; node scripts/bundle-server.mjs; Pop-Location
           Copy-Item -Recurse -Force ide-extensions/vscode-uetkx/server ide-extensions/visual-studio/UetkxVsix/server
           & ide-extensions/visual-studio/UetkxVsix/fetch-node.ps1
       - name: Generate overview.md from centralized changelog
