@@ -19,7 +19,10 @@
 #include "RuiActivation.h"		// ReactiveUICommonUI — UseIsActive / UseInputMethod / ActivationProvider
 #include "RuiFieldHooks.h"		// ReactiveUIUMG      — UseField
 #include "RuiSignalViewModel.h" // ReactiveUIUMG      — URuiSignalViewModel
+#include "RuiUmgElement.h"		// ReactiveUIUMG      — RUI::Umg::UserWidget (theirs inside ours)
 
+#include "DemoUmgWidget.h"
+#include "Engine/World.h"
 #include "UObject/StrongObjectPtr.h"
 
 using namespace RuiDemo;
@@ -120,3 +123,69 @@ static FRuiNodeArray CommonUiDemoComp(FRuiContext& Ctx, const FRuiEmptyProps&, c
 RUI_COMPONENT(CommonUiDemoComp)
 static const bool GCommonUiDemoReg =
 	RUI::RegisterNamedFactory(FName(TEXT("CommonUiDemo")), []() { return RUI::FC(&CommonUiDemoComp); });
+
+// ── All four pillars in one screen ────────────────────────────────────────────────────────────
+// Slate (this whole tree) · UMG (a UUserWidget hosted inside via RUI::Umg::UserWidget) · MVVM (a
+// viewmodel field read with UseField, written by a button) · CommonUI (activation state driving a
+// probe). This is the thesis, demonstrated in one place.
+static FRuiNodeArray InteropShowcaseComp(FRuiContext& Ctx, const FRuiEmptyProps&, const TArray<FRuiNode>&)
+{
+	// MVVM pillar — a viewmodel we own; UseField re-renders on its broadcast.
+	TSharedRef<TRuiRef<TStrongObjectPtr<URuiSignalViewModel>>> VmRef =
+		Ctx.UseRef<TStrongObjectPtr<URuiSignalViewModel>>();
+	if (!VmRef->Current.IsValid())
+	{
+		VmRef->Current.Reset(NewObject<URuiSignalViewModel>());
+	}
+	URuiSignalViewModel* Vm = VmRef->Current.Get();
+	const int32 N = RUI::Umg::UseField<int32>(Ctx, Vm, FName(TEXT("Int")), 0);
+
+	// CommonUI pillar — activation state (a toggle stands in for a stack push).
+	auto [bActive, SetActive] = Ctx.UseState<bool>(true);
+	const bool bActiveNow = bActive;
+	FRuiActivationState State;
+	State.bActive = bActiveNow;
+	State.InputMethod = ERuiInputMethod::MouseAndKeyboard;
+
+	const FLinearColor Dim(0.7f, 0.7f, 0.8f);
+	TArray<FRuiNode> Kids;
+	Kids.Add(StyledText(TEXT("All four pillars in one screen"), 20.0f));
+	Kids.Add(StyledText(TEXT("Slate output · a UMG widget hosted inside · MVVM data feeding in · CommonUI activation"),
+						11.0f, Dim));
+	Kids.Add(Gap(12.0f));
+
+	// Pillar 2 — UMG: host a real UUserWidget as a Slate child of our tree.
+	Kids.Add(StyledText(TEXT("UMG — their widget inside ours:"), 12.0f, Dim));
+	if (UWorld* World = GWorld)
+	{
+		Kids.Add(RUI::Umg::UserWidget(UDemoUmgWidget::StaticClass(), World));
+	}
+	else
+	{
+		Kids.Add(StyledText(TEXT("[press Play — the UMG host needs a running world]"), 11.0f, Dim));
+	}
+	Kids.Add(Gap(12.0f));
+
+	// Pillar 3 — MVVM.
+	Kids.Add(StyledText(TEXT("MVVM — their data inside ours:"), 12.0f, Dim));
+	Kids.Add(RUI::TextBlock(RUI::Fmt(TEXT("viewmodel.Int = {}"), N)));
+	Kids.Add(LabeledButton(TEXT("viewmodel.SetInt(+1)"),
+						   [Vm, N]()
+						   {
+							   if (Vm)
+							   {
+								   Vm->SetInt(N + 1);
+							   }
+						   }));
+	Kids.Add(Gap(12.0f));
+
+	// Pillar 4 — CommonUI.
+	Kids.Add(StyledText(TEXT("CommonUI — their activation driving ours:"), 12.0f, Dim));
+	Kids.Add(RUI::CommonUI::ActivationProvider(State, {RUI::FC(&ActivationProbeComp)}));
+	Kids.Add(LabeledButton(TEXT("Toggle activation"), [SetActive, bActiveNow]() { SetActive(!bActiveNow); }));
+
+	return {DemoCard(MoveTemp(Kids))};
+}
+RUI_COMPONENT(InteropShowcaseComp)
+static const bool GShowcaseReg =
+	RUI::RegisterNamedFactory(FName(TEXT("InteropShowcase")), []() { return RUI::FC(&InteropShowcaseComp); });
