@@ -186,12 +186,17 @@ jobs:
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
         run: npx --yes @vscode/vsce publish --no-dependencies --packagePath uetkx.vsix --pat "$VSCE_PAT"
-      - name: Publish to Open VSX
+      - name: Publish to Open VSX (only if OVSX_TOKEN is set — optional community marketplace)
         if: steps.check.outputs.skip == 'false'
         working-directory: ide-extensions/vscode-uetkx
         env:
           OVSX_TOKEN: ${{ secrets.OVSX_TOKEN }}
-        run: npx --yes ovsx publish uetkx.vsix -p "$OVSX_TOKEN"
+        run: |
+          if [ -z "$OVSX_TOKEN" ]; then
+            echo "::notice::OVSX_TOKEN not set — skipping Open VSX (the VS Marketplace publish above is unaffected)."
+            exit 0
+          fi
+          npx --yes ovsx publish uetkx.vsix -p "$OVSX_TOKEN"
         continue-on-error: true
       - name: Tag on VS Marketplace success
         if: steps.check.outputs.skip == 'false' && steps.publish-vsce.outcome == 'success'
