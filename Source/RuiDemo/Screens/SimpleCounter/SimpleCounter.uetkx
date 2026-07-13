@@ -2,15 +2,14 @@ import { UseCounter } from "./SimpleCounter.hooks"
 
 export component SimpleCounter {
 	auto [Count, Increment] = UseCounter(0);
-	TFunction<void()> Inc = Increment;
 
 	return (
 		<Border Padding="12" BorderImage="WhiteBrush" BorderBackgroundColor={ FLinearColor(0.02f, 0.02f, 0.03f, 0.85f) } Slot.Padding="0,10,0,0">
 			<VerticalBox>
-				<TextBlock Text={ FText::FromString(FString::Printf(TEXT("Count: %d"), Count)) } />
+				<TextBlock Text={ RUI::Fmt(TEXT("Count: {}"), Count) } />
 				<Spacer Size={ FVector2D(1.0f, 6.0f) } />
 				<HorizontalBox>
-					<Button OnClicked={ Inc() } ContentPadding="12,4" Slot.Padding="0,0,6,0">+</Button>
+					<Button OnClicked={ Increment() } ContentPadding="12,4" Slot.Padding="0,0,6,0">+</Button>
 				</HorizontalBox>
 			</VerticalBox>
 		</Border>

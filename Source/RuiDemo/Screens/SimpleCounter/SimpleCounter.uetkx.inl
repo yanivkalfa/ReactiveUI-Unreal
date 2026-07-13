@@ -20,8 +20,7 @@ static FRuiNodeArray SimpleCounter_UetkxImpl(FRuiContext& Ctx, const FSimpleCoun
 {
 #line 4 "Source/RuiDemo/Screens/SimpleCounter/SimpleCounter.uetkx"
 	auto [Count, Increment] = UseCounter(Ctx, 0);
-		TFunction<void()> Inc = Increment;
-#line 25 "SimpleCounter.uetkx.inl"
+#line 24 "SimpleCounter.uetkx.inl"
 	return { [&]() -> FRuiNode {
 		FRuiBorderProps P;
 		P.SetPadding(FMargin(12));
@@ -36,7 +35,7 @@ static FRuiNodeArray SimpleCounter_UetkxImpl(FRuiContext& Ctx, const FSimpleCoun
 		Ch.Add([&]() -> FRuiNode {
 		FRuiVerticalBoxProps P;
 		TArray<FRuiNode> Ch;
-		Ch.Add(RUI::TextBlock((FText::FromString(FString::Printf(TEXT("Count: %d"), Count))), FRuiKey()));
+		Ch.Add(RUI::TextBlock((RUI::Fmt(TEXT("Count: {}"), Count)), FRuiKey()));
 		Ch.Add([&]() -> FRuiNode {
 		FRuiSpacerProps P;
 		P.SetSize((FVector2D(1.0f, 6.0f)));
@@ -47,7 +46,7 @@ static FRuiNodeArray SimpleCounter_UetkxImpl(FRuiContext& Ctx, const FSimpleCoun
 		TArray<FRuiNode> Ch;
 		Ch.Add([&]() -> FRuiNode {
 		FRuiButtonProps P;
-		P.SetOnClicked(FRuiCallback::Create([=](const FRuiValue& Value) { Inc(); }));
+		P.SetOnClicked(FRuiCallback::Create([=](const FRuiValue& Value) { Increment(); }));
 		P.SetContentPadding(FMargin(12,4));
 		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
 		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
