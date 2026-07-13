@@ -4,14 +4,14 @@ import { CodeBlock } from '../../components/CodeBlock/CodeBlock'
 import { ROADMAP_URL, SIBLING_GODOT_URL, SIBLING_UNITY_URL } from '../../links'
 import Styles from './IntroductionPage.style'
 
-const QUICK_SAMPLE = `component Hello {
-	state count: int32 = 0
+const QUICK_SAMPLE = `component Counter {
+	auto [Count, SetCount] = UseState<int32>(0);
 	return (
-		<VBox style={ {"padding": 16} }>
-			<Text text={ fmt("Count: {0}", count) } style={ {"font_size": 28} } />
-			<Button text="+1" onClick={ set(count, count + 1) } />
-		</VBox>
-	)
+		<VerticalBox>
+			<TextBlock Text={ RUI::Fmt(TEXT("Count: {}"), Count) } />
+			<Button OnClicked={ SetCount(Count + 1) }>+1</Button>
+		</VerticalBox>
+	);
 }`
 
 export const IntroductionPage: FC = () => (
