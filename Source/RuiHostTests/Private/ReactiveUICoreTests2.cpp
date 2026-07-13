@@ -615,4 +615,20 @@ bool FRuiCoreDiagnosticsTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRuiFmtTest, "ReactiveUI.Core.Fmt", RUI_TEST_FLAGS)
+bool FRuiFmtTest::RunTest(const FString&)
+{
+	// {}-placeholder interpolation, type-generic + ordered (the .uetkx binding sugar).
+	TestEqual(TEXT("int fill"), RUI::Fmt(TEXT("Count: {}"), 7).ToString(), FString(TEXT("Count: 7")));
+	TestEqual(TEXT("multi + types"), RUI::Fmt(TEXT("{} of {} ({})"), 2, 3, true).ToString(),
+			  FString(TEXT("2 of 3 (true)")));
+	TestEqual(TEXT("string + text args"),
+			  RUI::Fmt(TEXT("{}-{}"), FString(TEXT("a")), FText::FromString(TEXT("b"))).ToString(),
+			  FString(TEXT("a-b")));
+	TestEqual(TEXT("escaped brace"), RUI::Fmt(TEXT("{{}} {}"), 9).ToString(), FString(TEXT("{} 9")));
+	TestEqual(TEXT("no args, no placeholders"), RUI::Fmt(TEXT("plain")).ToString(), FString(TEXT("plain")));
+	TestEqual(TEXT("float"), RUI::Fmt(TEXT("{}"), 1.5f).ToString(), FString(TEXT("1.5")));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

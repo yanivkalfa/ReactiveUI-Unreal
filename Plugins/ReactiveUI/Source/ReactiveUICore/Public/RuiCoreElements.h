@@ -39,6 +39,87 @@ namespace RUI
 	REACTIVEUICORE_API FRuiNode TextBlock(FText InText, FRuiKey Key = FRuiKey());
 	REACTIVEUICORE_API FRuiNode TextBlock(const FString& InText, FRuiKey Key = FRuiKey());
 
+	// ─────────────────────────────────────────────────────────────────────────────────────
+	// Fmt — clean FText interpolation for .uetkx bindings. `RUI::Fmt(TEXT("Count: {}"), Count)`
+	// fills each `{}` with the next argument (type-generic, ordered), so a binding reads as
+	//   Text={ Fmt(TEXT("Count: {}"), Count) }
+	// instead of the FText::FromString(FString::Printf(TEXT("Count: %d"), Count)) nesting — and
+	// there is no %-specifier to get wrong. Literal braces are written `{{` / `}}`.
+	// ─────────────────────────────────────────────────────────────────────────────────────
+	namespace Detail
+	{
+		inline FString FmtArg(const FString& S)
+		{
+			return S;
+		}
+		inline FString FmtArg(const TCHAR* S)
+		{
+			return FString(S);
+		}
+		inline FString FmtArg(const FText& T)
+		{
+			return T.ToString();
+		}
+		inline FString FmtArg(FName N)
+		{
+			return N.ToString();
+		}
+		inline FString FmtArg(int32 V)
+		{
+			return FString::FromInt(V);
+		}
+		inline FString FmtArg(int64 V)
+		{
+			return FString::Printf(TEXT("%lld"), V);
+		}
+		inline FString FmtArg(float V)
+		{
+			return FString::SanitizeFloat(V);
+		}
+		inline FString FmtArg(double V)
+		{
+			return FString::SanitizeFloat(V);
+		}
+		inline FString FmtArg(bool V)
+		{
+			return V ? FString(TEXT("true")) : FString(TEXT("false"));
+		}
+	} // namespace Detail
+
+	template <typename... TArgs> FText Fmt(const TCHAR* Template, TArgs&&... Args)
+	{
+		// Parts[0] is a sentinel so a no-arg Fmt (or a template with no `{}`) still forms a valid array.
+		const FString Parts[] = {FString(), Detail::FmtArg(Args)...};
+		FString Out;
+		int32 Next = 1;
+		for (const TCHAR* P = Template; *P != TEXT('\0'); ++P)
+		{
+			if (P[0] == TEXT('{') && P[1] == TEXT('{')) // escaped '{'
+			{
+				Out.AppendChar(TEXT('{'));
+				++P;
+			}
+			else if (P[0] == TEXT('}') && P[1] == TEXT('}')) // escaped '}'
+			{
+				Out.AppendChar(TEXT('}'));
+				++P;
+			}
+			else if (P[0] == TEXT('{') && P[1] == TEXT('}')) // placeholder
+			{
+				if (Next < UE_ARRAY_COUNT(Parts))
+				{
+					Out += Parts[Next++];
+				}
+				++P;
+			}
+			else
+			{
+				Out.AppendChar(*P);
+			}
+		}
+		return FText::FromString(MoveTemp(Out));
+	}
+
 	/** Suspense props. */
 	struct FRuiSuspenseProps final : public FRuiPropsBase
 	{

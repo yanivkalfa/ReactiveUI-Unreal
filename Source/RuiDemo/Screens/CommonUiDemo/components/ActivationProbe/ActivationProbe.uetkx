@@ -1,0 +1,17 @@
+#include "RuiActivation.h"
+
+// Reads the activation context its parent screen provides — a real URuiActivatableScreen provides the
+// same state when it (de)activates on a CommonUI stack. Must be a descendant of the provider.
+export component ActivationProbe {
+	const bool bActive = RUI::CommonUI::UseIsActive();
+	const ERuiInputMethod Method = RUI::CommonUI::UseInputMethod();
+	const FString MethodStr = Method == ERuiInputMethod::Gamepad ? TEXT("Gamepad")
+							  : Method == ERuiInputMethod::Touch ? TEXT("Touch")
+																 : TEXT("Mouse & Keyboard");
+	return (
+		<VerticalBox>
+			<TextBlock Text={ RUI::Fmt(TEXT("Screen is {}"), bActive ? TEXT("ACTIVE") : TEXT("INACTIVE")) } />
+			<TextBlock Text={ RUI::Fmt(TEXT("Input method: {}"), MethodStr) } />
+		</VerticalBox>
+	);
+}

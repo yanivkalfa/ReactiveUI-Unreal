@@ -1,0 +1,29 @@
+#include "RuiActivation.h"
+
+import { ActivationProbe } from "./components/ActivationProbe/ActivationProbe"
+
+// CommonUI — activation feeds us, authored in .uetkx. The screen PROVIDES activation state (a toggle
+// stands in for a URuiActivatableScreen's (de)activation on a CommonUI stack); the imported probe reads it.
+export component CommonUiDemo {
+	auto [bActive, SetActive] = UseState<bool>(true);
+	const bool bActiveNow = bActive;
+
+	FRuiActivationState State;
+	State.bActive = bActiveNow;
+	State.InputMethod = ERuiInputMethod::MouseAndKeyboard;
+	ProvideContext(RUI::CommonUI::ActivationContext(), State);
+
+	return (
+		<Border Padding="12" BorderImage="WhiteBrush" BorderBackgroundColor={ FLinearColor(0.02f, 0.02f, 0.03f, 0.85f) } Slot.Padding="0,10,0,0">
+			<VerticalBox>
+				<TextBlock Text="CommonUI -- activation feeds us" Font.Size={ 16.0f } />
+				<Spacer Size={ FVector2D(1.0f, 6.0f) } />
+				<TextBlock Text="A URuiActivatableScreen drives these hooks when it (de)activates on a CommonUI stack; here a toggle stands in. CommonUI keeps owning input routing / focus -- we just read state." ColorAndOpacity={ FLinearColor(0.7f, 0.7f, 0.8f) } Font.Size={ 11.0f } />
+				<Spacer Size={ FVector2D(1.0f, 10.0f) } />
+				<ActivationProbe />
+				<Spacer Size={ FVector2D(1.0f, 8.0f) } />
+				<Button OnClicked={ SetActive(!bActiveNow) } ContentPadding="12,4">Toggle activation</Button>
+			</VerticalBox>
+		</Border>
+	);
+}

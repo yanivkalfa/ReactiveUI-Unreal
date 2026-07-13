@@ -1,0 +1,49 @@
+#include "RuiSignalViewModel.h"
+#include "RuiFieldHooks.h"
+#include "RuiActivation.h"
+#include "RuiUmgElement.h"
+#include "DemoUmgWidget.h"
+#include "Engine/World.h"
+#include "UObject/StrongObjectPtr.h"
+
+import { ShowcaseProbe } from "./components/ShowcaseProbe/ShowcaseProbe"
+
+// All four pillars in one screen, authored in .uetkx:
+//   Slate (this whole tree) · UMG (a UUserWidget hosted inside) · MVVM (UseField) · CommonUI (activation).
+export component InteropShowcase {
+	// MVVM pillar — a viewmodel we own; UseField re-renders on its broadcast.
+	const TStrongObjectPtr<URuiSignalViewModel>& VmPtr = UseMemo<TStrongObjectPtr<URuiSignalViewModel>>(
+		[]() { return TStrongObjectPtr<URuiSignalViewModel>(NewObject<URuiSignalViewModel>()); }, RUI::Deps());
+	URuiSignalViewModel* Vm = VmPtr.Get();
+	const int32 N = RUI::Umg::UseField<int32>(Ctx, Vm, FName(TEXT("Int")), 0);
+
+	// CommonUI pillar — provide activation state to the probe below (a toggle stands in for a stack push).
+	auto [bActive, SetActive] = UseState<bool>(true);
+	const bool bActiveNow = bActive;
+	FRuiActivationState State;
+	State.bActive = bActiveNow;
+	State.InputMethod = ERuiInputMethod::MouseAndKeyboard;
+	ProvideContext(RUI::CommonUI::ActivationContext(), State);
+
+	return (
+		<Border Padding="12" BorderImage="WhiteBrush" BorderBackgroundColor={ FLinearColor(0.02f, 0.02f, 0.03f, 0.85f) } Slot.Padding="0,10,0,0">
+			<VerticalBox>
+				<TextBlock Text="All four pillars in one screen" Font.Size={ 18.0f } />
+				<TextBlock Text="Slate output - a UMG widget hosted inside - MVVM data feeding in - CommonUI activation" ColorAndOpacity={ FLinearColor(0.7f, 0.7f, 0.8f) } Font.Size={ 11.0f } />
+				<Spacer Size={ FVector2D(1.0f, 12.0f) } />
+
+				<TextBlock Text="UMG -- their widget inside ours:" ColorAndOpacity={ FLinearColor(0.7f, 0.7f, 0.8f) } Font.Size={ 11.0f } />
+				{ GWorld ? RUI::Umg::UserWidget(UDemoUmgWidget::StaticClass(), GWorld) : RUI::TextBlock(FString(TEXT("[press Play -- the UMG host needs a running world]"))) }
+				<Spacer Size={ FVector2D(1.0f, 12.0f) } />
+
+				<TextBlock Text="MVVM -- their data inside ours:" ColorAndOpacity={ FLinearColor(0.7f, 0.7f, 0.8f) } Font.Size={ 11.0f } />
+				<TextBlock Text={ RUI::Fmt(TEXT("viewmodel.Int = {}"), N) } />
+				<Button OnClicked={ Vm->SetInt(N + 1) } ContentPadding="12,4" Slot.Padding="0,0,0,10">viewmodel.SetInt(+1)</Button>
+
+				<TextBlock Text="CommonUI -- their activation driving ours:" ColorAndOpacity={ FLinearColor(0.7f, 0.7f, 0.8f) } Font.Size={ 11.0f } />
+				<ShowcaseProbe />
+				<Button OnClicked={ SetActive(!bActiveNow) } ContentPadding="12,4">Toggle activation</Button>
+			</VerticalBox>
+		</Border>
+	);
+}
