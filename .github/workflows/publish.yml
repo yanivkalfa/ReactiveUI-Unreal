@@ -1,9 +1,9 @@
 # Publish — ONE Run-workflow button publishes everything whose version changed.
-# THE OWNER presses it; the AI never triggers it (house law). Every job reads its own version
-# from its own manifest, checks whether the matching git tag exists, SKIPS if so, and
+# THE OWNER presses it; the AI never triggers it (house law). Every shippable job reads its own
+# version from its own manifest, checks whether the matching git tag exists, SKIPS if so, and
 # tags-on-success — idempotent re-runs; un-bumped artifacts simply don't release.
-# Tag scheme (MASTER_PLAN D-30): v* (plugin — ONE tag carries all per-engine zips as release
-# assets), vscode-v*, vs2022-v*.
+# Tag scheme (MASTER_PLAN D-30): v* (plugin — ONE tag carries the Fab source zip + any per-engine
+# zips as release assets), vscode-v*, vs2022-v*.
 name: Publish
 
 on:
@@ -60,10 +60,10 @@ jobs:
           fi
 
   # The plugin release: tag v<VersionName> + GitHub Release whose body is the top `## [`
-  # section of CHANGELOG.md (keep that heading shape — the awk parses exactly it).
-  # Engine-armed runs re-verify via the reusable engine workflow and attach per-engine zips;
-  # unarmed runs (the current default — local-first, §7 Q2) still tag+release and tell the
-  # owner to attach zips from the local rail (scripts/package-plugin.ps1).
+  # section of CHANGELOG.md. ALWAYS attaches the Fab-uploadable SOURCE zip (Plugins/ReactiveUI minus
+  # build artifacts — Fab's reviewers build the binaries with Epic's toolchain). Engine-armed runs
+  # additionally attach per-engine validated zips via verify-engines; unarmed runs (the default) note
+  # that engine-validated per-engine zips come from the local rail (scripts/package-plugin.ps1).
   release-plugin:
     runs-on: ubuntu-latest
     outputs:
@@ -99,10 +99,18 @@ jobs:
         if: steps.tagcheck.outputs.new_tag == 'true'
         run: |
           awk '/^## \[/{n++} n==1' CHANGELOG.md > /tmp/release-body.md
-          if [ "${{ vars.RUI_CI_ENGINE_ARMED }}" != "true" ]; then
-            printf '\n---\n_Per-engine zips: run `scripts/package-plugin.ps1` locally and attach `ReactiveUI-<ver>-UE<engine>.zip` per supported engine version (engine CI unarmed)._\n' >> /tmp/release-body.md
-          fi
-      - name: Tag + GitHub Release
+          printf '\n---\n_The attached `ReactiveUI-%s.zip` is the plugin **source** — upload it to Fab (Epic builds the binaries). For an engine-VALIDATED per-engine zip, run `scripts/package-plugin.ps1` locally (engine CI unarmed by default)._\n' "${{ steps.ver.outputs.version }}" >> /tmp/release-body.md
+      - name: Package the Fab-uploadable source zip
+        if: steps.tagcheck.outputs.new_tag == 'true'
+        run: |
+          mkdir -p dist
+          # Fab wants the plugin folder (ReactiveUI/ at the archive root), source only — no build
+          # output. Binaries/Intermediate are gitignored (not in a fresh checkout); exclude belt-and-
+          # suspenders, and drop the machine-local diag sidecars.
+          (cd Plugins && zip -r "$GITHUB_WORKSPACE/dist/ReactiveUI-${{ steps.ver.outputs.version }}.zip" ReactiveUI \
+             -x 'ReactiveUI/Binaries/*' -x 'ReactiveUI/Intermediate/*' -x '*.uetkx.diags.json' -x '*/.git*')
+          echo "Packaged: dist/ReactiveUI-${{ steps.ver.outputs.version }}.zip"
+      - name: Tag + GitHub Release (with the Fab source zip attached)
         if: steps.tagcheck.outputs.new_tag == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -112,11 +120,13 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag "$TAG"
           git push origin "$TAG"
-          gh release create "$TAG" --title "ReactiveUI for Unreal ${{ steps.ver.outputs.version }}" --notes-file /tmp/release-body.md
+          gh release create "$TAG" --title "ReactiveUI for Unreal ${{ steps.ver.outputs.version }}" \
+            --notes-file /tmp/release-body.md \
+            "dist/ReactiveUI-${{ steps.ver.outputs.version }}.zip"
 
-  # Pre-release engine verification + packaged zips — armed runs only. Reuses the SAME
+  # Pre-release engine verification + packaged per-engine zips — armed runs only. Reuses the SAME
   # engine workflow test.yml uses (one definition, no drift). Zip packaging on the Windows
-  # self-hosted runner attaches assets to the release created above (added when the owner
+  # self-hosted runner attaches per-engine assets to the release created above (added when the owner
   # stands the runner up — the job body documents the plan so arming is wiring, not design).
   verify-engines:
     needs: release-plugin
@@ -131,32 +141,197 @@ jobs:
     secrets:
       EPIC_GHCR_PAT: ${{ secrets.EPIC_GHCR_PAT }}
 
-  # Extension marketplace legs — implemented in Phase 5 with the extensions themselves;
-  # the guards keep this dispatchable meanwhile. Tag gates (vscode-v*, vs2022-v*) go HERE
-  # when implemented, tagging ONLY on successful marketplace upload (the sibling repo once
-  # stranded five platforms behind a single shared tag — per-leg gating is the law).
+  # VS Code extension — cross-platform (the server is a self-contained JS bundle, no native deps), so
+  # ONE .vsix and ONE `vscode-v<ver>` tag. Idempotent: skips if the tag exists; tags only on a
+  # successful VS Marketplace publish (Open VSX is best-effort). Bump package.json to ship a new one.
   publish-vscode:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - name: Guard (Phase 5)
+        with:
+          fetch-depth: 0
+      - name: Guard (extension present?) + idempotency tag
+        id: check
         run: |
           if [ ! -f ide-extensions/vscode-uetkx/package.json ]; then
-            echo "::notice::VS Code extension not present yet (Phase 5) — nothing to publish."
-            exit 0
+            echo "::notice::VS Code extension not present — nothing to publish."
+            echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0
           fi
-          echo "::error::Extension exists but the publish steps haven't been implemented — implement per ide-extensions/scripts/publish-extension.ps1."
-          exit 1
+          VERSION=$(node -p "require('./ide-extensions/vscode-uetkx/package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if git tag --list "vscode-v$VERSION" | grep -q .; then
+            echo "::notice::VS Code extension v$VERSION already published — skipping"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v6
+        if: steps.check.outputs.skip == 'false'
+        with:
+          node-version: 22
+      - name: Build server + bundle + build extension
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          (cd ide-extensions/lsp-server && npm ci && npm run build)
+          node ide-extensions/scripts/changelog.mjs extract --ide vscode --out ide-extensions/vscode-uetkx/CHANGELOG.md
+          (cd ide-extensions/vscode-uetkx && npm ci && node scripts/bundle-server.js && npm run build)
+      - name: Package VSIX
+        if: steps.check.outputs.skip == 'false'
+        working-directory: ide-extensions/vscode-uetkx
+        run: npx --yes @vscode/vsce package --no-dependencies -o uetkx.vsix
+      - name: Publish to VS Marketplace
+        id: publish-vsce
+        if: steps.check.outputs.skip == 'false'
+        working-directory: ide-extensions/vscode-uetkx
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: npx --yes @vscode/vsce publish --no-dependencies --packagePath uetkx.vsix --pat "$VSCE_PAT"
+      - name: Publish to Open VSX
+        if: steps.check.outputs.skip == 'false'
+        working-directory: ide-extensions/vscode-uetkx
+        env:
+          OVSX_TOKEN: ${{ secrets.OVSX_TOKEN }}
+        run: npx --yes ovsx publish uetkx.vsix -p "$OVSX_TOKEN"
+        continue-on-error: true
+      - name: Tag on VS Marketplace success
+        if: steps.check.outputs.skip == 'false' && steps.publish-vsce.outcome == 'success'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "vscode-v${{ steps.check.outputs.version }}"
+          git push origin "vscode-v${{ steps.check.outputs.version }}"
+      - name: Upload VSIX artifact
+        if: steps.check.outputs.skip == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: uetkx-vscode-${{ steps.check.outputs.version }}
+          path: ide-extensions/vscode-uetkx/uetkx.vsix
 
+  # VS2022 extension — Windows (msbuild + VsixPublisher). Idempotent via `vs2022-v<ver>`; tags only on
+  # a confirmed marketplace upload. The server + a pinned Node runtime are bundled so the VSIX is
+  # self-contained. Bump the vsixmanifest Identity Version to ship a new one.
   publish-vs2022:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
-      - name: Guard (Phase 5)
+        with:
+          fetch-depth: 0
+      - name: Guard (extension present?) + idempotency tag
+        id: check
+        shell: pwsh
         run: |
-          if [ ! -d ide-extensions/visual-studio/UetkxVsix ]; then
-            echo "::notice::VS2022 extension not present yet (Phase 5) — nothing to publish."
-            exit 0
-          fi
-          echo "::error::Extension exists but the publish steps haven't been implemented — implement per ide-extensions/scripts/publish-vsix.ps1."
-          exit 1
+          $manifestPath = "ide-extensions/visual-studio/UetkxVsix/source.extension.vsixmanifest"
+          if (-not (Test-Path $manifestPath)) {
+            Write-Host "::notice::VS2022 extension not present — nothing to publish."
+            echo "skip=true" >> $env:GITHUB_OUTPUT; exit 0
+          }
+          [xml]$manifest = Get-Content $manifestPath
+          $version = $manifest.PackageManifest.Metadata.Identity.Version
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+          if (git tag --list "vs2022-v$version") {
+            Write-Host "::notice::VS 2022 extension v$version already published — skipping"
+            echo "skip=true" >> $env:GITHUB_OUTPUT
+          } else {
+            echo "skip=false" >> $env:GITHUB_OUTPUT
+          }
+      - uses: actions/setup-node@v6
+        if: steps.check.outputs.skip == 'false'
+        with:
+          node-version: 22
+      - name: Build + bundle language server (+ Node runtime) into the VSIX
+        if: steps.check.outputs.skip == 'false'
+        shell: pwsh
+        run: |
+          Push-Location ide-extensions/lsp-server; npm ci; npm run build; Pop-Location
+          Push-Location ide-extensions/vscode-uetkx; npm ci; node scripts/bundle-server.js; Pop-Location
+          Copy-Item -Recurse -Force ide-extensions/vscode-uetkx/server ide-extensions/visual-studio/UetkxVsix/server
+          & ide-extensions/visual-studio/UetkxVsix/fetch-node.ps1
+      - name: Generate overview.md from centralized changelog
+        if: steps.check.outputs.skip == 'false'
+        shell: pwsh
+        run: node ide-extensions/scripts/changelog.mjs extract-overview --ide vs2022 --template ide-extensions/visual-studio/UetkxVsix/overview-template.md --out ide-extensions/visual-studio/UetkxVsix/overview.md
+      - name: Build VSIX
+        if: steps.check.outputs.skip == 'false'
+        shell: cmd
+        working-directory: ide-extensions/visual-studio/UetkxVsix
+        run: |
+          set "VSWHERE=C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe"
+          for /f "usebackq tokens=*" %%i in (`"%VSWHERE%" -latest -prerelease -products * -requires Microsoft.Component.MSBuild -property installationPath`) do set "VSINSTALL=%%i"
+          if not defined VSINSTALL echo ERROR: No Visual Studio with MSBuild found via vswhere & exit /b 1
+          echo Using Visual Studio at "%VSINSTALL%"
+          call "%VSINSTALL%\Common7\Tools\VsDevCmd.bat" -no_logo
+          msbuild UetkxVsix.csproj -t:Restore -p:Configuration=Release -v:minimal
+          msbuild UetkxVsix.csproj -t:Build -p:Configuration=Release -p:DeployExtension=false -v:minimal
+          msbuild UetkxVsix.csproj -t:CreateVsixContainer -p:Configuration=Release -p:DeployExtension=false -v:minimal
+      - name: Verify VSIX contains the language server + node
+        if: steps.check.outputs.skip == 'false'
+        shell: pwsh
+        working-directory: ide-extensions/visual-studio/UetkxVsix
+        run: |
+          $vsix = Get-ChildItem -Recurse -Filter "*.vsix" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $vsix) { Write-Error "No VSIX found after build"; exit 1 }
+          $zip = $vsix.FullName -replace '\.vsix$', '.zip'
+          $tmp = Join-Path $env:TEMP 'vsix-verify'
+          Copy-Item $vsix.FullName $zip -Force
+          if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
+          Expand-Archive $zip $tmp -Force
+          $server = Get-ChildItem $tmp -Recurse -Filter "server.js" | Where-Object { $_.Directory.Name -eq 'server' }
+          if (-not $server) { Write-Host "::error::VSIX is missing server/server.js!"; Get-ChildItem $tmp -Recurse | ForEach-Object { Write-Host $_.FullName }; exit 1 }
+          $node = Get-ChildItem $tmp -Recurse -Filter "node.exe" | Where-Object { $_.Directory.Name -eq 'server' }
+          if (-not $node) { Write-Host "::error::VSIX is missing server/node.exe (fetch-node.ps1 failed)."; exit 1 }
+          Write-Host "Verified: VSIX contains server.js + bundled node.exe"
+      - name: Locate VSIX
+        if: steps.check.outputs.skip == 'false'
+        id: find_vsix
+        shell: pwsh
+        working-directory: ide-extensions/visual-studio/UetkxVsix
+        run: |
+          $candidates = @("bin\Release\UetkxVsix.vsix", "bin\Release\net472\UetkxVsix.vsix", "UetkxVsix.vsix")
+          $found = $null
+          foreach ($c in $candidates) { if (Test-Path $c) { $found = (Resolve-Path $c).Path; break } }
+          if (-not $found) {
+            $vsix = Get-ChildItem -Recurse -Filter "*.vsix" -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($vsix) { $found = $vsix.FullName }
+          }
+          if (-not $found) { Write-Host "::error::No .vsix found"; exit 1 }
+          Write-Host "Found VSIX: $found"
+          echo "VSIX_PATH=$found" >> $env:GITHUB_OUTPUT
+      - name: Publish to VS Marketplace
+        id: publish
+        if: steps.check.outputs.skip == 'false'
+        shell: pwsh
+        working-directory: ide-extensions/visual-studio/UetkxVsix
+        env:
+          MARKETPLACE_TOKEN: ${{ secrets.VS_MARKETPLACE_TOKEN }}
+        run: |
+          $pub = Get-ChildItem -Path "$env:USERPROFILE\.nuget\packages\microsoft.vssdk.buildtools" -Recurse -Filter "VsixPublisher.exe" |
+                 Where-Object { $_.DirectoryName -match 'tools[\\/]vssdk[\\/]bin$' } |
+                 Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $pub) { Write-Host "::error::VsixPublisher.exe not found in NuGet cache"; exit 1 }
+          $output = & $pub.FullName publish `
+            -payload "${{ steps.find_vsix.outputs.VSIX_PATH }}" `
+            -publishManifest publishManifest.json `
+            -personalAccessToken $env:MARKETPLACE_TOKEN 2>&1 | Out-String
+          $exitCode = $LASTEXITCODE
+          Write-Host $output
+          if ($output -match 'Uploaded') {
+            Write-Host "Marketplace upload confirmed"
+            $global:LASTEXITCODE = 0; exit 0
+          } elseif ($exitCode -ne 0) {
+            Write-Host "::error::VsixPublisher failed (exit $exitCode) with no upload confirmation"; exit $exitCode
+          } else {
+            Write-Host "::warning::VsixPublisher exited cleanly but no upload confirmation found"
+          }
+      - name: Tag on marketplace success
+        if: steps.check.outputs.skip == 'false' && steps.publish.outcome == 'success'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "vs2022-v${{ steps.check.outputs.version }}"
+          git push origin "vs2022-v${{ steps.check.outputs.version }}"
+      - name: Upload VSIX artifact
+        if: steps.check.outputs.skip == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: uetkx-vs2022-${{ steps.check.outputs.version }}
+          path: ${{ steps.find_vsix.outputs.VSIX_PATH }}
