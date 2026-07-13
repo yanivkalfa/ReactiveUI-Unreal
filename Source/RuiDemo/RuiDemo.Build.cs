@@ -22,6 +22,8 @@ public class RuiDemo : ModuleRules
 			"Engine",
 			"ReactiveUICore",
 			"ReactiveUISlate",
+			"ReactiveUIUMG",	  // interop demos: UseField + URuiSignalViewModel (MVVM/FieldNotify)
+			"ReactiveUICommonUI", // interop demos: UseIsActive / ActivationProvider
 			"SlateCore",
 			"Slate",
 		});

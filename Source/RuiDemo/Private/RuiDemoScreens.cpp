@@ -28,6 +28,9 @@ namespace RuiDemo
 			{TEXT("Custom Draw"), +[]() { return RUI::Named(FName(TEXT("CustomDraw"))); }},
 			{TEXT("Stress Test"), +[]() { return RUI::Named(FName(TEXT("StressTest"))); }},
 			{TEXT("Acceptance Lab"), +[]() { return RUI::Named(FName(TEXT("AcceptanceLab"))); }},
+			// Epic-interop pillars (C++ demos registered in RuiInteropDemos.cpp).
+			{TEXT("MVVM (data feed)"), +[]() { return RUI::Named(FName(TEXT("MvvmDemo"))); }},
+			{TEXT("CommonUI (activation)"), +[]() { return RUI::Named(FName(TEXT("CommonUiDemo"))); }},
 		};
 		return Entries;
 	}
@@ -39,6 +42,7 @@ namespace RuiDemo
 			FName(TEXT("SimpleUseEffect")), FName(TEXT("SignalCounter")), FName(TEXT("ContextDemo")),
 			FName(TEXT("KeyedDiff")),		FName(TEXT("StyledPanels")),  FName(TEXT("TicTacToe")),
 			FName(TEXT("CustomDraw")),		FName(TEXT("StressTest")),	  FName(TEXT("AcceptanceLab")),
+			FName(TEXT("MvvmDemo")),		FName(TEXT("CommonUiDemo")),
 		};
 		return Names;
 	}
