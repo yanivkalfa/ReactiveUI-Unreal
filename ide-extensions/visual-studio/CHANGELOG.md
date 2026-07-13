@@ -1,4 +1,4 @@
 # Changelog
 
-## [0.2.0] - 2026-07-12
-- Editor polish (TD-020 tail): a Tools > Options > ReactiveUI > UETKX page with a Format on Save setting; format-on-save runs Format Document on a .uetkx file (via the golden-corpus formatter over LSP) when the option is enabled. Brace completion + smart indent ride the shared language-configuration. The extension now loads a background package on solution-exists to arm the save hook.
+## [0.1.0] - 2026-07-13
+- First beta — .uetkx language support for VS Code and Visual Studio 2022: schema-driven tag/attribute/event completions and hover, live parse diagnostics, import intelligence (specifier + name completions, go-to-definition, and strict resolution diagnostics), golden-corpus formatting, and embedded-C++ awareness. Visual Studio 2022 adds a Tools > Options Format-on-Save setting.
