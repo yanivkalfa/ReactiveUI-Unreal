@@ -100,9 +100,9 @@ every row above names green gates in the PR description.
 - **Run the battery, not just the build** (same catch-up): 5.7 compiled green on the first
   try while the plugin couldn't even LOAD there — "it builds on the new engine" proves
   almost nothing; the Boot check + full battery are where engine-compat problems surface.
-- **Engine installs can be partial/husked** (5.8 catch-up — the owner freed disk space by
-  removing UE_5.7's payload): the diff script then silently produced "+127 widgets added"
-  against the empty side. The script now hard-fails on a <50-widget scan
+- **Engine installs can be partial** (an install with its payload removed still has a root
+  folder): the diff script once silently produced "+127 widgets added" against such an
+  empty side. The script now hard-fails on a <50-widget scan
   (`Assert-SurfaceSane`) — never weaken that guard, it caught a real wrong-diff.
 - **Clean intermediates when switching engines BACK** (same catch-up): 5.8's UnrealHeaderTool
   output in `Intermediate/` doesn't compile on 5.6 (`ETypeConstructPhase`,
