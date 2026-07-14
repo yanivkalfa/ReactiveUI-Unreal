@@ -4,18 +4,29 @@ import { CodeBlock } from '../../components/CodeBlock/CodeBlock'
 
 const ROOT = `#include "RuiRoot.h"
 
-// Create / destroy a UI root.
+// Three mount surfaces; keep the TSharedPtr alive for the UI's lifetime.
 TSharedPtr<FRuiRoot> Root = FRuiRoot::CreateInViewport(RUI::FC(&MyComponent), /*ZOrder*/ 10);
-Root.Reset();   // unmount`
+FRuiRoot::CreateInWindow(Window, RUI::FC(&MyTool));   // fill an SWindow
+FRuiRoot::Create(RUI::FC(&MyPanel));                   // detached — place GetWidget() yourself
+
+Root->Update(NewTree);   // top-level re-render
+Root->FlushSync();       // run coalesced work now
+Root.Reset();            // unmount (cleanups run)`
 
 type Entry = [string, string]
 const CORE: Entry[] = [
-  ['FRuiRoot::CreateInViewport(vnode, z)', 'Mount a component tree into the game viewport; returns a TSharedPtr root.'],
+  ['FRuiRoot::Create / CreateInViewport / CreateInWindow', 'The three mount surfaces; plus Update / FlushSync / Unmount / GetWidget.'],
+  ['URuiWorldSubsystem::MountNamed(Name, Z) / MountNode / UnmountAll', 'World-scoped, Blueprint-callable mounting; roots tear down with the world.'],
   ['RUI::FC(&Component, props, children, key)', 'Instantiate a function component as a vnode.'],
-  ['RUI::Fragment(...)', 'Group children with no wrapper widget.'],
-  ['RUI::Suspense(...)', 'Boundary that shows a fallback until its content is ready.'],
+  ['RUI_COMPONENT(Fn) / RUI::RegisterNamedFactory / RUI::Named(Name)', 'The named-component registry — what ComponentName props (host widget, activatable screen, MountNamed) resolve against; compiled .uetkx components self-register.'],
+  ['RUI::Fragment(children, key)', 'Group children with no wrapper widget.'],
+  ['RUI::Portal(target, children, key)', 'Render children into an out-of-tree Slate target (see Portals).'],
+  ['RUI::Suspense(isReady, fallback, children, key)', 'Fallback until IsReady() flips true (see Suspense).'],
+  ['RUI::ErrorBoundary(fallback, children, resetKey, onError, key)', 'Structural error boundary; components fail cooperatively via RUI_RENDER_FAIL(...) / RUI::FailRender.'],
+  ['RUI::Presence(children, maxExitSeconds, key)', 'Keep exiting keyed children mounted for exit animations; pair with UsePresence.'],
+  ['RUI::Router / RUI::Routes / FRuiRoute / RUI::Link', 'The in-memory router (see Router).'],
   ['RUI::Fmt(TEXT("... {} ..."), args...)', 'Type-generic text interpolation returning FText.'],
-  ['RUI::Deps(a, b, ...)', 'Build a dependency list for UseMemo / UseCallback / UseEffect.'],
+  ['RUI::Deps(a, b, ...) / RUI::EveryCommit()', 'Dependency lists for UseMemo / UseCallback / UseEffect.'],
 ]
 const SLATE: Entry[] = [
   ['RUI::Slate::VerticalBox() / Button() / Border() / …', 'Host-element factories — one per Slate widget (usually written as tags).'],
@@ -28,9 +39,13 @@ const STATE: Entry[] = [
   ['ProvideContext(Key, Value) / UseContext(Key)', 'Provide and consume a value down a subtree.'],
 ]
 const INTEROP: Entry[] = [
-  ['RUI::Umg::UserWidget(Class, World)', 'Embed a UMG UUserWidget inside the tree.'],
+  ['URuiHostWidget', 'Designer-placeable UMG widget hosting a named component ("our UI inside theirs").'],
+  ['URuiActivatableScreen', 'UCommonActivatableWidget hosting a named component; publishes activation + input method.'],
+  ['RUI::Umg::UserWidget(Class, World)', 'Embed a UMG UUserWidget inside the tree ("theirs inside ours").'],
   ['RUI::Umg::UseField<T>(Ctx, VM, FName, Default)', 'Read a FieldNotify view-model field reactively.'],
-  ['RUI::CommonUI::ActivationContext() / UseIsActive()', 'Drive and read CommonUI activation state.'],
+  ['URuiSignalViewModel', 'A FieldNotify viewmodel our code writes — UMG/MVVM views bind to our state.'],
+  ['RUI::Mvvm::RegisterGlobalViewModel / FindGlobalViewModel', 'Register/resolve viewmodels in the MVVM global collection.'],
+  ['RUI::CommonUI::ActivationContext() / UseActivation / UseIsActive / UseInputMethod', 'Drive and read CommonUI activation + input method.'],
 ]
 
 const Section: FC<{ title: string; rows: Entry[] }> = ({ title, rows }) => (

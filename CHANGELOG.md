@@ -7,6 +7,17 @@ resync with `cp CHANGELOG.md Plugins/ReactiveUI/CHANGELOG.md` (CI byte-compares 
 `scripts/verify-mirror.mjs`). The IDE extensions are NOT covered here — they use
 `ide-extensions/changelog.json` (Lane B; see the release-process skill).
 
+## [0.1.1] — 2026-07-14
+
+### Fixed
+
+- **Packaged README rewritten** — the README inside the plugin package still described a
+  "pre-alpha scaffold — not yet functional"; it now states the beta reality (23 hooks, 35+
+  widgets, compiler + drift gate, hot reload, router, stylesheets, Epic interop).
+- Softened the unverified accessibility claim in the interop copy to what is verified (Widget
+  Reflector + the Slate toolchain see ordinary widgets); the screen-reader path has not been
+  exercised yet.
+
 ## [0.1.0] — 2026-07-13
 
 First beta. A complete React-style reactive UI stack for Unreal in pure C++ — function components

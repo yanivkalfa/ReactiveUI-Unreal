@@ -15,9 +15,9 @@ const QA: Array<[string, ReactNode]> = [
   ],
   [
     'Is it production-ready?',
-    <>Not yet — it is <strong>pre-alpha</strong>. The core, compiler, IDE tooling and Epic interop are
-      built; the docs site and the v1 release remain (Phases 8–9). Localization (FText gathering) is
-      deferred. Expect APIs to settle before v1.</>,
+    <>It is in <strong>beta</strong> — built end to end and green under the headless automation
+      battery, but pre-1.0: localization (FText gathering) is deferred and the docs are still
+      building out. Expect minor API settling before v1.</>,
   ],
   [
     'Does it ship a scripting VM?',

@@ -2,28 +2,40 @@ import type { FC } from 'react'
 import { Alert, Box, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from '@mui/material'
 import { CodeBlock } from '../../components/CodeBlock/CodeBlock'
 
-const ROUTES = `<Router InitialPath="/home">
-	<Routes>
-		<Route Path="/home" element={ RUI::FC(&HomeScreen) } />
-		<Route Path="/settings" element={ RUI::FC(&SettingsScreen) } />
-		<Route Index element={ RUI::FC(&Landing) } />
-	</Routes>
-</Router>
+const ROUTES = `#include "RuiRouter.h"
 
-// A parent route renders its matched child at the Outlet.
-<VerticalBox>
-	<NavBar />
-	<Outlet />
-</VerticalBox>`
+// A Router owns an in-memory history; Routes renders the best match for the
+// current location. Routes are data (FRuiRoute), not tags.
+FRuiNode App(FRuiContext& Ctx) {
+	return RUI::Router({
+		RUI::Routes({
+			FRuiRoute{ TEXT("/"),          RUI::FC(&HomeScreen) },
+			FRuiRoute{ TEXT("/users/:id"), RUI::FC(&UserScreen) },
+		}),
+	}, /*InitialPath*/ TEXT("/"));
+}`
+
+const HOOKS_SAMPLE = `// Inside a routed component — the router hooks are free functions over Ctx.
+const FString Path = UsePathname(Ctx);
+const TMap<FString, FString>& Params = UseParams(Ctx);   // { "id": "42" }
+auto Navigate = UseNavigate(Ctx);                          // Navigate(TEXT("/users/7"), false)
+
+// A parent route renders its matched child wherever it calls UseOutlet:
+return (
+	<VerticalBox>
+		<NavBar />
+		{ UseOutlet(Ctx) }
+	</VerticalBox>
+);`
 
 const HOOKS: Array<[string, string]> = [
-  ['UseNavigate', 'Imperative navigation — go to a path.'],
-  ['UseLocation / UsePathname', 'The current location / path.'],
-  ['UseParams', 'Dynamic segments matched by the active route.'],
-  ['UseSearchParams', 'Read and update the query string.'],
-  ['UseMatch / UseResolvedPath', 'Test/resolve a path against the current route.'],
-  ['UseOutlet', 'The element to render at this route’s Outlet.'],
-  ['UseBlocker', 'Intercept a navigation (e.g. unsaved-changes guard).'],
+  ['UseNavigate / UseGo / UseBackStack', 'Imperative navigation — push/replace a path, walk history.'],
+  ['UseLocation / UsePathname / UseSearch', 'The current location, its path, its query string.'],
+  ['UseParams / UseSearchParams', 'Dynamic :segments of the active route / read-write query params.'],
+  ['UseMatch / UseIsActive / UseResolvedPath / UseHref', 'Test or resolve a path against the current location.'],
+  ['UseOutlet / UseRoutes', 'The matched child element / evaluate a route table in place.'],
+  ['UseNavigationType / UseInRouterContext', 'How the location changed / whether a router is above.'],
+  ['UseBlocker', 'Intercept a navigation (e.g. an unsaved-changes guard).'],
 ]
 
 export const RouterPage: FC = () => (
@@ -32,31 +44,34 @@ export const RouterPage: FC = () => (
       Router
     </Typography>
     <Typography variant="body1" paragraph>
-      An in-memory router — inspired by React Router — lets you author navigation directly in markup.
-      A <code>Router</code> holds the routing state; <code>Routes</code> picks the best match by path;
-      each matched <code>Route</code> renders its element, and nested routes render into an{' '}
-      <code>Outlet</code>.
+      An in-memory router — inspired by React Router — for menus, settings flows and nested game
+      screens. A <code>Router</code> holds the routing state; <code>Routes</code> picks the best
+      match by ranked path; each matched route renders its element, and nested routes render where
+      the parent calls <code>UseOutlet</code>. Like the other structural primitives, the router is
+      a <code>RUI::</code> API (used from C++ or inside <code>{'{ expr }'}</code>), not a set of
+      markup tags.
     </Typography>
     <CodeBlock code={ROUTES} language="uetkx" />
 
     <Typography variant="h5" component="h2" gutterBottom sx={{ mt: 3 }}>
-      Elements
+      Routes are data
     </Typography>
     <Typography variant="body1" paragraph>
-      <code>Router</code> (with an <code>InitialPath</code>), <code>Routes</code>,{' '}
-      <code>Route</code> (a <code>Path</code>, or <code>Index</code> for the default child),{' '}
-      <code>Outlet</code> (where a nested route renders), and <code>NavLink</code> /{' '}
-      <code>Link</code> for declarative navigation with active-state styling.
+      <code>FRuiRoute</code> carries <code>Path</code> (with <code>:param</code> segments),{' '}
+      <code>Element</code>, <code>bIndex</code> (the default child), and nested{' '}
+      <code>Children</code>. <code>RUI::Link(To, Children, bReplace)</code> renders a navigation
+      link; active-state styling comes from <code>UseIsActive</code>.
     </Typography>
+    <CodeBlock code={HOOKS_SAMPLE} language="uetkx" />
 
     <Typography variant="h5" component="h2" gutterBottom sx={{ mt: 3 }}>
-      Hooks
+      The 17 router hooks
     </Typography>
     <TableContainer sx={{ mb: 2 }}>
       <Table size="small">
         <TableHead>
           <TableRow>
-            <TableCell>Hook</TableCell>
+            <TableCell>Hooks</TableCell>
             <TableCell>Purpose</TableCell>
           </TableRow>
         </TableHead>
@@ -74,8 +89,9 @@ export const RouterPage: FC = () => (
     </TableContainer>
 
     <Alert severity="info">
-      The router is in-memory (no URL bar), which suits game UI: menus, settings flows and nested
-      screens all navigate the same way, and <code>UseBlocker</code> guards transitions when needed.
+      The router is in-memory (no URL bar) and consumers re-render on location change only —
+      navigation state lives outside any one screen, so pushing a settings flow doesn&apos;t
+      re-render the HUD.
     </Alert>
   </Box>
 )

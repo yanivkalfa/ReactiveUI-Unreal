@@ -24,8 +24,9 @@ export const IntroductionPage: FC = () => (
       JavaScript VM, no bridge layer. You write function-style components, use hooks for state and
       effects (<code>UseState</code>, <code>UseEffect</code>, and 21 more), and a fiber reconciler
       decides which Slate widgets exist each frame: it diffs this frame's description against last
-      frame's and patches only what changed. Everything of Epic's stays in place — UMG, CommonUI,
-      and MVVM either feed data in or host the output.
+      frame's and patches only what changed. The output is ordinary SWidgets — Widget Reflector and
+      the Slate toolchain see normal widgets — and everything of Epic's stays in place: UMG,
+      CommonUI, and MVVM either feed data in or host the output.
     </Typography>
     <Typography variant="body1" paragraph>
       On top sits <code>.uetkx</code>, its authoring language — a JSX-like markup format with the
@@ -35,13 +36,14 @@ export const IntroductionPage: FC = () => (
       recompile.
     </Typography>
 
-    <Alert severity="warning" sx={{ mb: 2 }}>
-      ReactiveUI-Unreal is <strong>pre-alpha</strong>: the plans are written and audited, and
-      implementation is underway. Nothing here is ready for production use yet — see{' '}
+    <Alert severity="info" sx={{ mb: 2 }}>
+      ReactiveUI-Unreal is in <strong>beta</strong>: the product is built end to end (reconciler,
+      compiler, hot reload, IDE tooling, Epic interop) and green under the headless automation
+      battery. Remaining before v1: localization (FText gathering) and docs build-out — see{' '}
       <Link href={ROADMAP_URL} target="_blank" rel="noreferrer">
         plans/ROADMAP.md
       </Link>{' '}
-      in the GitHub repo for the living status and what ships in v1.0.
+      for the living status.
     </Alert>
 
     <CodeBlock language="uetkx" code={QUICK_SAMPLE} />

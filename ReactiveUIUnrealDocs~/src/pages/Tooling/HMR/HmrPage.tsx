@@ -26,13 +26,26 @@ export const HmrPage: FC = () => (
     </Typography>
 
     <Typography variant="h5" component="h2" gutterBottom sx={{ mt: 3 }}>
-      The ReactiveUetkx window
+      What survives a reload — and what resets
+    </Typography>
+    <Typography variant="body1" paragraph>
+      Edits to <strong>structure, style, and expressions</strong> hot-swap with hook state intact.
+      Changing a component&apos;s <strong>hook shape</strong> (adding/removing/reordering hooks)
+      resets that component&apos;s state on reload — deliberate, since positional slots can&apos;t
+      be safely migrated; the status line reports when it happens. New C++ in handler bodies rides
+      the same Live Coding patch as the markup, so it is picked up by the same save.
+    </Typography>
+
+    <Typography variant="h5" component="h2" gutterBottom sx={{ mt: 3 }}>
+      The ReactiveUetkx window &amp; settings
     </Typography>
     <Typography variant="body1" paragraph>
       The <strong>ReactiveUetkx</strong> menu and window drive the loop from inside the editor: watch
       status, trigger a compile, and toggle <strong>Follow Play</strong> to tie hot-reload to
-      PIE&apos;s Play/Stop so edits apply to the running game session. Live Coding must be enabled in
-      the editor for the reload half to fire.
+      PIE&apos;s Play/Stop. Live Coding must be enabled for the reload half to fire. Tuning lives in{' '}
+      <em>Project Settings ▸ Plugins ▸ ReactiveUetkx</em> (watched roots, debounce, notifications,
+      follow-PIE, hide the Live Coding console), and <code>ReactiveUetkx.HMR.Start</code> /{' '}
+      <code>Stop</code> / <code>Toggle</code> drive it from the console.
     </Typography>
 
     <Alert severity="info" sx={{ mt: 2 }}>

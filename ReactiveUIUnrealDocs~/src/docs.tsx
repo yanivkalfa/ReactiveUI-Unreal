@@ -63,7 +63,7 @@ export const sections: DocSection[] = [
         path: '/',
         keywords: ['introduction', 'markup', 'unreal', 'slate', 'uetkx'],
         searchContent:
-          'reactive ui for unreal react-style ui library unreal engine 5.6 pure c++ no javascript vm no bridge layer uetkx authoring language function-style components hooks state effects UseState UseEffect fiber reconciler decides which slate widgets exist each frame diffs patches only what changed umg commonui mvvm stay in place feeding data hosting output .uetkx markup jsx-like same family grammar guitkx godot uitkx unity compiles to native c++ shipping builds hot-reloads live in pie save mid-play under a second state preserved siblings ReactiveUIToolKit unity c# ReactiveUI-Godot godot gdscript pre-alpha roadmap component state count int32 VBox Text Button onClick fmt set',
+          'reactive ui for unreal react-style ui library unreal engine 5.6 pure c++ no javascript vm no bridge layer uetkx authoring language function-style components hooks state effects UseState UseEffect fiber reconciler decides which slate widgets exist each frame diffs patches only what changed widget reflector ordinary swidgets umg commonui mvvm stay in place feeding data hosting output .uetkx markup jsx-like same family grammar guitkx godot uitkx unity compiles to native c++ shipping builds hot-reloads live in pie save mid-play under a second state preserved siblings ReactiveUIToolKit unity c# ReactiveUI-Godot godot gdscript beta roadmap component counter UseState int32 VerticalBox TextBlock Button OnClicked RUI::Fmt SetCount',
         element: () => <IntroductionPage />,
       },
     ],
@@ -75,7 +75,7 @@ export const sections: DocSection[] = [
       {
         id: 'getting-started',
         canonicalId: 'getting-started',
-        title: 'Install & Setup',
+        title: 'Getting Started',
         path: '/getting-started',
         keywords: ['install', 'setup', 'plugin', 'build.cs', 'mount', 'FRuiRoot', 'RUICompile'],
         searchContent:
@@ -95,7 +95,7 @@ export const sections: DocSection[] = [
         path: '/concepts',
         keywords: ['concepts', 'reconciler', 'components', 'hooks', 'modules', 'companion', 'cvars'],
         searchContent:
-          'concepts environment react-style function components fiber reconciler diffs patches slate widgets pure c++ no javascript no uobject in core components hooks modules declaration kinds companion files .hooks.uetkx export hook UseCounter export module Styles synchronous rendering keyed reconciliation bailout effects after commit positional hooks call order unconditional top level IRuiHostConfig umg commonui mvvm rui.StrictMode rui.Stats rui.DumpTree console variables cvars',
+          'concepts environment react-style function components fiber reconciler diffs patches slate widgets pure c++ no javascript no uobject in core components hooks modules declaration kinds companion files .hooks.uetkx export hook UseCounter export module Styles synchronous rendering keyed reconciliation bailout effects after commit positional hooks call order unconditional top level IRuiHostConfig umg commonui mvvm rui.StrictMode rui.HookValidation rui.StrictDiagnostics rui.TimeSlicing rui.FrameBudgetMs rui.HostNodePool stat ReactiveUI console variables cvars',
         element: () => <ConceptsPage />,
       },
       {
@@ -125,7 +125,7 @@ export const sections: DocSection[] = [
         path: '/guides/assets',
         keywords: ['assets', 'brush', 'texture', 'font', 'image', 'MakeAssetBrush'],
         searchContent:
-          'assets slate brushes fonts colors not raw paths FSlateBrush references UObject RUI::Umg::MakeAssetBrush ResourceObject ImageSize Tint UTexture2D material render target TObjectPtr soft reference asset manager Image Border Button background FSlateFontInfo Font keys FSlateColor FLinearColor ColorAndOpacity literal unreal names lifetime keep owning object alive ref member',
+          'assets slate brushes fonts colors not raw paths FSlateBrush references UObject RUI::Umg::MakeAssetBrush ResourceObject ImageSize Tint UTexture2D material render target TObjectPtr soft reference asset manager Image Border Button background FSlateFontInfo Font keys FSlateColor FLinearColor ColorAndOpacity literal unreal names lifetime handled process-wide GC root FRuiAssetBrushRoot NumTrackedAssetBrushes no manual rooting',
         element: () => <AssetsPage />,
       },
       {
@@ -145,7 +145,7 @@ export const sections: DocSection[] = [
         path: '/styling',
         keywords: ['style', 'padding', 'slot', 'brush', 'color', 'FMargin', 'FLinearColor', 'FSlateColor'],
         searchContent:
-          'styling no uss no css no cascade no stylesheet language widget properties directly in markup style key exact unreal setter property name Padding ContentPadding ColorAndOpacity BorderImage BorderBackgroundColor WidthOverride HeightOverride RenderOpacity RenderTransform Size FMargin FLinearColor FSlateColor FVector2D brush slot props Slot.Padding Slot.HAlign Slot.VAlign parent panel slot setters HAlign_Fill HAlign_Right compact string forms SetPadding SetColorAndOpacity',
+          'styling three layers cascade theme tokens classes inline style keys exact unreal names element attrs Padding ContentPadding BorderImage BorderBackgroundColor WidthOverride generic style keys RenderOpacity Visibility Enabled RenderTranslation RenderScale RenderTransformAngle RenderTransformPivot ColorAndOpacity Font.Size Justification AutoWrapText FillColorAndOpacity slot keys Slot.Padding Slot.HAlign Slot.VAlign Slot.Fill Slot.ZOrder fill left center right style classes RegisterStyleClass classes attribute merge left-to-right inline wins themes @theme $token LoadStylesheet SetActiveTheme uss stylesheet RUI::Style RUI::Slot fluent builders setter styling never rebuilds reset on removal FMargin FLinearColor FSlateColor',
         element: () => <StylingPage />,
       },
       {
@@ -165,7 +165,7 @@ export const sections: DocSection[] = [
         path: '/guides/events',
         keywords: ['events', 'input', 'OnClicked', 'OnTextChanged', 'OnCheckStateChanged', 'Value', 'delegate'],
         searchContent:
-          'events input handling On plus slate delegate name OnClicked OnCheckStateChanged OnTextChanged OnTextCommitted OnValueChanged OnSelectionChanged no onclick no onchange event payload Value struct typed fields Value.TextValue Value.CheckState ECheckBoxState Button EditableTextBox CheckBox Slider SpinBox handler body c++ setter event props reset between renders disconnect stale delegate',
+          'events input handling On plus slate delegate name OnClicked OnCheckStateChanged OnTextChanged OnTextCommitted OnValueChanged no onclick no onchange event payload FRuiValue Value.TextValue Value.BoolValue Value.FloatValue bIsChecked Button EditableTextBox SearchBox CheckBox Slider SpinBox handler body c++ setter event props reset between renders disconnect stale delegate',
         element: () => <EventsPage />,
       },
       {
@@ -231,7 +231,7 @@ export const sections: DocSection[] = [
         path: '/tooling/router',
         keywords: ['router', 'routes', 'route', 'outlet', 'navlink', 'navigation', 'UseNavigate'],
         searchContent:
-          'router in-memory react router markup Router InitialPath Routes best match path Route Path Index element RUI::FC Outlet nested route NavLink Link active state hooks UseNavigate imperative UseLocation UsePathname UseParams dynamic segments UseSearchParams query UseMatch UseResolvedPath UseOutlet UseBlocker navigation guard unsaved changes game ui menus settings nested screens no url bar',
+          'router in-memory react router RUI::Router InitialPath RUI::Routes best match ranked path FRuiRoute Path Element bIndex Children data not tags UseOutlet nested route RUI::Link bReplace active state UseIsActive hooks UseNavigate imperative UseLocation UsePathname UseParams dynamic segments UseSearchParams query UseMatch UseResolvedPath UseOutlet UseBlocker navigation guard unsaved changes game ui menus settings nested screens no url bar',
         element: () => <RouterPage />,
       },
       {
@@ -251,7 +251,7 @@ export const sections: DocSection[] = [
         path: '/tooling/suspense',
         keywords: ['suspense', 'fallback', 'loading', 'async', 'boundary'],
         searchContent:
-          'suspense fallback content not ready swap loading state async resource streamed asset deferred computation no throw-to-suspend c++ has no equivalent declarative boundary polyfill readiness driven explicitly poll driver self-re-arming frame request signal flips fallback to content family divergence godot unity model not-ready state stress test poll-driver frame loop RUI::Suspense Fallback',
+          'suspense RUI::Suspense IsReady fallback children structural primitive not a tag expression child fallback content not ready swap loading state async resource streamed asset deferred computation no throw-to-suspend c++ has no equivalent declarative boundary polyfill readiness driven explicitly poll driver self-re-arming frame request signal flips fallback to content family divergence godot unity model not-ready state stress test poll-driver frame loop RUI::Suspense Fallback',
         element: () => <SuspensePage />,
       },
     ],
@@ -317,19 +317,19 @@ export const sections: DocSection[] = [
         path: '/reference/debugging',
         keywords: ['debugging', 'generated code', 'diags.json', 'message log', 'cvars', 'breakpoints'],
         searchContent:
-          'debugging guide generated code committed uetkx.inl readable c++ RUI::FC RUI::Slate lowered breakpoints compiler diagnostics UETKX code uetkx.diags.json sidecar gitignored ReactiveUI message log editor extensions inline restart language server runtime cvars rui.StrictMode rui.Stats rui.DumpTree hook called conditionally desync positional slots wrong state re-render unconditional top level live coding',
+          'debugging guide generated code committed uetkx.inl readable c++ RUI::FC RUI::Slate lowered breakpoints compiler diagnostics UETKX code uetkx.diags.json sidecar gitignored ReactiveUI message log editor extensions inline restart language server runtime cvars rui.StrictMode rui.HookValidation rui.StrictDiagnostics rui.TimeSlicing rui.FrameBudgetMs rui.HostNodePool stat ReactiveUI counters hook called conditionally desync positional slots wrong state re-render unconditional top level live coding',
         element: () => <DebuggingPage />,
       },
     ],
   },
   {
-    id: 'beyond-v1',
-    title: 'Beyond v1',
+    id: 'subsystems',
+    title: 'Subsystems in depth',
     pages: [
       {
-        id: 'post-v1-subsystems',
+        id: 'subsystems-in-depth',
         canonicalId: 'post-v1-subsystems',
-        title: 'Post-v1 subsystems',
+        title: 'Subsystems in depth',
         path: '/features/subsystems',
         keywords: [
           'router',
@@ -378,7 +378,7 @@ export const sections: DocSection[] = [
         path: '/faq',
         keywords: ['faq', 'questions', 'help', 'production', 'versions', 'umg', 'mvvm'],
         searchContent:
-          'faq frequently asked questions what is reactiveui for unreal react-style ui library pure c++ fiber reconciler slate widgets .uetkx compiles committed c++ which unreal versions 5.6 plugin no gdextension no external runtime production ready pre-alpha phases 8 9 docs release localization deferred scripting vm no javascript engine bridge reflection-free existing umg widgets UUserWidget RUI::Umg::UserWidget MVVM view-models FieldNotify UseField CommonUI activatable event props OnClicked not onClick loyal to unreal hot reload live coding windows state preserved editor support vs code visual studio 2022 extensions offline',
+          'faq frequently asked questions what is reactiveui for unreal react-style ui library pure c++ fiber reconciler slate widgets .uetkx compiles committed c++ which unreal versions 5.6 plugin no gdextension no external runtime production ready beta pre-1.0 docs release localization deferred scripting vm no javascript engine bridge reflection-free existing umg widgets UUserWidget RUI::Umg::UserWidget MVVM view-models FieldNotify UseField CommonUI activatable event props OnClicked not onClick loyal to unreal hot reload live coding windows state preserved editor support vs code visual studio 2022 extensions offline',
         element: () => <FAQPage />,
       },
     ],
@@ -394,7 +394,7 @@ export const sections: DocSection[] = [
         path: '/known-issues',
         keywords: ['known issues', 'limitations', 'localization', 'hmr', 'hooks', 'transitions'],
         searchContent:
-          'known issues limitations pre-alpha localization deferred FText gathering post-v1 hot reload windows only live coding shipping unaffected committed uetkx.inl hooks unconditional positional slots @if @for desync rui.StrictMode transitions synchronous UseTransition no concurrent renderer api parity removed plain props do not reset style events refs draw reset intentional family semantic per-widget reference pages pending prop-map components overview slate class decisions not bugs',
+          'known issues limitations beta localization deferred FText gathering post-v1 hot reload windows only live coding shipping unaffected committed uetkx.inl hooks unconditional positional slots @if @for desync rui.StrictMode transitions synchronous UseTransition no concurrent renderer api parity removed plain props do not reset style events refs draw reset intentional family semantic per-widget reference pages pending prop-map components overview slate class decisions not bugs',
         element: () => <KnownIssuesPage />,
       },
     ],

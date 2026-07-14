@@ -67,8 +67,9 @@ Engine commands (require UE 5.6+ installed; paths per the `test-run` skill's env
 
 Suite filters are prefix-matched: `ReactiveUI.Boot` (the boot check — unit suites do NOT run
 `StartupModule`, so it is never optional), `.Core`, `.Update`, `.Style`, `.Widgets.*`, `.Demos`,
-`.Uetkx`, `.Contract`, `.Hmr`, `.Umg`, `.Mvvm`, `.CommonUI`; `ReactiveUI.Bench` is NOT pass/fail
-(numbers go to `plans/BENCH_BASELINES.md` with machine/config context).
+`.Uetkx`, `.Contract`, `.Umg`, `.Mvvm`, `.CommonUI` (plus `.Slate`, `.Router`, `.Hooks`,
+`.Bugfix*`, `.Acceptance`, `.Editor` — there is no `.Hmr` suite); `ReactiveUI.Bench` is NOT
+pass/fail (numbers go to `plans/BENCH_BASELINES.md` with machine/config context).
 
 Docs site: `cd "ReactiveUIUnrealDocs~" && npm ci && npm run dev` (or `npm run build && npm run lint`).
 
@@ -100,8 +101,10 @@ MASTER_PLAN §1; module table: D-27.
   Codegen emits it only for THIS repo's files; user-project output gets the neutral
   "belongs to your project" banner (D-32).
 - **Logs:** per-module categories `LogRuiCore`/`LogRuiSlate`/`LogRuiUmg`/`LogRuiInterp`/
-  `LogRuiEditor`. **CVars:** `rui.` + dotted PascalCase (`rui.StrictMode`, `rui.Stats`,
-  `rui.DumpTree`). **MessageLog page:** `"ReactiveUI"`.
+  `LogRuiEditor`. **CVars:** `rui.` + dotted PascalCase — the shipped set: `rui.TimeSlicing`,
+  `rui.FrameBudgetMs`, `rui.HostNodePool`, `rui.HookValidation`, `rui.StrictDiagnostics`,
+  `rui.StrictMode` (runtime stats via `stat ReactiveUI`, not a CVar). **MessageLog page:**
+  `"ReactiveUI"`.
 - **Line endings:** LF everywhere (`.gitattributes` pins it; two CI gates byte-compare files).
 - **Generated code is COMMITTED** (`*.uetkx.inl`, `<Module>.Uetkx.gen.cpp`) and reflection-free;
   sidecars (`*.uetkx.diags.json`) are machine-local and gitignored.

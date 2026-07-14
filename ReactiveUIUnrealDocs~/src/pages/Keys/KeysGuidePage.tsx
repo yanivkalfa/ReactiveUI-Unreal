@@ -3,9 +3,11 @@ import { Alert, Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../components/CodeBlock/CodeBlock'
 
 const KEYS = `@for (int32 i = 0; i < Current.Num(); ++i) {
-	<HorizontalBox key={ FName(*Current[i]) }>
-		<TextBlock Text={ FText::FromString(Current[i]) } />
-	</HorizontalBox>
+	return (
+		<HorizontalBox key={ FName(*Current[i]) }>
+			<TextBlock Text={ FText::FromString(Current[i]) } />
+		</HorizontalBox>
+	);
 }`
 
 export const KeysGuidePage: FC = () => (

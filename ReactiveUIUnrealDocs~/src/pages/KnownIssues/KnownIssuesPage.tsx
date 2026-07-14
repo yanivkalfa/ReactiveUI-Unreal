@@ -45,7 +45,7 @@ export const KnownIssuesPage: FC = () => (
       Known Issues
     </Typography>
     <Typography variant="body1" paragraph>
-      ReactiveUI-Unreal is pre-alpha. These are the current limitations and intentional divergences
+      ReactiveUI-Unreal is in beta. These are the current limitations and intentional divergences
       worth knowing — most are decisions, not bugs.
     </Typography>
     {ITEMS.map(([title, body]) => (

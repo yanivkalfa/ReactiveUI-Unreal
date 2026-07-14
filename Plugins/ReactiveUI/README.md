@@ -9,14 +9,19 @@ no script VM in your shipped game.
 The Unreal sibling of [ReactiveUIToolKit](https://github.com/yanivkalfa/ReactiveUIToolKit)
 (Unity) and [ReactiveUI-Godot](https://github.com/yanivkalfa/ReactiveUI-Godot) (Godot).
 
-> **Status: pre-alpha scaffold — not yet functional.** This plugin currently contains the
-> module skeletons only. Progress, plans, and the v1 ship gate live in the repository:
+> **Status: beta — built end to end.** 23 core hooks, 35+ wrapped Slate widgets (including
+> virtualized `ListView`/`TileView`), the `.uetkx` compiler with committed codegen and a CI
+> drift gate, live hot reload in PIE (Unreal Live Coding — Windows editor; the library itself
+> builds and runs on every UE platform), the 17-hook router, `@theme`/`.uss` stylesheets,
+> drag-and-drop, exit animations, and first-class UMG/CommonUI/MVVM interop — all green under
+> the repository's headless automation battery. Remaining before v1: localization (FText
+> gathering) and docs-site build-out. Progress and the v1 ship gate:
 > <https://github.com/yanivkalfa/ReactiveUI-Unreal>
 
-## What it will be
+## What it is
 
-- **Slate is the render target** — output is ordinary `SWidget`s; Widget Reflector and the
-  accessibility layer see normal widgets.
+- **Slate is the render target** — output is ordinary `SWidget`s; Widget Reflector, styling,
+  and the rest of the Slate toolchain see normal widgets.
 - **UMG both ways** — host our UI inside UserWidgets (`URuiHostWidget`), or use UMG widgets
   inside our tree (`RUI::Umg`).
 - **CommonUI stays in charge** of menus, input routing, and gamepad focus — our screens push

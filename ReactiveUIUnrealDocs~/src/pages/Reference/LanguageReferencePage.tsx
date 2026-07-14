@@ -11,17 +11,22 @@ export component Screen(Title: FText, Count: int32 = 0) {
 
 const FLOW = `<VerticalBox>
 	@if (Items.Num() == 0) {
-		<TextBlock Text="Empty" />
+		return ( <TextBlock Text="Empty" /> );
 	} @else {
 		@for (int32 i = 0; i < Items.Num(); ++i) {
-			<Row key={ Items[i].Id } Label={ Items[i].Name } />
+			const FItem& Item = Items[i];          // plain statements are allowed...
+			return ( <Row key={ Item.Id } Label={ Item.Name } /> );   // ...markup exits via return
 		}
+	}
+	@match (Tab) {
+		@case (0) { return ( <Overview /> ); }
+		@default  { return ( <Details /> ); }
 	}
 </VerticalBox>`
 
 const DIRECTIVES: Array<[string, string]> = [
   ['@if / @elif / @else', 'Conditional markup.'],
-  ['@for', 'Loop — the C++ for-header you already know; give children a key.'],
+  ['@for', 'Loop — the header is verbatim C++ (classic or ranged for); give children a key.'],
   ['@while', 'Loop while a condition holds.'],
   ['@match / @case / @default', 'Multi-way branch on a value.'],
 ]
@@ -51,15 +56,23 @@ export const LanguageReferencePage: FC = () => (
       Expressions &amp; fragments
     </Typography>
     <Typography variant="body1" paragraph>
-      An attribute value is a plain string or a <code>{'{ expr }'}</code> C++ expression. A{' '}
-      <code>{'{ expr }'}</code> child inlines a value or element. Use a fragment{' '}
-      <code>&lt;&gt;...&lt;/&gt;</code> to return several children without an extra wrapper widget.
-      Comments are <code>//</code>, <code>/* */</code>, and <code>{'{/* ... */}'}</code> inside
-      markup.
+      An attribute value is a plain string or a <code>{'{ expr }'}</code> C++ expression; a{' '}
+      <code>{'{ ...Props }'}</code> spread forwards an attribute set. A <code>{'{ expr }'}</code>{' '}
+      child inlines a value or element, and <code>{'{ children }'}</code> splices the children a
+      caller passed into your component. Use a fragment <code>&lt;&gt;...&lt;/&gt;</code> to return
+      several children without an extra wrapper widget — leaf widgets (e.g.{' '}
+      <code>TextBlock</code>) reject children with a compile error. Comments: <code>//</code>,{' '}
+      <code>/* */</code>, <code>{'<!-- -->'}</code> between nodes, and <code>{'{/* ... */}'}</code>{' '}
+      inside attribute lists.
     </Typography>
 
     <Typography variant="h5" component="h2" gutterBottom sx={{ mt: 3 }}>
       Control-flow directives
+    </Typography>
+    <Typography variant="body1" paragraph>
+      A directive block is a statement block: declare locals, compute — and emit markup with{' '}
+      <code>return ( ... );</code>. The directive header is verbatim C++ (<code>@for</code> takes a
+      classic or ranged for-header).
     </Typography>
     <CodeBlock code={FLOW} language="uetkx" />
     <TableContainer sx={{ mb: 2 }}>

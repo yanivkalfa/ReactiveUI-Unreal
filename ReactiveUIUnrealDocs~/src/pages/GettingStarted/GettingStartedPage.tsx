@@ -40,7 +40,7 @@ const COMPILE = `:: Compile every .uetkx to committed C++ (*.uetkx.inl + <Module
 export const GettingStartedPage: FC = () => (
   <Box>
     <Typography variant="h4" component="h1" gutterBottom>
-      Install &amp; Setup
+      Getting Started
     </Typography>
     <Typography variant="body1" paragraph>
       ReactiveUI for Unreal is a normal engine plugin — no GDExtension, no external runtime. You

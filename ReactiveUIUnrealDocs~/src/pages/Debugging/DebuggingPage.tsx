@@ -3,8 +3,10 @@ import { Alert, Box, Table, TableBody, TableCell, TableContainer, TableHead, Tab
 
 const CVARS: Array<[string, string]> = [
   ['rui.StrictMode', 'Double-invoke render to surface impure components and effect mistakes.'],
-  ['rui.Stats', 'Log per-commit reconciler stats — fibers visited, widgets created/patched.'],
-  ['rui.DumpTree', 'Dump the current vnode/fiber tree.'],
+  ['rui.HookValidation', 'Detect hook-order mismatches between renders (on by default in dev).'],
+  ['rui.StrictDiagnostics', 'Warn on misuse such as setting state during render (on by default in dev).'],
+  ['rui.TimeSlicing / rui.FrameBudgetMs', 'Chunk render work across frames / the per-frame budget.'],
+  ['rui.HostNodePool', 'Recycle childless leaf widgets (turn off to bisect pooling suspicions).'],
 ]
 
 export const DebuggingPage: FC = () => (
@@ -40,7 +42,12 @@ export const DebuggingPage: FC = () => (
     </Typography>
 
     <Typography variant="h5" component="h2" gutterBottom sx={{ mt: 3 }}>
-      Runtime CVars
+      Runtime CVars &amp; stats
+    </Typography>
+    <Typography variant="body1" paragraph>
+      <code>stat ReactiveUI</code> shows the live reconciler counters — Renders, Commits,
+      Placements, Updates, Deletions — the fastest way to see whether a change re-renders more
+      than it should. The <code>rui.*</code> console variables tune behavior:
     </Typography>
     <TableContainer sx={{ mb: 2 }}>
       <Table size="small">

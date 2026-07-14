@@ -14,9 +14,12 @@ export hook UseCounter(int32 Start) -> TTuple<int32, TFunction<void()>> {
 }`
 
 const CVARS: Array<[string, string]> = [
-  ['rui.StrictMode', 'Double-invoke render in dev to surface impure components and effect mistakes.'],
-  ['rui.Stats', 'Print per-commit reconciler stats (fibers visited, widgets created/patched).'],
-  ['rui.DumpTree', 'Dump the current vnode/fiber tree for inspection.'],
+  ['rui.StrictMode', 'Double-invoke render in dev to surface impure components and effect mistakes (default off).'],
+  ['rui.HookValidation', 'Detect hook-order mismatches between renders (default on in dev, off in shipping).'],
+  ['rui.StrictDiagnostics', 'Warn on misuse such as setting state during render (default on in dev).'],
+  ['rui.TimeSlicing', 'Chunk the render phase across frames (default off).'],
+  ['rui.FrameBudgetMs', 'Per-frame render budget when time-slicing (default 8.0).'],
+  ['rui.HostNodePool', 'Recycle childless leaf widgets instead of reconstructing (default on).'],
 ]
 
 export const ConceptsPage: FC = () => (
@@ -69,7 +72,8 @@ export const ConceptsPage: FC = () => (
     <Typography variant="body1" paragraph>
       The core talks to the engine only through <code>IRuiHostConfig</code>, so the same runtime
       drives Slate today and the Epic-interop hosts (UMG, CommonUI, MVVM). Behavior is tuned at
-      runtime with <code>rui.</code> console variables:
+      runtime with <code>rui.</code> console variables, and live reconciler counters (renders,
+      commits, placements, updates, deletions) are on <code>stat ReactiveUI</code>:
     </Typography>
     <TableContainer sx={{ mb: 2 }}>
       <Table size="small">

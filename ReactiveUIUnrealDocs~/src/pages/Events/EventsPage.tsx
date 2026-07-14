@@ -10,14 +10,13 @@ const BASIC = `<Button OnClicked={ Submit() }>Save</Button>
 	OnTextChanged={ SetText(Value.TextValue.ToString()) }
 />
 
-<CheckBox OnCheckStateChanged={ SetChecked(Value.CheckState == ECheckBoxState::Checked) } />`
+<CheckBox bIsChecked={ bChecked } OnCheckStateChanged={ SetChecked(Value.BoolValue) } />`
 
 const EVENTS: Array<[string, string]> = [
-  ['OnClicked', 'Button — the click delegate (returns FReply under the hood; you just write the body).'],
-  ['OnCheckStateChanged', 'CheckBox — carries the new ECheckBoxState.'],
-  ['OnTextChanged / OnTextCommitted', 'EditableTextBox — per-keystroke / on-commit text.'],
-  ['OnValueChanged', 'Slider, SpinBox — the new numeric value.'],
-  ['OnSelectionChanged', 'List/combo widgets — the newly selected item.'],
+  ['OnClicked', 'Button — the click delegate; no payload fields.'],
+  ['OnCheckStateChanged', 'CheckBox — the new checked state as Value.BoolValue.'],
+  ['OnTextChanged / OnTextCommitted', 'EditableTextBox, SearchBox — per-keystroke / on-commit text as Value.TextValue.'],
+  ['OnValueChanged', 'Slider, SpinBox — the new numeric value as Value.FloatValue.'],
 ]
 
 export const EventsPage: FC = () => (
@@ -36,10 +35,12 @@ export const EventsPage: FC = () => (
       The event payload
     </Typography>
     <Typography variant="body1" paragraph>
-      Inside a handler body, <code>Value</code> is the event payload — a small struct whose typed
-      fields carry whatever the delegate passed. A text change exposes{' '}
-      <code>Value.TextValue</code>; a checkbox exposes <code>Value.CheckState</code>. You read the
-      field you need and call a setter, exactly like the demos above.
+      Inside a handler body, <code>Value</code> is the event payload — an <code>FRuiValue</code>{' '}
+      whose typed field carries what the delegate passed. A text change exposes{' '}
+      <code>Value.TextValue</code> (an <code>FText</code>), a checkbox toggle{' '}
+      <code>Value.BoolValue</code>, a slider change <code>Value.FloatValue</code>;{' '}
+      <code>OnClicked</code> carries nothing. You read the field you need and call a setter,
+      exactly like the demos.
     </Typography>
 
     <Typography variant="h5" component="h2" gutterBottom sx={{ mt: 3 }}>

@@ -28,7 +28,7 @@ if (!Prism.languages.uetkx) {
       alias: 'keyword',
     },
     tag: {
-      // Opening/closing markup tags: <VBox, </Text, and the closers /> and >.
+      // Opening/closing markup tags: <VerticalBox, </TextBlock, and the closers /> and >.
       pattern: /<\/?[A-Za-z][\w.]*|\/?>/,
       inside: {
         punctuation: /^<\/?|\/?>$/,
@@ -47,7 +47,7 @@ if (!Prism.languages.uetkx) {
       /\b(?:[FUTE][A-Z]\w*|[A-Z]\w*(?=\s*[.(]))\b/,
     ],
     builtin:
-      /\b(?:int8|int16|int32|int64|uint8|uint16|uint32|uint64|float|double|bool|char|fmt|set)\b/,
+      /\b(?:int8|int16|int32|int64|uint8|uint16|uint32|uint64|float|double|bool|char)\b/,
     function: /\b[a-z_]\w*(?=\s*\()/i,
     number: /\b0x[\da-fA-F]+\b|(?:\b\d+(?:\.\d*)?|\B\.\d+)(?:e[+-]?\d+)?f?\b/i,
     boolean: /\b(?:false|true)\b/,

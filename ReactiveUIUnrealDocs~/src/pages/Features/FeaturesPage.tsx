@@ -81,14 +81,15 @@ const WIDGETS: Array<[string, string]> = [
 export const FeaturesPage: FC = () => (
   <Box>
     <Typography variant="h4" component="h1" gutterBottom>
-      Post-v1 subsystems
+      Subsystems in depth
     </Typography>
     <Typography variant="body1" paragraph>
-      Beyond the core reconciler + Slate host, the Unreal sibling ships the family&apos;s full
-      post-v1 surface: a router, stylesheets, exit animations, drag-and-drop, virtualized lists,
-      first-class CommonUI/MVVM citizenship, and ~20 additional widgets. Everything below is C++
-      today (the <code>.uetkx</code> markup covers the declarative subset); each subsystem is
-      covered by the headless automation battery.
+      Beyond the core reconciler + Slate host, the library <strong>ships</strong> the family&apos;s
+      full subsystem surface today: a router, stylesheets, exit animations, drag-and-drop,
+      virtualized lists, first-class CommonUI/MVVM citizenship, and ~20 additional widgets.
+      Everything below is C++-level API (the <code>.uetkx</code> markup covers the declarative
+      subset); each subsystem is covered by the headless automation battery. This page is the
+      C++-first tour — the Guides cover each area from the markup side.
     </Typography>
 
     <Typography variant="h5" component="h2" gutterBottom sx={{ mt: 3 }}>

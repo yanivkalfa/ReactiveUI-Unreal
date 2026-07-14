@@ -42,9 +42,10 @@ export const AssetsPage: FC = () => (
     </Typography>
 
     <Alert severity="info">
-      Brushes hold a reference to their resource object, so keep the owning object alive for the
-      brush&apos;s lifetime (store it in a ref or a member) — the same lifetime rule as hand-built
-      Slate brushes.
+      Lifetime is handled for you: brushes made by <code>MakeAssetBrush</code> are tracked by a
+      process-wide GC root that keeps the referenced <code>UObject</code> alive for as long as the
+      brush itself lives — no manual rooting needed (<code>NumTrackedAssetBrushes()</code> exposes
+      the live count for tests and leak-hunting).
     </Alert>
   </Box>
 )
