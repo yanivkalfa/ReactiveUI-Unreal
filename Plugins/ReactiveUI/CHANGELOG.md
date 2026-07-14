@@ -11,6 +11,14 @@ resync with `cp CHANGELOG.md Plugins/ReactiveUI/CHANGELOG.md` (CI byte-compares 
 
 ### Fixed
 
+- **Portal content no longer leaks on unmount** — deleting a subtree containing a portal (or
+  unmounting a whole root) now explicitly removes the portal's children from their target panel;
+  previously the release path assumed they lived under the released subtree, leaking them in
+  external targets. Found by the feature's first automated test (`ReactiveUI.Core.Portal`).
+- **`URuiHostWidget::Remount()` actually remounts** — UMG caches the widget returned by
+  `RebuildWidget`, so the old implementation unmounted and never rebuilt. The host now returns a
+  stable wrapper and swaps its content in place, making runtime `ComponentName` changes +
+  `Remount()` work (covered by `ReactiveUI.Umg.Lifecycle`).
 - **Packaged README rewritten** — the README inside the plugin package still described a
   "pre-alpha scaffold — not yet functional"; it now states the beta reality (23 hooks, 35+
   widgets, compiler + drift gate, hot reload, router, stylesheets, Epic interop).

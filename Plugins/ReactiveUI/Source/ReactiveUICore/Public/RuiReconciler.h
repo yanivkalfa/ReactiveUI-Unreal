@@ -113,6 +113,7 @@ private:
 	void EnforceChildOrder(FRuiFiber* ParentFiber);
 	void CollectHostChildren(FRuiFiber* Fiber, TArray<FRuiHostHandle>& Out) const;
 	void ReleaseHostNodes(FRuiFiber* Fiber);
+	void DetachPortalChildren(FRuiFiber* Fiber);
 	FRuiHostHandle HostParentNode(FRuiFiber* Fiber, bool& bOutViaPortal, FRuiPortalHandle& OutPortal) const;
 
 	// --- error latch (D-10) ---

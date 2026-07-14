@@ -119,6 +119,25 @@ bool FRuiDemosTest::RunTest(const FString&)
 		}
 	}
 
+	AddInfo(TEXT("[demos] the interop screens render their headless fallbacks (audit Phase 4)"));
+	{
+		TSharedRef<FRuiRoot> Root = FRuiRoot::Create(RUI::Named(FName(TEXT("UmgHostDemo"))));
+		Root->FlushSync();
+		TestTrue(TEXT("UmgHostDemo renders the no-world fallback headless"),
+				 DemoTest::ContainsText(Root->GetWidget().Get(), TEXT("press Play")));
+		Root->Unmount();
+	}
+	{
+		TSharedRef<FRuiRoot> Root = FRuiRoot::Create(RUI::Named(FName(TEXT("CommonUiDemo"))));
+		Root->FlushSync();
+		SWidget& W = Root->GetWidget().Get();
+		TestTrue(TEXT("CommonUiDemo renders the toggle half headless"),
+				 DemoTest::ContainsText(W, TEXT("Toggle activation")));
+		TestTrue(TEXT("CommonUiDemo renders the real-stack fallback headless"),
+				 DemoTest::ContainsText(W, TEXT("press Play")));
+		Root->Unmount();
+	}
+
 	AddInfo(TEXT("[demos] the shell menu switches screens (remount on switch)"));
 	{
 		TSharedRef<FRuiRoot> Root = FRuiRoot::Create(RuiDemo::GalleryRoot());

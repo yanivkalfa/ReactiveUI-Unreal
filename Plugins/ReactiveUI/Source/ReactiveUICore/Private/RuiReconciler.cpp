@@ -1245,6 +1245,7 @@ void FRuiReconciler::CommitDeletion(FRuiFiber* Fiber)
 	FRuiDiagnostics::OnDeletion();
 	NullRefsRecursive(Fiber);
 	RunCleanupsRecursive(Fiber);
+	DetachPortalChildren(Fiber); // portal content lives under targets, not this subtree
 	ReleaseHostNodes(Fiber);
 	ReleaseFiberTree(Fiber);
 }
@@ -1414,6 +1415,29 @@ void FRuiReconciler::CollectHostChildren(FRuiFiber* Fiber, TArray<FRuiHostHandle
 		{
 			CollectHostChildren(C, Out);
 		}
+	}
+}
+
+void FRuiReconciler::DetachPortalChildren(FRuiFiber* Fiber)
+{
+	if (Fiber->IsPortal() && Fiber->PortalTarget.IsValid())
+	{
+		// A portal's host children live under the TARGET — outside whatever host subtree a
+		// deletion/unmount is about to release, and (for external targets) outside this tree
+		// entirely. Remove them explicitly or they leak in the target panel — the
+		// RemovePortalChild seam exists for exactly this (audit 2026-07-14: first Portal test
+		// caught the miss). CollectHostChildren skips nested portal children; the recursion
+		// below detaches those against their own targets.
+		TArray<FRuiHostHandle> PortalKids;
+		CollectHostChildren(Fiber, PortalKids);
+		for (const FRuiHostHandle& Kid : PortalKids)
+		{
+			Host.RemovePortalChild(Fiber->PortalTarget, Kid);
+		}
+	}
+	for (FRuiFiber* C = Fiber->Child; C != nullptr; C = C->Sibling)
+	{
+		DetachPortalChildren(C);
 	}
 }
 
@@ -1700,6 +1724,7 @@ void FRuiReconciler::Unmount()
 	{
 		NullRefsRecursive(C);
 		RunCleanupsRecursive(C);
+		DetachPortalChildren(C); // portal content lives under targets, not this subtree
 		ReleaseHostNodes(C);
 	}
 	ReleaseFiberTree(RootCurrent);

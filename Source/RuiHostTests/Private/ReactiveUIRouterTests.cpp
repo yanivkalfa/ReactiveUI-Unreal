@@ -218,4 +218,115 @@ bool FRuiRouterSpineTest::RunTest(const FString&)
 	return true;
 }
 
+
+// ── ReactiveUI.Router.Hooks — the previously-untested hook set (audit §13) ─────────────────
+// UseInRouterContext, UseLocation, UsePathname, UseSearch, UseNavigationType, UseMatch,
+// UseIsActive, UseResolvedPath, UseHref, UseGo, and the Link component.
+
+namespace RouterHooksTest
+{
+	static bool GInRouter = false;
+	static FString GLocPath, GPathname, GSearchStr, GMatchId, GResolved, GHref;
+	static bool GActivePrefix = false, GActiveExact = false;
+	static int32 GNavType = -1;
+	static TFunction<void(const FString&, bool)> GNavigate;
+	static TFunction<void(int32)> GGo;
+
+	static FRuiNodeArray Probe(FRuiContext& Ctx, const FRuiEmptyProps&, const TArray<FRuiNode>&)
+	{
+		GInRouter = UseInRouterContext(Ctx);
+		GLocPath = UseLocation(Ctx).Pathname;
+		GPathname = UsePathname(Ctx);
+		GSearchStr = UseSearch(Ctx);
+		GNavType = static_cast<int32>(UseNavigationType(Ctx));
+		GMatchId = UseMatch(Ctx, TEXT("/users/:id")).Params.FindRef(TEXT("id"));
+		GActivePrefix = UseIsActive(Ctx, TEXT("/users"));
+		GActiveExact = UseIsActive(Ctx, TEXT("/users"), /*bEnd*/ true);
+		GResolved = UseResolvedPath(Ctx, TEXT("edit"));
+		GHref = UseHref(Ctx, TEXT("../7"));
+		return {RUI::Link(TEXT("/home"), {RUI::TextBlock(TEXT("LINK-CHILD"))})};
+	}
+	RUI_COMPONENT(Probe)
+
+	static FRuiNodeArray Shell(FRuiContext& Ctx, const FRuiEmptyProps&, const TArray<FRuiNode>&)
+	{
+		GNavigate = UseNavigate(Ctx);
+		GGo = UseGo(Ctx);
+		TArray<RUI::FRuiRoute> RouteList;
+		RouteList.Add({TEXT("/home"), RUI::TextBlock(TEXT("HOOKS-HOME"))});
+		RouteList.Add({TEXT("/users/:id"), RUI::FC(&Probe)});
+		return {RUI::Routes(MoveTemp(RouteList))};
+	}
+	RUI_COMPONENT(Shell)
+
+	static FRuiNodeArray App(FRuiContext&, const FRuiEmptyProps&, const TArray<FRuiNode>&)
+	{
+		return {RUI::Router({RUI::FC(&Shell)}, TEXT("/users/42?tab=stats"))};
+	}
+	RUI_COMPONENT(App)
+
+	// A router-less probe: UseInRouterContext must say false outside any <Router>.
+	static bool GOutsideInRouter = true;
+	static FRuiNodeArray Outside(FRuiContext& Ctx, const FRuiEmptyProps&, const TArray<FRuiNode>&)
+	{
+		GOutsideInRouter = UseInRouterContext(Ctx);
+		return {RUI::TextBlock(TEXT("OUTSIDE"))};
+	}
+	RUI_COMPONENT(Outside)
+} // namespace RouterHooksTest
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRuiRouterHooksTest, "ReactiveUI.Router.Hooks", RUI_ROUTER_FLAGS)
+bool FRuiRouterHooksTest::RunTest(const FString&)
+{
+	using namespace RouterHooksTest;
+
+	FRuiTestHarness H;
+	H.Mount(RUI::FC(&App));
+
+	auto Texts = [&H]()
+	{
+		TArray<FString> Out;
+		RouterTest::CollectText(&H.Host.Root.Get(), Out);
+		return Out;
+	};
+
+	// Location family, on the initial /users/42?tab=stats
+	TestTrue(TEXT("in router context"), GInRouter);
+	TestEqual(TEXT("UseLocation pathname"), GLocPath, FString(TEXT("/users/42")));
+	TestEqual(TEXT("UsePathname"), GPathname, FString(TEXT("/users/42")));
+	TestEqual(TEXT("UseSearch"), GSearchStr, FString(TEXT("?tab=stats")));
+	TestEqual(TEXT("UseMatch param"), GMatchId, FString(TEXT("42")));
+	TestTrue(TEXT("UseIsActive prefix matches"), GActivePrefix);
+	TestFalse(TEXT("UseIsActive bEnd rejects deeper path"), GActiveExact);
+	TestEqual(TEXT("UseResolvedPath appends"), GResolved, FString(TEXT("/users/42/edit")));
+	TestEqual(TEXT("UseHref climbs"), GHref, FString(TEXT("/users/7")));
+	TestTrue(TEXT("Link renders its children"), Texts().Contains(FString(TEXT("LINK-CHILD"))));
+
+	// Navigation type distinguishes push from replace (values are opaque; difference is the API).
+	GNavigate(TEXT("/users/7"), /*bReplace*/ false);
+	H.Reconciler->FlushSync();
+	const int32 PushType = GNavType;
+	TestEqual(TEXT("navigated (push)"), GPathname, FString(TEXT("/users/7")));
+	GNavigate(TEXT("/users/8"), /*bReplace*/ true);
+	H.Reconciler->FlushSync();
+	TestEqual(TEXT("navigated (replace)"), GPathname, FString(TEXT("/users/8")));
+	TestNotEqual(TEXT("push and replace report different navigation types"), PushType, GNavType);
+
+	// UseGo: delta -1 walks history (the replace collapsed /users/7 -> /users/8).
+	GGo(-1);
+	H.Reconciler->FlushSync();
+	TestEqual(TEXT("UseGo(-1) went back"), GPathname, FString(TEXT("/users/42")));
+
+	GNavigate = nullptr;
+	GGo = nullptr;
+
+	// Outside any router: UseInRouterContext reports false.
+	{
+		FRuiTestHarness H2;
+		H2.Mount(RUI::FC(&Outside));
+		TestFalse(TEXT("UseInRouterContext false outside a Router"), GOutsideInRouter);
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
