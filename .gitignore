@@ -50,3 +50,4 @@ ide-extensions/vscode-uetkx/server/
 ide-extensions/visual-studio/UetkxVsix/server/
 ide-extensions/visual-studio/UetkxVsix/bin/
 ide-extensions/visual-studio/UetkxVsix/obj/
+scripts/diff-reports/

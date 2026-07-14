@@ -40,5 +40,12 @@ protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
 
 private:
+	/** Build the current content (placeholder / unknown-name text / a live mounted root). */
+	TSharedRef<SWidget> BuildContent();
+
 	TSharedPtr<FRuiRoot> Root;
+	/** Stable wrapper returned to UMG once; Remount swaps its content in place (UMG's
+	 *  TakeWidget caches the outer widget, so returning a NEW one from a re-Rebuild never
+	 *  reaches an already-slotted host — audit 2026-07-14, Remount was a no-op without this). */
+	TSharedPtr<class SBox> Container;
 };

@@ -13,58 +13,52 @@ export component KeyedDiff {
 	auto [Items, SetItems] = UseState<TArray<FString>>(SeedItems());
 	auto [Ops, SetOps] = UseState<int32>(0);
 	auto [NextId, SetNextId] = UseState<int32>(1);
-	TFunction<void(TArray<FString>)> Set = SetItems;
-	TFunction<void(int32)> SetOpCount = SetOps;
-	TFunction<void(int32)> SetNext = SetNextId;
-	const TArray<FString> Current = Items;
-	const int32 OpsNow = Ops;
-	const int32 IdNow = NextId;
 
-	auto Apply = [Set, SetOpCount, OpsNow](TArray<FString> Next) {
-		Set(MoveTemp(Next));
-		SetOpCount(OpsNow + 1);
+	auto Apply = [SetItems, SetOps, Ops](TArray<FString> Next) {
+		SetItems(MoveTemp(Next));
+		SetOps(Ops + 1);
 	};
-	auto DoReset = [Set, SetOpCount, SeedItems]() {
-		Set(SeedItems());
-		SetOpCount(0);
+	auto DoReset = [SetItems, SetOps, SeedItems]() {
+		SetItems(SeedItems());
+		SetOps(0);
 	};
-	auto DoReverse = [Apply, Current]() {
-		TArray<FString> Next = Current;
+	auto DoReverse = [Apply, Items]() {
+		TArray<FString> Next = Items;
 		Algo::Reverse(Next);
 		Apply(MoveTemp(Next));
 	};
-	auto DoRotate = [Apply, Current]() {
-		if (!Current.IsEmpty())
+	auto DoRotate = [Apply, Items]() {
+		if (!Items.IsEmpty())
 		{
 			TArray<FString> Next;
-			Next.Add(Current.Last());
-			for (int32 i = 0; i < Current.Num() - 1; ++i)
+			Next.Add(Items.Last());
+			for (int32 i = 0; i < Items.Num() - 1; ++i)
 			{
-				Next.Add(Current[i]);
+				Next.Add(Items[i]);
 			}
 			Apply(MoveTemp(Next));
 		}
 	};
-	auto DoShuffle = [Apply, Current, OpsNow]() {
-		TArray<FString> Next = Current;
-		FRandomStream Rng(OpsNow * 7919 + Next.Num());
+	auto DoShuffle = [Apply, Items, Ops]() {
+		TArray<FString> Next = Items;
+		FRandomStream Rng(Ops * 7919 + Next.Num());
 		for (int32 i = Next.Num() - 1; i > 0; --i)
 		{
 			Next.Swap(i, Rng.RandRange(0, i));
 		}
 		Apply(MoveTemp(Next));
 	};
-	auto DoInsert = [Apply, Current, IdNow, SetNext]() {
-		TArray<FString> Next = Current;
-		FRandomStream Rng(IdNow * 31 + Next.Num());
-		Next.Insert(FString::Printf(TEXT("New-%d"), IdNow), Next.IsEmpty() ? 0 : Rng.RandRange(0, Next.Num() - 1));
-		SetNext(IdNow + 1);
+	auto DoInsert = [Apply, Items, NextId, SetNextId]() {
+		TArray<FString> Next = Items;
+		FRandomStream Rng(NextId * 31 + Next.Num());
+		Next.Insert(FString::Printf(TEXT("New-%d"), NextId), Next.IsEmpty() ? 0 : Rng.RandRange(0, Next.Num() - 1));
+		SetNextId(NextId + 1);
 		Apply(MoveTemp(Next));
 	};
-	auto DoRemove = [Apply, Current]() {
-		if (!Current.IsEmpty())
+	auto DoRemove = [Apply, Items]() {
+		if (!Items.IsEmpty())
 		{
-			TArray<FString> Next = Current;
+			TArray<FString> Next = Items;
 			Next.RemoveAt(Next.Num() / 2);
 			Apply(MoveTemp(Next));
 		}
@@ -75,7 +69,7 @@ export component KeyedDiff {
 			<VerticalBox>
 				<TextBlock Text="Keyed diff / LIS test" Font.Size={ 16.0f } ColorAndOpacity={ FLinearColor(1.0f, 0.8f, 0.4f) } />
 				<TextBlock Text="Reorder, insert, and remove keyed rows -- rows stay mounted while order changes." />
-				<TextBlock Text={ FText::FromString(FString::Printf(TEXT("Operations performed: %d"), OpsNow)) } />
+				<TextBlock Text={ RUI::Fmt(TEXT("Operations performed: {}"), Ops) } />
 				<Spacer Size={ FVector2D(1.0f, 6.0f) } />
 				<HorizontalBox>
 					<Button OnClicked={ DoReset() } ContentPadding="12,4" Slot.Padding="0,0,6,0">Reset</Button>
@@ -88,11 +82,11 @@ export component KeyedDiff {
 					<Button OnClicked={ DoRemove() } ContentPadding="12,4" Slot.Padding="0,0,6,0">Remove middle</Button>
 				</HorizontalBox>
 				<Spacer Size={ FVector2D(1.0f, 6.0f) } />
-				@for (int32 i = 0; i < Current.Num(); ++i) {
+				@for (int32 i = 0; i < Items.Num(); ++i) {
 					return (
-						<HorizontalBox key={ FName(*Current[i]) }>
-							<TextBlock Text={ FText::FromString(FString::Printf(TEXT("Key: %s"), *Current[i])) } />
-							<TextBlock Text={ FText::FromString(FString::Printf(TEXT("   Index %d"), i)) } Font.Size={ 9.0f } ColorAndOpacity={ FLinearColor(0.3f, 0.9f, 0.9f) } Slot.Padding="10,0,0,0" />
+						<HorizontalBox key={ FName(*Items[i]) }>
+							<TextBlock Text={ RUI::Fmt(TEXT("Key: {}"), Items[i]) } />
+							<TextBlock Text={ RUI::Fmt(TEXT("   Index {}"), i) } Font.Size={ 9.0f } ColorAndOpacity={ FLinearColor(0.3f, 0.9f, 0.9f) } Slot.Padding="10,0,0,0" />
 						</HorizontalBox>
 					);
 				}

@@ -32,6 +32,8 @@
 #include "../Screens/StressTest/StressTest.uetkx.inl"
 #include "../Screens/StyledPanels/StyledPanels.uetkx.inl"
 #include "../Screens/TicTacToe/TicTacToe.uetkx.inl"
+#include "../Screens/UmgHostDemo/components/UmgHostInner/UmgHostInner.uetkx.inl"
+#include "../Screens/UmgHostDemo/UmgHostDemo.uetkx.inl"
 #include "../Screens/AcceptanceLab/AcceptanceLab.uetkx.inl"
 #include "../Screens/CommonUiDemo/CommonUiDemo.uetkx.inl"
 #undef RUI_UETKX_DECL_PHASE
@@ -57,5 +59,7 @@
 #include "../Screens/StressTest/StressTest.uetkx.inl"
 #include "../Screens/StyledPanels/StyledPanels.uetkx.inl"
 #include "../Screens/TicTacToe/TicTacToe.uetkx.inl"
+#include "../Screens/UmgHostDemo/components/UmgHostInner/UmgHostInner.uetkx.inl"
+#include "../Screens/UmgHostDemo/UmgHostDemo.uetkx.inl"
 #include "../Screens/AcceptanceLab/AcceptanceLab.uetkx.inl"
 #include "../Screens/CommonUiDemo/CommonUiDemo.uetkx.inl"

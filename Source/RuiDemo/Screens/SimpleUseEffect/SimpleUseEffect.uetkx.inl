@@ -20,9 +20,8 @@ static FRuiNodeArray SimpleUseEffect_UetkxImpl(FRuiContext& Ctx, const FSimpleUs
 {
 #line 2 "Source/RuiDemo/Screens/SimpleUseEffect/SimpleUseEffect.uetkx"
 	auto [Message, SetMessage] = Ctx.UseState<FString>(FString(TEXT("Waiting...")));
-		TFunction<void(FString)> Set = SetMessage;
-		Ctx.UseEffect([Set]() { Set(FString(TEXT("Effect ran!"))); }, RUI::Deps());
-#line 26 "SimpleUseEffect.uetkx.inl"
+		Ctx.UseEffect([SetMessage]() { SetMessage(FString(TEXT("Effect ran!"))); }, RUI::Deps());
+#line 25 "SimpleUseEffect.uetkx.inl"
 	return { [&]() -> FRuiNode {
 		FRuiBorderProps P;
 		P.SetPadding(FMargin(12));
@@ -34,7 +33,7 @@ static FRuiNodeArray SimpleUseEffect_UetkxImpl(FRuiContext& Ctx, const FSimpleUs
 		if (!__Style->IsEmpty()) { P.Style = __Style; }
 		if (!__Slot->IsEmpty()) { P.SlotProps = __Slot; }
 		TArray<FRuiNode> Ch;
-		Ch.Add(RUI::TextBlock((FText::FromString(FString::Printf(TEXT("Message: %s"), *Message))), FRuiKey()));
+		Ch.Add(RUI::TextBlock((RUI::Fmt(TEXT("Message: {}"), Message)), FRuiKey()));
 		return RUI::Slate::Border(MoveTemp(P), MoveTemp(Ch), FRuiKey());
 	}() };
 }

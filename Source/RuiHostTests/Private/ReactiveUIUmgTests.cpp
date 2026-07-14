@@ -27,6 +27,7 @@
 #include "RuiTestViewModel.h"
 #include "RuiUmgElement.h"
 #include "RuiWorldSubsystem.h"
+#include "Slate/SObjectWidget.h"
 #include "UObject/StrongObjectPtr.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Text/STextBlock.h"
@@ -295,6 +296,96 @@ bool FRuiReverseBridgeTest::RunTest(const FString&)
 	Root->Unmount();
 	UmgTest::GSignalVm = nullptr;
 	Vm->RemoveFromRoot();
+	return true;
+}
+
+// ── ReactiveUI.Umg.Lifecycle — Remount, MountNode, and the hosted-widget GC contract (audit §13)
+
+namespace UmgLifecycleTest
+{
+	// Depth-first: find the first SObjectWidget and return its backing UUserWidget.
+	static UUserWidget* FindHostedUserWidget(SWidget& Widget)
+	{
+		if (Widget.GetTypeAsString() == TEXT("SObjectWidget"))
+		{
+			return static_cast<SObjectWidget&>(Widget).GetWidgetObject();
+		}
+		FChildren* Children = Widget.GetChildren();
+		for (int32 i = 0; Children && i < Children->Num(); ++i)
+		{
+			if (UUserWidget* Found = FindHostedUserWidget(Children->GetChildAt(i).Get()))
+			{
+				return Found;
+			}
+		}
+		return nullptr;
+	}
+} // namespace UmgLifecycleTest
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRuiUmgLifecycleTest, "ReactiveUI.Umg.Lifecycle",
+								 EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+bool FRuiUmgLifecycleTest::RunTest(const FString&)
+{
+	const int32 Baseline = UmgTest::CountLiveReconcilers();
+
+	// ── URuiHostWidget::Remount — re-resolves without leaking a root ─────────────────────────
+	{
+		URuiHostWidget* Host = NewObject<URuiHostWidget>(GetTransientPackage());
+		Host->ComponentName = FName(TEXT("HelloWorld"));
+		TSharedRef<SWidget> Widget = Host->TakeWidget();
+		TestEqual(TEXT("mounted one root"), UmgTest::CountLiveReconcilers(), Baseline + 1);
+
+		Host->ComponentName = FName(TEXT("SimpleCounter"));
+		Host->Remount();
+		TestEqual(TEXT("Remount did not leak a root"), UmgTest::CountLiveReconcilers(), Baseline + 1);
+		TestTrue(TEXT("Remount re-resolved to the new component"),
+				 UmgTest::ContainsText(Host->TakeWidget().Get(), TEXT("Count: 0")));
+		TestEqual(TEXT("re-TakeWidget still one root"), UmgTest::CountLiveReconcilers(), Baseline + 1);
+
+		Host->ReleaseSlateResources(true);
+		TestEqual(TEXT("released"), UmgTest::CountLiveReconcilers(), Baseline);
+	}
+
+	// ── URuiWorldSubsystem::MountNode — node-based mounting (only MountNamed was tested) ──────
+	{
+		UWorld* World = UWorld::CreateWorld(EWorldType::Game, false, TEXT("RuiUmgLifecycleWorld"));
+		if (TestNotNull(TEXT("test world"), World))
+		{
+			URuiWorldSubsystem* Subsystem = World->GetSubsystem<URuiWorldSubsystem>();
+			if (TestNotNull(TEXT("subsystem"), Subsystem))
+			{
+				const int32 Handle = Subsystem->MountNode(RUI::TextBlock(TEXT("NODE-MOUNT")));
+				TestTrue(TEXT("MountNode returns a handle"), Handle != INDEX_NONE);
+				TestEqual(TEXT("one live root"), Subsystem->NumLiveRoots(), 1);
+				Subsystem->UnmountHandle(Handle);
+				TestEqual(TEXT("UnmountHandle removed it"), Subsystem->NumLiveRoots(), 0);
+			}
+			World->DestroyWorld(false);
+		}
+	}
+
+	// ── hosted UUserWidget lifetime — alive across a full GC purge while mounted ─────────────
+	{
+		UWorld* World = UWorld::CreateWorld(EWorldType::Game, false, TEXT("RuiUmgGcWorld"));
+		if (TestNotNull(TEXT("gc world"), World))
+		{
+			TSharedRef<FRuiRoot> Root =
+				FRuiRoot::Create(RUI::Umg::UserWidget(URuiTestUserWidget::StaticClass(), World));
+			Root->FlushSync();
+
+			TWeakObjectPtr<UUserWidget> Hosted = UmgLifecycleTest::FindHostedUserWidget(Root->GetWidget().Get());
+			if (TestTrue(TEXT("found the hosted SObjectWidget's UUserWidget"), Hosted.IsValid()))
+			{
+				CollectGarbage(RF_NoFlags, /*bPerformFullPurge*/ true);
+				TestTrue(TEXT("hosted widget survives a full GC purge while mounted"), Hosted.IsValid());
+
+				Root->Unmount();
+				CollectGarbage(RF_NoFlags, /*bPerformFullPurge*/ true);
+				TestFalse(TEXT("hosted widget is collectable after unmount"), Hosted.IsValid());
+			}
+			World->DestroyWorld(false);
+		}
+	}
 	return true;
 }
 

@@ -713,3 +713,29 @@ referenced from plans/PRs.
 - **Status:** OPEN — limitation documented + accepted for v1 (Windows live HMR). The Hot Reload spike is
   the tracked avenue if cross-platform live HMR is ever prioritized; the whole-library cross-platform
   build/run is unaffected.
+
+## TD-028 — `URuiHostWidget` has no props/viewmodel channel (audit N1)
+- **Where:** `Plugins/ReactiveUI/Source/ReactiveUIUMG/Public/RuiHostWidget.h`
+- **What/why deferred:** the ours-in-theirs UMG door hosts by `ComponentName` only — no
+  `SynchronizeProperties` override, no Blueprint-passed initial props, no VM handoff (research
+  D_interop b2 promised "BP can pass initial props and a VM"). Shipped minimal in Phase 6;
+  surfaced by the 2026-07-14 audit (`plans/AUDIT_2026-07-14.md` §11-N1). Workaround today:
+  share state via a Signal or a FieldNotify VM read with `UseField` (documented in the UMG guide).
+- **Production-grade resolution:** an `Instanced`/map UPROPERTY of initial props applied through
+  the existing `ApplyPropMap`-style reflection path + an optional `TScriptInterface
+  <INotifyFieldValueChanged>` VM property provided into the tree as context; `SynchronizeProperties`
+  forwards designer edits; design-time stays placeholder-only. Tests: BP-set props reach the
+  component; VM flows to `UseField`.
+- **Status:** OPEN
+
+## TD-029 — `URuiActivatableScreen` lacks `GetDesiredFocusTarget()` (audit N2)
+- **Where:** `Plugins/ReactiveUI/Source/ReactiveUICommonUI/Public/RuiActivatableScreen.h`
+- **What/why deferred:** CommonUI restores gamepad focus via the activatable's
+  `GetDesiredFocusTarget()`; our screen doesn't override it, so focus doesn't land on a designated
+  widget on activation (research D_interop c2's `autofocus`). Surfaced by the 2026-07-14 audit
+  (§11-N2). Workaround today: `RUI::Slate::UseFocus` + an activation effect (documented in the
+  CommonUI guide).
+- **Production-grade resolution:** a focus-target designation the hosted tree can set (e.g. a
+  reserved prop or a `RUI::CommonUI::` focus-target registration hook) that the screen's
+  `GetDesiredFocusTarget()` returns; gamepad-focus test on activation.
+- **Status:** OPEN

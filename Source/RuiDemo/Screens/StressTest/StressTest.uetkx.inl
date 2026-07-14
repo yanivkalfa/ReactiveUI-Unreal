@@ -28,36 +28,25 @@ static FRuiNodeArray StressTest_UetkxImpl(FRuiContext& Ctx, const FStressTestUet
 		auto [RenderTick, SetRenderTick] = Ctx.UseState<int32>(0);
 		(void)RenderTick; // consumed implicitly: each bump re-renders the box field below
 	
-		TFunction<void(FString)> SetCountFn = SetCountText;
-		TFunction<void(FString)> SetDurationFn = SetDurationText;
-		TFunction<void(bool)> SetRunningFn = SetRunning;
-		TFunction<void(int32)> SetVersionFn = SetVersion;
-		TFunction<void(RuiDemo::FStressStats)> SetStatsFn = SetStats;
-		TFunction<void(int32)> SetRenderTickFn = SetRenderTick;
-	
 		// Simulation state lives OUTSIDE render state (mutated per tick, read by render).
 		TSharedRef<TRuiRef<TArray<RuiDemo::FStressBox>>> Boxes = Ctx.UseRef<TArray<RuiDemo::FStressBox>>();
 	
-		const bool bRunningNow = bRunning;
-		const int32 VersionNow = Version;
-		const FString CountNow = CountText;
-		const FString DurationNow = DurationText;
 		IRuiHostConfig* Host = &Ctx.GetHost();
 	
 		// The frame loop: a self-re-arming RequestFrame chain (the Suspense poll-driver pattern).
 		Ctx.UseEffect(
-			[bRunningNow, CountNow, DurationNow, Boxes, Host, SetStatsFn, SetRenderTickFn, SetRunningFn,
-			 VersionNow]() -> TFunction<void()> {
-				if (!bRunningNow)
+			[bRunning, CountText, DurationText, Boxes, Host, SetStats, SetRenderTick, SetRunning,
+			 Version]() -> TFunction<void()> {
+				if (!bRunning)
 				{
 					return []() {};
 				}
-				const int32 Count = FMath::Clamp(FCString::Atoi(*CountNow), 1, 10000);
-				const float Duration = FMath::Clamp(FCString::Atof(*DurationNow), 1.0f, 600.0f);
+				const int32 Count = FMath::Clamp(FCString::Atoi(*CountText), 1, 10000);
+				const float Duration = FMath::Clamp(FCString::Atof(*DurationText), 1.0f, 600.0f);
 	
 				TArray<RuiDemo::FStressBox>& B = Boxes->Current;
 				B.Reset(Count);
-				FRandomStream Rng(VersionNow * 7919 + Count);
+				FRandomStream Rng(Version * 7919 + Count);
 				for (int32 i = 0; i < Count; ++i)
 				{
 					RuiDemo::FStressBox Box;
@@ -77,8 +66,8 @@ static FRuiNodeArray StressTest_UetkxImpl(FRuiContext& Ctx, const FStressTestUet
 				TSharedRef<int32> Tick = MakeShared<int32>(0);
 	
 				TSharedRef<TFunction<void()>> Loop = MakeShared<TFunction<void()>>();
-				*Loop = [Cancelled, Start, Last, Frames, Tick, Boxes, Host, Duration, SetStatsFn, SetRenderTickFn,
-						 SetRunningFn, Loop]() {
+				*Loop = [Cancelled, Start, Last, Frames, Tick, Boxes, Host, Duration, SetStats, SetRenderTick,
+						 SetRunning, Loop]() {
 					if (*Cancelled)
 					{
 						return;
@@ -107,19 +96,19 @@ static FRuiNodeArray StressTest_UetkxImpl(FRuiContext& Ctx, const FStressTestUet
 					S.Frames = *Frames;
 					S.AvgFps = Elapsed > 0.0f ? *Frames / Elapsed : 0.0f;
 					S.bFinished = Elapsed >= Duration;
-					SetStatsFn(S);
+					SetStats(S);
 					if (S.bFinished)
 					{
-						SetRunningFn(false); // effect cleanup cancels the loop
+						SetRunning(false); // effect cleanup cancels the loop
 						return;
 					}
-					SetRenderTickFn(++(*Tick)); // one coalesced re-render per frame
+					SetRenderTick(++(*Tick)); // one coalesced re-render per frame
 					Host->RequestFrame(*Loop);
 				};
 				Host->RequestFrame(*Loop);
 				return [Cancelled]() { *Cancelled = true; };
 			},
-			RUI::Deps(bRunningNow, VersionNow));
+			RUI::Deps(bRunning, Version));
 	
 		const RuiDemo::FStressStats S = Stats;
 		FString Status;
@@ -128,7 +117,7 @@ static FRuiNodeArray StressTest_UetkxImpl(FRuiContext& Ctx, const FStressTestUet
 			Status = FString::Printf(TEXT("DONE -- %d boxes | Avg FPS: %.1f | Duration: %.1fs | Frames: %d"),
 									 Boxes->Current.Num(), S.AvgFps, S.Elapsed, S.Frames);
 		}
-		else if (bRunningNow)
+		else if (bRunning)
 		{
 			Status = FString::Printf(TEXT("Stress -- %d boxes | Avg FPS: %.1f | %.1fs | Frames: %d"), Boxes->Current.Num(),
 									 S.AvgFps, S.Elapsed, S.Frames);
@@ -138,14 +127,14 @@ static FRuiNodeArray StressTest_UetkxImpl(FRuiContext& Ctx, const FStressTestUet
 			Status = TEXT("Stress Test -- Ready (open `stat ReactiveUI` to watch the reconciler)");
 		}
 	
-		auto StartRun = [bRunningNow, SetRunningFn, SetVersionFn, VersionNow]() {
-			if (!bRunningNow)
+		auto StartRun = [bRunning, SetRunning, SetVersion, Version]() {
+			if (!bRunning)
 			{
-				SetVersionFn(VersionNow + 1);
-				SetRunningFn(true);
+				SetVersion(Version + 1);
+				SetRunning(true);
 			}
 		};
-#line 149 "StressTest.uetkx.inl"
+#line 138 "StressTest.uetkx.inl"
 	return { [&]() -> FRuiNode {
 		FRuiBorderProps P;
 		P.SetPadding(FMargin(12));
@@ -183,15 +172,15 @@ static FRuiNodeArray StressTest_UetkxImpl(FRuiContext& Ctx, const FStressTestUet
 		Ch.Add(RUI::TextBlock(NSLOCTEXT("Uetkx.StressTest", "StressTest_1", "Duration(s): "), FRuiKey()));
 		Ch.Add([&]() -> FRuiNode {
 		FRuiEditableTextBoxProps P;
-		P.SetText((FText::FromString(DurationNow)));
-		P.SetOnTextChanged(FRuiCallback::Create([=](const FRuiValue& Value) { SetDurationFn(Value.TextValue.ToString()); }));
+		P.SetText((FText::FromString(DurationText)));
+		P.SetOnTextChanged(FRuiCallback::Create([=](const FRuiValue& Value) { SetDurationText(Value.TextValue.ToString()); }));
 		return RUI::Slate::EditableTextBox(MoveTemp(P), FRuiKey());
 	}());
 		Ch.Add(RUI::TextBlock(NSLOCTEXT("Uetkx.StressTest", "StressTest_2", "  Boxes: "), FRuiKey()));
 		Ch.Add([&]() -> FRuiNode {
 		FRuiEditableTextBoxProps P;
-		P.SetText((FText::FromString(CountNow)));
-		P.SetOnTextChanged(FRuiCallback::Create([=](const FRuiValue& Value) { SetCountFn(Value.TextValue.ToString()); }));
+		P.SetText((FText::FromString(CountText)));
+		P.SetOnTextChanged(FRuiCallback::Create([=](const FRuiValue& Value) { SetCountText(Value.TextValue.ToString()); }));
 		return RUI::Slate::EditableTextBox(MoveTemp(P), FRuiKey());
 	}());
 		Ch.Add([&]() -> FRuiNode {
@@ -204,7 +193,7 @@ static FRuiNodeArray StressTest_UetkxImpl(FRuiContext& Ctx, const FStressTestUet
 		if (!__Style->IsEmpty()) { P.Style = __Style; }
 		if (!__Slot->IsEmpty()) { P.SlotProps = __Slot; }
 		TArray<FRuiNode> Ch;
-		Ch.Add(RUI::TextBlock((FText::FromString(bRunningNow ? TEXT("Running...") : (S.bFinished ? TEXT("Restart") : TEXT("Start")))), FRuiKey()));
+		Ch.Add(RUI::TextBlock((FText::FromString(bRunning ? TEXT("Running...") : (S.bFinished ? TEXT("Restart") : TEXT("Start")))), FRuiKey()));
 		return RUI::Slate::Button(MoveTemp(P), MoveTemp(Ch), FRuiKey());
 	}());
 		return RUI::Slate::HorizontalBox(MoveTemp(P), MoveTemp(Ch), FRuiKey());
@@ -231,8 +220,8 @@ static FRuiNodeArray StressTest_UetkxImpl(FRuiContext& Ctx, const FStressTestUet
 		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
 		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
 		__Style->Add(FName(TEXT("RenderTranslation")), FRuiValue(StressBox.Pos));
-		__Slot->Add(FName(TEXT("Slot.HAlign")), FRuiValue(FName(TEXT("left"))));
-		__Slot->Add(FName(TEXT("Slot.VAlign")), FRuiValue(FName(TEXT("top"))));
+		__Slot->Add(FName(TEXT("Slot.HAlign")), FRuiValue(TEXT("left")));
+		__Slot->Add(FName(TEXT("Slot.VAlign")), FRuiValue(TEXT("top")));
 		if (!__Style->IsEmpty()) { P.Style = __Style; }
 		if (!__Slot->IsEmpty()) { P.SlotProps = __Slot; }
 		TArray<FRuiNode> Ch;

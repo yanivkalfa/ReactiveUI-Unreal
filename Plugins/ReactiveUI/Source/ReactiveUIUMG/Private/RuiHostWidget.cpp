@@ -4,9 +4,10 @@
 
 #include "RuiNode.h"
 #include "RuiRoot.h"
+#include "Widgets/Layout/SBox.h"
 #include "Widgets/Text/STextBlock.h"
 
-TSharedRef<SWidget> URuiHostWidget::RebuildWidget()
+TSharedRef<SWidget> URuiHostWidget::BuildContent()
 {
 	if (IsDesignTime())
 	{
@@ -27,6 +28,13 @@ TSharedRef<SWidget> URuiHostWidget::RebuildWidget()
 	return Root->GetWidget();
 }
 
+TSharedRef<SWidget> URuiHostWidget::RebuildWidget()
+{
+	// The stable wrapper: UMG caches THIS widget; Remount swaps its content in place.
+	Container = SNew(SBox)[BuildContent()];
+	return Container.ToSharedRef();
+}
+
 void URuiHostWidget::Remount()
 {
 	if (Root.IsValid())
@@ -34,10 +42,11 @@ void URuiHostWidget::Remount()
 		Root->Unmount();
 		Root.Reset();
 	}
+	if (Container.IsValid())
+	{
+		Container->SetContent(BuildContent()); // in place — the parent slot keeps the wrapper
+	}
 	InvalidateLayoutAndVolatility();
-	// UMG rebuilds the Slate widget lazily via TakeWidget on next access; forcing it here
-	// keeps runtime callers deterministic.
-	TakeWidget();
 }
 
 void URuiHostWidget::ReleaseSlateResources(bool bReleaseChildren)
@@ -48,6 +57,7 @@ void URuiHostWidget::ReleaseSlateResources(bool bReleaseChildren)
 		Root->Unmount(); // cleanups run BEFORE the Slate tree is released (family order)
 		Root.Reset();
 	}
+	Container.Reset();
 }
 
 #if WITH_EDITOR

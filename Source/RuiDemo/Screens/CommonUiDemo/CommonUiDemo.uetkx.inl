@@ -2,6 +2,10 @@
 // Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 
 #include "RuiActivation.h"
+#include "RuiDemoSupport.h"
+#include "DemoInteropWidgets.h"
+#include "RuiUmgElement.h"
+#include "Engine/World.h"
 
 #if defined(RUI_UETKX_DECL_PHASE)
 struct FCommonUiDemoUetkxProps final : public FRuiPropsBase
@@ -19,15 +23,15 @@ inline FRuiNode CommonUiDemo(FCommonUiDemoUetkxProps InProps = FCommonUiDemoUetk
 #else
 static FRuiNodeArray CommonUiDemo_UetkxImpl(FRuiContext& Ctx, const FCommonUiDemoUetkxProps& Props, const TArray<FRuiNode>& children)
 {
-#line 8 "Source/RuiDemo/Screens/CommonUiDemo/CommonUiDemo.uetkx"
+#line 15 "Source/RuiDemo/Screens/CommonUiDemo/CommonUiDemo.uetkx"
 	auto [bActive, SetActive] = Ctx.UseState<bool>(true);
-		const bool bActiveNow = bActive;
+		UWorld* World = RuiDemo::GetDemoWorld();
 	
 		FRuiActivationState State;
-		State.bActive = bActiveNow;
+		State.bActive = bActive;
 		State.InputMethod = ERuiInputMethod::MouseAndKeyboard;
 		Ctx.ProvideContext(RUI::CommonUI::ActivationContext(), State);
-#line 31 "CommonUiDemo.uetkx.inl"
+#line 35 "CommonUiDemo.uetkx.inl"
 	return { [&]() -> FRuiNode {
 		FRuiBorderProps P;
 		P.SetPadding(FMargin(12));
@@ -59,7 +63,7 @@ static FRuiNodeArray CommonUiDemo_UetkxImpl(FRuiContext& Ctx, const FCommonUiDem
 		return RUI::Slate::Spacer(MoveTemp(P), FRuiKey());
 	}());
 		Ch.Add([&]() -> FRuiNode {
-		FRuiNode __N = RUI::TextBlock(NSLOCTEXT("Uetkx.CommonUiDemo", "CommonUiDemo_2", "A URuiActivatableScreen drives these hooks when it (de)activates on a CommonUI stack; here a toggle stands in. CommonUI keeps owning input routing / focus -- we just read state."), FRuiKey());
+		FRuiNode __N = RUI::TextBlock(NSLOCTEXT("Uetkx.CommonUiDemo", "CommonUiDemo_2", "1. The hooks, driven by a toggle (works headless -- ProvideContext stands in):"), FRuiKey());
 		TSharedRef<FRuiTextBlockProps> __P = MakeShared<FRuiTextBlockProps>(static_cast<const FRuiTextBlockProps&>(*__N.Props));
 		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
 		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
@@ -71,28 +75,46 @@ static FRuiNodeArray CommonUiDemo_UetkxImpl(FRuiContext& Ctx, const FCommonUiDem
 		return __N;
 	}());
 		Ch.Add([&]() -> FRuiNode {
-		FRuiSpacerProps P;
-		P.SetSize((FVector2D(1.0f, 10.0f)));
-		return RUI::Slate::Spacer(MoveTemp(P), FRuiKey());
-	}());
-		Ch.Add([&]() -> FRuiNode {
 		FActivationProbeUetkxProps P;
 		TArray<FRuiNode> Ch;
 		return ActivationProbe(MoveTemp(P), MoveTemp(Ch), FRuiKey());
 	}());
 		Ch.Add([&]() -> FRuiNode {
-		FRuiSpacerProps P;
-		P.SetSize((FVector2D(1.0f, 8.0f)));
-		return RUI::Slate::Spacer(MoveTemp(P), FRuiKey());
-	}());
+		FRuiHorizontalBoxProps P;
+		TArray<FRuiNode> Ch;
 		Ch.Add([&]() -> FRuiNode {
 		FRuiButtonProps P;
-		P.SetOnClicked(FRuiCallback::Create([=](const FRuiValue& Value) { SetActive(!bActiveNow); }));
+		P.SetOnClicked(FRuiCallback::Create([=](const FRuiValue& Value) { SetActive(!bActive); }));
 		P.SetContentPadding(FMargin(12,4));
+		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
+		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
+		__Slot->Add(FName(TEXT("Slot.Padding")), FRuiValue(TEXT("0,4,0,0")));
+		if (!__Style->IsEmpty()) { P.Style = __Style; }
+		if (!__Slot->IsEmpty()) { P.SlotProps = __Slot; }
 		TArray<FRuiNode> Ch;
 		Ch.Add(RUI::TextBlock(NSLOCTEXT("Uetkx.CommonUiDemo", "CommonUiDemo_3", "Toggle activation")));
 		return RUI::Slate::Button(MoveTemp(P), MoveTemp(Ch), FRuiKey());
 	}());
+		return RUI::Slate::HorizontalBox(MoveTemp(P), MoveTemp(Ch), FRuiKey());
+	}());
+		Ch.Add([&]() -> FRuiNode {
+		FRuiSpacerProps P;
+		P.SetSize((FVector2D(1.0f, 12.0f)));
+		return RUI::Slate::Spacer(MoveTemp(P), FRuiKey());
+	}());
+		Ch.Add([&]() -> FRuiNode {
+		FRuiNode __N = RUI::TextBlock(NSLOCTEXT("Uetkx.CommonUiDemo", "CommonUiDemo_4", "2. THE REAL THING -- our screen pushed onto a real CommonUI activatable stack:"), FRuiKey());
+		TSharedRef<FRuiTextBlockProps> __P = MakeShared<FRuiTextBlockProps>(static_cast<const FRuiTextBlockProps&>(*__N.Props));
+		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
+		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
+		__Style->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(FLinearColor(0.7f, 0.7f, 0.8f)));
+		__Style->Add(FName(TEXT("Font.Size")), FRuiValue(11.0f));
+		if (!__Style->IsEmpty()) { __P->Style = __Style; }
+		if (!__Slot->IsEmpty()) { __P->SlotProps = __Slot; }
+		__N.Props = __P;
+		return __N;
+	}());
+		Ch.Add((World ? RUI::Umg::UserWidget(UDemoStackHostWidget::StaticClass(), World) : RUI::TextBlock(FString(TEXT("[press Play -- the real stack needs a running world]")))));
 		return RUI::Slate::VerticalBox(MoveTemp(P), MoveTemp(Ch), FRuiKey());
 	}());
 		return RUI::Slate::Border(MoveTemp(P), MoveTemp(Ch), FRuiKey());

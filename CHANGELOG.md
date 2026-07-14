@@ -7,6 +7,25 @@ resync with `cp CHANGELOG.md Plugins/ReactiveUI/CHANGELOG.md` (CI byte-compares 
 `scripts/verify-mirror.mjs`). The IDE extensions are NOT covered here — they use
 `ide-extensions/changelog.json` (Lane B; see the release-process skill).
 
+## [0.1.1] — 2026-07-14
+
+### Fixed
+
+- **Portal content no longer leaks on unmount** — deleting a subtree containing a portal (or
+  unmounting a whole root) now explicitly removes the portal's children from their target panel;
+  previously the release path assumed they lived under the released subtree, leaking them in
+  external targets. Found by the feature's first automated test (`ReactiveUI.Core.Portal`).
+- **`URuiHostWidget::Remount()` actually remounts** — UMG caches the widget returned by
+  `RebuildWidget`, so the old implementation unmounted and never rebuilt. The host now returns a
+  stable wrapper and swaps its content in place, making runtime `ComponentName` changes +
+  `Remount()` work (covered by `ReactiveUI.Umg.Lifecycle`).
+- **Packaged README rewritten** — the README inside the plugin package still described a
+  "pre-alpha scaffold — not yet functional"; it now states the beta reality (23 hooks, 35+
+  widgets, compiler + drift gate, hot reload, router, stylesheets, Epic interop).
+- Softened the unverified accessibility claim in the interop copy to what is verified (Widget
+  Reflector + the Slate toolchain see ordinary widgets); the screen-reader path has not been
+  exercised yet.
+
 ## [0.1.0] — 2026-07-13
 
 First beta. A complete React-style reactive UI stack for Unreal in pure C++ — function components

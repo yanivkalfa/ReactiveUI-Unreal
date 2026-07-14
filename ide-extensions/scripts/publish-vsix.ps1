@@ -58,7 +58,7 @@ if (-not $SkipServerBuild) {
     Invoke-InDir $serverSrcDir 'npm install'
     Invoke-InDir $serverSrcDir 'npm run build'
     Invoke-InDir $extensionDir 'npm install'
-    Invoke-InDir $extensionDir 'node scripts/bundle-server.js'
+    Invoke-InDir $extensionDir 'node scripts/bundle-server.mjs'
     $dest = Join-Path $vsixDir 'server'
     if (Test-Path $dest) { Remove-Item $dest -Recurse -Force }
     Copy-Item -Recurse -Force (Join-Path $extensionDir 'server') $dest

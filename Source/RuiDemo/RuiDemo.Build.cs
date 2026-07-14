@@ -25,6 +25,7 @@ public class RuiDemo : ModuleRules
 			"ReactiveUIUMG",	  // interop demos: UseField + URuiSignalViewModel (MVVM/FieldNotify)
 			"ReactiveUICommonUI", // interop demos: UseIsActive / ActivationProvider
 			"UMG",				  // interop showcase: subclass UUserWidget (UDemoUmgWidget)
+			"CommonUI",			  // audit G2: the REAL activatable stack (UDemoStackHostWidget)
 			"FieldNotification",  // UWidget's FieldNotify base (pulled by UMG)
 			"SlateCore",
 			"Slate",

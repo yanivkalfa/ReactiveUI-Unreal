@@ -22,33 +22,32 @@ the UI update in under a second, no C++ recompile, no script VM in your shipped 
 > stylesheets**, **exit animations** (`<Presence>`), **drag-and-drop** + keyboard shortcuts,
 > first-class **CommonUI/MVVM citizenship** (activatable screens, MVVM global collection, UMG
 > prop-map bridge), an **in-editor `.uetkx` live preview**, and VS Code/VS2022 language tooling
-> (with embedded-C++ clangd intelligence) are implemented and green under an **80-suite headless
-> battery**. The demo gallery's 11 screens all compile from `.uetkx`. Open
-> `ReactiveUIUnrealDemo.uproject` (UE 5.6.1+) and press Play. Remaining before v1: **localization**
+> (with embedded-C++ clangd intelligence) are implemented and green under a **100+-test headless
+> automation battery**. The demo gallery's 16 screens all compile from `.uetkx`. Open
+> `ReactiveUIUnrealDemo.uproject` (UE 5.6+) and press Play. Remaining before v1: **localization**
 > (FText gathering) and the **docs-site content** — tracked in [plans/ROADMAP.md](plans/ROADMAP.md)
 > and [plans/TECH_DEBT.md](plans/TECH_DEBT.md).
 
-**Quick taste** — `Source/RuiDemo/Screens/SimpleCounter.uetkx` (compiles to the committed
-sibling `.inl`; edit it while the editor runs and the screen hot-swaps in place):
+**Quick taste** — `Source/RuiDemo/Screens/SimpleCounter/SimpleCounter.uetkx` (compiles to the
+committed sibling `.inl`; edit it while the editor runs and the screen hot-swaps in place):
 
 ```jsx
 component SimpleCounter {
 	auto [Count, SetCount] = UseState<int32>(0);
-	TFunction<void(int32)> Set = SetCount;
-	const int32 Current = Count;
 
 	return (
 		<VerticalBox>
-			<TextBlock Text={ FText::FromString(FString::Printf(TEXT("Count: %d"), Count)) } />
-			<Button OnClicked={ Set(Current + 1) } ContentPadding="12,4">+</Button>
+			<TextBlock Text={ RUI::Fmt(TEXT("Count: {}"), Count) } />
+			<Button OnClicked={ SetCount(Count + 1) } ContentPadding="12,4">+</Button>
 		</VerticalBox>
 	);
 }
 ```
 
-Reconciler numbers (headless bench, Win64 dev build, 2026-07): mount 1000 leaves ≈ **192 µs**
-median; no-op re-render ≈ **0 µs**; 1-of-1000 targeted update ≈ **149 µs**; 500 keyed rows fully
-reversed ≈ **178 µs**; minimal-move single reorder ≈ **3 µs**.
+Reconciler numbers (headless bench, Win64 dev build, 2026-07 — medians from the committed
+[plans/BENCH_BASELINES.md](plans/BENCH_BASELINES.md)): mount 1000 leaves ≈ **199 µs**; no-op
+re-render ≈ **0 µs**; 1-of-1000 targeted update ≈ **152 µs**; 500 keyed rows fully reversed ≈
+**173 µs**; minimal-move single reorder ≈ **3 µs**.
 
 ## The one-sentence thesis
 
@@ -56,7 +55,7 @@ reversed ≈ **178 µs**; minimal-move single reorder ≈ **3 µs**.
 (UMG, CommonUI, MVVM) stays in place, either feeding us data or hosting our output.**
 
 - **Slate** is the render target: our output is ordinary `SWidget`s — Widget Reflector,
-  accessibility, and styling all see normal widgets.
+  styling, and the rest of the Slate toolchain see normal widgets.
 - **UMG** is a door in both directions: designers drop our UI inside their UserWidgets
   (`URuiHostWidget`), and their widgets work inside our tree (`RUI::Umg`).
 - **CommonUI** keeps owning menus, input routing, gamepad focus, platform glyphs — our screens
@@ -66,7 +65,8 @@ reversed ≈ **178 µs**; minimal-move single reorder ≈ **3 µs**.
 
 ## What v1 will ship (the gate — "no half product")
 
-The reconciler with all 23 family hooks · 25 wrapped Slate widgets plus a virtualized list ·
+The reconciler with all 23 family hooks · 35+ wrapped Slate widgets including virtualized
+`ListView`/`TileView` ·
 setter-based styling (a style tweak never rebuilds a widget) · the `.uetkx` compiler
 (compile-to-C++ for shipping, Live-Coding hot reload for dev) · **static imports/exports** (`import { A }
 from "./x"` / `~/` root alias, `export` for cross-file reach with privacy-by-default, mixed

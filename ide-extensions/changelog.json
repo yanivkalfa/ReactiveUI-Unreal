@@ -1,6 +1,26 @@
 {
   "entries": [
     {
+      "date": "2026-07-14",
+      "versions": {
+        "vscode": "0.1.2",
+        "vs2022": "0.1.2"
+      },
+      "shared": [
+        "Refreshed the ReactiveUI brand icon."
+      ]
+    },
+    {
+      "date": "2026-07-13",
+      "versions": {
+        "vscode": "0.1.1",
+        "vs2022": "0.1.1"
+      },
+      "shared": [
+        "Added the ReactiveUI brand icon to the marketplace listing."
+      ]
+    },
+    {
       "date": "2026-07-13",
       "versions": {
         "vscode": "0.1.0",

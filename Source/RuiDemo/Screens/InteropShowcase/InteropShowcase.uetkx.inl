@@ -5,6 +5,7 @@
 #include "RuiFieldHooks.h"
 #include "RuiActivation.h"
 #include "RuiUmgElement.h"
+#include "RuiDemoSupport.h"
 #include "DemoUmgWidget.h"
 #include "Engine/World.h"
 #include "UObject/StrongObjectPtr.h"
@@ -25,21 +26,22 @@ inline FRuiNode InteropShowcase(FInteropShowcaseUetkxProps InProps = FInteropSho
 #else
 static FRuiNodeArray InteropShowcase_UetkxImpl(FRuiContext& Ctx, const FInteropShowcaseUetkxProps& Props, const TArray<FRuiNode>& children)
 {
-#line 14 "Source/RuiDemo/Screens/InteropShowcase/InteropShowcase.uetkx"
+#line 15 "Source/RuiDemo/Screens/InteropShowcase/InteropShowcase.uetkx"
 	// MVVM pillar — a viewmodel we own; UseField re-renders on its broadcast.
 		const TStrongObjectPtr<URuiSignalViewModel>& VmPtr = Ctx.UseMemo<TStrongObjectPtr<URuiSignalViewModel>>(
 			[]() { return TStrongObjectPtr<URuiSignalViewModel>(NewObject<URuiSignalViewModel>()); }, RUI::Deps());
 		URuiSignalViewModel* Vm = VmPtr.Get();
 		const int32 N = RUI::Umg::UseField<int32>(Ctx, Vm, FName(TEXT("Int")), 0);
 	
-		// CommonUI pillar — provide activation state to the probe below (a toggle stands in for a stack push).
+		// CommonUI pillar — provide activation state to the probe below (a toggle stands in for a stack
+		// push here; the CommonUI screen demos the real stack). The demo world comes from the game mode.
+		UWorld* World = RuiDemo::GetDemoWorld();
 		auto [bActive, SetActive] = Ctx.UseState<bool>(true);
-		const bool bActiveNow = bActive;
 		FRuiActivationState State;
-		State.bActive = bActiveNow;
+		State.bActive = bActive;
 		State.InputMethod = ERuiInputMethod::MouseAndKeyboard;
 		Ctx.ProvideContext(RUI::CommonUI::ActivationContext(), State);
-#line 43 "InteropShowcase.uetkx.inl"
+#line 45 "InteropShowcase.uetkx.inl"
 	return { [&]() -> FRuiNode {
 		FRuiBorderProps P;
 		P.SetPadding(FMargin(12));
@@ -94,7 +96,7 @@ static FRuiNodeArray InteropShowcase_UetkxImpl(FRuiContext& Ctx, const FInteropS
 		__N.Props = __P;
 		return __N;
 	}());
-		Ch.Add((GWorld ? RUI::Umg::UserWidget(UDemoUmgWidget::StaticClass(), GWorld) : RUI::TextBlock(FString(TEXT("[press Play -- the UMG host needs a running world]")))));
+		Ch.Add((World ? RUI::Umg::UserWidget(UDemoUmgWidget::StaticClass(), World) : RUI::TextBlock(FString(TEXT("[press Play -- the UMG host needs a running world]")))));
 		Ch.Add([&]() -> FRuiNode {
 		FRuiSpacerProps P;
 		P.SetSize((FVector2D(1.0f, 12.0f)));
@@ -145,7 +147,7 @@ static FRuiNodeArray InteropShowcase_UetkxImpl(FRuiContext& Ctx, const FInteropS
 	}());
 		Ch.Add([&]() -> FRuiNode {
 		FRuiButtonProps P;
-		P.SetOnClicked(FRuiCallback::Create([=](const FRuiValue& Value) { SetActive(!bActiveNow); }));
+		P.SetOnClicked(FRuiCallback::Create([=](const FRuiValue& Value) { SetActive(!bActive); }));
 		P.SetContentPadding(FMargin(12,4));
 		TArray<FRuiNode> Ch;
 		Ch.Add(RUI::TextBlock(NSLOCTEXT("Uetkx.InteropShowcase", "InteropShowcase_7", "Toggle activation")));

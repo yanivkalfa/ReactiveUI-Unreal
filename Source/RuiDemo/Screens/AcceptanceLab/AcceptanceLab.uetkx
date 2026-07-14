@@ -20,30 +20,15 @@ export component AcceptanceLab {
 	// ── state (checklist B — HMR keeps these VALUES across style/structure saves) ──────────────
 	// Imported hook: destructured from a 3-tuple. F12 on UseLabState jumps to AcceptanceLab.hooks.
 	auto [Count, Increment, Reset] = UseLabState(0);
-	TFunction<void()> Inc = Increment;
-	TFunction<void()> Rst = Reset;
-	const int32 CountNow = Count;
 
 	auto [Name, SetName] = UseState<FString>(FString());
-	TFunction<void(FString)> SetNameFn = SetName;
-	const FString NameNow = Name;
-
 	auto [bChecked, SetChecked] = UseState<bool>(true);
-	TFunction<void(bool)> SetCheckedFn = SetChecked;
-	const bool bCheckedNow = bChecked;
-
 	auto [Ratio, SetRatio] = UseState<float>(0.5f);
-	TFunction<void(float)> SetRatioFn = SetRatio;
-	const float RatioNow = Ratio;
-
 	auto [Tab, SetTab] = UseState<int32>(0);
-	TFunction<void(int32)> SetTabFn = SetTab;
-	const int32 TabNow = Tab;
 
 	// UseEffect (checklist A "Use Effect"): runs once on mount, flips a flag we display below.
 	auto [bMounted, SetMounted] = UseState<bool>(false);
 	UseEffect([SetMounted]() { SetMounted(true); }, RUI::Deps());
-	const bool bMountedNow = bMounted;
 
 	// A fixed list for the @for section (keyed rows).
 	static const TCHAR* Fruits[] = {TEXT("Apple"), TEXT("Banana"), TEXT("Cherry"), TEXT("Date")};
@@ -58,7 +43,7 @@ export component AcceptanceLab {
 				<VerticalBox>
 					<!-- Header: TextBlock + Font.Size + ColorAndOpacity style keys (checklist A render). -->
 					<TextBlock Text="Acceptance Lab — one screen to test them all" Font.Size={ 18.0f } ColorAndOpacity={ LabStyle::Accent } />
-					<TextBlock Text={ FText::FromString(FString::Printf(TEXT("UseEffect mounted: %s"), bMountedNow ? TEXT("yes") : TEXT("no"))) } />
+					<TextBlock Text={ RUI::Fmt(TEXT("UseEffect mounted: {}"), bMounted) } />
 					<Spacer Size={ FVector2D(1.0f, 8.0f) } />
 
 					<!-- 1 · COUNTER — checklist A (counter +) and B (style/structure/hook HMR).
@@ -68,10 +53,10 @@ export component AcceptanceLab {
 					     · Events: OnClicked runs a captured lambda from the imported hook. -->
 					<Border Padding="8" BorderImage="WhiteBrush" BorderBackgroundColor={ FLinearColor(0.04f, 0.04f, 0.06f, 0.9f) }>
 						<VerticalBox>
-							<TextBlock Text={ FText::FromString(FString::Printf(TEXT("1. Counter (hook): %d"), CountNow)) } />
+							<TextBlock Text={ RUI::Fmt(TEXT("1. Counter (hook): {}"), Count) } />
 							<HorizontalBox>
-								<Button OnClicked={ Inc() } ContentPadding="12,4" Slot.Padding="0,0,6,0">+1</Button>
-								<Button OnClicked={ Rst() } ContentPadding="12,4" Slot.Padding="0,0,6,0">Reset</Button>
+								<Button OnClicked={ Increment() } ContentPadding="12,4" Slot.Padding="0,0,6,0">+1</Button>
+								<Button OnClicked={ Reset() } ContentPadding="12,4" Slot.Padding="0,0,6,0">Reset</Button>
 							</HorizontalBox>
 						</VerticalBox>
 					</Border>
@@ -81,8 +66,8 @@ export component AcceptanceLab {
 					     OnTextChanged carries the new text in the Value payload (Value.TextValue). -->
 					<Border Padding="8" BorderImage="WhiteBrush" BorderBackgroundColor={ FLinearColor(0.04f, 0.04f, 0.06f, 0.9f) }>
 						<VerticalBox>
-							<EditableTextBox Text={ FText::FromString(NameNow) } HintText="Type here — the mirror below tracks you" OnTextChanged={ SetNameFn(Value.TextValue.ToString()) } />
-							<TextBlock Text={ FText::FromString(FString::Printf(TEXT("2. You typed: %s"), *NameNow)) } />
+							<EditableTextBox Text={ FText::FromString(Name) } HintText="Type here — the mirror below tracks you" OnTextChanged={ SetName(Value.TextValue.ToString()) } />
+							<TextBlock Text={ RUI::Fmt(TEXT("2. You typed: {}"), Name) } />
 						</VerticalBox>
 					</Border>
 					<Spacer Size={ FVector2D(1.0f, 6.0f) } />
@@ -91,17 +76,17 @@ export component AcceptanceLab {
 					     ProgressBar mirrors the slider. Exercises three more host widgets + their events. -->
 					<Border Padding="8" BorderImage="WhiteBrush" BorderBackgroundColor={ FLinearColor(0.04f, 0.04f, 0.06f, 0.9f) }>
 						<VerticalBox>
-							<CheckBox bIsChecked={ bCheckedNow } OnCheckStateChanged={ SetCheckedFn(Value.BoolValue) }>
+							<CheckBox bIsChecked={ bChecked } OnCheckStateChanged={ SetChecked(Value.BoolValue) }>
 								<TextBlock Text="3. dim the label when checked" />
 							</CheckBox>
-							<Slider Value={ RatioNow } MinValue={ 0.0f } MaxValue={ 1.0f } StepSize={ 0.01f } OnValueChanged={ SetRatioFn(static_cast<float>(Value.FloatValue)) } />
-							<ProgressBar Percent={ RatioNow } />
+							<Slider Value={ Ratio } MinValue={ 0.0f } MaxValue={ 1.0f } StepSize={ 0.01f } OnValueChanged={ SetRatio(static_cast<float>(Value.FloatValue)) } />
+							<ProgressBar Percent={ Ratio } />
 							<!-- Style CLASS: "rui-demo-dim" (RenderOpacity 0.35) is registered by the gallery
 							     shell; applied only while the box is checked — tests the `classes` attribute. -->
-							@if (bCheckedNow) {
-								return ( <TextBlock Text={ FText::FromString(FString::Printf(TEXT("slider = %.2f (dimmed)"), RatioNow)) } classes="rui-demo-dim" /> );
+							@if (bChecked) {
+								return ( <TextBlock Text={ FText::FromString(FString::Printf(TEXT("slider = %.2f (dimmed)"), Ratio)) } classes="rui-demo-dim" /> );
 							} @else {
-								return ( <TextBlock Text={ FText::FromString(FString::Printf(TEXT("slider = %.2f"), RatioNow)) } /> );
+								return ( <TextBlock Text={ FText::FromString(FString::Printf(TEXT("slider = %.2f"), Ratio)) } /> );
 							}
 						</VerticalBox>
 					</Border>
@@ -112,9 +97,9 @@ export component AcceptanceLab {
 					<Border Padding="8" BorderImage="WhiteBrush" BorderBackgroundColor={ FLinearColor(0.04f, 0.04f, 0.06f, 0.9f) }>
 						<VerticalBox>
 							<TextBlock Text="4. @if / @elif / @else (drag the slider above)" />
-							@if (RatioNow < 0.33f) {
+							@if (Ratio < 0.33f) {
 								return ( <TextBlock Text="   LOW" ColorAndOpacity={ LabStyle::Warn } /> );
-							} @elif (RatioNow < 0.66f) {
+							} @elif (Ratio < 0.66f) {
 								return ( <TextBlock Text="   MID" ColorAndOpacity={ LabStyle::Accent } /> );
 							} @else {
 								return ( <TextBlock Text="   HIGH" ColorAndOpacity={ LabStyle::Good } /> );
@@ -131,7 +116,7 @@ export component AcceptanceLab {
 							@for (int32 i = 0; i < UE_ARRAY_COUNT(Fruits); ++i) {
 								return (
 									<HorizontalBox key={ FName(Fruits[i]) }>
-										<TextBlock Text={ FText::FromString(FString::Printf(TEXT("   %d. %s"), i, Fruits[i])) } />
+										<TextBlock Text={ RUI::Fmt(TEXT("   {}. {}"), i, Fruits[i]) } />
 									</HorizontalBox>
 								);
 							}
@@ -147,21 +132,21 @@ export component AcceptanceLab {
 							@while (WhileI < 3) {
 								const int32 Shown = WhileI;
 								++WhileI;
-								return ( <TextBlock Text={ FText::FromString(FString::Printf(TEXT("   while row %d"), Shown)) } key={ FName(*FString::Printf(TEXT("w%d"), Shown)) } /> );
+								return ( <TextBlock Text={ RUI::Fmt(TEXT("   while row {}"), Shown) } key={ FName(*FString::Printf(TEXT("w%d"), Shown)) } /> );
 							}
 						</VerticalBox>
 					</Border>
 					<Spacer Size={ FVector2D(1.0f, 6.0f) } />
 
-					<!-- 7 · @match / @case / @default — a tab selector; the switch subject is TabNow. -->
+					<!-- 7 · @match / @case / @default — a tab selector; the switch subject is Tab. -->
 					<Border Padding="8" BorderImage="WhiteBrush" BorderBackgroundColor={ FLinearColor(0.04f, 0.04f, 0.06f, 0.9f) }>
 						<VerticalBox>
 							<HorizontalBox>
-								<Button OnClicked={ SetTabFn(0) } ContentPadding="10,3" Slot.Padding="0,0,6,0">Overview</Button>
-								<Button OnClicked={ SetTabFn(1) } ContentPadding="10,3" Slot.Padding="0,0,6,0">Details</Button>
-								<Button OnClicked={ SetTabFn(2) } ContentPadding="10,3" Slot.Padding="0,0,6,0">Other</Button>
+								<Button OnClicked={ SetTab(0) } ContentPadding="10,3" Slot.Padding="0,0,6,0">Overview</Button>
+								<Button OnClicked={ SetTab(1) } ContentPadding="10,3" Slot.Padding="0,0,6,0">Details</Button>
+								<Button OnClicked={ SetTab(2) } ContentPadding="10,3" Slot.Padding="0,0,6,0">Other</Button>
 							</HorizontalBox>
-							@match (TabNow) {
+							@match (Tab) {
 								@case (0) {
 									return ( <TextBlock Text="7. @match → Overview tab" ColorAndOpacity={ LabStyle::Accent } /> );
 								}
@@ -183,7 +168,7 @@ export component AcceptanceLab {
 						<VerticalBox>
 							<TextBlock Text="8. Imported sub-components (LabCard)" />
 							<HorizontalBox>
-								<LabCard Label="Live count" Count={ CountNow } />
+								<LabCard Label="Live count" Count={ Count } />
 								<LabCard Label="Always zero" Count={ 0 } />
 							</HorizontalBox>
 						</VerticalBox>

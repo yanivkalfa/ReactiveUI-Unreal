@@ -20,8 +20,7 @@ static FRuiNodeArray SimpleTextField_UetkxImpl(FRuiContext& Ctx, const FSimpleTe
 {
 #line 2 "Source/RuiDemo/Screens/SimpleTextField/SimpleTextField.uetkx"
 	auto [Text, SetText] = Ctx.UseState<FString>(FString());
-		TFunction<void(FString)> Set = SetText;
-#line 25 "SimpleTextField.uetkx.inl"
+#line 24 "SimpleTextField.uetkx.inl"
 	return { [&]() -> FRuiNode {
 		FRuiBorderProps P;
 		P.SetPadding(FMargin(12));
@@ -40,7 +39,7 @@ static FRuiNodeArray SimpleTextField_UetkxImpl(FRuiContext& Ctx, const FSimpleTe
 		FRuiEditableTextBoxProps P;
 		P.SetText((FText::FromString(Text)));
 		P.SetHintText(NSLOCTEXT("Uetkx.SimpleTextField", "SimpleTextField_1", "Type here..."));
-		P.SetOnTextChanged(FRuiCallback::Create([=](const FRuiValue& Value) { Set(Value.TextValue.ToString()); }));
+		P.SetOnTextChanged(FRuiCallback::Create([=](const FRuiValue& Value) { SetText(Value.TextValue.ToString()); }));
 		return RUI::Slate::EditableTextBox(MoveTemp(P), FRuiKey());
 	}());
 		Ch.Add([&]() -> FRuiNode {
@@ -48,7 +47,7 @@ static FRuiNodeArray SimpleTextField_UetkxImpl(FRuiContext& Ctx, const FSimpleTe
 		P.SetSize((FVector2D(1.0f, 6.0f)));
 		return RUI::Slate::Spacer(MoveTemp(P), FRuiKey());
 	}());
-		Ch.Add(RUI::TextBlock((FText::FromString(FString::Printf(TEXT("You typed: %s"), *Text))), FRuiKey()));
+		Ch.Add(RUI::TextBlock((RUI::Fmt(TEXT("You typed: {}"), Text)), FRuiKey()));
 		return RUI::Slate::VerticalBox(MoveTemp(P), MoveTemp(Ch), FRuiKey());
 	}());
 		return RUI::Slate::Border(MoveTemp(P), MoveTemp(Ch), FRuiKey());

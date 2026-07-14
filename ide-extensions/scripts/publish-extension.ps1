@@ -119,7 +119,7 @@ if (-not $SkipServerBuild) {
     Write-Step 'Building + bundling the language server'
     Invoke-InDir $serverSrcDir 'npm install'
     Invoke-InDir $serverSrcDir 'npm run build'
-    Invoke-InDir $extensionDir 'node scripts/bundle-server.js'
+    Invoke-InDir $extensionDir 'node scripts/bundle-server.mjs'
     Write-Host '  Server bundled into ./server.' -ForegroundColor Green
 }
 

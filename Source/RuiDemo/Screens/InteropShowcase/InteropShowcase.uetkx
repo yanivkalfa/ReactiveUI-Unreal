@@ -2,6 +2,7 @@
 #include "RuiFieldHooks.h"
 #include "RuiActivation.h"
 #include "RuiUmgElement.h"
+#include "RuiDemoSupport.h"
 #include "DemoUmgWidget.h"
 #include "Engine/World.h"
 #include "UObject/StrongObjectPtr.h"
@@ -17,11 +18,12 @@ export component InteropShowcase {
 	URuiSignalViewModel* Vm = VmPtr.Get();
 	const int32 N = RUI::Umg::UseField<int32>(Ctx, Vm, FName(TEXT("Int")), 0);
 
-	// CommonUI pillar — provide activation state to the probe below (a toggle stands in for a stack push).
+	// CommonUI pillar — provide activation state to the probe below (a toggle stands in for a stack
+	// push here; the CommonUI screen demos the real stack). The demo world comes from the game mode.
+	UWorld* World = RuiDemo::GetDemoWorld();
 	auto [bActive, SetActive] = UseState<bool>(true);
-	const bool bActiveNow = bActive;
 	FRuiActivationState State;
-	State.bActive = bActiveNow;
+	State.bActive = bActive;
 	State.InputMethod = ERuiInputMethod::MouseAndKeyboard;
 	ProvideContext(RUI::CommonUI::ActivationContext(), State);
 
@@ -33,7 +35,7 @@ export component InteropShowcase {
 				<Spacer Size={ FVector2D(1.0f, 12.0f) } />
 
 				<TextBlock Text="UMG -- their widget inside ours:" ColorAndOpacity={ FLinearColor(0.7f, 0.7f, 0.8f) } Font.Size={ 11.0f } />
-				{ GWorld ? RUI::Umg::UserWidget(UDemoUmgWidget::StaticClass(), GWorld) : RUI::TextBlock(FString(TEXT("[press Play -- the UMG host needs a running world]"))) }
+				{ World ? RUI::Umg::UserWidget(UDemoUmgWidget::StaticClass(), World) : RUI::TextBlock(FString(TEXT("[press Play -- the UMG host needs a running world]"))) }
 				<Spacer Size={ FVector2D(1.0f, 12.0f) } />
 
 				<TextBlock Text="MVVM -- their data inside ours:" ColorAndOpacity={ FLinearColor(0.7f, 0.7f, 0.8f) } Font.Size={ 11.0f } />
@@ -42,7 +44,7 @@ export component InteropShowcase {
 
 				<TextBlock Text="CommonUI -- their activation driving ours:" ColorAndOpacity={ FLinearColor(0.7f, 0.7f, 0.8f) } Font.Size={ 11.0f } />
 				<ShowcaseProbe />
-				<Button OnClicked={ SetActive(!bActiveNow) } ContentPadding="12,4">Toggle activation</Button>
+				<Button OnClicked={ SetActive(!bActive) } ContentPadding="12,4">Toggle activation</Button>
 			</VerticalBox>
 		</Border>
 	);

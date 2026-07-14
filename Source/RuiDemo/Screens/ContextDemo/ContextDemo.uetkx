@@ -5,8 +5,6 @@ import { ContextDemoStyle } from "./ContextDemo.style"
 
 export component ContextDemo {
 	auto [bPrimary, SetPrimary] = UseState<bool>(true);
-	TFunction<void(bool)> Set = SetPrimary;
-	const bool bNow = bPrimary;
 	const FLinearColor Theme = bPrimary ? ContextDemoStyle::CoolTheme : ContextDemoStyle::WarmTheme;
 	ProvideContext(RuiDemo::GDemoThemeCtx, Theme);
 
@@ -16,8 +14,8 @@ export component ContextDemo {
 				<TextBlock Text="Context Demo (toggle theme to see consumers update)" />
 				<Spacer Size={ FVector2D(1.0f, 6.0f) } />
 				<HorizontalBox>
-					<Button OnClicked={ Set(!bNow) } ContentPadding="12,4" Slot.Padding="0,0,6,0">
-						<TextBlock Text={ FText::FromString(bNow ? TEXT("Switch To Warm Theme") : TEXT("Switch To Cool Theme")) } />
+					<Button OnClicked={ SetPrimary(!bPrimary) } ContentPadding="12,4" Slot.Padding="0,0,6,0">
+						<TextBlock Text={ FText::FromString(bPrimary ? TEXT("Switch To Warm Theme") : TEXT("Switch To Cool Theme")) } />
 					</Button>
 				</HorizontalBox>
 				<DemoContextPanel />
