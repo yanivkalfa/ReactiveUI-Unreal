@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.1.2] - 2026-07-14
+- Refreshed the ReactiveUI brand icon.
+
 ## [0.1.1] - 2026-07-13
 - Added the ReactiveUI brand icon to the marketplace listing.
 
