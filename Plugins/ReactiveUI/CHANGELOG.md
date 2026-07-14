@@ -7,6 +7,23 @@ resync with `cp CHANGELOG.md Plugins/ReactiveUI/CHANGELOG.md` (CI byte-compares 
 `scripts/verify-mirror.mjs`). The IDE extensions are NOT covered here — they use
 `ide-extensions/changelog.json` (Lane B; see the release-process skill).
 
+## [0.3.0] — 2026-07-14
+
+### Added
+
+- **Unreal Engine 5.8 support** — the full 103-test battery is green on 5.6, 5.7, and 5.8.
+  The 5.6→5.8 API diff found NO removals: +3 Slate widgets (SSearchableComboBox recorded as
+  a wrap candidate; two editor docking widgets out of scope) and additive-only FArguments
+  surface across 26 widgets (plans/WIDGET_INVENTORY.md).
+
+### Fixed
+
+- UE 5.8 compat: FJsonObject::Values' key type changed (FString → UE::FSharedString) — the
+  .uetkx sidecar reader now iterates keys engine-agnostically; the .uetkx watcher's ticker
+  delay uses the API's float type.
+- The engine-api-diff tool hard-fails when an engine install is partial (a scan finding
+  fewer than 50 widgets aborts instead of emitting a wrong diff).
+
 ## [0.2.0] — 2026-07-14
 
 ### Added

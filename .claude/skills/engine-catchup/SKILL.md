@@ -100,3 +100,12 @@ every row above names green gates in the PR description.
 - **Run the battery, not just the build** (same catch-up): 5.7 compiled green on the first
   try while the plugin couldn't even LOAD there — "it builds on the new engine" proves
   almost nothing; the Boot check + full battery are where engine-compat problems surface.
+- **Engine installs can be partial** (an install with its payload removed still has a root
+  folder): the diff script once silently produced "+127 widgets added" against such an
+  empty side. The script now hard-fails on a <50-widget scan
+  (`Assert-SurfaceSane`) — never weaken that guard, it caught a real wrong-diff.
+- **Clean intermediates when switching engines BACK** (same catch-up): 5.8's UnrealHeaderTool
+  output in `Intermediate/` doesn't compile on 5.6 (`ETypeConstructPhase`,
+  `UE_WITH_CONSTINIT_UOBJECT`) and UBT does not always invalidate it — a switch-back build
+  exploding with hundreds of errors in `*.generated.h` means stale UHT, not broken code:
+  `rm -rf Intermediate/Build Plugins/ReactiveUI/Intermediate Binaries Plugins/ReactiveUI/Binaries`.

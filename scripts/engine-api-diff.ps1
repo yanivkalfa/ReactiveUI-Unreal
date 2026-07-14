@@ -131,10 +131,21 @@ function Get-ListDiff([string[]]$Old, [string[]]$New) {
 
 $fromRootResolved = Resolve-EngineRoot $From $FromRoot
 $toRootResolved = Resolve-EngineRoot $To $ToRoot
+# A zero-widget scan means the engine's Source/ is absent or gutted (the launcher can
+# strip components when installing another version) — FAIL LOUDLY, never emit a diff
+# where one side is silently empty (scar: a husked UE_5.7 produced '+127 added' noise).
+function Assert-SurfaceSane($Surface, [string]$Root) {
+    if ($Surface.SlateWidgets.Count -lt 50) {
+        throw "Scan of $Root found only $($Surface.SlateWidgets.Count) Slate widgets - EngineSource missing or incomplete (reinstall the engine or verify its 'Engine Source' component)."
+    }
+}
+
 Write-Host "-- scanning FROM: $fromRootResolved" -ForegroundColor Cyan
 $old = Get-EngineSurface $fromRootResolved
+Assert-SurfaceSane $old $fromRootResolved
 Write-Host "-- scanning TO:   $toRootResolved" -ForegroundColor Cyan
 $new = Get-EngineSurface $toRootResolved
+Assert-SurfaceSane $new $toRootResolved
 
 $widgetDiff = Get-ListDiff @($old.SlateWidgets.Keys) @($new.SlateWidgets.Keys)
 $changedWidgets = @()
