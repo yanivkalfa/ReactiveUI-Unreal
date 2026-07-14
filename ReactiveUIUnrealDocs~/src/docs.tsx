@@ -29,6 +29,11 @@ import { FAQPage } from './pages/FAQ/FAQPage'
 import { KnownIssuesPage } from './pages/KnownIssues/KnownIssuesPage'
 import { RoadmapPage } from './pages/Roadmap/RoadmapPage'
 import { HmrPage } from './pages/Tooling/HMR/HmrPage'
+import { PortalsPage } from './pages/Portals/PortalsPage'
+import { InteropOverviewPage } from './pages/Interop/InteropOverviewPage'
+import { UmgGuidePage } from './pages/Interop/UmgGuidePage'
+import { CommonUiGuidePage } from './pages/Interop/CommonUiGuidePage'
+import { MvvmGuidePage } from './pages/Interop/MvvmGuidePage'
 import { FeaturesPage } from './pages/Features/FeaturesPage'
 
 export type DocPage = {
@@ -253,6 +258,62 @@ export const sections: DocSection[] = [
         searchContent:
           'suspense RUI::Suspense IsReady fallback children structural primitive not a tag expression child fallback content not ready swap loading state async resource streamed asset deferred computation no throw-to-suspend c++ has no equivalent declarative boundary polyfill readiness driven explicitly poll driver self-re-arming frame request signal flips fallback to content family divergence godot unity model not-ready state stress test poll-driver frame loop RUI::Suspense Fallback',
         element: () => <SuspensePage />,
+      },
+      {
+        id: 'portals',
+        canonicalId: 'portals',
+        title: 'Portals',
+        path: '/tooling/portals',
+        keywords: ['portal', 'modal', 'tooltip', 'overlay', 'out-of-tree', 'FRuiPortalHandle'],
+        searchContent:
+          'portals RUI::Portal target children key render children under different widget escape parent clipping stacking modals tooltips overlays fiber belongs to rendering component state context effects unmount tears down out-of-tree content FRuiPortalHandle host handle Ref receives handle on attach cleared on detach react ref lifecycle slate host widget handles any panel context flows from render position not target position themed modal app-level overlay',
+        element: () => <PortalsPage />,
+      },
+    ],
+  },
+  {
+    id: 'integration',
+    title: 'Integration',
+    pages: [
+      {
+        id: 'integration-overview',
+        canonicalId: 'integration-overview',
+        title: 'Integration Overview',
+        path: '/integration',
+        keywords: ['integration', 'interop', 'epic', 'umg', 'commonui', 'mvvm', 'slate', 'pillars'],
+        searchContent:
+          'integration overview four pillars layer decides which slate widgets exist each frame everything epic stays in place feeding data hosting output slate render target ordinary swidgets widget reflector umg door both directions URuiHostWidget RUI::Umg::UserWidget commonui owns menus input routing focus activatable stacks URuiActivatableScreen mvvm fieldnotify UseField they own values we own structure named-component registry ComponentName RUI_COMPONENT RegisterNamedFactory MountNamed designer dropdown incremental adoption leaf panel screen interop showcase demo beta caveats',
+        element: () => <InteropOverviewPage />,
+      },
+      {
+        id: 'umg-guide',
+        canonicalId: 'umg-guide',
+        title: 'UMG (both directions)',
+        path: '/integration/umg',
+        keywords: ['umg', 'URuiHostWidget', 'UserWidget', 'MountNamed', 'prop map', 'designer'],
+        searchContent:
+          'umg interop door both directions our ui inside theirs URuiHostWidget designer-placeable ReactiveUI Host palette ComponentName registered component RebuildWidget mounts ReleaseSlateResources unmounts cleanups Remount design time placeholder never runs live code URuiWorldSubsystem MountNamed blueprint-callable viewport zorder teardown world death their widgets inside ours RUI::Umg::UserWidget UUserWidget expression child owning world SObjectWidget gc-alive strong pointer deletion commit FRuiStyleDict WidgetProps reflection prop map UPROPERTYs diffing MakeAssetBrush textures materials beta caveat no blueprint props viewmodel channel signal UseField',
+        element: () => <UmgGuidePage />,
+      },
+      {
+        id: 'commonui-guide',
+        canonicalId: 'commonui-guide',
+        title: 'CommonUI',
+        path: '/integration/commonui',
+        keywords: ['commonui', 'URuiActivatableScreen', 'activation', 'input method', 'gamepad', 'stack'],
+        searchContent:
+          'commonui interop their stacks our screens menu stacks input routing back-handling console-cert never installs input preprocessor URuiActivatableScreen UCommonActivatableWidget push AddWidgetInstance UCommonActivatableWidgetContainerBase CreateWidget owning player ComponentName re-renders activation deactivation input method change FRuiActivationState UseIsActive UseInputMethod ERuiInputMethod MouseAndKeyboard Gamepad Touch glyph prompt swap ActivationProvider ProvideContext ActivationContext stand-in tests CommonUiDemo wrap common widgets UCommonButtonBase children activatables only through screen GetDesiredFocusTarget focus target UseFocus activation effect v1.x',
+        element: () => <CommonUiGuidePage />,
+      },
+      {
+        id: 'mvvm-guide',
+        canonicalId: 'mvvm-guide',
+        title: 'MVVM / FieldNotify',
+        path: '/integration/mvvm',
+        keywords: ['mvvm', 'fieldnotify', 'UseField', 'viewmodel', 'URuiSignalViewModel', 'global collection'],
+        searchContent:
+          'mvvm interop fieldnotify engine-level FieldNotification module no ModelViewViewModel plugin dependency any INotifyFieldValueChanged data source epic mvvm viewmodels UMVVMViewModelBase stock widgets they own values we own structure UseField subscribe re-render broadcast unsubscribe unmount null stale default coalesce one re-render per frame delayed execution batching reverse direction our state their views URuiSignalViewModel plugin-free SetInt broadcasts on change skips equal URuiMvvmViewModel RegisterGlobalViewModel FindGlobalViewModel global viewmodel collection context name bind no view-side changes ReactiveUIMVVMBridge UseMemo TStrongObjectPtr NewObject gc-rooted released unmount MvvmDemo',
+        element: () => <MvvmGuidePage />,
       },
     ],
   },
