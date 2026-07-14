@@ -91,7 +91,7 @@ the siblings are notified.
 
 | Dependency | Minimum Version |
 |------------|-----------------|
-| Unreal Engine | 5.6 |
+| Unreal Engine | 5.6 (floor) — battery-verified on 5.6 and 5.7 |
 | VS Code | 1.75+ |
 | Visual Studio | 2022 (17.0+) |
 | Node (docs site / repo scripts only) | 20+ |

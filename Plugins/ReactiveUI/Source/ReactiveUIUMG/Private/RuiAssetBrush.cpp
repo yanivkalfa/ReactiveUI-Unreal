@@ -30,9 +30,16 @@ namespace
 					Brushes.RemoveAtSwap(i);
 					continue;
 				}
-				if (UObject* Resource = Brush->GetResourceObject())
+				// TObjectPtr, not UObject*: the raw-pointer AddReferencedObject overload is
+				// deprecated in UE 5.7 and unsafe under incremental GC. If the collector nulls
+				// the reference (object being destroyed), write that back into the brush.
+				if (TObjectPtr<UObject> Resource = Brush->GetResourceObject())
 				{
 					Collector.AddReferencedObject(Resource);
+					if (Resource != Brush->GetResourceObject())
+					{
+						Brush->SetResourceObject(Resource);
+					}
 				}
 			}
 		}

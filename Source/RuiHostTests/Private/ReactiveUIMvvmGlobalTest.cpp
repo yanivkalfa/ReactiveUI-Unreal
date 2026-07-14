@@ -8,7 +8,7 @@
 #include "Misc/AutomationTest.h"
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
-#include "FieldNotification/IFieldValueChanged.h"
+#include "INotifyFieldValueChanged.h" // UE 5.7 deprecated the FieldNotification/IFieldValueChanged.h path
 #include "RuiMvvmViewModel.h"
 #include "RuiTypes.h"
 

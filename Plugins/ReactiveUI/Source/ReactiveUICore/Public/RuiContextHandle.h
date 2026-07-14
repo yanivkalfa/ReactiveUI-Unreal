@@ -76,7 +76,8 @@ private:
 template <typename T> class TRuiProvidedValue final : public IRuiProvidedValue
 {
 public:
-	TRuiProvidedValue(const TRuiContext<T>& InHandle, T InValue) : Handle(InHandle), Value(MoveTemp(InValue)) {}
+	// Initializer order matches DECLARATION order (Value before Handle) — C5038-clean.
+	TRuiProvidedValue(const TRuiContext<T>& InHandle, T InValue) : Value(MoveTemp(InValue)), Handle(InHandle) {}
 
 	T Value;
 

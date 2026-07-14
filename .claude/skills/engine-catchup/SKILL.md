@@ -42,8 +42,12 @@ classes**. It is a header scan (UE 5.4+ exports per-function, so widget classes 
 
 ## 3. Implementation checklist (in order; each row names its gate)
 
-1. **Plugin manifest**: `ReactiveUI.uplugin` `EngineVersion` stays at the FLOOR; the new
-   version is supported via packaging, not a floor bump (floor bumps are MAJOR — policy).
+1. **Plugin manifest**: the dev repo's `ReactiveUI.uplugin` carries **NO `EngineVersion`
+   pin** — that field is a hard per-version compatibility gate, not a floor declaration
+   (a 5.6.0 pin made 5.7 show "'ReactiveUI' is Incompatible… Attempt to load anyway?",
+   which headless/-unattended auto-answers NO → the plugin silently never loads and every
+   adapter lookup dies). The floor lives in VERSIONING.md/README; per-engine zips stamp
+   `EngineVersion` at packaging (release-process).
 2. **Adapters/widgets**: per the classification — `component-pipeline` runs for new
    widgets; adapter edits for changed ones. Gate: the widget's suite + `ReactiveUI.Boot`.
 3. **Schema**: `-run=RUIExportSchema`, commit the refreshed
@@ -88,6 +92,11 @@ every row above names green gates in the PR description.
 - **Schema before docs** (step 3 before 4): the generated Components pages read the
   committed schema — refreshing docs first shows stale tables and the docs-drift tripwire
   fires in the wrong direction.
-- **Floor stays put**: bumping `EngineVersion` cuts off every user on the older engine —
-  that's a MAJOR decision (VERSIONING.md), never a side effect of adding support for a
-  newer one.
+- **`EngineVersion` is a gate, not a floor** (learned on the 5.7 catch-up, 2026-07-14): the
+  pinned dev uplugin made 5.7 skip loading the ENTIRE plugin in headless runs — 96 of 103
+  tests never ran and the 7 that did crashed on empty registries. The dev repo stays
+  unpinned; packaging stamps per-engine. Dropping SUPPORT for an old engine remains a
+  MAJOR decision (VERSIONING.md), never a side effect of adding a newer one.
+- **Run the battery, not just the build** (same catch-up): 5.7 compiled green on the first
+  try while the plugin couldn't even LOAD there — "it builds on the new engine" proves
+  almost nothing; the Boot check + full battery are where engine-compat problems surface.

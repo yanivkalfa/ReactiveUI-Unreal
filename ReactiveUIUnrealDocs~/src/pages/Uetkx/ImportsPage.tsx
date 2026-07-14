@@ -49,7 +49,7 @@ export const ImportsPage: FC = () => (
       free sequence of any number of components, hooks and modules.
     </Typography>
 
-    <CodeBlock code={GRAMMAR} language="tsx" />
+    <CodeBlock code={GRAMMAR} language="uetkx" />
 
     <Typography variant="h5" component="h2" gutterBottom sx={{ mt: 3 }}>
       Specifiers

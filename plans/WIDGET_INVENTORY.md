@@ -126,3 +126,21 @@ typed props struct → adapter → contract case → per-widget test → docs ro
 lands, move its rows into "Shipped" with the tag names. Re-run the header sweep against every
 new engine version and diff this file — new engine widgets must land a row here in the same
 PR that bumps the supported engine version.
+
+## UE 5.7 additive surface (engine-catchup 2026-07-14 — scripts/diff-reports/5.6-to-5.7.json)
+
+Zero widgets added/removed 5.6→5.7 (Slate AND UMG). 16 widgets gained ADDITIVE FArguments
+surface; the ones we wrap are candidates for v1.x exposure (each needs a 5.7+ version guard,
+schema `sinceUE: 5.7` annotation, and docs badge — see the `engine-catchup` skill §2):
+
+| Widget (wrapped) | New in 5.7 |
+|---|---|
+| SButton | arg `AllowDragDrop`; events `OnReceivedFocus`, `OnLostFocus`, `OnSlateButtonDragDetected/Enter/Leave/Over/Drop` |
+| SEditableTextBox / SMultiLineEditableTextBox | event `OnBeginTextEdit` |
+| SScrollBox | arg `AllowContentToShrink` |
+| SListView (our ListView) | arg `bEnableShadowBoxStyle` |
+| SSpinBox | event `OnEditEditableText` |
+
+Not wrapped / not ours: SColorWheel, SHeaderRow, SHyperlink, SInvalidationPanel, SRadialBox,
+SScrollPanel, STreeView, SSuggestionTextBox (the ENGINE's — ours is SRuiSuggestionTextBox),
+SEditableText, SMultiLineEditableText — tracked by the diff report, no action until wrapped.
