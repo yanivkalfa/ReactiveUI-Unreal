@@ -7,22 +7,36 @@ resync with `cp CHANGELOG.md Plugins/ReactiveUI/CHANGELOG.md` (CI byte-compares 
 `scripts/verify-mirror.mjs`). The IDE extensions are NOT covered here — they use
 `ide-extensions/changelog.json` (Lane B; see the release-process skill).
 
+## [0.3.0] — 2026-07-14
+
+### Added
+
+- **Unreal Engine 5.8 support** — the full 103-test battery is green on 5.6, 5.7, and 5.8.
+  The 5.6→5.8 API diff found NO removals: +3 Slate widgets (SSearchableComboBox recorded as
+  a wrap candidate; two editor docking widgets out of scope) and additive-only FArguments
+  surface across 26 widgets (plans/WIDGET_INVENTORY.md).
+
+### Fixed
+
+- UE 5.8 compat: FJsonObject::Values' key type changed (FString → UE::FSharedString) — the
+  .uetkx sidecar reader now iterates keys engine-agnostically; the .uetkx watcher's ticker
+  delay uses the API's float type.
+- The engine-api-diff tool hard-fails when an engine install is partial (a scan finding
+  fewer than 50 widgets aborts instead of emitting a wrong diff).
+
 ## [0.2.0] — 2026-07-14
 
 ### Added
 
-- **Unreal Engine 5.7 AND 5.8 support** — the full 103-test battery is green on 5.6, 5.7,
-  and 5.8. The API diffs (scripts/engine-api-diff.ps1) found no removals anywhere and only
-  additive surface (recorded in plans/WIDGET_INVENTORY.md as v1.x candidates; UE 5.8 adds
-  SSearchableComboBox as a wrap candidate).
+- **Unreal Engine 5.7 support** — the full 103-test battery is green on 5.6 AND 5.7. The
+  5.6→5.7 API diff (scripts/engine-api-diff.ps1) found zero added/removed widgets and only
+  additive FArguments surface (recorded in plans/WIDGET_INVENTORY.md as v1.x candidates).
   The dev .uplugin no longer pins EngineVersion — the pin is a hard per-version compat gate
   (5.7 silently skipped loading the whole plugin in headless runs); per-engine packages
   stamp it at release. DocsURL now points at the docs site.
 
 ### Fixed
 
-- UE 5.8 compat: FJsonObject::Values key-type change (FString → UE::FSharedString) handled
-  engine-agnostically in the sidecar reader; the .uetkx watcher ticker uses the API's float.
 - UE 5.7 deprecation sweep: FReferenceCollector::AddReferencedObject now takes TObjectPtr
   (the raw-pointer overload is unsafe under incremental GC and removed next release); the
   deprecated FieldNotification include path replaced; a C5038 initializer-order warning in
