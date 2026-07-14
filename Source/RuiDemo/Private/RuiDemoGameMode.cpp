@@ -4,11 +4,13 @@
 
 #include "GameFramework/PlayerController.h"
 #include "RuiDemoScreens.h"
+#include "RuiDemoSupport.h"
 #include "RuiRoot.h"
 
 void ARuiDemoGameMode::BeginPlay()
 {
 	Super::BeginPlay();
+	RuiDemo::SetDemoWorld(GetWorld()); // the interop screens' UMG embeds read this, not GWorld
 	Root = FRuiRoot::CreateInViewport(RuiDemo::GalleryRoot(), /*ZOrder*/ 10);
 
 	// UI-friendly input: keep the cursor visible and never lock it to the viewport (PIE's
@@ -30,5 +32,6 @@ void ARuiDemoGameMode::EndPlay(const EEndPlayReason::Type EndPlayReason)
 		Root->Unmount(); // before the world dies: cleanups + widget detach (D-17 order)
 		Root.Reset();
 	}
+	RuiDemo::SetDemoWorld(nullptr);
 	Super::EndPlay(EndPlayReason);
 }

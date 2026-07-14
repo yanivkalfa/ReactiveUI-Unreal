@@ -11,14 +11,39 @@
 #include "Math/RandomStream.h"
 #include "Rendering/DrawElements.h"
 #include "RuiContext.h"
+#include "RuiSignalViewModel.h"
 #include "RuiSlateElements.h"
 #include "Styling/CoreStyle.h"
+#include "UObject/StrongObjectPtr.h"
+#include "UObject/WeakObjectPtrTemplates.h"
+
+class UWorld;
 
 namespace RuiDemo
 {
 	// ── shared identities (ONE instance process-wide — inline variables) ───────────────────
 	inline TRuiContext<FLinearColor> GDemoThemeCtx(FLinearColor(0.23f, 0.65f, 0.95f), FName(TEXT("DemoTheme")));
 	inline const FName GDemoCounterSignal(TEXT("demo.counter"));
+
+	// ── the demo world (set by the game mode; the interop screens' UMG embeds need one) ─────
+	// Screens read this instead of GWorld: explicit ownership, null headless → fallback branch.
+	inline TWeakObjectPtr<UWorld> GDemoWorld;
+	inline void SetDemoWorld(UWorld* World) { GDemoWorld = World; }
+	inline UWorld* GetDemoWorld() { return GDemoWorld.Get(); }
+
+	// ── the shared reverse-MVVM viewmodel (ours; THEIR widgets bind it — TD-021 reverse) ────
+	// One process-wide URuiSignalViewModel, GC-rooted by the strong ptr: the UmgHostDemo button
+	// writes it, our UseField reads it, and UDemoVmBoundWidget (a plain UMG widget) subscribes
+	// to the same FieldNotify broadcast — one value, both worlds.
+	inline URuiSignalViewModel* GetSharedVm()
+	{
+		static TStrongObjectPtr<URuiSignalViewModel> Vm;
+		if (!Vm.IsValid())
+		{
+			Vm.Reset(NewObject<URuiSignalViewModel>());
+		}
+		return Vm.Get();
+	}
 
 	// ── CustomDraw paint functions ─────────────────────────────────────────────────────────
 	inline int32 DrawPolygon(const FGeometry& Geo, FSlateWindowElementList& Out, int32 LayerId, int32 Sides)

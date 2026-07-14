@@ -1,11 +1,19 @@
 #include "RuiActivation.h"
+#include "RuiDemoSupport.h"
+#include "DemoInteropWidgets.h"
+#include "RuiUmgElement.h"
+#include "Engine/World.h"
 
 import { ActivationProbe } from "./components/ActivationProbe/ActivationProbe"
 
-// CommonUI — activation feeds us, authored in .uetkx. The screen PROVIDES activation state (a toggle
-// stands in for a URuiActivatableScreen's (de)activation on a CommonUI stack); the imported probe reads it.
+// CommonUI — activation feeds us, authored in .uetkx. Two halves:
+//   · the CONTEXT half: this screen provides activation state directly (a toggle) so the probe's
+//     hooks are demoable headless, no CommonUI required;
+//   · the REAL half (audit G2): a live UCommonActivatableWidgetStack whose pushed screen is a
+//     URuiActivatableScreen hosting the SAME probe — real (de)activation, CommonUI's rules.
 export component CommonUiDemo {
 	auto [bActive, SetActive] = UseState<bool>(true);
+	UWorld* World = RuiDemo::GetDemoWorld();
 
 	FRuiActivationState State;
 	State.bActive = bActive;
@@ -17,11 +25,14 @@ export component CommonUiDemo {
 			<VerticalBox>
 				<TextBlock Text="CommonUI -- activation feeds us" Font.Size={ 16.0f } />
 				<Spacer Size={ FVector2D(1.0f, 6.0f) } />
-				<TextBlock Text="A URuiActivatableScreen drives these hooks when it (de)activates on a CommonUI stack; here a toggle stands in. CommonUI keeps owning input routing / focus -- we just read state." ColorAndOpacity={ FLinearColor(0.7f, 0.7f, 0.8f) } Font.Size={ 11.0f } />
-				<Spacer Size={ FVector2D(1.0f, 10.0f) } />
+				<TextBlock Text="1. The hooks, driven by a toggle (works headless -- ProvideContext stands in):" ColorAndOpacity={ FLinearColor(0.7f, 0.7f, 0.8f) } Font.Size={ 11.0f } />
 				<ActivationProbe />
-				<Spacer Size={ FVector2D(1.0f, 8.0f) } />
-				<Button OnClicked={ SetActive(!bActive) } ContentPadding="12,4">Toggle activation</Button>
+				<HorizontalBox>
+					<Button OnClicked={ SetActive(!bActive) } ContentPadding="12,4" Slot.Padding="0,4,0,0">Toggle activation</Button>
+				</HorizontalBox>
+				<Spacer Size={ FVector2D(1.0f, 12.0f) } />
+				<TextBlock Text="2. THE REAL THING -- our screen pushed onto a real CommonUI activatable stack:" ColorAndOpacity={ FLinearColor(0.7f, 0.7f, 0.8f) } Font.Size={ 11.0f } />
+				{ World ? RUI::Umg::UserWidget(UDemoStackHostWidget::StaticClass(), World) : RUI::TextBlock(FString(TEXT("[press Play -- the real stack needs a running world]"))) }
 			</VerticalBox>
 		</Border>
 	);

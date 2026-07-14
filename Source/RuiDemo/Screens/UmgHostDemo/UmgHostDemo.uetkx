@@ -1,0 +1,36 @@
+#include "RuiDemoSupport.h"
+#include "DemoInteropWidgets.h"
+#include "RuiFieldHooks.h"
+#include "RuiUmgElement.h"
+#include "Engine/World.h"
+
+// The UMG door's SECOND direction + the REVERSE MVVM bridge, in one screen (audit G1 + G3):
+//   · ours-inside-theirs — a UMG UserWidget whose tree contains a URuiHostWidget mounting the
+//     UmgHostInner component by name (ReactiveUI → UMG → ReactiveUI, the full sandwich);
+//   · their-view-on-our-state — a plain UMG TextBlock FieldNotify-bound to OUR
+//     URuiSignalViewModel; our button writes it, their widget and our UseField both react.
+export component UmgHostDemo {
+	UWorld* World = RuiDemo::GetDemoWorld();
+	URuiSignalViewModel* Vm = RuiDemo::GetSharedVm();
+	const int32 N = RUI::Umg::UseField<int32>(Ctx, Vm, FName(TEXT("Int")), 0);
+
+	return (
+		<Border Padding="12" BorderImage="WhiteBrush" BorderBackgroundColor={ FLinearColor(0.02f, 0.02f, 0.03f, 0.85f) } Slot.Padding="0,10,0,0">
+			<VerticalBox>
+				<TextBlock Text="UMG -- the door's second direction, and the reverse MVVM bridge" Font.Size={ 16.0f } />
+				<Spacer Size={ FVector2D(1.0f, 8.0f) } />
+
+				<TextBlock Text="1. OUR UI INSIDE THEIRS -- URuiHostWidget in a hand-built UserWidget:" ColorAndOpacity={ FLinearColor(0.7f, 0.7f, 0.8f) } Font.Size={ 11.0f } />
+				{ World ? RUI::Umg::UserWidget(UDemoHostUserWidget::StaticClass(), World) : RUI::TextBlock(FString(TEXT("[press Play -- the UMG host needs a running world]"))) }
+				<Spacer Size={ FVector2D(1.0f, 12.0f) } />
+
+				<TextBlock Text="2. THEIR VIEW ON OUR STATE -- a UMG TextBlock FieldNotify-bound to our viewmodel:" ColorAndOpacity={ FLinearColor(0.7f, 0.7f, 0.8f) } Font.Size={ 11.0f } />
+				{ World ? RUI::Umg::UserWidget(UDemoVmBoundWidget::StaticClass(), World) : RUI::TextBlock(FString(TEXT("[press Play -- the bound widget needs a running world]"))) }
+				<TextBlock Text={ RUI::Fmt(TEXT("▼ our UseField reads the same field: {}"), N) } />
+				<HorizontalBox>
+					<Button OnClicked={ Vm->SetInt(N + 1) } ContentPadding="12,4" Slot.Padding="0,4,0,0">our code writes: viewmodel.SetInt(+1)</Button>
+				</HorizontalBox>
+			</VerticalBox>
+		</Border>
+	);
+}

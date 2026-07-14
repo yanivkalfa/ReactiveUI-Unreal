@@ -228,7 +228,7 @@ reconciler core, and anything touching a CI gate always stay on the strongest mo
 | 5 | IDE extensions (LSP, VS Code, VS2022) | COMPLETE | uetkx-language-server (schema completions/hover, sidecar diags, formatting) + VS Code + VS2022 extensions; embedded-C++ clangd proxy + VS2022 polish added (feat/uetkx-*) |
 | 6 | UMG / CommonUI / MVVM interop | COMPLETE | Phase-6 core (URuiHostWidget, RUI::Umg::UserWidget, URuiWorldSubsystem, UseField) + TD-021 CommonUI activatables, MVVM global collection, UMG prop-map bridge (feat/uetkx-*) |
 | 7 | Production gaps (lists, loc, focus, animation, portals, widget batch 2) | SUBSTANTIALLY DELIVERED | Lists (virtualized ListView/TileView), focus, animation + SFX hooks (~~media~~ — only `UseSfx` exists, audit 2026-07-14), portals, widget batch-2 + specials, drag-and-drop, exit animations — all shipped. **Localization (FText gathering) DEFERRED** |
-| 8 | Demos, docs site, benchmarks | IN PROGRESS | Gallery ✅ (15 screens on the compiled path), Bench baselines ✅; docs site: guides + reference + Integration (four-pillar) pages authored (audit fix campaign 2026-07-14); generated per-widget/per-hook references remain |
+| 8 | Demos, docs site, benchmarks | IN PROGRESS | Gallery ✅ (16 screens on the compiled path), Bench baselines ✅; docs site: guides + reference + Integration (four-pillar) pages authored (audit fix campaign 2026-07-14); generated per-widget/per-hook references remain |
 | 9 | Release & publishing | NOT STARTED | Owner-gated — needs the ship gate (§3) + the `feat/uetkx-imports` → `dev` → `master` merge + Fab/Discord |
 
 *Rows are updated by the `plan-progress` skill whenever a phase in
