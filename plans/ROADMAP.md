@@ -1,6 +1,12 @@
 # ReactiveUI-Unreal — Overview & Roadmap
 
-> **STATUS RECONCILIATION — 2026-07-12.** The table below had lagged since Phase 0 (the scar
+> **STATUS RECONCILIATION — 2026-07-14 (audit second pass, `plans/AUDIT_2026-07-14.md`).**
+> Phase-4's row still claimed the interpreter/expression VM that **HMR v2 deleted**
+> (`plans/HMR_V2_PLAN.md`) — struck below; hot reload is Live-Coding-driven recompile.
+> Phase-7's "media hooks" was really the `UseSfx` audio hook — reworded. Gallery count
+> corrected 11 → 15 screens. The "80/80 battery" figure predates the current 100+-test
+> battery. Docs site: guide/reference/integration content authored in the audit fix
+> campaign; generated per-widget/per-hook references remain. The table below had lagged since Phase 0 (the scar
 > the `plan-progress` skill warns about); reconciled to the delivered state. Phases 1–6 shipped
 > across `feat/core-library` + `feat/uetkx-compiler` + `feat/uetkx-imports`; Phase 7 is
 > substantially delivered (lists/focus/animation/portals/DnD/widget-batch-2 done — **localization
@@ -218,11 +224,11 @@ reconciler core, and anything touching a CI gate always stay on the strongest mo
 | 1 | Core reconciler + hooks | COMPLETE | Fiber reconciler (subtree-skip, O(1) context, keyed diff, error-boundary latch) + all 23 hooks + signals/Suspense; 23 mock-host suites + Bench.Core (feat/core-library) |
 | 2 | Slate host + first widgets | COMPLETE | Adapter registry, bind-once-swap-inner event proxy, SRuiRoot mount surfaces, 15 core widgets, style v1, GO-05 pool, focus fences, demo gallery (feat/core-library) |
 | 3 | `.uetkx` compiler + build integration | COMPLETE | Lexer/parser/scan → committed reflection-free `.inl` + aggregators, schema-v2 sidecars, staleness machinery, RUICompile/RUIExportSchema/RUIContractDump commandlets, formatter (feat/uetkx-compiler) |
-| 4 | Interpreter + hot reload | COMPLETE | D-20 expression VM + markup interpreter, FRuiHmr swap/link/reset + status line, editor watcher (3 triggers, MessageLog), rui.Hmr.AutoLiveCoding (feat/uetkx-compiler) |
+| 4 | ~~Interpreter +~~ hot reload | COMPLETE (re-scoped by HMR v2) | ~~D-20 expression VM + markup interpreter, FRuiHmr swap/link/reset + status line, editor watcher (3 triggers, MessageLog), rui.Hmr.AutoLiveCoding~~ — **SUPERSEDED 2026-07-14 (audit):** HMR v2 (`plans/HMR_V2_PLAN.md`) deleted the interpreter/expression VM; hot reload = Live-Coding recompile via `FUetkxHmrController` + `FUetkxWatcher`, the `ReactiveUetkx` menu/window/settings, `ReactiveUetkx.HMR.*` console cmds (no `rui.Hmr.AutoLiveCoding` CVar exists) |
 | 5 | IDE extensions (LSP, VS Code, VS2022) | COMPLETE | uetkx-language-server (schema completions/hover, sidecar diags, formatting) + VS Code + VS2022 extensions; embedded-C++ clangd proxy + VS2022 polish added (feat/uetkx-*) |
 | 6 | UMG / CommonUI / MVVM interop | COMPLETE | Phase-6 core (URuiHostWidget, RUI::Umg::UserWidget, URuiWorldSubsystem, UseField) + TD-021 CommonUI activatables, MVVM global collection, UMG prop-map bridge (feat/uetkx-*) |
-| 7 | Production gaps (lists, loc, focus, animation, portals, widget batch 2) | SUBSTANTIALLY DELIVERED | Lists (virtualized ListView/TileView), focus, animation/media hooks, portals, widget batch-2 + specials, drag-and-drop, exit animations — all shipped. **Localization (FText gathering) DEFERRED** |
-| 8 | Demos, docs site, benchmarks | IN PROGRESS | Gallery ✅ (11 screens on the compiled path), Bench baselines ✅; docs site content in progress |
+| 7 | Production gaps (lists, loc, focus, animation, portals, widget batch 2) | SUBSTANTIALLY DELIVERED | Lists (virtualized ListView/TileView), focus, animation + SFX hooks (~~media~~ — only `UseSfx` exists, audit 2026-07-14), portals, widget batch-2 + specials, drag-and-drop, exit animations — all shipped. **Localization (FText gathering) DEFERRED** |
+| 8 | Demos, docs site, benchmarks | IN PROGRESS | Gallery ✅ (15 screens on the compiled path), Bench baselines ✅; docs site: guides + reference + Integration (four-pillar) pages authored (audit fix campaign 2026-07-14); generated per-widget/per-hook references remain |
 | 9 | Release & publishing | NOT STARTED | Owner-gated — needs the ship gate (§3) + the `feat/uetkx-imports` → `dev` → `master` merge + Fab/Discord |
 
 *Rows are updated by the `plan-progress` skill whenever a phase in

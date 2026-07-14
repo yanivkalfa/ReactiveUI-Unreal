@@ -55,15 +55,19 @@ Rules that matter:
 - **Events**: the Unreal delegate name VERBATIM (`OnClicked`, `OnTextChanged`,
   `OnCheckStateChanged` — D-33 in MASTER_PLAN; no React aliases). Same rule as every other
   name: element tags = Slate class minus `S`, props = the setter/property name minus `Set`.
-  Handlers: setter calls / whitelisted expressions inline, or a **named function** on the
-  component's logic class — `logic={UShopLogic}` (a plain attribute; may be a Blueprint class),
-  handler referenced by name. Handler BODIES are compiled C++ — new bodies need a compile;
-  structure/style/expressions hot-reload without one (D-20).
-- **Directives**: `@if/@elif/@else`, `@for x in xs` (+ `key` on loop children), `@while`
-  (interpreter caps iterations), `@match/@case/@default`. `@uss`/`@theme` parse but diagnose
-  "stylesheet layer is post-v1".
-- **Styling**: `style={ {"font_size": 24, …} }` dicts over the style-key registry; `classes` for
-  the merge layer. Style/event/ref props reset when removed; plain props don't (family semantic).
+  Handlers are inline `{ expr }` bodies; the payload parameter is `Value` (an `FRuiValue` —
+  `Value.TextValue`/`Value.BoolValue`/`Value.FloatValue` per event). Handler BODIES are compiled
+  C++ — they ride the same Live-Coding patch as the markup (HMR v2). ~~`logic={UClass}` named
+  handlers~~ — NOT implemented (audit 2026-07-14); do not author or document it.
+- **Directives**: `@if/@elif/@else`, `@for` (the header is **verbatim C++** — classic or ranged
+  for; + `key` on loop children), `@while`, `@match/@case/@default`. A directive block is a
+  statement block — markup exits via `return ( … );` (corpus-pinned). There are NO `@uss`/`@theme`
+  markup directives — themes/stylesheets are the C++ `RUI::Slate::LoadStylesheet`/`RegisterTheme`
+  layer (audit 2026-07-14).
+- **Styling**: element attrs + generic style keys use the exact Unreal names (`Padding="12"`,
+  `Font.Size={ 16.0f }`, `ColorAndOpacity={ … }` — PascalCase, never snake_case); `classes` for
+  the registered-class merge layer (cascade: theme < classes < inline). Style/event/ref props
+  reset when removed; plain props don't (family semantic).
 - **Structural primitives** (Portal/Suspense/ErrorBoundary/Memo) are `RUI::` calls inside
   `{expr}`, NOT tags (family convention).
 - Formatter default: tabs (`uetkx.config.json` walk-up overrides; C++ doesn't require tabs —

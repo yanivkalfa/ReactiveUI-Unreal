@@ -2,6 +2,17 @@
 
 > **Status:** IN PROGRESS
 > **Branch:** `feat/uetkx-imports` → `dev`   **PR:** pending owner merge   **Phases:** 6/10 done + Phase 7 substantially delivered (localization deferred), Phase 8 in progress
+> **STATUS RECONCILIATION — 2026-07-14 (audit, `plans/AUDIT_2026-07-14.md`).** Four
+> never-reconciled divergences between this plan and the shipped code, struck in place below:
+> (1) **D-20/D-21's interpreter/expression VM was deleted by HMR v2** (`plans/HMR_V2_PLAN.md`,
+> owner-merged) — hot reload is Live-Coding-driven recompile; the §1 decisions stay as history,
+> the ship-gate line is struck. (2) The gate named **`UseViewModel`, which was never built** —
+> the shipped API is `UseField` (whole-VM read-tracking is a research idea, not a commitment).
+> (3) The gate's OUT-of-v1 list is stale — the router, stylesheet layer, exit animations,
+> drag-and-drop + shortcuts, and the read-only live-preview panel ALL SHIPPED (Phase 7 / HMR v2).
+> (4) **OWNER QUESTION (D-17/D-27):** the shipped world-mount subsystem is
+> `URuiWorldSubsystem : UWorldSubsystem`, not the locked `URuiSubsystem : UGameInstanceSubsystem`
+> — per-world teardown is arguably the better design; bless-as-built or treat as a defect?
 > **STATUS RECONCILIATION — 2026-07-12.** This banner's `1/10 done` had lagged the delivered
 > state. Phases 1–6 shipped across `feat/core-library` + `feat/uetkx-compiler` + `feat/uetkx-imports`;
 > Phase 7 is substantially delivered (lists/focus/animation/portals/DnD/widget-batch-2 done —
@@ -598,22 +609,27 @@ IN v1 (all must be green, verified by running):
       **plus** the virtualized `SListView` items adapter — each through the full component
       pipeline.
 - [ ] Style v1: setter-based hot-path keys (style tweak never reconstructs), `classes` layer.
-- [ ] `.uetkx`: compiles to committed C++ (drift-gated in CI) AND interprets live —
+- [ ] `.uetkx`: compiles to committed C++ (drift-gated in CI) AND ~~interprets live~~
+      **hot-reloads live via Unreal Live Coding (HMR v2 — SUPERSEDED 2026-07-14)** —
       save mid-PIE, sub-second update, hook-signature state rule working and reported.
 - [ ] IDE tooling: **VS Code AND VS2022** extensions (shared server), markup intelligence
       offline, embedded-C++ via clangd with graceful degradation. (Rider: skipped for v1 — owner 2026-07-11.)
 - [ ] Interop (the thesis — v1 ships it or the tagline is false): `URuiHostWidget`, `RUI::Umg`,
-      `UseField`/`UseViewModel`, `URuiActivatableScreen` on a CommonUI stack — each with a demo.
+      `UseField`~~/`UseViewModel`~~ (never built — SUPERSEDED 2026-07-14; `UseField` is the
+      shipped API), `URuiActivatableScreen` on a CommonUI stack — each with a demo.
 - [ ] Production gaps closed: virtualization, localization, brush/asset GC, focus restore,
       portals.
 - [ ] Demo gallery + docs site + measured benchmark table (no unmeasured perf claims).
 
 OUT of v1 (deliberate, tracked in `plans/TECH_DEBT.md` from Phase 0 — not "demand-gated where
-marked" hand-waving; THIS is the list): the router subsystem (17 family router hooks + both
+marked" hand-waving; THIS is the list): ~~the router subsystem (17 family router hooks + both
 router suites), the stylesheet third style layer, exit-animation protocol (designed in Phase 7,
-shipped v1.x), drag-and-drop + keyboard-shortcut APIs, Rider support (ALL of it — skipped v1, owner 2026-07-11),
-the in-Unreal-editor `.uetkx` tab (and its cheaper cousin, a read-only live-preview panel — the
-realistic someday-step toward designer-ish workflows), Phase-4-style on-device remote reload,
+shipped v1.x), drag-and-drop + keyboard-shortcut APIs~~ — **SUPERSEDED 2026-07-14: all four
+SHIPPED in Phase 7** (audit-verified: `RuiRouter.h`, `RuiStyle.h` themes/stylesheets,
+`RuiPresence.h`, `RuiDragDrop.h`/`RuiInput.h`) — Rider support (ALL of it — skipped v1, owner 2026-07-11),
+the in-Unreal-editor `.uetkx` tab ~~(and its cheaper cousin, a read-only live-preview panel — the
+realistic someday-step toward designer-ish workflows)~~ — **the live-preview panel also SHIPPED
+(HMR v2's `SUetkxPreviewPanel`)** — Phase-4-style on-device remote reload,
 scripting adapters (UnrealSharp/AngelScript integration — or, owner's stated worst case, our own
 adapter someday: if so, plugin-level like UnrealSharp, NEVER an engine fork, which would kill Fab
 distribution, and always opt-in — never a mandatory VM under the shipped UI, per §6).
@@ -1109,7 +1125,8 @@ distribution, and always opt-in — never a mandatory VM under the shipped UI, p
      `.uetkx` (grammar is byte-compatible; the `.guitkx` sources are the starting corpus). If
      deferred: seeded in TECH_DEBT with the dual role (perf-workload driver + marketing
      centerpiece) recorded.
-  2. Docs content — the checklist is the FAMILY site inventory (minus Router), not a shortlist:
+  2. Docs content — the checklist is the FAMILY site inventory ~~(minus Router)~~ (Router
+     shipped in Phase 7, so its docs are required too — SUPERSEDED 2026-07-14), not a shortlist:
      Getting Started (the "first five minutes": install → New Component template → mount → PIE →
      edit-and-watch), Concepts, Hooks reference (23 pages [production-line]), Elements reference
      generated from the prop-map schema (with per-engine-version feature annotations), `.uetkx`
