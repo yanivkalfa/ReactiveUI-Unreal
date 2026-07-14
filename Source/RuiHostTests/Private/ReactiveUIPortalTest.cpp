@@ -84,8 +84,8 @@ bool FRuiCorePortalTest::RunTest(const FString&)
 	GSetShow(true);
 	H.Pump();
 	TestEqual(TEXT("portal child re-parented under the target"), Target->Children.Num(), 1);
-	TestEqual(TEXT("portal content rendered"),
-			  Target->Children.Num() == 1 ? Target->Children[0]->TextOf() : FString(), FString(TEXT("PORTALED")));
+	TestEqual(TEXT("portal content rendered"), Target->Children.Num() == 1 ? Target->Children[0]->TextOf() : FString(),
+			  FString(TEXT("PORTALED")));
 	TestEqual(TEXT("render position did NOT gain the child"), Root->Children.Num(), 2);
 	TestEqual(TEXT("context flowed through the portal (render position provider)"), GSeenCtx, 7);
 

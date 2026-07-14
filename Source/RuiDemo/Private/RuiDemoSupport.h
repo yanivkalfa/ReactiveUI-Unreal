@@ -28,8 +28,14 @@ namespace RuiDemo
 	// ── the demo world (set by the game mode; the interop screens' UMG embeds need one) ─────
 	// Screens read this instead of GWorld: explicit ownership, null headless → fallback branch.
 	inline TWeakObjectPtr<UWorld> GDemoWorld;
-	inline void SetDemoWorld(UWorld* World) { GDemoWorld = World; }
-	inline UWorld* GetDemoWorld() { return GDemoWorld.Get(); }
+	inline void SetDemoWorld(UWorld* World)
+	{
+		GDemoWorld = World;
+	}
+	inline UWorld* GetDemoWorld()
+	{
+		return GDemoWorld.Get();
+	}
 
 	// ── the shared reverse-MVVM viewmodel (ours; THEIR widgets bind it — TD-021 reverse) ────
 	// One process-wide URuiSignalViewModel, GC-rooted by the strong ptr: the UmgHostDemo button

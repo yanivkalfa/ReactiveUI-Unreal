@@ -299,7 +299,6 @@ bool FRuiReverseBridgeTest::RunTest(const FString&)
 	return true;
 }
 
-
 // ── ReactiveUI.Umg.Lifecycle — Remount, MountNode, and the hosted-widget GC contract (audit §13)
 
 namespace UmgLifecycleTest
@@ -374,8 +373,7 @@ bool FRuiUmgLifecycleTest::RunTest(const FString&)
 				FRuiRoot::Create(RUI::Umg::UserWidget(URuiTestUserWidget::StaticClass(), World));
 			Root->FlushSync();
 
-			TWeakObjectPtr<UUserWidget> Hosted =
-				UmgLifecycleTest::FindHostedUserWidget(Root->GetWidget().Get());
+			TWeakObjectPtr<UUserWidget> Hosted = UmgLifecycleTest::FindHostedUserWidget(Root->GetWidget().Get());
 			if (TestTrue(TEXT("found the hosted SObjectWidget's UUserWidget"), Hosted.IsValid()))
 			{
 				CollectGarbage(RF_NoFlags, /*bPerformFullPurge*/ true);

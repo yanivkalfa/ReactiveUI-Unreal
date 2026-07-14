@@ -57,10 +57,9 @@ void UDemoVmBoundWidget::NativeConstruct()
 	URuiSignalViewModel* Vm = RuiDemo::GetSharedVm();
 	// Their side of the bridge: a standard FieldNotify subscription on OUR viewmodel — the
 	// same interface any Epic-MVVM binding uses; no ReactiveUI API in sight.
-	VmHandle = Vm->AddFieldValueChangedDelegate(
-		URuiSignalViewModel::FFieldNotificationClassDescriptor::Int,
-		INotifyFieldValueChanged::FFieldValueChangedDelegate::CreateUObject(this,
-																			&UDemoVmBoundWidget::OnVmFieldChanged));
+	VmHandle = Vm->AddFieldValueChangedDelegate(URuiSignalViewModel::FFieldNotificationClassDescriptor::Int,
+												INotifyFieldValueChanged::FFieldValueChangedDelegate::CreateUObject(
+													this, &UDemoVmBoundWidget::OnVmFieldChanged));
 	RefreshText();
 }
 
@@ -91,8 +90,7 @@ void UDemoVmBoundWidget::RefreshText()
 
 // ── UDemoActivatableScreen + UDemoStackHostWidget (G2: the real CommonUI stack) ──────────────
 
-UDemoActivatableScreen::UDemoActivatableScreen(const FObjectInitializer& ObjectInitializer)
-	: Super(ObjectInitializer)
+UDemoActivatableScreen::UDemoActivatableScreen(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
 	// The hosted component: the same ActivationProbe the stand-in demo uses — here it reads
 	// REAL activation published by this screen's NativeOnActivated/Deactivated.

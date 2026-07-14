@@ -48,7 +48,7 @@ function readUetkxSchema(): UetkxSchema {
   try {
     const raw = fs
       .readFileSync(path.join(repoRoot, 'ide-extensions', 'lsp-server', 'src', 'uetkx-schema.json'), 'utf-8')
-      .replace(/^﻿/, '')
+      .replace(/^\uFEFF/, '')
     return JSON.parse(raw) as UetkxSchema
   } catch {
     return {}

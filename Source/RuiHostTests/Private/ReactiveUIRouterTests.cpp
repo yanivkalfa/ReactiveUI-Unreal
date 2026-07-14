@@ -218,7 +218,6 @@ bool FRuiRouterSpineTest::RunTest(const FString&)
 	return true;
 }
 
-
 // ── ReactiveUI.Router.Hooks — the previously-untested hook set (audit §13) ─────────────────
 // UseInRouterContext, UseLocation, UsePathname, UseSearch, UseNavigationType, UseMatch,
 // UseIsActive, UseResolvedPath, UseHref, UseGo, and the Link component.
