@@ -156,9 +156,11 @@ namespace
 		{
 			return false; // v2 sidecar (pre-M8) — no dep graph recorded
 		}
-		for (const TPair<FString, TSharedPtr<FJsonValue>>& Dep : (*Deps)->Values)
+		// `const auto&` + `*Key`: FJsonObject::Values' key type changed in UE 5.8 (FString →
+		// UE::FSharedString); dereference-to-TCHAR* is the surface both types share.
+		for (const auto& Dep : (*Deps)->Values)
 		{
-			const FString DepUetkx = FPaths::Combine(FPaths::ProjectDir(), Dep.Key);
+			const FString DepUetkx = FPaths::Combine(FPaths::ProjectDir(), FString(*Dep.Key));
 			const uint32 Current = ReadSidecarExportHash(FUetkxDriver::SidecarPathFor(DepUetkx));
 			if (Current != static_cast<uint32>(Dep.Value->AsNumber()))
 			{
@@ -183,7 +185,11 @@ namespace
 		const TSharedPtr<FJsonObject>* Deps = nullptr;
 		if (Root->TryGetObjectField(TEXT("dep_hashes"), Deps))
 		{
-			(*Deps)->Values.GetKeys(Out);
+			// Not GetKeys(): the map's key type is engine-version-dependent (UE 5.8: FSharedString).
+			for (const auto& Pair : (*Deps)->Values)
+			{
+				Out.Add(FString(*Pair.Key));
+			}
 		}
 		return Out;
 	}
@@ -207,9 +213,9 @@ namespace
 		const TSharedPtr<FJsonObject>* Refs = nullptr;
 		if (Root->TryGetObjectField(TEXT("refs"), Refs))
 		{
-			for (const TPair<FString, TSharedPtr<FJsonValue>>& Pair : (*Refs)->Values)
+			for (const auto& Pair : (*Refs)->Values) // key type is engine-version-dependent
 			{
-				Out.Add(Pair.Key);
+				Out.Add(FString(*Pair.Key));
 			}
 		}
 		return Out;

@@ -140,9 +140,13 @@ MASTER_PLAN §1; module table: D-27.
 
 ## Environment facts (owner machine — fill/verify at first engine use)
 
-- Engines: **`C:\Program Files\Epic Games\UE_5.6`** (the floor; verified 2026-07-10) and
-  **`UE_5.7`** (verified 2026-07-14 — full 103-test battery green on both; the `engine-catchup`
-  skill is the per-version runbook, `scripts/engine-api-diff.ps1` the discovery tool).
+- Engines: **`C:\Program Files\Epic Games\UE_5.6`** (the floor) and **`UE_5.8`** — full 103-test
+  battery verified green on 5.6, 5.7, AND 5.8 (2026-07-14). CAUTION: `UE_5.7` is now a 343MB
+  husk — the launcher gutted it while installing 5.8 (reinstall to re-run anything on 5.7; the
+  diff script fails loudly on husked engines). The `engine-catchup` skill is the per-version
+  runbook, `scripts/engine-api-diff.ps1` the discovery tool. When switching engines on this
+  working copy, a stale-UHT clean may be needed (`rm -rf Intermediate/Build Plugins/ReactiveUI/
+  Intermediate Binaries Plugins/ReactiveUI/Binaries`) — 5.8's UHT output doesn't compile on 5.6.
 - VS2022 Community with the C++ workload; MSVC toolchain **14.44.35223** — UE 5.6 warns it
   "is not a preferred version (prefers 14.38)" but accepts it. If strict toolchain matching is
   ever needed (e.g. chasing a compiler-specific bug), install the 14.38 toolset via the VS

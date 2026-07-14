@@ -127,19 +127,20 @@ lands, move its rows into "Shipped" with the tag names. Re-run the header sweep 
 new engine version and diff this file — new engine widgets must land a row here in the same
 PR that bumps the supported engine version.
 
-## UE 5.7 additive surface (engine-catchup 2026-07-14 — scripts/diff-reports/5.6-to-5.7.json)
+## UE 5.7/5.8 additive surface (engine-catchup 2026-07-14 — scripts/diff-reports/5.6-to-5.8.json)
 
-Zero widgets added/removed 5.6→5.7 (Slate AND UMG). 16 widgets gained ADDITIVE FArguments
+5.6→5.8: THREE Slate widgets added (SSearchableComboBox — a real BATCH-3 candidate; SDockingNode/SDockingTabStack — editor docking chrome, out of scope), one UMG extension class (UContextDataWidgetExtension, not a wrappable widget), ZERO removed anywhere. 26 widgets gained ADDITIVE FArguments
 surface; the ones we wrap are candidates for v1.x exposure (each needs a 5.7+ version guard,
 schema `sinceUE: 5.7` annotation, and docs badge — see the `engine-catchup` skill §2):
 
 | Widget (wrapped) | New in 5.7 |
 |---|---|
 | SButton | arg `AllowDragDrop`; events `OnReceivedFocus`, `OnLostFocus`, `OnSlateButtonDragDetected/Enter/Leave/Over/Drop` |
-| SEditableTextBox / SMultiLineEditableTextBox | event `OnBeginTextEdit` |
-| SScrollBox | arg `AllowContentToShrink` |
-| SListView (our ListView) | arg `bEnableShadowBoxStyle` |
-| SSpinBox | event `OnEditEditableText` |
+| SEditableTextBox / SMultiLineEditableTextBox | events `OnBeginTextEdit`, `OnAllFontFacesFinishLoading`, `OnCursorMovedWithSelection` (5.8); attr `FontFacesLoadingPaintPolicy` (5.8) |
+| SScrollBox | args `AllowContentToShrink`, `ScrollBarRightClickDragAllowed` (5.8); event `OnFocusChanging` (5.8) |
+| SListView / STileView (our lists) | args `bEnableShadowBoxStyle`, `EnableProximateEntryNavigation` (5.8); events `OnTouchStart/Move/End` (5.8) |
+| SSpinBox | event `OnEditEditableText`; attrs `CtrlAltMultiplier`, `ShiftAltMultiplier`, `VirtualKeyboardDismissAction` (5.8) |
+| STextBlock / SRichTextBlock / SSearchBox | `FontFacesLoadingPaintPolicy` + font-loading/text-edit events (5.8) |
 
 Not wrapped / not ours: SColorWheel, SHeaderRow, SHyperlink, SInvalidationPanel, SRadialBox,
 SScrollPanel, STreeView, SSuggestionTextBox (the ENGINE's — ours is SRuiSuggestionTextBox),

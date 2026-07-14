@@ -11,15 +11,18 @@ resync with `cp CHANGELOG.md Plugins/ReactiveUI/CHANGELOG.md` (CI byte-compares 
 
 ### Added
 
-- **Unreal Engine 5.7 support** — the full 103-test battery is green on 5.6 AND 5.7. The
-  5.6→5.7 API diff (scripts/engine-api-diff.ps1) found zero added/removed widgets and only
-  additive FArguments surface (recorded in plans/WIDGET_INVENTORY.md as v1.x candidates).
+- **Unreal Engine 5.7 AND 5.8 support** — the full 103-test battery is green on 5.6, 5.7,
+  and 5.8. The API diffs (scripts/engine-api-diff.ps1) found no removals anywhere and only
+  additive surface (recorded in plans/WIDGET_INVENTORY.md as v1.x candidates; UE 5.8 adds
+  SSearchableComboBox as a wrap candidate).
   The dev .uplugin no longer pins EngineVersion — the pin is a hard per-version compat gate
   (5.7 silently skipped loading the whole plugin in headless runs); per-engine packages
   stamp it at release. DocsURL now points at the docs site.
 
 ### Fixed
 
+- UE 5.8 compat: FJsonObject::Values key-type change (FString → UE::FSharedString) handled
+  engine-agnostically in the sidecar reader; the .uetkx watcher ticker uses the API's float.
 - UE 5.7 deprecation sweep: FReferenceCollector::AddReferencedObject now takes TObjectPtr
   (the raw-pointer overload is unsafe under incremental GC and removed next release); the
   deprecated FieldNotification include path replaced; a C5038 initializer-order warning in
