@@ -9,6 +9,12 @@ import { ImportsPage } from './pages/Uetkx/ImportsPage'
 import { HooksGuidePage } from './pages/Hooks/HooksGuidePage'
 import { StylingPage } from './pages/Styling/StylingPage'
 import { DifferencesPage } from './pages/Differences/DifferencesPage'
+import { EventsPage } from './pages/Events/EventsPage'
+import { ContextPage } from './pages/Context/ContextPage'
+import { RefsGuidePage } from './pages/Refs/RefsGuidePage'
+import { KeysGuidePage } from './pages/Keys/KeysGuidePage'
+import { CustomRenderingPage } from './pages/CustomRendering/CustomRenderingPage'
+import { SignalsPage } from './pages/Signals/SignalsPage'
 import { HmrPage } from './pages/Tooling/HMR/HmrPage'
 import { FeaturesPage } from './pages/Features/FeaturesPage'
 
@@ -119,12 +125,72 @@ export const sections: DocSection[] = [
           'different from react mental model pure c++ compiled to slate no javascript vm no bridge no reflection retained slate widgets not virtual dom hooks pascalcase UseState events unreal delegate name OnClicked OnCheckStateChanged OnValueChanged never onclick onchange elements slate class minus S VerticalBox TextBlock Slider Rui mark custom widgets UseTransition synchronous structural error boundaries removed plain props do not reset style events refs draw reset preserved family semantic godot divergences react ref lifecycle subscribe-in-effect signals registry fname component identity',
         element: () => <DifferencesPage />,
       },
+      {
+        id: 'events',
+        canonicalId: 'events',
+        title: 'Events & Input',
+        path: '/guides/events',
+        keywords: ['events', 'input', 'OnClicked', 'OnTextChanged', 'OnCheckStateChanged', 'Value', 'delegate'],
+        searchContent:
+          'events input handling On plus slate delegate name OnClicked OnCheckStateChanged OnTextChanged OnTextCommitted OnValueChanged OnSelectionChanged no onclick no onchange event payload Value struct typed fields Value.TextValue Value.CheckState ECheckBoxState Button EditableTextBox CheckBox Slider SpinBox handler body c++ setter event props reset between renders disconnect stale delegate',
+        element: () => <EventsPage />,
+      },
+      {
+        id: 'context',
+        canonicalId: 'context',
+        title: 'Context API',
+        path: '/guides/context',
+        keywords: ['context', 'ProvideContext', 'UseContext', 'provider', 'consumer', 'theme'],
+        searchContent:
+          'context api ProvideContext statement UseContext consume nearest provided value subtree descendant re-render on change context key stable handle type shared module nested provider shadowing override theme locale current user vs signals global state scoped subtree dependency injection',
+        element: () => <ContextPage />,
+      },
+      {
+        id: 'refs-guide',
+        canonicalId: 'refs-guide',
+        title: 'Refs Guide',
+        path: '/guides/refs',
+        keywords: ['ref', 'UseRef', 'Current', 'mutable', 'UseImperativeHandle'],
+        searchContent:
+          'refs guide UseRef mutable box Current survives renders never triggers re-render escape hatch storage subscription handle previous value animation cursor timer handle not rendered vs UseState UseImperativeHandle expose imperative api parent focus scroll play ref lifecycle react model divergence from godot',
+        element: () => <RefsGuidePage />,
+      },
+      {
+        id: 'keys-guide',
+        canonicalId: 'keys-guide',
+        title: 'Keys Guide',
+        path: '/guides/keys',
+        keywords: ['key', 'list', 'reconciler', 'reorder', 'identity', 'FName', '@for'],
+        searchContent:
+          'keys guide key prop dynamic list reconciler identity which element corresponds move row instead of destroy rebuild @for FName stable unique per item not index reorder moves widgets component state hooks refs preserved index trap position 0 same key insert front transplant state keyed diff demo unique among siblings natural identity insertion removal',
+        element: () => <KeysGuidePage />,
+      },
+      {
+        id: 'custom-rendering',
+        canonicalId: 'custom-rendering',
+        title: 'Custom Rendering',
+        path: '/guides/custom-rendering',
+        keywords: ['custom rendering', 'RuiCanvas', 'DrawFn', 'MakeDrawFn', 'RedrawKey', 'paint'],
+        searchContent:
+          'custom rendering RuiCanvas slate paint surface draw function RUI::Slate::MakeDrawFn FGeometry FSlateWindowElementList int32 layer FRuiDrawFn UseMemo stable identity RUI::Deps repaint when draw fn identity changes DrawFn CanvasSize RedrawKey repaint on demand animation external data scatter plot MakeLines MakeBox custom brushes charts gauges gizmos declarative when to repaint slate drawing',
+        element: () => <CustomRenderingPage />,
+      },
     ],
   },
   {
     id: 'tooling',
     title: 'Tooling',
     pages: [
+      {
+        id: 'signals',
+        canonicalId: 'signals',
+        title: 'Signals',
+        path: '/tooling/signals',
+        keywords: ['signals', 'TRuiSignal', 'GetOrCreateSignal', 'UseSignalKey', 'shared state'],
+        searchContent:
+          'signals TRuiSignal reactive value store outside component tree single source of truth shared state many distant components subscribe re-render RUI::GetOrCreateSignal key initial one instance registered Set Update functional update freshest value RUI::UseSignalKey Ctx key default subscribe current value schedule re-render sibling panels lockstep app-wide state outlives component vs context subtree vs UseState own state',
+        element: () => <SignalsPage />,
+      },
       {
         id: 'hmr',
         canonicalId: 'hmr',
