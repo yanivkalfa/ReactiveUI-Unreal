@@ -23,11 +23,111 @@
 import { readFileSync, existsSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { readdirSync } from 'fs';
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
+// ── registry readers (each derives the TRUE count from the artifact that defines it) ──────
+
+/** The compiler-exported vocabulary the LSP + the docs catalog both read. */
+function readUetkxSchema() {
+  const raw = readFileSync(
+    resolve(REPO_ROOT, 'ide-extensions/lsp-server/src/uetkx-schema.json'),
+    'utf8',
+  ).replace(/^﻿/, '');
+  return JSON.parse(raw);
+}
+
+/** Core hooks = the Ctx member hooks in RuiContext.h (Use* + ProvideContext, minus *Impl)
+ *  + UseSignal/UseSignalKey (RuiSignal.h) + UsePresence (RuiPresence.h) — the audited 23. */
+function countCoreHooks() {
+  const ctx = readFileSync(
+    resolve(REPO_ROOT, 'Plugins/ReactiveUI/Source/ReactiveUICore/Public/RuiContext.h'),
+    'utf8',
+  );
+  const names = new Set();
+  for (const m of ctx.matchAll(/\b(Use[A-Z]\w+|ProvideContext)\s*\(/g)) {
+    if (!m[1].endsWith('Impl')) names.add(m[1]);
+  }
+  return names.size + 2 /* UseSignal, UseSignalKey */ + 1 /* UsePresence */;
+}
+
+/** Wrapped Slate widgets = the public FRuiNode factories in ReactiveUISlate + core TextBlock. */
+function countWidgetFactories() {
+  const dir = resolve(REPO_ROOT, 'Plugins/ReactiveUI/Source/ReactiveUISlate/Public');
+  const names = new Set();
+  for (const f of readdirSync(dir)) {
+    if (!f.endsWith('.h')) continue;
+    const text = readFileSync(resolve(dir, f), 'utf8');
+    for (const m of text.matchAll(/REACTIVEUISLATE_API FRuiNode ([A-Z]\w+)\s*\(/g)) {
+      names.add(m[1]);
+    }
+  }
+  return names.size + 1; // + RUI::TextBlock (core)
+}
+
+/** Gallery screens = the screen directories under Source/RuiDemo/Screens. */
+function countGalleryScreens() {
+  return readdirSync(resolve(REPO_ROOT, 'Source/RuiDemo/Screens'), { withFileTypes: true }).filter(
+    (e) => e.isDirectory(),
+  ).length;
+}
+
+/** Automation tests = IMPLEMENT_*_AUTOMATION_TEST macros in the test module. */
+function countAutomationTests() {
+  const dir = resolve(REPO_ROOT, 'Source/RuiHostTests/Private');
+  let count = 0;
+  for (const f of readdirSync(dir)) {
+    if (!f.endsWith('.cpp')) continue;
+    const text = readFileSync(resolve(dir, f), 'utf8');
+    count += (text.match(/IMPLEMENT_\w*AUTOMATION_TEST\s*\(/g) ?? []).length;
+  }
+  return count;
+}
+
 const CHECKS = [
-  // ── none yet (Phase 0) — see the doc comment for the wiring rule ──
+  {
+    // README status blockquote: "(23 core hooks, ...".
+    file: 'README.md',
+    pattern: /\((\d+) core hooks/,
+    source: countCoreHooks,
+  },
+  {
+    // Docs intro: "UseState, UseEffect, and 21 more" (= the 23 total, 2 named + N more).
+    file: 'ReactiveUIUnrealDocs~/src/pages/Introduction/IntroductionPage.tsx',
+    pattern: /and (\d+) more/,
+    source: () => countCoreHooks() - 2,
+  },
+  {
+    // README: "35+ wrapped Slate widgets" — a floor claim; the registry must be >= it.
+    file: 'README.md',
+    pattern: /(\d+)\+ wrapped Slate widgets/,
+    source: () => {
+      const actual = countWidgetFactories();
+      return actual >= 35 ? 35 : actual; // a shrink below the floor surfaces the real number
+    },
+  },
+  {
+    // README: "The demo gallery's 16 screens".
+    file: 'README.md',
+    pattern: /demo gallery's (\d+) screens/,
+    source: countGalleryScreens,
+  },
+  {
+    // README: "green under a 100+-test headless automation battery" — floor claim.
+    file: 'README.md',
+    pattern: /(\d+)\+-test headless/,
+    source: () => {
+      const actual = countAutomationTests();
+      return actual >= 100 ? 100 : actual;
+    },
+  },
+  {
+    // Components Overview prose: "Markup tags (29 of them)" — must equal the schema exactly.
+    file: 'ReactiveUIUnrealDocs~/src/pages/ComponentsOverview/ComponentsOverviewPage.tsx',
+    pattern: /\((\d+) of them\)/,
+    source: () => Object.keys(readUetkxSchema().elements ?? {}).length,
+  },
 ];
 
 let failures = 0;

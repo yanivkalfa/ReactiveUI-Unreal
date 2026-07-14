@@ -172,9 +172,9 @@ export const FeaturesPage: FC = () => (
     </TableContainer>
 
     <Alert severity="info">
-      The per-widget catalog (one page per host tag) is generated from the widget prop-map schema —
-      landing that generation is the remaining docs-site step; this page is the hand-written
-      overview until then.
+      The per-widget catalog (one page per host tag) is generated from the compiler-exported
+      schema — see the <strong>Components</strong> section in the sidebar; this page covers the
+      C++-level subsystems the schema doesn&apos;t describe.
     </Alert>
   </Box>
 )

@@ -32,10 +32,11 @@ const ITEMS: Array<[string, ReactNode]> = [
       an intentional family semantic.</>,
   ],
   [
-    'Per-widget reference pages are pending',
-    <>The Components section is data-driven from the compiler&apos;s prop-map, which is still being
-      finalized — until it lands, use <strong>Components Overview</strong> plus the widget&apos;s Slate
-      class as the reference.</>,
+    'C++-only factories have no generated pages yet',
+    <>The per-tag Components pages generate from the compiler-exported schema (the 29 markup
+      tags). The nine C++-only factories (ListView/TileView, drag-and-drop, the render-prop
+      specials) are covered by <strong>Subsystems in depth</strong> and the guides until they join
+      the schema.</>,
   ],
 ]
 

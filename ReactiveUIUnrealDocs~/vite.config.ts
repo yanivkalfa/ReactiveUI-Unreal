@@ -31,20 +31,36 @@ function readPluginVersion(): string {
   }
 }
 
-// ── host-element tables ───────────────────────────────────────────────────────
-// TODO(Phase 2): wire these to templates/prop-map.schema.json (the widget prop-map
-// the toolchain ships) the same way the Godot sibling reads its ClassDB dump +
-// guitkx schema, so the per-widget prop/event tables never drift from the tooling.
-// Until the prop-map data lands, the tables are empty and the docs ship only the
-// non-catalog pages.
-const hostElements: Record<string, unknown> = {}
-const hostTags: string[] = []
-const schema: {
-  structuralAttributes: unknown[]
-  commonAttributes: unknown[]
-  controlFlow: unknown[]
-  preambleDirectives: unknown[]
-} = { structuralAttributes: [], commonAttributes: [], controlFlow: [], preambleDirectives: [] }
+// ── host-element tables — read from the compiler-exported schema ─────────────
+// The SAME vocabulary the LSP serves (ide-extensions/lsp-server/src/uetkx-schema.json,
+// refreshed by the RUIExportSchema commandlet), so the per-widget prop/event tables can
+// never drift from the tooling — the docs and the editor read one source of truth.
+type UetkxSchema = {
+  v?: number
+  elements?: Record<string, { factory?: string; children?: boolean; attrs?: Record<string, string> }>
+  styleKeys?: string[]
+  slotKeys?: string[]
+  hooks?: string[]
+  eventPayloads?: Record<string, string>
+}
+
+function readUetkxSchema(): UetkxSchema {
+  try {
+    const raw = fs
+      .readFileSync(path.join(repoRoot, 'ide-extensions', 'lsp-server', 'src', 'uetkx-schema.json'), 'utf-8')
+      .replace(/^﻿/, '')
+    return JSON.parse(raw) as UetkxSchema
+  } catch {
+    return {}
+  }
+}
+
+const uetkxSchema = readUetkxSchema()
+const hostElements: Record<string, unknown> = uetkxSchema.elements ?? {}
+const hostTags: string[] = Object.keys(uetkxSchema.elements ?? {})
+const styleKeys: string[] = uetkxSchema.styleKeys ?? []
+const slotKeys: string[] = uetkxSchema.slotKeys ?? []
+const eventPayloads: Record<string, string> = uetkxSchema.eventPayloads ?? {}
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -57,10 +73,9 @@ export default defineConfig({
     __UE_MIN__: JSON.stringify('5.6'),
     __HOST_ELEMENTS__: JSON.stringify(hostElements),
     __HOST_TAGS__: JSON.stringify(hostTags),
-    __STRUCTURAL_ATTRS__: JSON.stringify(schema.structuralAttributes),
-    __COMMON_ATTRS__: JSON.stringify(schema.commonAttributes),
-    __CONTROL_FLOW__: JSON.stringify(schema.controlFlow),
-    __PREAMBLE_DIRECTIVES__: JSON.stringify(schema.preambleDirectives),
+    __STYLE_KEYS__: JSON.stringify(styleKeys),
+    __SLOT_KEYS__: JSON.stringify(slotKeys),
+    __EVENT_PAYLOADS__: JSON.stringify(eventPayloads),
   },
   css: {
     postcss: './postcss.config.cjs',
