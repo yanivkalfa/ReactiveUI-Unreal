@@ -20,7 +20,7 @@ namespace
 {
 	// HMR v2 (D-HMR-4): a fast ticker + a quiet-window debounce so a save is picked up in ~300 ms
 	// (coalesced), not on the slow fallback poll. The stale/fingerprint fallback stays throttled.
-	constexpr float TickSeconds = 0.15f; // FTSTicker delay is float (UE 5.8 warns on the double)
+	constexpr float TickSeconds = 0.15f;			// FTSTicker delay is float (UE 5.8 warns on the double)
 	constexpr double DefaultDebounceSeconds = 0.30; // quiet window after the last .uetkx event (settings override)
 	constexpr double StalePollSeconds = 2.0;		// throttle for the (file-I/O) HasStale fallback
 	constexpr double DeadmanSeconds = 30.0;
