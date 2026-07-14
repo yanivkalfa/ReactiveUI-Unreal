@@ -5,6 +5,7 @@ import { PAGE_VERSIONS, isAvailableIn, compareVersions } from './versionManifest
 import { IntroductionPage } from './pages/Introduction/IntroductionPage'
 import { GettingStartedPage } from './pages/GettingStarted/GettingStartedPage'
 import { ConceptsPage } from './pages/Concepts/ConceptsPage'
+import { MigrationPage } from './pages/Migration/MigrationPage'
 import { ImportsPage } from './pages/Uetkx/ImportsPage'
 import { HooksGuidePage } from './pages/Hooks/HooksGuidePage'
 import { StylingPage } from './pages/Styling/StylingPage'
@@ -102,6 +103,16 @@ export const sections: DocSection[] = [
         searchContent:
           'concepts environment react-style function components fiber reconciler diffs patches slate widgets pure c++ no javascript no uobject in core components hooks modules declaration kinds companion files .hooks.uetkx export hook UseCounter export module Styles synchronous rendering keyed reconciliation bailout effects after commit positional hooks call order unconditional top level IRuiHostConfig umg commonui mvvm rui.StrictMode rui.HookValidation rui.StrictDiagnostics rui.TimeSlicing rui.FrameBudgetMs rui.HostNodePool stat ReactiveUI console variables cvars',
         element: () => <ConceptsPage />,
+      },
+      {
+        id: 'migration',
+        canonicalId: 'migration',
+        title: 'Migration & Adoption',
+        path: '/guides/migration',
+        keywords: ['migration', 'adoption', 'existing project', 'incremental', 'umg', 'convert'],
+        searchContent:
+          'migration adoption existing project incremental nobody rewrites shipping ui leaf islands panel URuiHostWidget ReactiveUI Host designer ComponentName registered component whole screens URuiActivatableScreen commonui stack AddWidgetInstance MountNamed URuiWorldSubsystem overlay inversion ReactiveUI owns tree RUI::Umg::UserWidget legacy widgets UseField viewmodels feed data convert hand-written c++ components RUI:: builder calls to .uetkx markup mechanical same reconciler hooks gallery reference RUIMigrateImports strict imports codemod deprecation policy VERSIONING changelog',
+        element: () => <MigrationPage />,
       },
       {
         id: 'uetkx-imports',
