@@ -21,6 +21,13 @@ import { ComponentsOverviewPage } from './pages/ComponentsOverview/ComponentsOve
 import { ApiReferencePage } from './pages/API/ApiReferencePage'
 import { DiagnosticsPage } from './pages/Diagnostics/DiagnosticsPage'
 import { ConfigPage } from './pages/Config/ConfigPage'
+import { AssetsPage } from './pages/Assets/AssetsPage'
+import { RouterPage } from './pages/Router/RouterPage'
+import { SuspensePage } from './pages/Suspense/SuspensePage'
+import { DebuggingPage } from './pages/Debugging/DebuggingPage'
+import { FAQPage } from './pages/FAQ/FAQPage'
+import { KnownIssuesPage } from './pages/KnownIssues/KnownIssuesPage'
+import { RoadmapPage } from './pages/Roadmap/RoadmapPage'
 import { HmrPage } from './pages/Tooling/HMR/HmrPage'
 import { FeaturesPage } from './pages/Features/FeaturesPage'
 
@@ -110,6 +117,16 @@ export const sections: DocSection[] = [
         searchContent:
           'companion files beside component same base name role suffix .uetkx extension Name.uetkx Name.hooks.uetkx custom Use hooks reusable state effect logic Name.style.uetkx module shared constants colors sizes brushes export hook UseCounter export module ContextDemoStyle static const FLinearColor compiles committed c++ convention not special kind export what other files need private',
         element: () => <CompanionFilesPage />,
+      },
+      {
+        id: 'assets',
+        canonicalId: 'assets',
+        title: 'Assets',
+        path: '/guides/assets',
+        keywords: ['assets', 'brush', 'texture', 'font', 'image', 'MakeAssetBrush'],
+        searchContent:
+          'assets slate brushes fonts colors not raw paths FSlateBrush references UObject RUI::Umg::MakeAssetBrush ResourceObject ImageSize Tint UTexture2D material render target TObjectPtr soft reference asset manager Image Border Button background FSlateFontInfo Font keys FSlateColor FLinearColor ColorAndOpacity literal unreal names lifetime keep owning object alive ref member',
+        element: () => <AssetsPage />,
       },
       {
         id: 'hooks-guide',
@@ -208,6 +225,16 @@ export const sections: DocSection[] = [
         element: () => <SignalsPage />,
       },
       {
+        id: 'router',
+        canonicalId: 'router',
+        title: 'Router',
+        path: '/tooling/router',
+        keywords: ['router', 'routes', 'route', 'outlet', 'navlink', 'navigation', 'UseNavigate'],
+        searchContent:
+          'router in-memory react router markup Router InitialPath Routes best match path Route Path Index element RUI::FC Outlet nested route NavLink Link active state hooks UseNavigate imperative UseLocation UsePathname UseParams dynamic segments UseSearchParams query UseMatch UseResolvedPath UseOutlet UseBlocker navigation guard unsaved changes game ui menus settings nested screens no url bar',
+        element: () => <RouterPage />,
+      },
+      {
         id: 'hmr',
         canonicalId: 'hmr',
         title: 'Hot Module Replacement',
@@ -216,6 +243,16 @@ export const sections: DocSection[] = [
         searchContent:
           'hot module replacement hmr live reload edit .uetkx save running ui updates under a second state preserved no manual rebuild no restart unreal live coding rides c++ hot reload FUetkxHmrController recompiles committed c++ whole-project patches loaded modules reconciler re-renders hook state stored by slot on fibers survive patch counters inputs scroll positions ReactiveUetkx menu window follow play PIE play stop live coding enabled windows editor development-time shipping compiles committed uetkx.inl ahead of time compile error skipped last good build message log',
         element: () => <HmrPage />,
+      },
+      {
+        id: 'suspense',
+        canonicalId: 'suspense',
+        title: 'Suspense',
+        path: '/tooling/suspense',
+        keywords: ['suspense', 'fallback', 'loading', 'async', 'boundary'],
+        searchContent:
+          'suspense fallback content not ready swap loading state async resource streamed asset deferred computation no throw-to-suspend c++ has no equivalent declarative boundary polyfill readiness driven explicitly poll driver self-re-arming frame request signal flips fallback to content family divergence godot unity model not-ready state stress test poll-driver frame loop RUI::Suspense Fallback',
+        element: () => <SuspensePage />,
       },
     ],
   },
@@ -273,6 +310,16 @@ export const sections: DocSection[] = [
           'configuration uetkx.config.json walk up nearest wins root import alias printWidth formatter wrap indentStyle tab space indentSize editor settings vscode vs2022 extension editor.defaultFormatter ReactiveUITK.uetkx editor.formatOnSave editor.insertSpaces false editor.detectIndentation false restart language server command golden corpus locked format on save byte consistent one component per file authoring only not runtime',
         element: () => <ConfigPage />,
       },
+      {
+        id: 'debugging',
+        canonicalId: 'debugging',
+        title: 'Debugging Guide',
+        path: '/reference/debugging',
+        keywords: ['debugging', 'generated code', 'diags.json', 'message log', 'cvars', 'breakpoints'],
+        searchContent:
+          'debugging guide generated code committed uetkx.inl readable c++ RUI::FC RUI::Slate lowered breakpoints compiler diagnostics UETKX code uetkx.diags.json sidecar gitignored ReactiveUI message log editor extensions inline restart language server runtime cvars rui.StrictMode rui.Stats rui.DumpTree hook called conditionally desync positional slots wrong state re-render unconditional top level live coding',
+        element: () => <DebuggingPage />,
+      },
     ],
   },
   {
@@ -319,6 +366,54 @@ export const sections: DocSection[] = [
       sinceUE: page.sinceUE,
       element: page.element,
     })),
+  },
+  {
+    id: 'faq',
+    title: 'FAQ',
+    pages: [
+      {
+        id: 'faq',
+        canonicalId: 'faq',
+        title: 'FAQ',
+        path: '/faq',
+        keywords: ['faq', 'questions', 'help', 'production', 'versions', 'umg', 'mvvm'],
+        searchContent:
+          'faq frequently asked questions what is reactiveui for unreal react-style ui library pure c++ fiber reconciler slate widgets .uetkx compiles committed c++ which unreal versions 5.6 plugin no gdextension no external runtime production ready pre-alpha phases 8 9 docs release localization deferred scripting vm no javascript engine bridge reflection-free existing umg widgets UUserWidget RUI::Umg::UserWidget MVVM view-models FieldNotify UseField CommonUI activatable event props OnClicked not onClick loyal to unreal hot reload live coding windows state preserved editor support vs code visual studio 2022 extensions offline',
+        element: () => <FAQPage />,
+      },
+    ],
+  },
+  {
+    id: 'known-issues',
+    title: 'Known Issues',
+    pages: [
+      {
+        id: 'known-issues',
+        canonicalId: 'known-issues',
+        title: 'Known Issues',
+        path: '/known-issues',
+        keywords: ['known issues', 'limitations', 'localization', 'hmr', 'hooks', 'transitions'],
+        searchContent:
+          'known issues limitations pre-alpha localization deferred FText gathering post-v1 hot reload windows only live coding shipping unaffected committed uetkx.inl hooks unconditional positional slots @if @for desync rui.StrictMode transitions synchronous UseTransition no concurrent renderer api parity removed plain props do not reset style events refs draw reset intentional family semantic per-widget reference pages pending prop-map components overview slate class decisions not bugs',
+        element: () => <KnownIssuesPage />,
+      },
+    ],
+  },
+  {
+    id: 'roadmap',
+    title: 'Roadmap',
+    pages: [
+      {
+        id: 'roadmap',
+        canonicalId: 'roadmap',
+        title: 'Roadmap',
+        path: '/roadmap',
+        keywords: ['roadmap', 'status', 'phases', 'progress', 'release'],
+        searchContent:
+          'roadmap living status plans/ROADMAP.md phases core reconciler hooks signals suspense slate host widgets style uetkx compiler build committed inl schema RUICompile formatter hot reload live coding ide extensions language server vs code vs2022 umg commonui mvvm interop UseField activatables production gaps virtualized lists focus animation portals drag and drop widget batch 2 localization deferred demos gallery benchmarks docs site in progress release publishing owner gated ship gate fab marketplace done in progress planned',
+        element: () => <RoadmapPage />,
+      },
+    ],
   },
 ]
 
