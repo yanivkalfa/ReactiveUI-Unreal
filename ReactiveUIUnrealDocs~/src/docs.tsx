@@ -15,6 +15,12 @@ import { RefsGuidePage } from './pages/Refs/RefsGuidePage'
 import { KeysGuidePage } from './pages/Keys/KeysGuidePage'
 import { CustomRenderingPage } from './pages/CustomRendering/CustomRenderingPage'
 import { SignalsPage } from './pages/Signals/SignalsPage'
+import { CompanionFilesPage } from './pages/CompanionFiles/CompanionFilesPage'
+import { LanguageReferencePage } from './pages/Reference/LanguageReferencePage'
+import { ComponentsOverviewPage } from './pages/ComponentsOverview/ComponentsOverviewPage'
+import { ApiReferencePage } from './pages/API/ApiReferencePage'
+import { DiagnosticsPage } from './pages/Diagnostics/DiagnosticsPage'
+import { ConfigPage } from './pages/Config/ConfigPage'
 import { HmrPage } from './pages/Tooling/HMR/HmrPage'
 import { FeaturesPage } from './pages/Features/FeaturesPage'
 
@@ -94,6 +100,16 @@ export const sections: DocSection[] = [
         searchContent:
           'uetkx imports exports static import export module strict resolution codemod RUIMigrateImports ~/ root alias specifier relative extensionless named export privacy tree-shaken UETKX2106 2300 2301 2302 2303 2304 2305 2306 2307 2308 2309 duplicate export binding unknown specifier not exported not declared duplicate unused used not imported value cycle module boundary preamble uetkx.config.json root key',
         element: () => <ImportsPage />,
+      },
+      {
+        id: 'companion-files',
+        canonicalId: 'companion-files',
+        title: 'Companion Files',
+        path: '/guides/companion-files',
+        keywords: ['companion', 'hooks', 'module', 'style', '.hooks.uetkx', '.style.uetkx'],
+        searchContent:
+          'companion files beside component same base name role suffix .uetkx extension Name.uetkx Name.hooks.uetkx custom Use hooks reusable state effect logic Name.style.uetkx module shared constants colors sizes brushes export hook UseCounter export module ContextDemoStyle static const FLinearColor compiles committed c++ convention not special kind export what other files need private',
+        element: () => <CompanionFilesPage />,
       },
       {
         id: 'hooks-guide',
@@ -200,6 +216,62 @@ export const sections: DocSection[] = [
         searchContent:
           'hot module replacement hmr live reload edit .uetkx save running ui updates under a second state preserved no manual rebuild no restart unreal live coding rides c++ hot reload FUetkxHmrController recompiles committed c++ whole-project patches loaded modules reconciler re-renders hook state stored by slot on fibers survive patch counters inputs scroll positions ReactiveUetkx menu window follow play PIE play stop live coding enabled windows editor development-time shipping compiles committed uetkx.inl ahead of time compile error skipped last good build message log',
         element: () => <HmrPage />,
+      },
+    ],
+  },
+  {
+    id: 'reference',
+    title: 'Reference',
+    pages: [
+      {
+        id: 'language-reference',
+        canonicalId: 'language-reference',
+        title: 'Language Reference',
+        path: '/reference',
+        keywords: ['reference', 'syntax', 'directives', 'preamble', 'fragment', '@if', '@for', '@match'],
+        searchContent:
+          'language reference uetkx compiles committed c++ preamble #include import statements component hook module declarations typed parameters defaults return exactly one root element attribute value string or expr brace child fragment <> comments // /* */ {/* */} control flow directives @if @elif @else @for @while @match @case @default structural attributes key Slot event props On widget slate property PascalCase UETKX0103 UETKX0108',
+        element: () => <LanguageReferencePage />,
+      },
+      {
+        id: 'components-overview',
+        canonicalId: 'components-overview',
+        title: 'Components Overview',
+        path: '/reference/components',
+        keywords: ['components', 'host elements', 'tags', 'slate', 'catalog', 'widgets'],
+        searchContent:
+          'components overview host elements intrinsic tags 1:1 slate widget tag is slate class minus S VerticalBox HorizontalBox Overlay WrapBox UniformGridPanel GridPanel UniformWrapPanel ScrollBox WidgetSwitcher Box Border ScaleBox SafeZone DPIScaler Spacer Separator TextBlock RichTextBlock Image ProgressBar Throbber Button CheckBox Slider SpinBox EditableTextBox MultiLineEditableTextBox SearchBox DragSource DropTarget Link RuiCanvas Rui mark Fragment Suspense function components pascalcase props style keys events exact unreal names prop-map generated per-widget reference',
+        element: () => <ComponentsOverviewPage />,
+      },
+      {
+        id: 'api-reference',
+        canonicalId: 'api-reference',
+        title: 'API Reference',
+        path: '/reference/api',
+        keywords: ['api', 'RUI', 'FRuiRoot', 'RUI::FC', 'factories', 'namespace'],
+        searchContent:
+          'api reference RUI namespace RUI::Slate RUI::Umg RUI::CommonUI hooks free functions FRuiRoot CreateInViewport mount viewport zorder TSharedPtr Reset unmount RUI::FC function component vnode props children key RUI::Fragment RUI::Suspense fallback RUI::Fmt text interpolation FText RUI::Deps dependency list UseMemo UseCallback UseEffect RUI::Slate::VerticalBox Button Border factories MakeDrawFn FRuiDrawFn RuiCanvas UseShortcut FRuiShortcut GetOrCreateSignal UseSignalKey ProvideContext UseContext RUI::Umg::UserWidget UseField FieldNotify RUI::CommonUI::ActivationContext UseIsActive',
+        element: () => <ApiReferencePage />,
+      },
+      {
+        id: 'diagnostics',
+        canonicalId: 'diagnostics',
+        title: 'Diagnostics',
+        path: '/reference/diagnostics',
+        keywords: ['diagnostics', 'UETKX', 'errors', 'warnings', 'codes'],
+        searchContent:
+          'diagnostics UETKX code stable catalog compiler build time language server editor as you type same meaning everywhere machine-readable uetkx.diags.json sidecar gitignored ReactiveUI message log bands UETKX01xx structural 0103 name file mismatch 0105 unknown element 0108 multiple roots UETKX03xx syntax 0300 0301 0302 0303 0304 0305 UETKX21xx declarations 2100 pascalcase 2101 no declaration 2106 duplicate export UETKX22xx hooks modules 2200 2201 2202 2203 2204 2205 UETKX23xx imports 2300 2309 UETKX25xx directives 2506 2508 UETKX30xx codegen 3006 template hook',
+        element: () => <DiagnosticsPage />,
+      },
+      {
+        id: 'configuration',
+        canonicalId: 'configuration',
+        title: 'Configuration',
+        path: '/reference/config',
+        keywords: ['config', 'uetkx.config.json', 'formatter', 'settings', 'editor', 'root'],
+        searchContent:
+          'configuration uetkx.config.json walk up nearest wins root import alias printWidth formatter wrap indentStyle tab space indentSize editor settings vscode vs2022 extension editor.defaultFormatter ReactiveUITK.uetkx editor.formatOnSave editor.insertSpaces false editor.detectIndentation false restart language server command golden corpus locked format on save byte consistent one component per file authoring only not runtime',
+        element: () => <ConfigPage />,
       },
     ],
   },
