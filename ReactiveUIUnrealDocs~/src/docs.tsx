@@ -3,7 +3,13 @@ import type { Page as LegacyPage } from './pages'
 import { pages as legacySections } from './pages'
 import { PAGE_VERSIONS, isAvailableIn, compareVersions } from './versionManifest'
 import { IntroductionPage } from './pages/Introduction/IntroductionPage'
+import { GettingStartedPage } from './pages/GettingStarted/GettingStartedPage'
+import { ConceptsPage } from './pages/Concepts/ConceptsPage'
 import { ImportsPage } from './pages/Uetkx/ImportsPage'
+import { HooksGuidePage } from './pages/Hooks/HooksGuidePage'
+import { StylingPage } from './pages/Styling/StylingPage'
+import { DifferencesPage } from './pages/Differences/DifferencesPage'
+import { HmrPage } from './pages/Tooling/HMR/HmrPage'
 import { FeaturesPage } from './pages/Features/FeaturesPage'
 
 export type DocPage = {
@@ -44,9 +50,35 @@ export const sections: DocSection[] = [
     ],
   },
   {
+    id: 'getting-started',
+    title: 'Getting Started',
+    pages: [
+      {
+        id: 'getting-started',
+        canonicalId: 'getting-started',
+        title: 'Install & Setup',
+        path: '/getting-started',
+        keywords: ['install', 'setup', 'plugin', 'build.cs', 'mount', 'FRuiRoot', 'RUICompile'],
+        searchContent:
+          'getting started install setup enable ReactiveUI plugin edit plugins Build.cs PublicDependencyModuleNames ReactiveUICore ReactiveUISlate Slate SlateCore write a .uetkx component one component per file file name matches component HelloWorld UseState VerticalBox TextBlock RUI::Fmt Button OnClicked SetCount mount FRuiRoot CreateInViewport RUI::FC ZOrder TSharedPtr UWorld GameMode PlayerController GameInstance HUD BeginPlay RuiRoot.h compile RUICompile commandlet -check drift gate committed uetkx.inl Uetkx.gen.cpp reflection-free diags.json sidecar gitignored unreal engine 5.6',
+        element: () => <GettingStartedPage />,
+      },
+    ],
+  },
+  {
     id: 'guides',
     title: 'Guides',
     pages: [
+      {
+        id: 'concepts',
+        canonicalId: 'concepts',
+        title: 'Concepts & Environment',
+        path: '/concepts',
+        keywords: ['concepts', 'reconciler', 'components', 'hooks', 'modules', 'companion', 'cvars'],
+        searchContent:
+          'concepts environment react-style function components fiber reconciler diffs patches slate widgets pure c++ no javascript no uobject in core components hooks modules declaration kinds companion files .hooks.uetkx export hook UseCounter export module Styles synchronous rendering keyed reconciliation bailout effects after commit positional hooks call order unconditional top level IRuiHostConfig umg commonui mvvm rui.StrictMode rui.Stats rui.DumpTree console variables cvars',
+        element: () => <ConceptsPage />,
+      },
       {
         id: 'uetkx-imports',
         canonicalId: 'uetkx-imports',
@@ -57,6 +89,58 @@ export const sections: DocSection[] = [
           'uetkx imports exports static import export module strict resolution codemod RUIMigrateImports ~/ root alias specifier relative extensionless named export privacy tree-shaken UETKX2106 2300 2301 2302 2303 2304 2305 2306 2307 2308 2309 duplicate export binding unknown specifier not exported not declared duplicate unused used not imported value cycle module boundary preamble uetkx.config.json root key',
         element: () => <ImportsPage />,
       },
+      {
+        id: 'hooks-guide',
+        canonicalId: 'hooks-guide',
+        title: 'Hooks Guide',
+        path: '/guides/hooks',
+        keywords: ['hooks', 'UseState', 'UseEffect', 'UseMemo', 'UseRef', 'UseReducer', 'UseContext'],
+        searchContent:
+          'hooks guide UseState UseReducer UseEffect UseLayoutEffect UseMemo UseCallback UseRef UseImperativeHandle UseContext ProvideContext UseStableCallback UseStableFunc UseStableAction UseDeferredValue UseTransition synchronous UseSignal UseSignalKey UseAnimate UseTween UseTweenValue UseSfx UseSafeArea UsePresence functional updater cleanup dependency list positional slot unconditional top level pascalcase custom hook composition .hooks.uetkx tuple',
+        element: () => <HooksGuidePage />,
+      },
+      {
+        id: 'styling',
+        canonicalId: 'styling',
+        title: 'Styling',
+        path: '/styling',
+        keywords: ['style', 'padding', 'slot', 'brush', 'color', 'FMargin', 'FLinearColor', 'FSlateColor'],
+        searchContent:
+          'styling no uss no css no cascade no stylesheet language widget properties directly in markup style key exact unreal setter property name Padding ContentPadding ColorAndOpacity BorderImage BorderBackgroundColor WidthOverride HeightOverride RenderOpacity RenderTransform Size FMargin FLinearColor FSlateColor FVector2D brush slot props Slot.Padding Slot.HAlign Slot.VAlign parent panel slot setters HAlign_Fill HAlign_Right compact string forms SetPadding SetColorAndOpacity',
+        element: () => <StylingPage />,
+      },
+      {
+        id: 'differences',
+        canonicalId: 'differences',
+        title: 'Different from React',
+        path: '/differences',
+        keywords: ['react', 'differences', 'events', 'onclicked', 'slate', 'synchronous', 'naming'],
+        searchContent:
+          'different from react mental model pure c++ compiled to slate no javascript vm no bridge no reflection retained slate widgets not virtual dom hooks pascalcase UseState events unreal delegate name OnClicked OnCheckStateChanged OnValueChanged never onclick onchange elements slate class minus S VerticalBox TextBlock Slider Rui mark custom widgets UseTransition synchronous structural error boundaries removed plain props do not reset style events refs draw reset preserved family semantic godot divergences react ref lifecycle subscribe-in-effect signals registry fname component identity',
+        element: () => <DifferencesPage />,
+      },
+    ],
+  },
+  {
+    id: 'tooling',
+    title: 'Tooling',
+    pages: [
+      {
+        id: 'hmr',
+        canonicalId: 'hmr',
+        title: 'Hot Module Replacement',
+        path: '/tooling/hmr',
+        keywords: ['hmr', 'hot reload', 'live coding', 'follow play', 'ReactiveUetkx'],
+        searchContent:
+          'hot module replacement hmr live reload edit .uetkx save running ui updates under a second state preserved no manual rebuild no restart unreal live coding rides c++ hot reload FUetkxHmrController recompiles committed c++ whole-project patches loaded modules reconciler re-renders hook state stored by slot on fibers survive patch counters inputs scroll positions ReactiveUetkx menu window follow play PIE play stop live coding enabled windows editor development-time shipping compiles committed uetkx.inl ahead of time compile error skipped last good build message log',
+        element: () => <HmrPage />,
+      },
+    ],
+  },
+  {
+    id: 'beyond-v1',
+    title: 'Beyond v1',
+    pages: [
       {
         id: 'post-v1-subsystems',
         canonicalId: 'post-v1-subsystems',
