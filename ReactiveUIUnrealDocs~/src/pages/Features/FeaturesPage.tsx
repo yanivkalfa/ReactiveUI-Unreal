@@ -6,12 +6,12 @@ const ROUTER = `#include "RuiRouter.h"
 
 // A router owns an in-memory history; Routes renders the best match for the current location.
 FRuiNode App(FRuiContext& Ctx) {
-    return RUI::Router({
-        RUI::Routes({
-            FRuiRoute{ TEXT("/"),          RUI::FC(&HomeScreen) },
-            FRuiRoute{ TEXT("/users/:id"), RUI::FC(&UserScreen) },
-        }),
-    }, TEXT("/"));
+	return RUI::Router({
+		RUI::Routes({
+			FRuiRoute{ TEXT("/"),          RUI::FC(&HomeScreen) },
+			FRuiRoute{ TEXT("/users/:id"), RUI::FC(&UserScreen) },
+		}),
+	}, TEXT("/"));
 }
 
 // Inside a route component: the family's 17 router hooks (global free functions, not RUI-scoped).
@@ -23,8 +23,8 @@ auto                          Search = UseSearchParams(Ctx);`
 const STYLESHEET = `// theme.uss — @theme tokens + $token refs; the cascade is theme < classes < inline.
 // DECLARE tokens BARE; REFERENCE them with a leading $ (a ref strips the $ and matches the bare name).
 @theme dark {
-    bg: #10131a;
-    accent: #4f8cff;
+	bg: #10131a;
+	accent: #4f8cff;
 }
 .panel { RenderOpacity: 1; BorderBackgroundColor: $accent; }   // $accent -> #4f8cff under theme "dark"
 
@@ -39,7 +39,7 @@ const LISTVIEW = `#include "RuiListView.h"
 FRuiListViewProps P;
 P.SetItems(Items);                                  // stable TSharedPtr<FRuiValue> array
 P.SetRenderItem(RUI::Slate::MakeItemRenderer(
-    [](const FRuiValue& V, int32) { return RUI::TextBlock(V.StringValue); }));
+	[](const FRuiValue& V, int32) { return RUI::TextBlock(V.StringValue); }));
 P.SetSelectionMode(FName(TEXT("single")));          // none | single | singleToggle | multi
 return RUI::Slate::ListView(MoveTemp(P));            // or TileView(...)`
 

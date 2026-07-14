@@ -4,18 +4,18 @@ import { CodeBlock } from '../../components/CodeBlock/CodeBlock'
 
 const CONFIG = `// uetkx.config.json — walked up from a file; nearest one wins.
 {
-  "root": "Source",       // what "~/" resolves to for imports in this tree
-  "printWidth": 100,       // formatter wrap width
-  "indentStyle": "tab",   // "tab" | "space"
-  "indentSize": 4
+	"root": "Source",       // what "~/" resolves to for imports in this tree
+	"printWidth": 100,       // formatter wrap width
+	"indentStyle": "tab",   // "tab" | "space"
+	"indentSize": 4
 }`
 
 const EDITOR = `// .vscode/settings.json — the extension sets these defaults for .uetkx.
 "[uetkx]": {
-  "editor.defaultFormatter": "ReactiveUITK.uetkx",
-  "editor.formatOnSave": true,
-  "editor.insertSpaces": false,
-  "editor.detectIndentation": false
+	"editor.defaultFormatter": "ReactiveUITK.uetkx",
+	"editor.formatOnSave": true,
+	"editor.insertSpaces": false,
+	"editor.detectIndentation": false
 }`
 
 const KEYS: Array<[string, string]> = [

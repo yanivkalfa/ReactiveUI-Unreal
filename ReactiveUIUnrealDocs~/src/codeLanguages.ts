@@ -23,8 +23,13 @@ if (!Prism.languages.uetkx) {
       greedy: true,
     },
     directive: {
-      // Markup control flow and preamble: @if, @elif, @else, @for, @match, @class_name, …
+      // Markup control flow: @if, @elif, @else, @for, @while, @match, @case, @default.
       pattern: /@[A-Za-z_]\w*/,
+      alias: 'keyword',
+    },
+    preprocessor: {
+      // Preamble includes: #include "X.h" (the raw-C++ half of a .uetkx preamble).
+      pattern: /^#\s*\w+/m,
       alias: 'keyword',
     },
     tag: {
@@ -34,17 +39,19 @@ if (!Prism.languages.uetkx) {
         punctuation: /^<\/?|\/?>$/,
       },
     },
-    'attr-name': /\b[A-Za-z_]\w*(?==)/,
+    // Dotted attr names colorize whole: Slot.Padding=, Font.Size=, not just the tail.
+    'attr-name': /\b[A-Za-z_][\w.]*(?==)/,
     keyword:
-      /\b(?:component|state|hook|module|return|if|else|elif|for|in|while|switch|match|case|break|continue|auto|const|constexpr|nullptr|this|void|new|delete)\b/,
+      /\b(?:component|hook|module|export|import|from|return|if|else|elif|for|in|while|switch|match|case|break|continue|auto|const|constexpr|nullptr|this|void|new|delete)\b/,
     'class-name': [
       {
-        // Type positions: `state count: int32`, `(items: TArray<FShopItem>)`.
-        pattern: /(:[ \t]*)[A-Za-z_][\w:<>]*/,
+        // Type positions: `(Title: FText, Count: int32 = 0)`.
+        pattern: /(:[ \t]*)[A-Za-z_][\w:<>*]*/,
         lookbehind: true,
       },
-      // Unreal-style type names used bare (FText, TArray, EVisibility) and PascalCase ctor calls.
-      /\b(?:[FUTE][A-Z]\w*|[A-Z]\w*(?=\s*[.(]))\b/,
+      // Unreal-style type names used bare (FText, TArray, EVisibility), PascalCase ctor calls,
+      // and namespaces before :: (RUI::Fmt, RuiDemo::GetDemoWorld).
+      /\b(?:[FUTE][A-Z]\w*|[A-Z]\w*(?=\s*(?:::|[.(])))\b/,
     ],
     builtin:
       /\b(?:int8|int16|int32|int64|uint8|uint16|uint32|uint64|float|double|bool|char)\b/,

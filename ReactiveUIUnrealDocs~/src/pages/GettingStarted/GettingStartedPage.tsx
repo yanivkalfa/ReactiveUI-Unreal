@@ -6,9 +6,9 @@ import { GITHUB_URL } from '../../links'
 const BUILD_CS = `// YourModule.Build.cs — depend on the runtime + the Slate host.
 PublicDependencyModuleNames.AddRange(new[]
 {
-    "Core", "CoreUObject", "Engine", "Slate", "SlateCore",
-    "ReactiveUICore",   // vnodes, fibers, hooks, the reconciler (no UObject)
-    "ReactiveUISlate",  // the Slate host + per-widget adapters
+	"Core", "CoreUObject", "Engine", "Slate", "SlateCore",
+	"ReactiveUICore",   // vnodes, fibers, hooks, the reconciler (no UObject)
+	"ReactiveUISlate",  // the Slate host + per-widget adapters
 });`
 
 const HELLO = `// HelloWorld.uetkx — one component per file; the file name matches the component.
@@ -28,8 +28,8 @@ const MOUNT = `// Mount the root anywhere you have a UWorld — a GameMode, Play
 
 void AMyHUD::BeginPlay()
 {
-    Super::BeginPlay();
-    Root = FRuiRoot::CreateInViewport(RUI::FC(&HelloWorld), /*ZOrder*/ 10);
+	Super::BeginPlay();
+	Root = FRuiRoot::CreateInViewport(RUI::FC(&HelloWorld), /*ZOrder*/ 10);
 }
 // Root is a TSharedPtr<FRuiRoot> member — drop it to unmount.`
 
