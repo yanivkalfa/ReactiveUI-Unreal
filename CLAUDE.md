@@ -141,9 +141,9 @@ MASTER_PLAN §1; module table: D-27.
 ## Environment facts (owner machine — fill/verify at first engine use)
 
 - Engines: **`C:\Program Files\Epic Games\UE_5.6`** (the floor) and **`UE_5.8`** — full 103-test
-  battery verified green on 5.6, 5.7, AND 5.8 (2026-07-14). CAUTION: `UE_5.7` is now a 343MB
-  husk — the launcher gutted it while installing 5.8 (reinstall to re-run anything on 5.7; the
-  diff script fails loudly on husked engines). The `engine-catchup` skill is the per-version
+  battery verified green on 5.6, 5.7, AND 5.8 (2026-07-14). NOTE: `UE_5.7` is currently a 343MB
+  husk — the owner freed disk space for 5.8 and will reinstall it for release-time per-engine
+  testing (the diff script fails loudly on husked engines). The `engine-catchup` skill is the per-version
   runbook, `scripts/engine-api-diff.ps1` the discovery tool. When switching engines on this
   working copy, a stale-UHT clean may be needed (`rm -rf Intermediate/Build Plugins/ReactiveUI/
   Intermediate Binaries Plugins/ReactiveUI/Binaries`) — 5.8's UHT output doesn't compile on 5.6.
