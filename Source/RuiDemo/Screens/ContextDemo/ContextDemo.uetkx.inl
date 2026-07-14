@@ -21,11 +21,9 @@ static FRuiNodeArray ContextDemo_UetkxImpl(FRuiContext& Ctx, const FContextDemoU
 {
 #line 7 "Source/RuiDemo/Screens/ContextDemo/ContextDemo.uetkx"
 	auto [bPrimary, SetPrimary] = Ctx.UseState<bool>(true);
-		TFunction<void(bool)> Set = SetPrimary;
-		const bool bNow = bPrimary;
 		const FLinearColor Theme = bPrimary ? ContextDemoStyle::CoolTheme : ContextDemoStyle::WarmTheme;
 		Ctx.ProvideContext(RuiDemo::GDemoThemeCtx, Theme);
-#line 29 "ContextDemo.uetkx.inl"
+#line 27 "ContextDemo.uetkx.inl"
 	return { [&]() -> FRuiNode {
 		FRuiBorderProps P;
 		P.SetPadding(FMargin(12));
@@ -51,7 +49,7 @@ static FRuiNodeArray ContextDemo_UetkxImpl(FRuiContext& Ctx, const FContextDemoU
 		TArray<FRuiNode> Ch;
 		Ch.Add([&]() -> FRuiNode {
 		FRuiButtonProps P;
-		P.SetOnClicked(FRuiCallback::Create([=](const FRuiValue& Value) { Set(!bNow); }));
+		P.SetOnClicked(FRuiCallback::Create([=](const FRuiValue& Value) { SetPrimary(!bPrimary); }));
 		P.SetContentPadding(FMargin(12,4));
 		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
 		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
@@ -59,7 +57,7 @@ static FRuiNodeArray ContextDemo_UetkxImpl(FRuiContext& Ctx, const FContextDemoU
 		if (!__Style->IsEmpty()) { P.Style = __Style; }
 		if (!__Slot->IsEmpty()) { P.SlotProps = __Slot; }
 		TArray<FRuiNode> Ch;
-		Ch.Add(RUI::TextBlock((FText::FromString(bNow ? TEXT("Switch To Warm Theme") : TEXT("Switch To Cool Theme"))), FRuiKey()));
+		Ch.Add(RUI::TextBlock((FText::FromString(bPrimary ? TEXT("Switch To Warm Theme") : TEXT("Switch To Cool Theme"))), FRuiKey()));
 		return RUI::Slate::Button(MoveTemp(P), MoveTemp(Ch), FRuiKey());
 	}());
 		return RUI::Slate::HorizontalBox(MoveTemp(P), MoveTemp(Ch), FRuiKey());

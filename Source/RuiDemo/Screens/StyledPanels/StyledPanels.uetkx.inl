@@ -21,10 +21,7 @@ static FRuiNodeArray StyledPanels_UetkxImpl(FRuiContext& Ctx, const FStyledPanel
 #line 2 "Source/RuiDemo/Screens/StyledPanels/StyledPanels.uetkx"
 	auto [bDim, SetDim] = Ctx.UseState<bool>(false);
 		auto [Text, SetText] = Ctx.UseState<FString>(FString(TEXT("type here")));
-		TFunction<void(bool)> SetDimFn = SetDim;
-		TFunction<void(FString)> SetTextFn = SetText;
-		const bool bDimNow = bDim;
-#line 28 "StyledPanels.uetkx.inl"
+#line 25 "StyledPanels.uetkx.inl"
 	return { [&]() -> FRuiNode {
 		FRuiBorderProps P;
 		P.SetPadding(FMargin(12));
@@ -58,8 +55,8 @@ static FRuiNodeArray StyledPanels_UetkxImpl(FRuiContext& Ctx, const FStyledPanel
 	}());
 		Ch.Add([&]() -> FRuiNode {
 		FRuiCheckBoxProps P;
-		P.SetbIsChecked((bDimNow));
-		P.SetOnCheckStateChanged(FRuiCallback::Create([=](const FRuiValue& Value) { SetDimFn(Value.BoolValue); }));
+		P.SetbIsChecked((bDim));
+		P.SetOnCheckStateChanged(FRuiCallback::Create([=](const FRuiValue& Value) { SetDim(Value.BoolValue); }));
 		TArray<FRuiNode> Ch;
 		Ch.Add(RUI::TextBlock(NSLOCTEXT("Uetkx.StyledPanels", "StyledPanels_2", "dim the mirror"), FRuiKey()));
 		return RUI::Slate::CheckBox(MoveTemp(P), MoveTemp(Ch), FRuiKey());
@@ -72,7 +69,7 @@ static FRuiNodeArray StyledPanels_UetkxImpl(FRuiContext& Ctx, const FStyledPanel
 		Ch.Add([&]() -> FRuiNode {
 		FRuiEditableTextBoxProps P;
 		P.SetText((FText::FromString(Text)));
-		P.SetOnTextChanged(FRuiCallback::Create([=](const FRuiValue& Value) { SetTextFn(Value.TextValue.ToString()); }));
+		P.SetOnTextChanged(FRuiCallback::Create([=](const FRuiValue& Value) { SetText(Value.TextValue.ToString()); }));
 		return RUI::Slate::EditableTextBox(MoveTemp(P), FRuiKey());
 	}());
 		Ch.Add([&]() -> FRuiNode {
@@ -80,10 +77,10 @@ static FRuiNodeArray StyledPanels_UetkxImpl(FRuiContext& Ctx, const FStyledPanel
 		P.SetSize((FVector2D(1.0f, 6.0f)));
 		return RUI::Slate::Spacer(MoveTemp(P), FRuiKey());
 	}());
-		if (bDimNow)
+		if (bDim)
 		{
 			Ch.Add([&]() -> FRuiNode {
-		FRuiNode __N = RUI::TextBlock((FText::FromString(FString::Printf(TEXT("mirror: %s"), *Text))), FRuiKey());
+		FRuiNode __N = RUI::TextBlock((RUI::Fmt(TEXT("mirror: {}"), Text)), FRuiKey());
 		TSharedRef<FRuiTextBlockProps> __P = MakeShared<FRuiTextBlockProps>(static_cast<const FRuiTextBlockProps&>(*__N.Props));
 		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
 		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
@@ -96,7 +93,7 @@ static FRuiNodeArray StyledPanels_UetkxImpl(FRuiContext& Ctx, const FStyledPanel
 		}
 		else
 		{
-			Ch.Add(RUI::TextBlock((FText::FromString(FString::Printf(TEXT("mirror: %s"), *Text))), FRuiKey()));
+			Ch.Add(RUI::TextBlock((RUI::Fmt(TEXT("mirror: {}"), Text)), FRuiKey()));
 		}
 		return RUI::Slate::VerticalBox(MoveTemp(P), MoveTemp(Ch), FRuiKey());
 	}());

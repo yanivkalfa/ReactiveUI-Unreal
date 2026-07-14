@@ -34,12 +34,11 @@ static FRuiNodeArray InteropShowcase_UetkxImpl(FRuiContext& Ctx, const FInteropS
 	
 		// CommonUI pillar — provide activation state to the probe below (a toggle stands in for a stack push).
 		auto [bActive, SetActive] = Ctx.UseState<bool>(true);
-		const bool bActiveNow = bActive;
 		FRuiActivationState State;
-		State.bActive = bActiveNow;
+		State.bActive = bActive;
 		State.InputMethod = ERuiInputMethod::MouseAndKeyboard;
 		Ctx.ProvideContext(RUI::CommonUI::ActivationContext(), State);
-#line 43 "InteropShowcase.uetkx.inl"
+#line 42 "InteropShowcase.uetkx.inl"
 	return { [&]() -> FRuiNode {
 		FRuiBorderProps P;
 		P.SetPadding(FMargin(12));
@@ -145,7 +144,7 @@ static FRuiNodeArray InteropShowcase_UetkxImpl(FRuiContext& Ctx, const FInteropS
 	}());
 		Ch.Add([&]() -> FRuiNode {
 		FRuiButtonProps P;
-		P.SetOnClicked(FRuiCallback::Create([=](const FRuiValue& Value) { SetActive(!bActiveNow); }));
+		P.SetOnClicked(FRuiCallback::Create([=](const FRuiValue& Value) { SetActive(!bActive); }));
 		P.SetContentPadding(FMargin(12,4));
 		TArray<FRuiNode> Ch;
 		Ch.Add(RUI::TextBlock(NSLOCTEXT("Uetkx.InteropShowcase", "InteropShowcase_7", "Toggle activation")));

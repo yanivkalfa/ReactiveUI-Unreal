@@ -23,30 +23,24 @@ static FRuiNodeArray CustomDraw_UetkxImpl(FRuiContext& Ctx, const FCustomDrawUet
 	auto [Sides, SetSides] = Ctx.UseState<int32>(3);
 		auto [bBlue, SetBlue] = Ctx.UseState<bool>(true);
 		auto [RedrawTick, SetRedrawTick] = Ctx.UseState<int32>(0);
-		TFunction<void(int32)> SetSidesFn = SetSides;
-		TFunction<void(bool)> SetBlueFn = SetBlue;
-		TFunction<void(int32)> SetTickFn = SetRedrawTick;
-		const int32 SidesNow = Sides;
-		const bool bBlueNow = bBlue;
-		const int32 TickNow = RedrawTick;
 	
 		// 1+2: the draw fn's IDENTITY tracks its inputs (UseMemo deps) -> repaint on change.
 		const TSharedPtr<FRuiDrawFn>& PolyFn = Ctx.UseMemo<TSharedPtr<FRuiDrawFn>>(
-			[SidesNow]() {
-				return RUI::Slate::MakeDrawFn([SidesNow](const FGeometry& G, FSlateWindowElementList& O, int32 L)
-											  { return RuiDemo::DrawPolygon(G, O, L, SidesNow); });
+			[Sides]() {
+				return RUI::Slate::MakeDrawFn([Sides](const FGeometry& G, FSlateWindowElementList& O, int32 L)
+											  { return RuiDemo::DrawPolygon(G, O, L, Sides); });
 			},
-			RUI::Deps(SidesNow));
+			RUI::Deps(Sides));
 		const TSharedPtr<FRuiDrawFn>& QuadFn = Ctx.UseMemo<TSharedPtr<FRuiDrawFn>>(
-			[bBlueNow]() {
-				return RUI::Slate::MakeDrawFn([bBlueNow](const FGeometry& G, FSlateWindowElementList& O, int32 L)
-											  { return RuiDemo::DrawQuad(G, O, L, bBlueNow); });
+			[bBlue]() {
+				return RUI::Slate::MakeDrawFn([bBlue](const FGeometry& G, FSlateWindowElementList& O, int32 L)
+											  { return RuiDemo::DrawQuad(G, O, L, bBlue); });
 			},
-			RUI::Deps(bBlueNow));
+			RUI::Deps(bBlue));
 		// 3: STABLE fn + RedrawKey bump forces the repaint instead.
 		const TSharedPtr<FRuiDrawFn>& ScatterFn =
 			Ctx.UseMemo<TSharedPtr<FRuiDrawFn>>([]() { return RUI::Slate::MakeDrawFn(&RuiDemo::DrawScatter); }, RUI::Deps());
-#line 50 "CustomDraw.uetkx.inl"
+#line 44 "CustomDraw.uetkx.inl"
 	return { [&]() -> FRuiNode {
 		FRuiBorderProps P;
 		P.SetPadding(FMargin(12));
@@ -95,7 +89,7 @@ static FRuiNodeArray CustomDraw_UetkxImpl(FRuiContext& Ctx, const FCustomDrawUet
 		TArray<FRuiNode> Ch;
 		Ch.Add([&]() -> FRuiNode {
 		FRuiButtonProps P;
-		P.SetOnClicked(FRuiCallback::Create([=](const FRuiValue& Value) { SetSidesFn(SidesNow + 1); }));
+		P.SetOnClicked(FRuiCallback::Create([=](const FRuiValue& Value) { SetSides(Sides + 1); }));
 		P.SetContentPadding(FMargin(12,4));
 		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
 		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
@@ -108,7 +102,7 @@ static FRuiNodeArray CustomDraw_UetkxImpl(FRuiContext& Ctx, const FCustomDrawUet
 	}());
 		Ch.Add([&]() -> FRuiNode {
 		FRuiButtonProps P;
-		P.SetOnClicked(FRuiCallback::Create([=](const FRuiValue& Value) { SetSidesFn(3); }));
+		P.SetOnClicked(FRuiCallback::Create([=](const FRuiValue& Value) { SetSides(3); }));
 		P.SetContentPadding(FMargin(12,4));
 		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
 		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
@@ -119,7 +113,7 @@ static FRuiNodeArray CustomDraw_UetkxImpl(FRuiContext& Ctx, const FCustomDrawUet
 		Ch.Add(RUI::TextBlock(NSLOCTEXT("Uetkx.CustomDraw", "CustomDraw_4", "Reset")));
 		return RUI::Slate::Button(MoveTemp(P), MoveTemp(Ch), FRuiKey());
 	}());
-		Ch.Add(RUI::TextBlock((FText::FromString(FString::Printf(TEXT("  sides = %d"), SidesNow))), FRuiKey()));
+		Ch.Add(RUI::TextBlock((RUI::Fmt(TEXT("  sides = {}"), Sides)), FRuiKey()));
 		return RUI::Slate::HorizontalBox(MoveTemp(P), MoveTemp(Ch), FRuiKey());
 	}());
 		Ch.Add([&]() -> FRuiNode {
@@ -144,7 +138,7 @@ static FRuiNodeArray CustomDraw_UetkxImpl(FRuiContext& Ctx, const FCustomDrawUet
 		TArray<FRuiNode> Ch;
 		Ch.Add([&]() -> FRuiNode {
 		FRuiButtonProps P;
-		P.SetOnClicked(FRuiCallback::Create([=](const FRuiValue& Value) { SetBlueFn(!bBlueNow); }));
+		P.SetOnClicked(FRuiCallback::Create([=](const FRuiValue& Value) { SetBlue(!bBlue); }));
 		P.SetContentPadding(FMargin(12,4));
 		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
 		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
@@ -155,7 +149,7 @@ static FRuiNodeArray CustomDraw_UetkxImpl(FRuiContext& Ctx, const FCustomDrawUet
 		Ch.Add(RUI::TextBlock(NSLOCTEXT("Uetkx.CustomDraw", "CustomDraw_6", "Toggle color")));
 		return RUI::Slate::Button(MoveTemp(P), MoveTemp(Ch), FRuiKey());
 	}());
-		Ch.Add(RUI::TextBlock((FText::FromString(bBlueNow ? TEXT("  blue") : TEXT("  orange"))), FRuiKey()));
+		Ch.Add(RUI::TextBlock((FText::FromString(bBlue ? TEXT("  blue") : TEXT("  orange"))), FRuiKey()));
 		return RUI::Slate::HorizontalBox(MoveTemp(P), MoveTemp(Ch), FRuiKey());
 	}());
 		Ch.Add([&]() -> FRuiNode {
@@ -167,7 +161,7 @@ static FRuiNodeArray CustomDraw_UetkxImpl(FRuiContext& Ctx, const FCustomDrawUet
 		Ch.Add([&]() -> FRuiNode {
 		FRuiCanvasProps P;
 		P.SetDrawFn((ScatterFn));
-		P.SetRedrawKey((TickNow));
+		P.SetRedrawKey((RedrawTick));
 		P.SetCanvasSize((FVector2D(360.0f, 110.0f)));
 		return RUI::Slate::RuiCanvas(MoveTemp(P), FRuiKey());
 	}());
@@ -181,7 +175,7 @@ static FRuiNodeArray CustomDraw_UetkxImpl(FRuiContext& Ctx, const FCustomDrawUet
 		TArray<FRuiNode> Ch;
 		Ch.Add([&]() -> FRuiNode {
 		FRuiButtonProps P;
-		P.SetOnClicked(FRuiCallback::Create([=](const FRuiValue& Value) { SetTickFn(TickNow + 1); }));
+		P.SetOnClicked(FRuiCallback::Create([=](const FRuiValue& Value) { SetRedrawTick(RedrawTick + 1); }));
 		P.SetContentPadding(FMargin(12,4));
 		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
 		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
@@ -192,7 +186,7 @@ static FRuiNodeArray CustomDraw_UetkxImpl(FRuiContext& Ctx, const FCustomDrawUet
 		Ch.Add(RUI::TextBlock(NSLOCTEXT("Uetkx.CustomDraw", "CustomDraw_8", "Shuffle (bump RedrawKey)")));
 		return RUI::Slate::Button(MoveTemp(P), MoveTemp(Ch), FRuiKey());
 	}());
-		Ch.Add(RUI::TextBlock((FText::FromString(FString::Printf(TEXT("  redrawKey = %d"), TickNow))), FRuiKey()));
+		Ch.Add(RUI::TextBlock((RUI::Fmt(TEXT("  redrawKey = {}"), RedrawTick)), FRuiKey()));
 		return RUI::Slate::HorizontalBox(MoveTemp(P), MoveTemp(Ch), FRuiKey());
 	}());
 		return RUI::Slate::VerticalBox(MoveTemp(P), MoveTemp(Ch), FRuiKey());

@@ -9,20 +9,11 @@ export component TicTacToe {
 	auto [Grid, SetGrid] = UseState<TArray<FString>>(EmptyGrid());
 	auto [Winner, SetWinner] = UseState<FString>(FString());
 
-	TFunction<void(bool)> SetStartedFn = SetStarted;
-	TFunction<void(FString)> SetTurnFn = SetTurn;
-	TFunction<void(TArray<FString>)> SetGridFn = SetGrid;
-	TFunction<void(FString)> SetWinnerFn = SetWinner;
-	const TArray<FString> GridNow = Grid;
-	const FString TurnNow = Turn;
-	const FString WinnerNow = Winner;
-	const bool bStartedNow = bStarted;
-
-	auto Restart = [SetStartedFn, SetTurnFn, SetGridFn, SetWinnerFn, EmptyGrid]() {
-		SetStartedFn(true);
-		SetTurnFn(FString(TEXT("X")));
-		SetWinnerFn(FString());
-		SetGridFn(EmptyGrid());
+	auto Restart = [SetStarted, SetTurn, SetGrid, SetWinner, EmptyGrid]() {
+		SetStarted(true);
+		SetTurn(FString(TEXT("X")));
+		SetWinner(FString());
+		SetGrid(EmptyGrid());
 	};
 
 	auto CheckWinner = [](const TArray<FString>& G) -> FString {
@@ -39,7 +30,7 @@ export component TicTacToe {
 	};
 
 	int32 MovesLeft = 0;
-	for (const FString& Cell : GridNow)
+	for (const FString& Cell : Grid)
 	{
 		if (Cell.IsEmpty())
 		{
@@ -47,22 +38,22 @@ export component TicTacToe {
 		}
 	}
 
-	auto PlayCell = [SetGridFn, SetTurnFn, SetWinnerFn, CheckWinner, GridNow, TurnNow, WinnerNow](int32 Index) {
-		if (!WinnerNow.IsEmpty() || !GridNow[Index].IsEmpty())
+	auto PlayCell = [SetGrid, SetTurn, SetWinner, CheckWinner, Grid, Turn, Winner](int32 Index) {
+		if (!Winner.IsEmpty() || !Grid[Index].IsEmpty())
 		{
 			return;
 		}
-		TArray<FString> Next = GridNow;
-		Next[Index] = TurnNow;
-		SetGridFn(Next);
+		TArray<FString> Next = Grid;
+		Next[Index] = Turn;
+		SetGrid(Next);
 		const FString Win = CheckWinner(Next);
 		if (!Win.IsEmpty())
 		{
-			SetWinnerFn(Win);
+			SetWinner(Win);
 		}
 		else
 		{
-			SetTurnFn(TurnNow == TEXT("X") ? FString(TEXT("O")) : FString(TEXT("X")));
+			SetTurn(Turn == TEXT("X") ? FString(TEXT("O")) : FString(TEXT("X")));
 		}
 	};
 
@@ -73,19 +64,19 @@ export component TicTacToe {
 				<Spacer Size={ FVector2D(1.0f, 6.0f) } />
 				<HorizontalBox>
 					<Button OnClicked={ Restart() } ContentPadding="12,4" Slot.Padding="0,0,6,0">
-						<TextBlock Text={ FText::FromString(bStartedNow ? TEXT("Restart Game") : TEXT("Start Game")) } />
+						<TextBlock Text={ FText::FromString(bStarted ? TEXT("Restart Game") : TEXT("Start Game")) } />
 					</Button>
 				</HorizontalBox>
-				@if (bStartedNow) {
+				@if (bStarted) {
 					return (
 						<VerticalBox>
 							<Spacer Size={ FVector2D(1.0f, 6.0f) } />
-							@if (!WinnerNow.IsEmpty()) {
-								return ( <TextBlock Text={ FText::FromString(FString::Printf(TEXT("Player %s is the winner"), *WinnerNow)) } Font.Size={ 14.0f } ColorAndOpacity={ FLinearColor(0.6f, 1.0f, 0.6f) } /> );
+							@if (!Winner.IsEmpty()) {
+								return ( <TextBlock Text={ RUI::Fmt(TEXT("Player {} is the winner"), Winner) } Font.Size={ 14.0f } ColorAndOpacity={ FLinearColor(0.6f, 1.0f, 0.6f) } /> );
 							} @elif (MovesLeft == 0) {
 								return ( <TextBlock Text="Draw!" Font.Size={ 14.0f } ColorAndOpacity={ FLinearColor(1.0f, 0.8f, 0.4f) } /> );
 							} @else {
-								return ( <TextBlock Text={ FText::FromString(FString::Printf(TEXT("Player turn: %s   (moves left: %d)"), *TurnNow, MovesLeft)) } /> );
+								return ( <TextBlock Text={ RUI::Fmt(TEXT("Player turn: {}   (moves left: {})"), Turn, MovesLeft) } /> );
 							}
 							<Spacer Size={ FVector2D(1.0f, 6.0f) } />
 							@for (int32 R = 0; R < 3; ++R) {
@@ -96,7 +87,7 @@ export component TicTacToe {
 											return (
 												<Box key={ Index } WidthOverride={ 44.0f } HeightOverride={ 44.0f }>
 													<Button OnClicked={ PlayCell(Index) } ContentPadding="0">
-														<TextBlock Text={ FText::FromString(GridNow[Index].IsEmpty() ? FString(TEXT(" ")) : GridNow[Index]) } Font.Size={ 16.0f } ColorAndOpacity={ FLinearColor(1.0f, 0.85f, 0.4f) } />
+														<TextBlock Text={ FText::FromString(Grid[Index].IsEmpty() ? FString(TEXT(" ")) : Grid[Index]) } Font.Size={ 16.0f } ColorAndOpacity={ FLinearColor(1.0f, 0.85f, 0.4f) } />
 													</Button>
 												</Box>
 											);

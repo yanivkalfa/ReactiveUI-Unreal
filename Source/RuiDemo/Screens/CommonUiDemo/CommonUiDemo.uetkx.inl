@@ -21,13 +21,12 @@ static FRuiNodeArray CommonUiDemo_UetkxImpl(FRuiContext& Ctx, const FCommonUiDem
 {
 #line 8 "Source/RuiDemo/Screens/CommonUiDemo/CommonUiDemo.uetkx"
 	auto [bActive, SetActive] = Ctx.UseState<bool>(true);
-		const bool bActiveNow = bActive;
 	
 		FRuiActivationState State;
-		State.bActive = bActiveNow;
+		State.bActive = bActive;
 		State.InputMethod = ERuiInputMethod::MouseAndKeyboard;
 		Ctx.ProvideContext(RUI::CommonUI::ActivationContext(), State);
-#line 31 "CommonUiDemo.uetkx.inl"
+#line 30 "CommonUiDemo.uetkx.inl"
 	return { [&]() -> FRuiNode {
 		FRuiBorderProps P;
 		P.SetPadding(FMargin(12));
@@ -87,7 +86,7 @@ static FRuiNodeArray CommonUiDemo_UetkxImpl(FRuiContext& Ctx, const FCommonUiDem
 	}());
 		Ch.Add([&]() -> FRuiNode {
 		FRuiButtonProps P;
-		P.SetOnClicked(FRuiCallback::Create([=](const FRuiValue& Value) { SetActive(!bActiveNow); }));
+		P.SetOnClicked(FRuiCallback::Create([=](const FRuiValue& Value) { SetActive(!bActive); }));
 		P.SetContentPadding(FMargin(12,4));
 		TArray<FRuiNode> Ch;
 		Ch.Add(RUI::TextBlock(NSLOCTEXT("Uetkx.CommonUiDemo", "CommonUiDemo_3", "Toggle activation")));

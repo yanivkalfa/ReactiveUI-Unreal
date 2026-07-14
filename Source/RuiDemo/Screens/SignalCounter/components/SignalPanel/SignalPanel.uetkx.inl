@@ -22,7 +22,7 @@ static FRuiNodeArray SignalPanel_UetkxImpl(FRuiContext& Ctx, const FSignalPanelU
 #line 4 "Source/RuiDemo/Screens/SignalCounter/components/SignalPanel/SignalPanel.uetkx"
 	const int32 Count = RUI::UseSignalKey<int32>(Ctx, RuiDemo::GDemoCounterSignal, 0);
 #line 25 "SignalPanel.uetkx.inl"
-	return { RUI::TextBlock((FText::FromString(FString::Printf(TEXT("Count: %d"), Count))), FRuiKey()) };
+	return { RUI::TextBlock((RUI::Fmt(TEXT("Count: {}"), Count)), FRuiKey()) };
 }
 static const FName GSignalPanelUetkxId = RUI::RegisterComponentId((void*)&SignalPanel_UetkxImpl, FName(TEXT("SignalPanel")));
 static constexpr uint32 SignalPanel_RUI_HOOK_SIG = 0xD50F149Cu;

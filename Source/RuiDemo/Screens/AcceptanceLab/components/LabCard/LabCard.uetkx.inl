@@ -55,7 +55,7 @@ static FRuiNodeArray LabCard_UetkxImpl(FRuiContext& Ctx, const FLabCardUetkxProp
 		return __N;
 	}());
 		Ch.Add([&]() -> FRuiNode {
-		FRuiNode __N = RUI::TextBlock((FText::FromString(FString::Printf(TEXT("value = %d"), Count))), FRuiKey());
+		FRuiNode __N = RUI::TextBlock((RUI::Fmt(TEXT("value = {}"), Count)), FRuiKey());
 		TSharedRef<FRuiTextBlockProps> __P = MakeShared<FRuiTextBlockProps>(static_cast<const FRuiTextBlockProps&>(*__N.Props));
 		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
 		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();

@@ -29,20 +29,11 @@ static FRuiNodeArray TicTacToe_UetkxImpl(FRuiContext& Ctx, const FTicTacToeUetkx
 		auto [Grid, SetGrid] = Ctx.UseState<TArray<FString>>(EmptyGrid());
 		auto [Winner, SetWinner] = Ctx.UseState<FString>(FString());
 	
-		TFunction<void(bool)> SetStartedFn = SetStarted;
-		TFunction<void(FString)> SetTurnFn = SetTurn;
-		TFunction<void(TArray<FString>)> SetGridFn = SetGrid;
-		TFunction<void(FString)> SetWinnerFn = SetWinner;
-		const TArray<FString> GridNow = Grid;
-		const FString TurnNow = Turn;
-		const FString WinnerNow = Winner;
-		const bool bStartedNow = bStarted;
-	
-		auto Restart = [SetStartedFn, SetTurnFn, SetGridFn, SetWinnerFn, EmptyGrid]() {
-			SetStartedFn(true);
-			SetTurnFn(FString(TEXT("X")));
-			SetWinnerFn(FString());
-			SetGridFn(EmptyGrid());
+		auto Restart = [SetStarted, SetTurn, SetGrid, SetWinner, EmptyGrid]() {
+			SetStarted(true);
+			SetTurn(FString(TEXT("X")));
+			SetWinner(FString());
+			SetGrid(EmptyGrid());
 		};
 	
 		auto CheckWinner = [](const TArray<FString>& G) -> FString {
@@ -59,7 +50,7 @@ static FRuiNodeArray TicTacToe_UetkxImpl(FRuiContext& Ctx, const FTicTacToeUetkx
 		};
 	
 		int32 MovesLeft = 0;
-		for (const FString& Cell : GridNow)
+		for (const FString& Cell : Grid)
 		{
 			if (Cell.IsEmpty())
 			{
@@ -67,25 +58,25 @@ static FRuiNodeArray TicTacToe_UetkxImpl(FRuiContext& Ctx, const FTicTacToeUetkx
 			}
 		}
 	
-		auto PlayCell = [SetGridFn, SetTurnFn, SetWinnerFn, CheckWinner, GridNow, TurnNow, WinnerNow](int32 Index) {
-			if (!WinnerNow.IsEmpty() || !GridNow[Index].IsEmpty())
+		auto PlayCell = [SetGrid, SetTurn, SetWinner, CheckWinner, Grid, Turn, Winner](int32 Index) {
+			if (!Winner.IsEmpty() || !Grid[Index].IsEmpty())
 			{
 				return;
 			}
-			TArray<FString> Next = GridNow;
-			Next[Index] = TurnNow;
-			SetGridFn(Next);
+			TArray<FString> Next = Grid;
+			Next[Index] = Turn;
+			SetGrid(Next);
 			const FString Win = CheckWinner(Next);
 			if (!Win.IsEmpty())
 			{
-				SetWinnerFn(Win);
+				SetWinner(Win);
 			}
 			else
 			{
-				SetTurnFn(TurnNow == TEXT("X") ? FString(TEXT("O")) : FString(TEXT("X")));
+				SetTurn(Turn == TEXT("X") ? FString(TEXT("O")) : FString(TEXT("X")));
 			}
 		};
-#line 89 "TicTacToe.uetkx.inl"
+#line 80 "TicTacToe.uetkx.inl"
 	return { [&]() -> FRuiNode {
 		FRuiBorderProps P;
 		P.SetPadding(FMargin(12));
@@ -130,12 +121,12 @@ static FRuiNodeArray TicTacToe_UetkxImpl(FRuiContext& Ctx, const FTicTacToeUetkx
 		if (!__Style->IsEmpty()) { P.Style = __Style; }
 		if (!__Slot->IsEmpty()) { P.SlotProps = __Slot; }
 		TArray<FRuiNode> Ch;
-		Ch.Add(RUI::TextBlock((FText::FromString(bStartedNow ? TEXT("Restart Game") : TEXT("Start Game"))), FRuiKey()));
+		Ch.Add(RUI::TextBlock((FText::FromString(bStarted ? TEXT("Restart Game") : TEXT("Start Game"))), FRuiKey()));
 		return RUI::Slate::Button(MoveTemp(P), MoveTemp(Ch), FRuiKey());
 	}());
 		return RUI::Slate::HorizontalBox(MoveTemp(P), MoveTemp(Ch), FRuiKey());
 	}());
-		if (bStartedNow)
+		if (bStarted)
 		{
 			Ch.Add([&]() -> FRuiNode {
 		FRuiVerticalBoxProps P;
@@ -145,10 +136,10 @@ static FRuiNodeArray TicTacToe_UetkxImpl(FRuiContext& Ctx, const FTicTacToeUetkx
 		P.SetSize((FVector2D(1.0f, 6.0f)));
 		return RUI::Slate::Spacer(MoveTemp(P), FRuiKey());
 	}());
-		if (!WinnerNow.IsEmpty())
+		if (!Winner.IsEmpty())
 		{
 			Ch.Add([&]() -> FRuiNode {
-		FRuiNode __N = RUI::TextBlock((FText::FromString(FString::Printf(TEXT("Player %s is the winner"), *WinnerNow))), FRuiKey());
+		FRuiNode __N = RUI::TextBlock((RUI::Fmt(TEXT("Player {} is the winner"), Winner)), FRuiKey());
 		TSharedRef<FRuiTextBlockProps> __P = MakeShared<FRuiTextBlockProps>(static_cast<const FRuiTextBlockProps&>(*__N.Props));
 		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
 		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
@@ -177,7 +168,7 @@ static FRuiNodeArray TicTacToe_UetkxImpl(FRuiContext& Ctx, const FTicTacToeUetkx
 		}
 		else
 		{
-			Ch.Add(RUI::TextBlock((FText::FromString(FString::Printf(TEXT("Player turn: %s   (moves left: %d)"), *TurnNow, MovesLeft))), FRuiKey()));
+			Ch.Add(RUI::TextBlock((RUI::Fmt(TEXT("Player turn: {}   (moves left: {})"), Turn, MovesLeft)), FRuiKey()));
 		}
 		Ch.Add([&]() -> FRuiNode {
 		FRuiSpacerProps P;
@@ -203,7 +194,7 @@ static FRuiNodeArray TicTacToe_UetkxImpl(FRuiContext& Ctx, const FTicTacToeUetkx
 		P.SetContentPadding(FMargin(0));
 		TArray<FRuiNode> Ch;
 		Ch.Add([&]() -> FRuiNode {
-		FRuiNode __N = RUI::TextBlock((FText::FromString(GridNow[Index].IsEmpty() ? FString(TEXT(" ")) : GridNow[Index])), FRuiKey());
+		FRuiNode __N = RUI::TextBlock((FText::FromString(Grid[Index].IsEmpty() ? FString(TEXT(" ")) : Grid[Index])), FRuiKey());
 		TSharedRef<FRuiTextBlockProps> __P = MakeShared<FRuiTextBlockProps>(static_cast<const FRuiTextBlockProps&>(*__N.Props));
 		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
 		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();

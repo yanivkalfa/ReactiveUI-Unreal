@@ -33,63 +33,57 @@ static FRuiNodeArray KeyedDiff_UetkxImpl(FRuiContext& Ctx, const FKeyedDiffUetkx
 		auto [Items, SetItems] = Ctx.UseState<TArray<FString>>(SeedItems());
 		auto [Ops, SetOps] = Ctx.UseState<int32>(0);
 		auto [NextId, SetNextId] = Ctx.UseState<int32>(1);
-		TFunction<void(TArray<FString>)> Set = SetItems;
-		TFunction<void(int32)> SetOpCount = SetOps;
-		TFunction<void(int32)> SetNext = SetNextId;
-		const TArray<FString> Current = Items;
-		const int32 OpsNow = Ops;
-		const int32 IdNow = NextId;
 	
-		auto Apply = [Set, SetOpCount, OpsNow](TArray<FString> Next) {
-			Set(MoveTemp(Next));
-			SetOpCount(OpsNow + 1);
+		auto Apply = [SetItems, SetOps, Ops](TArray<FString> Next) {
+			SetItems(MoveTemp(Next));
+			SetOps(Ops + 1);
 		};
-		auto DoReset = [Set, SetOpCount, SeedItems]() {
-			Set(SeedItems());
-			SetOpCount(0);
+		auto DoReset = [SetItems, SetOps, SeedItems]() {
+			SetItems(SeedItems());
+			SetOps(0);
 		};
-		auto DoReverse = [Apply, Current]() {
-			TArray<FString> Next = Current;
+		auto DoReverse = [Apply, Items]() {
+			TArray<FString> Next = Items;
 			Algo::Reverse(Next);
 			Apply(MoveTemp(Next));
 		};
-		auto DoRotate = [Apply, Current]() {
-			if (!Current.IsEmpty())
+		auto DoRotate = [Apply, Items]() {
+			if (!Items.IsEmpty())
 			{
 				TArray<FString> Next;
-				Next.Add(Current.Last());
-				for (int32 i = 0; i < Current.Num() - 1; ++i)
+				Next.Add(Items.Last());
+				for (int32 i = 0; i < Items.Num() - 1; ++i)
 				{
-					Next.Add(Current[i]);
+					Next.Add(Items[i]);
 				}
 				Apply(MoveTemp(Next));
 			}
 		};
-		auto DoShuffle = [Apply, Current, OpsNow]() {
-			TArray<FString> Next = Current;
-			FRandomStream Rng(OpsNow * 7919 + Next.Num());
+		auto DoShuffle = [Apply, Items, Ops]() {
+			TArray<FString> Next = Items;
+			FRandomStream Rng(Ops * 7919 + Next.Num());
 			for (int32 i = Next.Num() - 1; i > 0; --i)
 			{
 				Next.Swap(i, Rng.RandRange(0, i));
 			}
 			Apply(MoveTemp(Next));
 		};
-		auto DoInsert = [Apply, Current, IdNow, SetNext]() {
-			TArray<FString> Next = Current;
-			FRandomStream Rng(IdNow * 31 + Next.Num());
-			Next.Insert(FString::Printf(TEXT("New-%d"), IdNow), Next.IsEmpty() ? 0 : Rng.RandRange(0, Next.Num() - 1));
-			SetNext(IdNow + 1);
+		auto DoInsert = [Apply, Items, NextId, SetNextId]() {
+			TArray<FString> Next = Items;
+			FRandomStream Rng(NextId * 31 + Next.Num());
+			Next.Insert(FString::Printf(TEXT("New-%d"), NextId), Next.IsEmpty() ? 0 : Rng.RandRange(0, Next.Num() - 1));
+			SetNextId(NextId + 1);
 			Apply(MoveTemp(Next));
 		};
-		auto DoRemove = [Apply, Current]() {
-			if (!Current.IsEmpty())
+		auto DoRemove = [Apply, Items]() {
+			if (!Items.IsEmpty())
 			{
-				TArray<FString> Next = Current;
+				TArray<FString> Next = Items;
 				Next.RemoveAt(Next.Num() / 2);
 				Apply(MoveTemp(Next));
 			}
 		};
-#line 93 "KeyedDiff.uetkx.inl"
+#line 87 "KeyedDiff.uetkx.inl"
 	return { [&]() -> FRuiNode {
 		FRuiBorderProps P;
 		P.SetPadding(FMargin(12));
@@ -117,7 +111,7 @@ static FRuiNodeArray KeyedDiff_UetkxImpl(FRuiContext& Ctx, const FKeyedDiffUetkx
 		return __N;
 	}());
 		Ch.Add(RUI::TextBlock(NSLOCTEXT("Uetkx.KeyedDiff", "KeyedDiff_2", "Reorder, insert, and remove keyed rows -- rows stay mounted while order changes."), FRuiKey()));
-		Ch.Add(RUI::TextBlock((FText::FromString(FString::Printf(TEXT("Operations performed: %d"), OpsNow))), FRuiKey()));
+		Ch.Add(RUI::TextBlock((RUI::Fmt(TEXT("Operations performed: {}"), Ops)), FRuiKey()));
 		Ch.Add([&]() -> FRuiNode {
 		FRuiSpacerProps P;
 		P.SetSize((FVector2D(1.0f, 6.0f)));
@@ -216,14 +210,14 @@ static FRuiNodeArray KeyedDiff_UetkxImpl(FRuiContext& Ctx, const FKeyedDiffUetkx
 		P.SetSize((FVector2D(1.0f, 6.0f)));
 		return RUI::Slate::Spacer(MoveTemp(P), FRuiKey());
 	}());
-		for (int32 i = 0; i < Current.Num(); ++i)
+		for (int32 i = 0; i < Items.Num(); ++i)
 		{
 			Ch.Add([&]() -> FRuiNode {
 		FRuiHorizontalBoxProps P;
 		TArray<FRuiNode> Ch;
-		Ch.Add(RUI::TextBlock((FText::FromString(FString::Printf(TEXT("Key: %s"), *Current[i]))), FRuiKey()));
+		Ch.Add(RUI::TextBlock((RUI::Fmt(TEXT("Key: {}"), Items[i])), FRuiKey()));
 		Ch.Add([&]() -> FRuiNode {
-		FRuiNode __N = RUI::TextBlock((FText::FromString(FString::Printf(TEXT("   Index %d"), i))), FRuiKey());
+		FRuiNode __N = RUI::TextBlock((RUI::Fmt(TEXT("   Index {}"), i)), FRuiKey());
 		TSharedRef<FRuiTextBlockProps> __P = MakeShared<FRuiTextBlockProps>(static_cast<const FRuiTextBlockProps&>(*__N.Props));
 		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
 		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
@@ -235,7 +229,7 @@ static FRuiNodeArray KeyedDiff_UetkxImpl(FRuiContext& Ctx, const FKeyedDiffUetkx
 		__N.Props = __P;
 		return __N;
 	}());
-		return RUI::Slate::HorizontalBox(MoveTemp(P), MoveTemp(Ch), FRuiKey(FName(*Current[i])));
+		return RUI::Slate::HorizontalBox(MoveTemp(P), MoveTemp(Ch), FRuiKey(FName(*Items[i])));
 	}());
 		}
 		return RUI::Slate::VerticalBox(MoveTemp(P), MoveTemp(Ch), FRuiKey());

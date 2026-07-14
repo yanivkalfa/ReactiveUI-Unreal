@@ -19,9 +19,8 @@ export component InteropShowcase {
 
 	// CommonUI pillar — provide activation state to the probe below (a toggle stands in for a stack push).
 	auto [bActive, SetActive] = UseState<bool>(true);
-	const bool bActiveNow = bActive;
 	FRuiActivationState State;
-	State.bActive = bActiveNow;
+	State.bActive = bActive;
 	State.InputMethod = ERuiInputMethod::MouseAndKeyboard;
 	ProvideContext(RUI::CommonUI::ActivationContext(), State);
 
@@ -42,7 +41,7 @@ export component InteropShowcase {
 
 				<TextBlock Text="CommonUI -- their activation driving ours:" ColorAndOpacity={ FLinearColor(0.7f, 0.7f, 0.8f) } Font.Size={ 11.0f } />
 				<ShowcaseProbe />
-				<Button OnClicked={ SetActive(!bActiveNow) } ContentPadding="12,4">Toggle activation</Button>
+				<Button OnClicked={ SetActive(!bActive) } ContentPadding="12,4">Toggle activation</Button>
 			</VerticalBox>
 		</Border>
 	);

@@ -6,10 +6,9 @@ import { ActivationProbe } from "./components/ActivationProbe/ActivationProbe"
 // stands in for a URuiActivatableScreen's (de)activation on a CommonUI stack); the imported probe reads it.
 export component CommonUiDemo {
 	auto [bActive, SetActive] = UseState<bool>(true);
-	const bool bActiveNow = bActive;
 
 	FRuiActivationState State;
-	State.bActive = bActiveNow;
+	State.bActive = bActive;
 	State.InputMethod = ERuiInputMethod::MouseAndKeyboard;
 	ProvideContext(RUI::CommonUI::ActivationContext(), State);
 
@@ -22,7 +21,7 @@ export component CommonUiDemo {
 				<Spacer Size={ FVector2D(1.0f, 10.0f) } />
 				<ActivationProbe />
 				<Spacer Size={ FVector2D(1.0f, 8.0f) } />
-				<Button OnClicked={ SetActive(!bActiveNow) } ContentPadding="12,4">Toggle activation</Button>
+				<Button OnClicked={ SetActive(!bActive) } ContentPadding="12,4">Toggle activation</Button>
 			</VerticalBox>
 		</Border>
 	);
