@@ -1,0 +1,41 @@
+Run npm ci
+  npm ci
+  npm run build
+  npm run lint
+  shell: /usr/bin/bash -e {0}
+npm warn deprecated rolldown-vite@7.3.1: Use this package to migrate from Vite 7 to Vite 8. For the most recent updates, migrate to Vite 8 once you're ready.
+
+added 248 packages, and audited 249 packages in 12s
+
+67 packages are looking for funding
+  run `npm fund` for details
+
+found 0 vulnerabilities
+
+> reactiveui-unreal-docs@0.0.0 build
+> tsc -b && vite build && node -e "import('node:fs').then(fs => fs.copyFileSync('dist/index.html', 'dist/404.html'))"
+
+rolldown-vite v7.3.1 building client environment for production...
+
+transforming...✓ 970 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                  0.41 kB │ gzip:   0.29 kB
+dist/assets/index-Dboz3RVX.js  762.32 kB │ gzip: 234.89 kB
+[plugin builtin:vite-reporter] 
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 347ms
+
+> reactiveui-unreal-docs@0.0.0 lint
+> eslint .
+
+
+/home/runner/work/ReactiveUI-Unreal/ReactiveUI-Unreal/ReactiveUIUnrealDocs~/vite.config.ts
+Error:   51:18  error  Irregular whitespace not allowed  no-irregular-whitespace
+
+✖ 1 problem (1 error, 0 warnings)
+
+Error: Process completed with exit code 1.

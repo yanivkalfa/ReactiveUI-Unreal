@@ -7,9 +7,23 @@ resync with `cp CHANGELOG.md Plugins/ReactiveUI/CHANGELOG.md` (CI byte-compares 
 `scripts/verify-mirror.mjs`). The IDE extensions are NOT covered here — they use
 `ide-extensions/changelog.json` (Lane B; see the release-process skill).
 
-## [0.1.1] — 2026-07-14
+## [0.2.0] — 2026-07-14
+
+### Added
+
+- **Unreal Engine 5.7 support** — the full 103-test battery is green on 5.6 AND 5.7. The
+  5.6→5.7 API diff (scripts/engine-api-diff.ps1) found zero added/removed widgets and only
+  additive FArguments surface (recorded in plans/WIDGET_INVENTORY.md as v1.x candidates).
+  The dev .uplugin no longer pins EngineVersion — the pin is a hard per-version compat gate
+  (5.7 silently skipped loading the whole plugin in headless runs); per-engine packages
+  stamp it at release. DocsURL now points at the docs site.
 
 ### Fixed
+
+- UE 5.7 deprecation sweep: FReferenceCollector::AddReferencedObject now takes TObjectPtr
+  (the raw-pointer overload is unsafe under incremental GC and removed next release); the
+  deprecated FieldNotification include path replaced; a C5038 initializer-order warning in
+  TRuiProvidedValue silenced at the source.
 
 - **Portal content no longer leaks on unmount** — deleting a subtree containing a portal (or
   unmounting a whole root) now explicitly removes the portal's children from their target panel;

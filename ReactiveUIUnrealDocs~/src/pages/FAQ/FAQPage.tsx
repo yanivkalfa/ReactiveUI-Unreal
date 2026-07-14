@@ -10,8 +10,9 @@ const QA: Array<[string, ReactNode]> = [
   ],
   [
     'Which Unreal versions are supported?',
-    <><strong>UE 5.6 and up.</strong> It is a normal engine plugin — no GDExtension-style native
-      dependency, no external runtime.</>,
+    <><strong>UE 5.6 and up</strong> — the full automation battery runs green on 5.6 and 5.7
+      (5.6 is the floor; new engine versions go through a scripted catch-up process). It is a
+      normal engine plugin — no GDExtension-style native dependency, no external runtime.</>,
   ],
   [
     'Is it production-ready?',
