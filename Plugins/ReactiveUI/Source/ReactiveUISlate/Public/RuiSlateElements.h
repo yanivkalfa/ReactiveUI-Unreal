@@ -181,12 +181,15 @@ struct REACTIVEUISLATE_API FRuiWidgetSwitcherProps final : public FRuiPropsBase
 };
 
 /** SScaleBox (SingleContent): scales its content. Stretch = none|fill|scaleToFit|scaleToFitX|
- *  scaleToFitY|scaleToFill|scaleBySafeZone; StretchDirection = both|downOnly|upOnly. */
+ *  scaleToFitY|scaleToFill|scaleBySafeZone; StretchDirection = both|downOnly|upOnly.
+ *  HAlign/VAlign place the scaled content inside the box (default center|center). */
 struct REACTIVEUISLATE_API FRuiScaleBoxProps final : public FRuiPropsBase
 {
 	RUI_PROP(FName, Stretch, 0)
 	RUI_PROP(FName, StretchDirection, 1)
-	RUI_PROPS_BODY(FRuiScaleBoxProps, RUI_EQ(Stretch) RUI_EQ(StretchDirection))
+	RUI_PROP(FName, HAlign, 2)
+	RUI_PROP(FName, VAlign, 3)
+	RUI_PROPS_BODY(FRuiScaleBoxProps, RUI_EQ(Stretch) RUI_EQ(StretchDirection) RUI_EQ(HAlign) RUI_EQ(VAlign))
 };
 
 /** SThrobber (Leaf): a busy indicator. Animate = all|vertical|horizontal|opacity|

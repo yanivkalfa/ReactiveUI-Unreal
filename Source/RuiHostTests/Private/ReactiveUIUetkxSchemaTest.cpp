@@ -70,7 +70,8 @@ bool FRuiUetkxSchemaTest::RunTest(const FString&)
 				  Elements->GetObjectField(TEXT("Spacer"))->GetBoolField(TEXT("children")));
 
 		const TArray<TSharedPtr<FJsonValue>>& StyleKeys = Schema->GetArrayField(TEXT("styleKeys"));
-		TestEqual(TEXT("12 style keys"), StyleKeys.Num(), 12);
+		TestEqual(TEXT("13 style keys"), StyleKeys.Num(), 13);
+		TestTrue(TEXT("Clipping styled"), HasString(StyleKeys, TEXT("Clipping")));
 		TestTrue(TEXT("RenderOpacity styled"), HasString(StyleKeys, TEXT("RenderOpacity")));
 		TestTrue(TEXT("Font.Size styled"), HasString(StyleKeys, TEXT("Font.Size")));
 

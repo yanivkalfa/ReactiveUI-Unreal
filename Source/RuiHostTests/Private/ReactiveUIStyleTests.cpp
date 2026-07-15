@@ -71,6 +71,7 @@ static FRuiNodeArray StyleModesComp(FRuiContext& Ctx, const FRuiEmptyProps&, con
 		{
 			Style->Add(FName(TEXT("visibility")), FRuiValue(FName(TEXT("hidden"))));
 			Style->Add(FName(TEXT("RenderTranslation")), FRuiValue(FVector2D(5.0f, 7.0f)));
+			Style->Add(FName(TEXT("Clipping")), FRuiValue(FName(TEXT("clipToBounds"))));
 		}
 	}
 	return {RUI::Slate::VerticalBox(FRuiVerticalBoxProps(), {StyleTest::StyledText(TEXT("styled"), MoveTemp(Style))})};
@@ -91,6 +92,7 @@ bool FRuiStyleApplyTest::RunTest(const FString&)
 	TestEqual(TEXT("opacity applied at mount"), Text->GetRenderOpacity(), 0.4f);
 	TestTrue(TEXT("visibility applied"), Text->GetVisibility() == EVisibility::Hidden);
 	TestTrue(TEXT("render transform applied"), Text->GetRenderTransform().IsSet());
+	TestTrue(TEXT("clipping applied (the Doom framebuffer key)"), Text->GetClipping() == EWidgetClipping::ClipToBounds);
 
 	AddInfo(TEXT("[style] style-only change: same widget, new values, removed keys reset"));
 	StyleTest::IntSetter(1);
@@ -100,6 +102,7 @@ bool FRuiStyleApplyTest::RunTest(const FString&)
 	TestEqual(TEXT("opacity updated"), TextAfter->GetRenderOpacity(), 0.8f);
 	TestTrue(TEXT("removed visibility RESET to visible"), TextAfter->GetVisibility() == EVisibility::Visible);
 	TestFalse(TEXT("removed translation RESET to identity"), TextAfter->GetRenderTransform().IsSet());
+	TestTrue(TEXT("removed clipping RESET to inherit"), TextAfter->GetClipping() == EWidgetClipping::Inherit);
 
 	AddInfo(TEXT("[style] whole dict removed -> everything resets"));
 	StyleTest::IntSetter(2);

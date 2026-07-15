@@ -142,6 +142,8 @@ namespace
 				FTagDef T{TEXT("RUI::Slate::ScaleBox"), TEXT("FRuiScaleBoxProps"), true, {}};
 				T.Attrs.Add(TEXT("Stretch"), EAttrType::Name);
 				T.Attrs.Add(TEXT("StretchDirection"), EAttrType::Name);
+				T.Attrs.Add(TEXT("HAlign"), EAttrType::Name);
+				T.Attrs.Add(TEXT("VAlign"), EAttrType::Name);
 				M.Add(TEXT("ScaleBox"), MoveTemp(T));
 			}
 			{
@@ -238,7 +240,8 @@ namespace
 			TEXT("RenderOpacity"),		  TEXT("Visibility"),	   TEXT("Enabled"),
 			TEXT("RenderTranslation"),	  TEXT("RenderScale"),	   TEXT("RenderTransformAngle"),
 			TEXT("RenderTransformPivot"), TEXT("ColorAndOpacity"), TEXT("Font.Size"),
-			TEXT("Justification"),		  TEXT("AutoWrapText"),	   TEXT("FillColorAndOpacity")};
+			TEXT("Justification"),		  TEXT("AutoWrapText"),	   TEXT("FillColorAndOpacity"),
+			TEXT("Clipping")};
 		return Keys;
 	}
 

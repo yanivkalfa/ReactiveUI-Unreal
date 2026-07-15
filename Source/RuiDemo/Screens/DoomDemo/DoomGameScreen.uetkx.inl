@@ -45,12 +45,14 @@ static FRuiNodeArray DoomGameScreen_UetkxImpl(FRuiContext& Ctx, const FDoomGameS
 		const float HudH = static_cast<float>(RuiDoom::C::HUD_HEIGHT);
 	
 		// ScaleToFit letterboxes the fixed-res game into WHATEVER the demo area gives us — the
-		// siblings' windows ARE 800×590, so scaled-to-fit-and-centered is the same feel: the HUD
-		// sits flush at the bottom of the game block, no dead band below it.
+		// siblings' windows ARE 800×590, so scaled-to-fit is the same feel. VAlign=bottom pins
+		// the HUD to the window's bottom edge whenever width is the constraining axis.
 #line 51 "DoomGameScreen.uetkx.inl"
 	return { [&]() -> FRuiNode {
 		FRuiScaleBoxProps P;
 		P.SetStretch(FName(TEXT("scaleToFit")));
+		P.SetHAlign(FName(TEXT("center")));
+		P.SetVAlign(FName(TEXT("bottom")));
 		TArray<FRuiNode> Ch;
 		Ch.Add([&]() -> FRuiNode {
 		FRuiBoxProps P;
@@ -67,6 +69,11 @@ static FRuiNodeArray DoomGameScreen_UetkxImpl(FRuiContext& Ctx, const FDoomGameS
 		FRuiBoxProps P;
 		P.SetWidthOverride((ViewportW));
 		P.SetHeightOverride((ViewportH));
+		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
+		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
+		__Style->Add(FName(TEXT("Clipping")), FRuiValue(TEXT("clipToBounds")));
+		if (!__Style->IsEmpty()) { P.Style = __Style; }
+		if (!__Slot->IsEmpty()) { P.SlotProps = __Slot; }
 		TArray<FRuiNode> Ch;
 		Ch.Add([&]() -> FRuiNode {
 		FRuiCanvasPanelProps P;

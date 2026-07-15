@@ -179,8 +179,10 @@
 			"children": true,
 			"attrs":
 			{
+				"HAlign": "name",
 				"Stretch": "name",
-				"StretchDirection": "name"
+				"StretchDirection": "name",
+				"VAlign": "name"
 			}
 		},
 		"ScrollBox":
@@ -322,6 +324,7 @@
 	},
 	"styleKeys": [
 		"AutoWrapText",
+		"Clipping",
 		"ColorAndOpacity",
 		"Enabled",
 		"FillColorAndOpacity",
