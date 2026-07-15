@@ -304,7 +304,7 @@ export const sections: DocSection[] = [
         path: '/integration',
         keywords: ['integration', 'interop', 'epic', 'umg', 'commonui', 'mvvm', 'slate', 'pillars'],
         searchContent:
-          'integration overview four pillars layer decides which slate widgets exist each frame everything epic stays in place feeding data hosting output slate render target ordinary swidgets widget reflector umg door both directions URuiHostWidget RUI::Umg::UserWidget commonui owns menus input routing focus activatable stacks URuiActivatableScreen mvvm fieldnotify UseField they own values we own structure named-component registry ComponentName RUI_COMPONENT RegisterNamedFactory MountNamed designer dropdown incremental adoption leaf panel screen interop showcase demo beta caveats',
+          'integration overview four pillars layer decides which slate widgets exist each frame everything epic stays in place feeding data hosting output slate render target ordinary swidgets widget reflector umg door both directions URuiHostWidget RUI::Umg::UserWidget commonui owns menus input routing focus activatable stacks URuiActivatableScreen mvvm fieldnotify UseField they own values we own structure named-component registry ComponentName RUI_COMPONENT RegisterNamedFactory MountNamed designer dropdown incremental adoption leaf panel screen interop showcase demo InitialProps ViewModel UseDesiredFocus gamepad focus',
         element: () => <InteropOverviewPage />,
       },
       {
@@ -477,7 +477,7 @@ export const sections: DocSection[] = [
         path: '/known-issues',
         keywords: ['known issues', 'limitations', 'hmr', 'hooks', 'transitions'],
         searchContent:
-          'known issues limitations beta hot reload windows only live coding shipping unaffected committed uetkx.inl hooks unconditional positional slots @if @for desync rui.StrictMode transitions synchronous UseTransition no concurrent renderer api parity removed plain props do not reset style events refs draw reset intentional family semantic per-widget reference pages pending prop-map components overview slate class decisions not bugs',
+          'known issues limitations beta hot reload windows only live coding shipping unaffected committed uetkx.inl hooks unconditional positional slots @if @for desync rui.StrictMode transitions synchronous UseTransition no concurrent renderer api parity removed plain props do not reset style events refs draw reset intentional semantic c++-only factories no generated pages listview tileview drag-and-drop render-prop specials subsystems in depth decisions not bugs',
         element: () => <KnownIssuesPage />,
       },
     ],

@@ -13,9 +13,10 @@ The Unreal sibling of [ReactiveUIToolKit](https://github.com/yanivkalfa/Reactive
 > virtualized `ListView`/`TileView`), the `.uetkx` compiler with committed codegen and a CI
 > drift gate, live hot reload in PIE (Unreal Live Coding — Windows editor; the library itself
 > builds and runs on every UE platform), the 17-hook router, `@theme`/`.uss` stylesheets,
-> drag-and-drop, exit animations, and first-class UMG/CommonUI/MVVM interop — all green under
-> the repository's headless automation battery. Remaining before v1: localization (FText
-> gathering) and docs-site build-out. Progress and the v1 ship gate:
+> drag-and-drop, exit animations, localization (markup text gathers through the stock
+> Localization Dashboard; culture switches re-render live), and first-class UMG/CommonUI/MVVM
+> interop — all green under the repository's headless automation battery. Remaining before v1:
+> docs-site build-out. Progress and the v1 ship gate:
 > <https://github.com/yanivkalfa/ReactiveUI-Unreal>
 
 ## What it is

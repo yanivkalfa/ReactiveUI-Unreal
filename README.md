@@ -23,10 +23,11 @@ the UI update in under a second, no C++ recompile, no script VM in your shipped 
 > first-class **CommonUI/MVVM citizenship** (activatable screens, MVVM global collection, UMG
 > prop-map bridge), an **in-editor `.uetkx` live preview**, and VS Code/VS2022 language tooling
 > (with embedded-C++ clangd intelligence) are implemented and green under a **100+-test headless
-> automation battery**. The demo gallery's 17 screens all compile from `.uetkx`. Open
-> `ReactiveUIUnrealDemo.uproject` (UE 5.6+; the battery is verified green on 5.6, 5.7, AND 5.8) and press Play. Remaining before v1: **localization**
-> (FText gathering) and the **docs-site content** — tracked in [plans/ROADMAP.md](plans/ROADMAP.md)
-> and [plans/TECH_DEBT.md](plans/TECH_DEBT.md).
+> automation battery**. The demo gallery's 17 screens all compile from `.uetkx`, and markup text
+> is **localizable through the stock Localization Dashboard** (with live culture switching). Open
+> `ReactiveUIUnrealDemo.uproject` (UE 5.6+; the battery is verified green on 5.6, 5.7, AND 5.8)
+> and press Play. Remaining before v1: the **docs-site content build-out** — tracked in
+> [plans/ROADMAP.md](plans/ROADMAP.md) and [plans/REMAINING.md](plans/REMAINING.md).
 
 **Quick taste** — `Source/RuiDemo/Screens/SimpleCounter/SimpleCounter.uetkx` (compiles to the
 committed sibling `.inl`; edit it while the editor runs and the screen hot-swaps in place):
