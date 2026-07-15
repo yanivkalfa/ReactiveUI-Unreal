@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 //
 // ReactiveUI.Bugfix2.* — regression tests locking the fixes from the SECOND adversarial bug hunt
-// (plans/BUGHUNT_2026-07-12_round2.md). Each asserts the previously-uncovered case: the neutral
+// (plans/archive/BUGHUNT_2026-07-12_round2.md). Each asserts the previously-uncovered case: the neutral
 // copyright banner (CG-1), a mis-cased host tag (CG-3), operator-in-default param splitting (SCAN-1),
 // a comment inside an import list (SCAN-2), a hook missing its body (SCAN-3), theme-token resolution
 // (STYLE-1) and space-after-comma vectors (STYLE-2), NumericEntryBox clamping (IW-1), a POP navigation

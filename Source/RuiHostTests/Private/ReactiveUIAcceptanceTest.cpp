@@ -2,7 +2,7 @@
 //
 // ReactiveUI.Acceptance — the coherence gate: one suite that walks the WHOLE shipped chain
 // end to end and fails loudly if any seam between subsystems drifts. Each numbered section
-// mirrors an item on plans/OWNER_ACCEPTANCE_CHECKLIST.md — this suite is the headless half;
+// mirrors an item on plans/archive/OWNER_ACCEPTANCE_CHECKLIST.md — this suite is the headless half;
 // the checklist is the interactive half (PIE, HMR-in-editor, IDE extensions).
 
 #include "Misc/AutomationTest.h"

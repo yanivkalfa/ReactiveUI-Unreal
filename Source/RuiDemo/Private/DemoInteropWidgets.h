@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 //
-// The promise-completing interop widgets (audit Phase 4 — plans/AUDIT_2026-07-14.md §3):
+// The promise-completing interop widgets (audit Phase 4 — plans/archive/AUDIT_2026-07-14.md §3):
 //
 //   UDemoHostUserWidget  — G1, "ours INSIDE theirs": a hand-built UMG UserWidget whose widget
 //                          tree contains a URuiHostWidget pointing at a registered component.

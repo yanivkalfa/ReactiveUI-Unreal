@@ -368,7 +368,7 @@ referenced from plans/PRs.
 - **Production-grade resolution:** port `_parse_hook_at`/module member loops from guitkx.gd
   into FUetkxFileScan, emit free functions in the `.inl`, corpus + contract fixtures. Do it
   when the docs site (Phase 8) starts teaching cross-family authoring, or on user demand.
-- **Status:** RESOLVED 2026-07-11 — hook/module declarations + one-component-per-file + companion suffixes + refs-topo aggregator shipped on feat/uetkx-compiler (plans/UETKX_DECLARATIONS_PLAN.md; owner field-test directive)
+- **Status:** RESOLVED 2026-07-11 — hook/module declarations + one-component-per-file + companion suffixes + refs-topo aggregator shipped on feat/uetkx-compiler (plans/archive/UETKX_DECLARATIONS_PLAN.md; owner field-test directive)
 
 ## TD-018 — Cross-repo grammar-corpus mirroring (Godot follow-up PR)
 - **Where:** `ide-extensions/lsp-server/test-fixtures/uetkx-*.json` ↔ the Godot repo's
@@ -646,7 +646,7 @@ referenced from plans/PRs.
 
 ## TD-027 — HMR v2: Live-Coding-driven whole-project HMR + `ReactiveUetkx` menu/window
 - **Where:** `ReactiveUIInterp` (the interpreter executor), `RuiHmr.*`, `UetkxWatcher.cpp`,
-  `ReactiveUIEditor` (new menu/window/commands/settings). Full design: `plans/HMR_V2_PLAN.md`.
+  `ReactiveUIEditor` (new menu/window/commands/settings). Full design: `plans/archive/HMR_V2_PLAN.md`.
 - **What/why deferred:** the shipped HMR makes a single-file INTERPRETER the default path — it can't
   resolve imports or run user hooks/effects, so a component using an imported hook (e.g. the
   `.hooks.uetkx` pattern) can't be hot-reloaded and (pre-fix) was swapped to a dead version. That is
@@ -666,7 +666,7 @@ referenced from plans/PRs.
   (interpreter deleted; `ReactiveUIInterp` now parser-only; preview + acceptance §5 reworked to the
   compiled component), `fa819dc` (`ReactiveUetkx` menu + `SReactiveUetkxHmrPanel` window), `95db6ac`
   (commands + settings + in-window rebinding), `b02390f` (repeat-key bughunt). Build OK; drift 23/0/0;
-  suite 99/99; gates green. Two deliberate naming deviations recorded in `plans/HMR_V2_PLAN.md`'s
+  suite 99/99; gates green. Two deliberate naming deviations recorded in `plans/archive/HMR_V2_PLAN.md`'s
   status banner (controller is `FUetkxHmrController` not `FRuiHmr`; shortcut chords live only in the
   input binding manager, not the settings object). The live Live-Coding loop is owner-verified
   in-editor (no headless test can drive Live Coding).
@@ -719,7 +719,7 @@ referenced from plans/PRs.
 - **What/why deferred:** the ours-in-theirs UMG door hosts by `ComponentName` only — no
   `SynchronizeProperties` override, no Blueprint-passed initial props, no VM handoff (research
   D_interop b2 promised "BP can pass initial props and a VM"). Shipped minimal in Phase 6;
-  surfaced by the 2026-07-14 audit (`plans/AUDIT_2026-07-14.md` §11-N1). Workaround today:
+  surfaced by the 2026-07-14 audit (`plans/archive/AUDIT_2026-07-14.md` §11-N1). Workaround today:
   share state via a Signal or a FieldNotify VM read with `UseField` (documented in the UMG guide).
 - **Production-grade resolution:** an `Instanced`/map UPROPERTY of initial props applied through
   the existing `ApplyPropMap`-style reflection path + an optional `TScriptInterface

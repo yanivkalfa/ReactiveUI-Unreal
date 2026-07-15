@@ -2,9 +2,9 @@
 
 > **Status:** IN PROGRESS
 > **Branch:** `feat/uetkx-imports` → `dev`   **PR:** pending owner merge   **Phases:** 6/10 done + Phase 7 substantially delivered (localization deferred), Phase 8 in progress
-> **STATUS RECONCILIATION — 2026-07-14 (audit, `plans/AUDIT_2026-07-14.md`).** Four
+> **STATUS RECONCILIATION — 2026-07-14 (audit, `plans/archive/AUDIT_2026-07-14.md`).** Four
 > never-reconciled divergences between this plan and the shipped code, struck in place below:
-> (1) **D-20/D-21's interpreter/expression VM was deleted by HMR v2** (`plans/HMR_V2_PLAN.md`,
+> (1) **D-20/D-21's interpreter/expression VM was deleted by HMR v2** (`plans/archive/HMR_V2_PLAN.md`,
 > owner-merged) — hot reload is Live-Coding-driven recompile; the §1 decisions stay as history,
 > the ship-gate line is struck. (2) The gate named **`UseViewModel`, which was never built** —
 > the shipped API is `UseField` (whole-VM read-tracking is a research idea, not a commitment).
@@ -1103,7 +1103,7 @@ distribution, and always opt-in — never a mandatory VM under the shipped UI, p
   easing, float/FVector2D/FLinearColor lerps; UseSfx dispatches through the process-wide sink
   (RUI::SetSfxSink — the game registers how a bus plays). Every hook is now stub-free. Suites:
   ReactiveUI.Hooks.Tween + ReactiveUI.Hooks.Sfx (battery 52/52).
-  plans/EXIT_ANIMATION_DESIGN.md written (Presence-boundary protocol; implementation remains
+  plans/archive/EXIT_ANIMATION_DESIGN.md written (Presence-boundary protocol; implementation remains
   TD-003 by the ship-or-defer clause). The §4 parity ledger is substantially in place from
   Phases 1-2 (Slate.Events/KeyedReorder, Style.Classes/NodePool, Update tail, Widgets.*;
   custom_draw exercised via the compiled CustomDraw demo). Deferred with rationale: TD-022

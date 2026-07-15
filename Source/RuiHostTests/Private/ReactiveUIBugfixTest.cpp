@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 //
 // ReactiveUI.Bugfix.* — regression tests locking the fixes from the 2026-07-12 adversarial bug hunt
-// (plans/BUGHUNT_2026-07-12.md). Each asserts the previously-uncovered case the corresponding green
+// (plans/archive/BUGHUNT_2026-07-12.md). Each asserts the previously-uncovered case the corresponding green
 // test missed (the hunt's meta-finding: the suite only exercised the happy path).
 
 #include "Misc/AutomationTest.h"
