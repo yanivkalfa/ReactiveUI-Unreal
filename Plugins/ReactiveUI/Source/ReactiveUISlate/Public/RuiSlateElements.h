@@ -87,15 +87,17 @@ struct REACTIVEUISLATE_API FRuiBoxProps final : public FRuiPropsBase
 					   RUI_EQ(MaxDesiredWidth) RUI_EQ(MaxDesiredHeight) RUI_EQ(HAlign) RUI_EQ(VAlign))
 };
 
-/** SImage (Leaf): tint + desired size + an optional asset Brush (D-17). Build the brush ONCE
- *  with RUI::Umg::MakeAssetBrush (it GC-roots the texture/material) and pass it by identity —
- *  RUI_EQ(Brush) compares the shared pointer, so wrap it in UseMemo/UseRef to avoid re-applying. */
+/** SImage (Leaf): tint + desired size + an optional asset brush (D-17). The field is `Image` —
+ *  the loyal Unreal name (SImage::SetImage), also the markup attr: `<Image Image={ Brush } />`.
+ *  Build the brush ONCE with RUI::Umg::MakeAssetBrush (it GC-roots the texture/material) and
+ *  pass it by identity — RUI_EQ(Image) compares the shared pointer, so wrap it in
+ *  UseMemo/UseRef to avoid re-applying. (Renamed from `Brush` 2026-07-15, D-33 compliance.) */
 struct REACTIVEUISLATE_API FRuiImageProps final : public FRuiPropsBase
 {
 	RUI_PROP(FLinearColor, ColorAndOpacity, 0)
 	RUI_PROP(FVector2D, DesiredSizeOverride, 1)
-	RUI_PROP(TSharedPtr<FSlateBrush>, Brush, 2)
-	RUI_PROPS_BODY(FRuiImageProps, RUI_EQ(ColorAndOpacity) RUI_EQ(DesiredSizeOverride) RUI_EQ(Brush))
+	RUI_PROP(TSharedPtr<FSlateBrush>, Image, 2)
+	RUI_PROPS_BODY(FRuiImageProps, RUI_EQ(ColorAndOpacity) RUI_EQ(DesiredSizeOverride) RUI_EQ(Image))
 };
 
 /** SScrollBox (MultiSlot). Orientation is runtime-settable (header-sweep verified). */

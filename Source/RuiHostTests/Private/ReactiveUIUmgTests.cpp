@@ -184,7 +184,7 @@ namespace UmgTest
 	static FRuiNodeArray AssetImageComp(FRuiContext&, const FRuiEmptyProps&, const TArray<FRuiNode>&)
 	{
 		FRuiImageProps P;
-		P.SetBrush(GBrush);
+		P.SetImage(GBrush);
 		P.SetDesiredSizeOverride(FVector2D(16.0f, 16.0f));
 		return {RUI::Slate::Image(MoveTemp(P))};
 	}

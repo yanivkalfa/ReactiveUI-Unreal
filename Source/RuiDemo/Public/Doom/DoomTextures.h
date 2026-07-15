@@ -29,6 +29,10 @@ namespace RuiDoom
 	constexpr int32 SPRITE_W = 64;
 	constexpr int32 SPRITE_H = 64;
 
+	/** Vertical world-repeats baked into each WallTiled() strip (walls are height-capped
+	 *  below 4 repeats; the renderer selects sub-ranges via brush UVRegion). */
+	constexpr int32 WALL_TILE_REPEATS = 4;
+
 	// ───── Wall texture indices ─────
 	constexpr int32 W_BRICK_RED = 0;
 	constexpr int32 W_BRICK_GREY = 1;
@@ -98,6 +102,11 @@ namespace RuiDoom
 
 		/** Wall texture (W_* index), 64x64. */
 		static UTexture2D* Wall(int32 Index);
+
+		/** Wall texture (W_* index) stacked vertically WALL_TILE_REPEATS times, 64x256 —
+		 *  identical copies of the same pixel buffer (NOT re-rolled noise). The renderer
+		 *  picks sub-ranges via brush UVRegion, so addressing stays TA_Clamp. */
+		static UTexture2D* WallTiled(int32 Index);
 
 		/** Floor texture (F_* index), 64x64. */
 		static UTexture2D* Floor(int32 Index);

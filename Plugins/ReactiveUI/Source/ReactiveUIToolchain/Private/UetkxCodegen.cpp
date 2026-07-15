@@ -83,6 +83,7 @@ namespace
 				FTagDef T{TEXT("RUI::Slate::Image"), TEXT("FRuiImageProps"), false, {}};
 				T.Attrs.Add(TEXT("ColorAndOpacity"), EAttrType::Color);
 				T.Attrs.Add(TEXT("DesiredSizeOverride"), EAttrType::Vector2);
+				T.Attrs.Add(TEXT("Image"), EAttrType::Expr); // asset brush (TSharedPtr<FSlateBrush> expr — D-17)
 				M.Add(TEXT("Image"), MoveTemp(T));
 			}
 			{

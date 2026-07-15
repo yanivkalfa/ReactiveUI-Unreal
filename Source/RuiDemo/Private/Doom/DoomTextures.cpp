@@ -227,11 +227,14 @@ namespace RuiDoom
 		}
 
 		// ─────────────────────────────────────────────────────────────
-		// Wall textures
+		// Wall textures — generators return the 64x64 pixel BUFFER (not the texture) so
+		// EnsureBuilt() can bake both the base texture and the WallTiled() strip from ONE
+		// run of the generator (the tiled repeats must be identical copies, not re-rolled
+		// RNG streams).
 		// ─────────────────────────────────────────────────────────────
 
-		UTexture2D* MakeBrick(int32 Seed, uint8 BaseR, uint8 BaseG, uint8 BaseB, uint8 MortarR, uint8 MortarG,
-							  uint8 MortarB)
+		TArray<FColor> MakeBrick(int32 Seed, uint8 BaseR, uint8 BaseG, uint8 BaseB, uint8 MortarR, uint8 MortarG,
+								 uint8 MortarB)
 		{
 			TArray<FColor> Px = NewBuffer(TEX_W, TEX_H);
 			FDoomRandom Rng(Seed);
@@ -254,10 +257,10 @@ namespace RuiDoom
 					Px[Y * TEX_W + X] = FColor(Clamp8(R), Clamp8(G), Clamp8(B), 255);
 				}
 			}
-			return CreateTex(TEX_W, TEX_H, Px, false);
+			return Px;
 		}
 
-		UTexture2D* MakeTechPanel(int32 Seed)
+		TArray<FColor> MakeTechPanel(int32 Seed)
 		{
 			TArray<FColor> Px = NewBuffer(TEX_W, TEX_H);
 			FDoomRandom Rng(Seed);
@@ -301,10 +304,10 @@ namespace RuiDoom
 					}
 				}
 			}
-			return CreateTex(TEX_W, TEX_H, Px, false);
+			return Px;
 		}
 
-		UTexture2D* MakeWood(int32 Seed)
+		TArray<FColor> MakeWood(int32 Seed)
 		{
 			TArray<FColor> Px = NewBuffer(TEX_W, TEX_H);
 			FDoomRandom Rng(Seed);
@@ -327,10 +330,10 @@ namespace RuiDoom
 					Px[Y * TEX_W + X] = FColor(45, 25, 15, 255);
 				}
 			}
-			return CreateTex(TEX_W, TEX_H, Px, false);
+			return Px;
 		}
 
-		UTexture2D* MakeMarble(int32 Seed)
+		TArray<FColor> MakeMarble(int32 Seed)
 		{
 			TArray<FColor> Px = NewBuffer(TEX_W, TEX_H);
 			FDoomRandom Rng(Seed);
@@ -345,10 +348,10 @@ namespace RuiDoom
 					Px[Y * TEX_W + X] = FColor(Clamp8(R), Clamp8(G), Clamp8(B), 255);
 				}
 			}
-			return CreateTex(TEX_W, TEX_H, Px, false);
+			return Px;
 		}
 
-		UTexture2D* MakeHellStone(int32 Seed)
+		TArray<FColor> MakeHellStone(int32 Seed)
 		{
 			TArray<FColor> Px = NewBuffer(TEX_W, TEX_H);
 			FDoomRandom Rng(Seed);
@@ -377,10 +380,10 @@ namespace RuiDoom
 					}
 				}
 			}
-			return CreateTex(TEX_W, TEX_H, Px, false);
+			return Px;
 		}
 
-		UTexture2D* MakeDoor(const FColor& Main, TOptional<FColor> Trim)
+		TArray<FColor> MakeDoor(const FColor& Main, TOptional<FColor> Trim)
 		{
 			TArray<FColor> Px = NewBuffer(TEX_W, TEX_H);
 			const FColor Dark((uint8)(Main.R / 2), (uint8)(Main.G / 2), (uint8)(Main.B / 2), 255);
@@ -415,10 +418,10 @@ namespace RuiDoom
 					Px[Y * TEX_W + X] = FColor(60, 60, 60, 255);
 				}
 			}
-			return CreateTex(TEX_W, TEX_H, Px, false);
+			return Px;
 		}
 
-		UTexture2D* MakeExitSign()
+		TArray<FColor> MakeExitSign()
 		{
 			TArray<FColor> Px = NewBuffer(TEX_W, TEX_H);
 			const FColor Bg(30, 30, 30, 255);
@@ -447,7 +450,56 @@ namespace RuiDoom
 				Px[Y * TEX_W + 8] = Border;
 				Px[Y * TEX_W + 55] = Border;
 			}
-			return CreateTex(TEX_W, TEX_H, Px, false);
+			return Px;
+		}
+
+		/** The 64x64 pixel buffer for wall Index — same generators/args as the original's
+		 *  EnsureBuilt() wall table, dispatched by index. */
+		TArray<FColor> BuildWallPx(int32 Index)
+		{
+			switch (Index)
+			{
+			case W_BRICK_RED:
+				return MakeBrick(/*Seed*/ 7, 130, 40, 30, 35, 25, 20);
+			case W_BRICK_GREY:
+				return MakeBrick(/*Seed*/ 11, 95, 95, 100, 35, 35, 35);
+			case W_TECH_PANEL:
+				return MakeTechPanel(/*Seed*/ 13);
+			case W_WOOD:
+				return MakeWood(/*Seed*/ 17);
+			case W_MARBLE:
+				return MakeMarble(/*Seed*/ 19);
+			case W_HELL_STONE:
+				return MakeHellStone(/*Seed*/ 23);
+			case W_DOOR:
+				return MakeDoor(FColor(150, 110, 60, 255), NullOpt);
+			case W_DOOR_BLUE:
+				return MakeDoor(FColor(80, 100, 220, 255), FColor(50, 70, 200, 255));
+			case W_DOOR_YELLOW:
+				return MakeDoor(FColor(220, 200, 60, 255), FColor(180, 160, 40, 255));
+			case W_DOOR_RED:
+				return MakeDoor(FColor(220, 60, 50, 255), FColor(180, 40, 35, 255));
+			case W_EXIT:
+				return MakeExitSign();
+			case W_BRICK_BLUE:
+				return MakeBrick(/*Seed*/ 29, 50, 90, 210, 20, 30, 70);
+			default:
+				checkNoEntry();
+				return NewBuffer(TEX_W, TEX_H);
+			}
+		}
+
+		/** 64x256 strip: the 64x64 wall buffer stacked vertically WALL_TILE_REPEATS times —
+		 *  memcpy'd identical copies (the RNG is NOT re-run per repeat). */
+		UTexture2D* MakeTiled(const TArray<FColor>& Src)
+		{
+			TArray<FColor> Px;
+			Px.SetNumUninitialized(TEX_W * TEX_H * WALL_TILE_REPEATS);
+			for (int32 Repeat = 0; Repeat < WALL_TILE_REPEATS; ++Repeat)
+			{
+				FMemory::Memcpy(Px.GetData() + Repeat * Src.Num(), Src.GetData(), Src.Num() * sizeof(FColor));
+			}
+			return CreateTex(TEX_W, TEX_H * WALL_TILE_REPEATS, Px, false);
 		}
 
 		// ─────────────────────────────────────────────────────────────
@@ -1081,6 +1133,7 @@ namespace RuiDoom
 
 		bool GBuilt = false;
 		TStrongObjectPtr<UTexture2D> GWalls[W_COUNT];
+		TStrongObjectPtr<UTexture2D> GWallsTiled[W_COUNT];
 		TStrongObjectPtr<UTexture2D> GFloors[F_COUNT];
 		TStrongObjectPtr<UTexture2D> GSprites[S_COUNT];
 		TStrongObjectPtr<UTexture2D> GSky;
@@ -1096,18 +1149,14 @@ namespace RuiDoom
 		}
 		GBuilt = true;
 
-		GWalls[W_BRICK_RED].Reset(MakeBrick(/*Seed*/ 7, 130, 40, 30, 35, 25, 20));
-		GWalls[W_BRICK_GREY].Reset(MakeBrick(/*Seed*/ 11, 95, 95, 100, 35, 35, 35));
-		GWalls[W_TECH_PANEL].Reset(MakeTechPanel(/*Seed*/ 13));
-		GWalls[W_WOOD].Reset(MakeWood(/*Seed*/ 17));
-		GWalls[W_MARBLE].Reset(MakeMarble(/*Seed*/ 19));
-		GWalls[W_HELL_STONE].Reset(MakeHellStone(/*Seed*/ 23));
-		GWalls[W_DOOR].Reset(MakeDoor(FColor(150, 110, 60, 255), NullOpt));
-		GWalls[W_DOOR_BLUE].Reset(MakeDoor(FColor(80, 100, 220, 255), FColor(50, 70, 200, 255)));
-		GWalls[W_DOOR_YELLOW].Reset(MakeDoor(FColor(220, 200, 60, 255), FColor(180, 160, 40, 255)));
-		GWalls[W_DOOR_RED].Reset(MakeDoor(FColor(220, 60, 50, 255), FColor(180, 40, 35, 255)));
-		GWalls[W_EXIT].Reset(MakeExitSign());
-		GWalls[W_BRICK_BLUE].Reset(MakeBrick(/*Seed*/ 29, 50, 90, 210, 20, 30, 70));
+		// One generator run per wall: the same buffer feeds the base 64x64 texture and the
+		// 64x256 WallTiled strip (identical stacked copies — the RNG is NOT re-run).
+		for (int32 I = 0; I < W_COUNT; ++I)
+		{
+			const TArray<FColor> WallPx = BuildWallPx(I);
+			GWalls[I].Reset(CreateTex(TEX_W, TEX_H, WallPx, false));
+			GWallsTiled[I].Reset(MakeTiled(WallPx));
+		}
 
 		GFloors[F_CONCRETE].Reset(MakeNoiseTile(/*Seed*/ 31, 90, 88, 92, 25));
 		GFloors[F_TILE].Reset(MakeTileFloor(/*Seed*/ 37));
@@ -1169,6 +1218,13 @@ namespace RuiDoom
 		EnsureBuilt();
 		check(Index >= 0 && Index < W_COUNT);
 		return GWalls[Index].Get();
+	}
+
+	UTexture2D* FDoomTextures::WallTiled(int32 Index)
+	{
+		EnsureBuilt();
+		check(Index >= 0 && Index < W_COUNT);
+		return GWallsTiled[Index].Get();
 	}
 
 	UTexture2D* FDoomTextures::Floor(int32 Index)
