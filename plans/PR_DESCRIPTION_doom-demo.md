@@ -41,10 +41,17 @@ apply of the full ~168-quad framebuffer (walking E1M1 scene, M1, UE 5.6.1). The 
 - **`ReactiveUI.Doom` determinism suite** — 182 checks (vs the family's 179; 4 Godot-host-only
   checks replaced by 7 exit/boss-gate checks): every expectation matched the port on first
   execution. **Zero sim-port bugs found.**
+- **A library bug found & fixed by the first PIE playtest**: the `ColorAndOpacity` STYLE key
+  (markup's route) was silently dropped on `Image`/`Separator` — only the C++ typed-props path
+  had a handler — so the demo's alpha-0 full-screen flash quads painted opaque white over the
+  whole viewport. Both adapters now handle the style key (removal-reset to opaque white).
+  New suites: `ReactiveUI.Style.WidgetColorKeys` + `ReactiveUI.Doom.MountedFrame` (mounts the
+  REAL game screen and asserts canvas population, live slot geometry, and transparent flash
+  quads — the exact failure class headless sim tests can't see).
 
 ## Gates (all green)
 
-- **Battery 122/122, 0 failed** (UE 5.6; incl. the 10 Doom suites + Demos mounting the game)
+- **Battery 124/124, 0 failed** (UE 5.6; incl. the 11 Doom suites + Demos mounting the game)
 - Drift gate 39 markup files / 0 drifted · contract goldens 10/10 · LSP 33/33 + smoke ·
   docs-drift 8/8 · headers/skills/mirror/corpus · clang-format full set
 - `Bench.Doom` rows committed to BENCH_BASELINES.md with machine context

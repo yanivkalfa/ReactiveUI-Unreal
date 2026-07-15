@@ -34,7 +34,7 @@ const STYLE_KEYS: Array<[string, string]> = [
   ['Visibility', 'Visible | Collapsed | Hidden | HitTestInvisible | SelfHitTestInvisible'],
   ['Enabled', 'bool'],
   ['RenderTranslation / RenderScale / RenderTransformAngle / RenderTransformPivot', 'render-transform channels (FVector2D / float)'],
-  ['ColorAndOpacity', 'FSlateColor / FLinearColor'],
+  ['ColorAndOpacity', 'FSlateColor / FLinearColor (TextBlock, Image, Separator)'],
   ['Font.Size', 'text size (TextBlock and friends)'],
   ['Justification / AutoWrapText', 'text layout'],
   ['FillColorAndOpacity', 'ProgressBar fill'],

@@ -203,6 +203,20 @@ public:
 			RUI_ROW(Image, W.SetImage(N.Image.Get()))
 		}
 	}
+
+	// Markup routes ColorAndOpacity through the STYLE dict (D-13 widget-specific key, like
+	// TextBlock's) — the typed row above only serves the C++ authoring API. null = reset to
+	// the SImage default (opaque white).
+	virtual bool ApplyStyleKey(SWidget& Widget, FName Key, const FRuiValue* Value) override
+	{
+		if (Key == FName(TEXT("ColorAndOpacity")))
+		{
+			static_cast<SImage&>(Widget).SetColorAndOpacity(Value != nullptr ? FSlateColor(Value->ColorValue)
+																			 : FSlateColor(FLinearColor::White));
+			return true;
+		}
+		return false;
+	}
 };
 
 // ─────────────────────────────────────────────────────────────────────────────────────────

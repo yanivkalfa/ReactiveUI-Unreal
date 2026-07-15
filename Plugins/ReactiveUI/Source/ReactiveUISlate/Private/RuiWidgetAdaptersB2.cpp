@@ -596,6 +596,20 @@ public:
 		const FRuiSeparatorProps* O = static_cast<const FRuiSeparatorProps*>(Old);
 		RUI_ROW(ColorAndOpacity, W.SetColorAndOpacity(N.ColorAndOpacity))
 	}
+
+	// Markup routes ColorAndOpacity through the STYLE dict (D-13 widget-specific key, like
+	// TextBlock's) — the typed row above only serves the C++ authoring API. null = reset to
+	// the SCompoundWidget default (opaque white).
+	virtual bool ApplyStyleKey(SWidget& Widget, FName Key, const FRuiValue* Value) override
+	{
+		if (Key == FName(TEXT("ColorAndOpacity")))
+		{
+			static_cast<SSeparator&>(Widget).SetColorAndOpacity(Value != nullptr ? Value->ColorValue
+																				 : FLinearColor::White);
+			return true;
+		}
+		return false;
+	}
 };
 
 // ─────────────────────────────────────────────────────────────────────────────────────────

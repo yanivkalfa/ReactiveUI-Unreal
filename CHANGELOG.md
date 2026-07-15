@@ -67,6 +67,13 @@ resync with `cp CHANGELOG.md Plugins/ReactiveUI/CHANGELOG.md` (CI byte-compares 
 - `UseStableFunc`/`UseStableAction` were missing from the markup compiler's built-in hook
   table — calling them from `.uetkx` emitted uncompilable code. Added in both
   implementations (C++ scanner + TS language-server mirror); schema re-exported (22 hooks).
+- The `ColorAndOpacity` style key was silently dropped on `Image` and `Separator` — markup
+  routes it through the style dict (like TextBlock's), but only the C++ typed-props path had
+  a handler, so markup tints never reached the widget (the Doom viewport rendered as a solid
+  white sheet: its alpha-0 full-screen flash quads painted opaque). Both adapters now handle
+  the style key, with removal-reset to opaque white. Suites: `ReactiveUI.Style.WidgetColorKeys`
+  (apply/update/reset on both widgets) + `ReactiveUI.Doom.MountedFrame` (the mounted game
+  screen's flash quads are asserted transparent).
 
 ## [0.3.0] — 2026-07-14
 
