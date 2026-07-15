@@ -272,7 +272,9 @@ static FRuiNodeArray DoomHUD_UetkxImpl(FRuiContext& Ctx, const FDoomHUDUetkxProp
 		return __N;
 	}());
 		Ch.Add([&]() -> FRuiNode {
-		FRuiHorizontalBoxProps P;
+		FRuiWrapBoxProps P;
+		P.SetbUseAllottedSize((true));
+		P.SetInnerSlotPadding((FVector2D(2.0f, 1.0f)));
 		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
 		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
 		__Slot->Add(FName(TEXT("Slot.HAlign")), FRuiValue(TEXT("center")));
@@ -286,11 +288,6 @@ static FRuiNodeArray DoomHUD_UetkxImpl(FRuiContext& Ctx, const FDoomHUDUetkxProp
 			Ch.Add([&]() -> FRuiNode {
 		FRuiBoxProps P;
 		P.SetWidthOverride((20.0f));
-		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
-		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
-		__Slot->Add(FName(TEXT("Slot.Padding")), FRuiValue(TEXT("0,0,2,0")));
-		if (!__Style->IsEmpty()) { P.Style = __Style; }
-		if (!__Slot->IsEmpty()) { P.SlotProps = __Slot; }
 		TArray<FRuiNode> Ch;
 		Ch.Add([&]() -> FRuiNode {
 		FRuiNode __N = RUI::TextBlock((RUI::Fmt(TEXT("{}"), i + 1)), FRuiKey());
@@ -308,7 +305,7 @@ static FRuiNodeArray DoomHUD_UetkxImpl(FRuiContext& Ctx, const FDoomHUDUetkxProp
 		return RUI::Slate::Box(MoveTemp(P), MoveTemp(Ch), FRuiKey(FName(*FString::Printf(TEXT("arm%d"), i))));
 	}());
 		}
-		return RUI::Slate::HorizontalBox(MoveTemp(P), MoveTemp(Ch), FRuiKey());
+		return RUI::Slate::WrapBox(MoveTemp(P), MoveTemp(Ch), FRuiKey());
 	}());
 		return RUI::Slate::VerticalBox(MoveTemp(P), MoveTemp(Ch), FRuiKey());
 	}());

@@ -33,12 +33,16 @@ static FRuiNodeArray DoomFace_UetkxImpl(FRuiContext& Ctx, const FDoomFaceUetkxPr
 		// texture, and UseMemo keeps the brush IDENTITY stable across renders (FRuiImageProps
 		// compares the shared pointer) — re-created only when Idx changes.
 		const TSharedPtr<FSlateBrush>& FaceBrush = Ctx.UseMemo<TSharedPtr<FSlateBrush>>(
-			[Idx]() { return RUI::Umg::MakeAssetBrush(RuiDoom::FDoomTextures::Face(Idx), FVector2D(64.0f, 64.0f)); },
+			[Idx]() { return RUI::Umg::MakeAssetBrush(RuiDoom::FDoomTextures::Face(Idx), FVector2D(48.0f, 48.0f)); },
 			RUI::Deps(Idx));
-#line 39 "DoomFace.uetkx.inl"
+	
+		// The mug is 48px (not the siblings' 64): the bar's inner height is HUD_HEIGHT 90 minus
+		// top border + bar/panel padding = ~65px, and label(13) + 48 is what actually FITS —
+		// Slate neither shrinks nor clips overflow, so 64 spilled below the bar (playtest #2).
+#line 43 "DoomFace.uetkx.inl"
 	return { [&]() -> FRuiNode {
 		FRuiBoxProps P;
-		P.SetWidthOverride((76.0f));
+		P.SetWidthOverride((68.0f));
 		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
 		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
 		__Slot->Add(FName(TEXT("Slot.Padding")), FRuiValue(TEXT("0,0,4,0")));
@@ -55,7 +59,7 @@ static FRuiNodeArray DoomFace_UetkxImpl(FRuiContext& Ctx, const FDoomFaceUetkxPr
 		FRuiBorderProps P;
 		P.SetBorderImage(FName(TEXT("WhiteBrush")));
 		P.SetBorderBackgroundColor((PanelBg));
-		P.SetPadding(FMargin(0,4));
+		P.SetPadding(FMargin(0,1));
 		TArray<FRuiNode> Ch;
 		Ch.Add([&]() -> FRuiNode {
 		FRuiVerticalBoxProps P;
@@ -69,7 +73,7 @@ static FRuiNodeArray DoomFace_UetkxImpl(FRuiContext& Ctx, const FDoomFaceUetkxPr
 		__Style->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(LabelClr));
 		__Style->Add(FName(TEXT("Justification")), FRuiValue(TEXT("center")));
 		__Slot->Add(FName(TEXT("Slot.HAlign")), FRuiValue(TEXT("center")));
-		__Slot->Add(FName(TEXT("Slot.Padding")), FRuiValue(TEXT("0,2")));
+		__Slot->Add(FName(TEXT("Slot.Padding")), FRuiValue(TEXT("0,1")));
 		if (!__Style->IsEmpty()) { __P->Style = __Style; }
 		if (!__Slot->IsEmpty()) { __P->SlotProps = __Slot; }
 		__N.Props = __P;
@@ -78,7 +82,7 @@ static FRuiNodeArray DoomFace_UetkxImpl(FRuiContext& Ctx, const FDoomFaceUetkxPr
 		Ch.Add([&]() -> FRuiNode {
 		FRuiImageProps P;
 		P.SetImage((FaceBrush));
-		P.SetDesiredSizeOverride((FVector2D(64.0f, 64.0f)));
+		P.SetDesiredSizeOverride((FVector2D(48.0f, 48.0f)));
 		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
 		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
 		__Slot->Add(FName(TEXT("Slot.HAlign")), FRuiValue(TEXT("center")));

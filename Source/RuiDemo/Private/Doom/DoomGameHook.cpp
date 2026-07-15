@@ -7,6 +7,7 @@
 #include "Engine/World.h"
 #include "Framework/Application/SlateApplication.h"
 #include "GameFramework/PlayerController.h"
+#include "GameFramework/PlayerInput.h"
 #include "RuiContext.h"
 #include "RuiDemoSupport.h"
 
@@ -26,6 +27,8 @@ namespace RuiDoom
 			FTSTicker::FDelegateHandle Ticker;
 			bool bCaptured = false;
 			bool bUserReleased = false; // ESC pressed — stay released until a re-capture click
+			bool bShowFps = false;		// Ctrl+R toggle
+			float FpsSmoothed = 0.f;
 
 			~FDoomSession()
 			{
@@ -80,6 +83,13 @@ namespace RuiDoom
 				return Cmd;
 			}
 
+			// Ctrl+R toggles the FPS readout (family convention — works captured or not).
+			if (PC->WasInputKeyJustPressed(EKeys::R) &&
+				(PC->IsInputKeyDown(EKeys::LeftControl) || PC->IsInputKeyDown(EKeys::RightControl)))
+			{
+				S.bShowFps = !S.bShowFps;
+			}
+
 			const bool bWantCapture = S.State.Player.Alive && !S.State.GameOver && !S.State.Victory && !S.bUserReleased;
 
 			// ESC releases; a click while released re-captures (swallowed, never fired).
@@ -130,10 +140,22 @@ namespace RuiDoom
 				}
 			}
 
+			// RAW mouse counts (≈ pixels), NOT GetInputMouseDelta — the engine massages key
+			// values through the MouseX/MouseY axis config (BaseInput.ini Sensitivity=0.07),
+			// which crushed the family's pixel-calibrated constants to 7% ("sensitivity too
+			// low", first playtest). Raw is what the siblings' event handlers see.
 			float DX = 0.f, DY = 0.f;
-			PC->GetInputMouseDelta(DX, DY);
+			if (PC->PlayerInput != nullptr)
+			{
+				DX = PC->PlayerInput->GetRawKeyValue(EKeys::MouseX);
+				DY = PC->PlayerInput->GetRawKeyValue(EKeys::MouseY);
+			}
 			Cmd.YawDelta = DX * C::MOUSE_YAW_SENS;
-			Cmd.PitchDelta = DY * C::MOUSE_PITCH_SENS;
+			// UE's MouseY is positive-UP (Unity's convention); FInputCmd carries the Y-DOWN
+			// pixel delta the ported game logic consumes (it applies MOUSE_PITCH_SENS itself —
+			// the old `DY * MOUSE_PITCH_SENS` here both double-applied the sens and inverted
+			// the axis; same trap the Godot port documented in its bootstrap).
+			Cmd.PitchDelta = -DY;
 			return Cmd;
 		}
 	} // namespace
@@ -181,6 +203,9 @@ namespace RuiDoom
 								return false; // session died — unregister
 							}
 							const float Clamped = FMath::Min(Dt, 0.05f); // hitch guard (family rule)
+							// Smoothed FPS for the Ctrl+R readout (UNclamped dt — real wall time).
+							const float Inst = Dt > KINDA_SMALL_NUMBER ? 1.f / Dt : 0.f;
+							S->FpsSmoothed = S->FpsSmoothed <= 0.f ? Inst : FMath::Lerp(S->FpsSmoothed, Inst, 0.1f);
 							Tick(S->State, Clamped, PollInput(*S));
 							BuildFrameGeometry(S->State, S->Brushes, FVector2D(C::VIEWPORT_W, C::VIEWPORT_H),
 											   S->Geometry);
@@ -207,6 +232,8 @@ namespace RuiDoom
 		View.State = &Session->State;
 		View.Geometry = &Session->Geometry;
 		View.Version = Version;
+		View.bShowFps = Session->bShowFps;
+		View.Fps = Session->FpsSmoothed;
 		return View;
 	}
 } // namespace RuiDoom

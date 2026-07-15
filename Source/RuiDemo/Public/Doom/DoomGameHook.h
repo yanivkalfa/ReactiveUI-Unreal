@@ -35,6 +35,8 @@ namespace RuiDoom
 		const FGameState* State = nullptr;
 		const FDoomFrameGeometry* Geometry = nullptr;
 		int32 Version = 0;
+		bool bShowFps = false; // Ctrl+R toggle (family convention — the Godot bootstrap's counter)
+		float Fps = 0.f;	   // smoothed frames/sec, valid while bShowFps
 	};
 
 	/** The game loop. A change to Level/Diff/RestartVersion starts a fresh NewGame. */

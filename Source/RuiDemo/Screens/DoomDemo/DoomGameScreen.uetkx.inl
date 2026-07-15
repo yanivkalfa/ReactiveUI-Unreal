@@ -43,8 +43,16 @@ static FRuiNodeArray DoomGameScreen_UetkxImpl(FRuiContext& Ctx, const FDoomGameS
 		const float ViewportW = static_cast<float>(RuiDoom::C::VIEWPORT_W);
 		const float ViewportH = static_cast<float>(RuiDoom::C::VIEWPORT_H);
 		const float HudH = static_cast<float>(RuiDoom::C::HUD_HEIGHT);
-#line 47 "DoomGameScreen.uetkx.inl"
+	
+		// ScaleToFit letterboxes the fixed-res game into WHATEVER the demo area gives us — the
+		// siblings' windows ARE 800×590, so scaled-to-fit-and-centered is the same feel: the HUD
+		// sits flush at the bottom of the game block, no dead band below it.
+#line 51 "DoomGameScreen.uetkx.inl"
 	return { [&]() -> FRuiNode {
+		FRuiScaleBoxProps P;
+		P.SetStretch(FName(TEXT("scaleToFit")));
+		TArray<FRuiNode> Ch;
+		Ch.Add([&]() -> FRuiNode {
 		FRuiBoxProps P;
 		P.SetWidthOverride((ViewportW));
 		P.SetHeightOverride((ViewportH + HudH));
@@ -253,6 +261,33 @@ static FRuiNodeArray DoomGameScreen_UetkxImpl(FRuiContext& Ctx, const FDoomGameS
 	}());
 		return RUI::Slate::Box(MoveTemp(P), MoveTemp(Ch), FRuiKey());
 	}());
+		if (View.bShowFps)
+		{
+			Ch.Add([&]() -> FRuiNode {
+		FRuiBoxProps P;
+		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
+		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
+		__Slot->Add(FName(TEXT("Slot.HAlign")), FRuiValue(TEXT("left")));
+		__Slot->Add(FName(TEXT("Slot.VAlign")), FRuiValue(TEXT("top")));
+		__Slot->Add(FName(TEXT("Slot.Padding")), FRuiValue(TEXT("8,8,0,0")));
+		if (!__Style->IsEmpty()) { P.Style = __Style; }
+		if (!__Slot->IsEmpty()) { P.SlotProps = __Slot; }
+		TArray<FRuiNode> Ch;
+		Ch.Add([&]() -> FRuiNode {
+		FRuiNode __N = RUI::TextBlock((RUI::Fmt(TEXT("FPS {}"), FMath::RoundToInt(View.Fps))), FRuiKey());
+		TSharedRef<FRuiTextBlockProps> __P = MakeShared<FRuiTextBlockProps>(static_cast<const FRuiTextBlockProps&>(*__N.Props));
+		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
+		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
+		__Style->Add(FName(TEXT("Font.Size")), FRuiValue(16.0f));
+		__Style->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(FLinearColor(1.0f, 0.95f, 0.4f, 1.0f)));
+		if (!__Style->IsEmpty()) { __P->Style = __Style; }
+		if (!__Slot->IsEmpty()) { __P->SlotProps = __Slot; }
+		__N.Props = __P;
+		return __N;
+	}());
+		return RUI::Slate::Box(MoveTemp(P), MoveTemp(Ch), FRuiKey(FName(TEXT("fps"))));
+	}());
+		}
 		if (St->Player.MessageTimer > 0.0f)
 		{
 			Ch.Add([&]() -> FRuiNode {
@@ -469,6 +504,8 @@ static FRuiNodeArray DoomGameScreen_UetkxImpl(FRuiContext& Ctx, const FDoomGameS
 		return RUI::Slate::VerticalBox(MoveTemp(P), MoveTemp(Ch), FRuiKey());
 	}());
 		return RUI::Slate::Box(MoveTemp(P), MoveTemp(Ch), FRuiKey());
+	}());
+		return RUI::Slate::ScaleBox(MoveTemp(P), MoveTemp(Ch), FRuiKey());
 	}() };
 }
 static const FName GDoomGameScreenUetkxId = RUI::RegisterComponentId((void*)&DoomGameScreen_UetkxImpl, FName(TEXT("DoomGameScreen")));

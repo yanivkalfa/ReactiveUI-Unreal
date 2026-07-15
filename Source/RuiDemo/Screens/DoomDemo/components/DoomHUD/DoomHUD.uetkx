@@ -95,16 +95,18 @@ export component DoomHUD(
 							<Border BorderImage="WhiteBrush" BorderBackgroundColor={ PanelBg } Padding="6,4">
 								<VerticalBox>
 									<TextBlock Text="ARMS" Font.Size={ 10.0f } ColorAndOpacity={ LabelClr } Justification="center" Slot.HAlign="center" Slot.Padding="0,2,0,0" />
-									<HorizontalBox Slot.HAlign="center" Slot.Padding="0,2,0,0">
+									<!-- Wraps onto a second line when the panel is narrower than
+										 six cells — the Unity original's FlexWrap, verbatim. -->
+									<WrapBox bUseAllottedSize={ true } InnerSlotPadding={ FVector2D(2.0f, 1.0f) } Slot.HAlign="center" Slot.Padding="0,2,0,0">
 										@for (int32 i = 1; i <= 6; ++i) {
 											const bool bOwned = OwnedWeapons.IsValidIndex(i) && OwnedWeapons[i];
 											return (
-												<Box key={ FName(*FString::Printf(TEXT("arm%d"), i)) } WidthOverride={ 20.0f } Slot.Padding="0,0,2,0">
+												<Box key={ FName(*FString::Printf(TEXT("arm%d"), i)) } WidthOverride={ 20.0f }>
 													<TextBlock Text={ RUI::Fmt(TEXT("{}"), i + 1) } Font.Size={ 11.0f } ColorAndOpacity={ bOwned ? RedNum : DimClr } Justification="center" />
 												</Box>
 											);
 										}
-									</HorizontalBox>
+									</WrapBox>
 								</VerticalBox>
 							</Border>
 						</Border>
