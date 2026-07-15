@@ -57,10 +57,13 @@
   the schema; the 23 core hooks + 17 router hooks still have only guide-level coverage
   (ROADMAP row 8 "generated per-widget/per-hook references remain"). A production line
   (template + registry-driven counts) mirrors the widgets one.
-- **Demo/gallery decisions** (audit §9-Q5, MASTER_PLAN Phase 8): which of
-  todo / 5k-virtualized-inventory / world-space / HUD-over-game are v1-blocking, and the
-  marquee-demo ship-or-defer (family precedent: the Godot Doom clone drove perf work AND
-  became the demo video).
+- **Doom demo — OWNER DECIDED 2026-07-15: build it** (was the "marquee demo ship-or-defer",
+  MASTER_PLAN Phase 8). Port the family Doom demo like the Godot and Unity siblings: the
+  full game-UI showcase (HUD over a running game, menu stacks, live state) that historically
+  drove perf work (pooling, keyed diff, reorder) AND becomes the demo video. Own campaign
+  (1 branch, 1 PR); feeds `ReactiveUI.Bench` + the marketing capture.
+- **Remaining demo decisions** (audit §9-Q5): which of todo / 5k-virtualized-inventory /
+  world-space are v1-blocking vs v1.x gallery additions.
 
 ## 5. Widget & markup surface (v1.x production lines)
 
