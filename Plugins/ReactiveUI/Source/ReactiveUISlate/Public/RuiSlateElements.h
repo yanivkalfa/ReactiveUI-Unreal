@@ -46,6 +46,14 @@ struct REACTIVEUISLATE_API FRuiOverlayProps final : public FRuiPropsBase
 	RUI_PROPS_BODY(FRuiOverlayProps, )
 };
 
+/** SCanvas (MultiSlot) — ABSOLUTE placement: each child positions/sizes itself via
+ *  `Slot.Position` + `Slot.Size` (FVector2D or "x,y" literals). Paint order = child order
+ *  (SCanvas has no per-slot z; keep emission order stable — the Doom-demo container). */
+struct REACTIVEUISLATE_API FRuiCanvasPanelProps final : public FRuiPropsBase
+{
+	RUI_PROPS_BODY(FRuiCanvasPanelProps, )
+};
+
 /** SBorder (SingleContent). Alignment values: fill|left|center|right / fill|top|center|bottom.
  *  BorderImage takes an FCoreStyle brush NAME (v1 — e.g. "WhiteBrush" for a solid fill
  *  tinted by BorderBackgroundColor; the engine default is a thin frame-type brush). Asset
@@ -329,6 +337,7 @@ namespace RUI::Slate
 	REACTIVEUISLATE_API FRuiElementTypeId HorizontalBoxType();
 	REACTIVEUISLATE_API FRuiElementTypeId ButtonType();
 	REACTIVEUISLATE_API FRuiElementTypeId OverlayType();
+	REACTIVEUISLATE_API FRuiElementTypeId CanvasType();
 
 	REACTIVEUISLATE_API FRuiNode VerticalBox(FRuiVerticalBoxProps Props = FRuiVerticalBoxProps(),
 											 TArray<FRuiNode> Children = TArray<FRuiNode>(), FRuiKey Key = FRuiKey());
@@ -338,6 +347,8 @@ namespace RUI::Slate
 										TArray<FRuiNode> Children = TArray<FRuiNode>(), FRuiKey Key = FRuiKey());
 	REACTIVEUISLATE_API FRuiNode Overlay(FRuiOverlayProps Props = FRuiOverlayProps(),
 										 TArray<FRuiNode> Children = TArray<FRuiNode>(), FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode Canvas(FRuiCanvasPanelProps Props = FRuiCanvasPanelProps(),
+										TArray<FRuiNode> Children = TArray<FRuiNode>(), FRuiKey Key = FRuiKey());
 
 	REACTIVEUISLATE_API FRuiNode Border(FRuiBorderProps Props = FRuiBorderProps(),
 										TArray<FRuiNode> Children = TArray<FRuiNode>(), FRuiKey Key = FRuiKey());

@@ -50,6 +50,40 @@ namespace RUI::Slate::SlotValue
 		}
 	}
 
+	/** Read a slot value as an FVector2D: Vector2 kind, uniform Int/Float, or the String/Name
+	 *  `"x,y"` / `"u"` comma forms (same literal rules as every other slot reader — SLOT-1). */
+	inline FVector2D AsVector2(const FRuiValue& V, FVector2D Def = FVector2D::ZeroVector)
+	{
+		switch (V.Kind)
+		{
+		case FRuiValue::EKind::Vector2:
+			return V.Vector2Value;
+		case FRuiValue::EKind::Int:
+			return FVector2D(static_cast<double>(V.IntValue));
+		case FRuiValue::EKind::Float:
+			return FVector2D(V.FloatValue);
+		case FRuiValue::EKind::String:
+		case FRuiValue::EKind::Name:
+		{
+			const FString S = V.Kind == FRuiValue::EKind::Name ? V.NameValue.ToString() : V.StringValue;
+			TArray<FString> Parts;
+			S.ParseIntoArray(Parts, TEXT(","), true);
+			if (Parts.Num() == 2)
+			{
+				return FVector2D(FCString::Atod(*Parts[0]), FCString::Atod(*Parts[1]));
+			}
+			if (Parts.Num() == 1 && !Parts[0].TrimStartAndEnd().IsEmpty())
+			{
+				return FVector2D(FCString::Atod(*Parts[0]));
+			}
+			break;
+		}
+		default:
+			break;
+		}
+		return Def;
+	}
+
 	/** Read a slot value as an FMargin: uniform (Int/Float), Vector2 (h,v), or the String/Name comma
 	 *  forms `"u"` / `"h,v"` / `"l,t,r,b"`. Mirrors ParsePadding so every panel honors slot.padding. */
 	inline FMargin AsMargin(const FRuiValue& V)

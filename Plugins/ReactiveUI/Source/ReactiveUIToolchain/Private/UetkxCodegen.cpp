@@ -58,6 +58,7 @@ namespace
 			M.Add(TEXT("VerticalBox"), {TEXT("RUI::Slate::VerticalBox"), TEXT("FRuiVerticalBoxProps"), true, {}});
 			M.Add(TEXT("HorizontalBox"), {TEXT("RUI::Slate::HorizontalBox"), TEXT("FRuiHorizontalBoxProps"), true, {}});
 			M.Add(TEXT("Overlay"), {TEXT("RUI::Slate::Overlay"), TEXT("FRuiOverlayProps"), true, {}});
+			M.Add(TEXT("Canvas"), {TEXT("RUI::Slate::Canvas"), TEXT("FRuiCanvasPanelProps"), true, {}});
 			{
 				FTagDef T{TEXT("RUI::Slate::Border"), TEXT("FRuiBorderProps"), true, {}};
 				T.Attrs.Add(TEXT("Padding"), EAttrType::Margin);
@@ -1483,8 +1484,8 @@ FString FUetkxCodegen::ExportSchemaJson()
 	// Slot.* is an OPEN prefix (any name routes to the slot dict); these are the D-33 canon.
 	Root->SetStringField(TEXT("slotPrefix"), TEXT("Slot."));
 	TArray<TSharedPtr<FJsonValue>> SlotArray;
-	for (const TCHAR* Key :
-		 {TEXT("Slot.Padding"), TEXT("Slot.HAlign"), TEXT("Slot.VAlign"), TEXT("Slot.Fill"), TEXT("Slot.ZOrder")})
+	for (const TCHAR* Key : {TEXT("Slot.Padding"), TEXT("Slot.HAlign"), TEXT("Slot.VAlign"), TEXT("Slot.Fill"),
+							 TEXT("Slot.ZOrder"), TEXT("Slot.Position"), TEXT("Slot.Size")})
 	{
 		SlotArray.Add(MakeShared<FJsonValueString>(Key));
 	}

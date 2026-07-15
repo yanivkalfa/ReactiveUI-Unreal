@@ -11,6 +11,8 @@
 //   slot.valign   Name/String: fill|top|center|bottom
 //   slot.fill     Float (box panels: FillHeight/FillWidth; 0/absent = AutoHeight/AutoWidth)
 //   slot.zorder   Int (overlay only; defaults keep declaration order)
+//   slot.position Vector2 | String "x,y" (canvas only; absolute placement)
+//   slot.size     Vector2 | String "w,h" (canvas only; absolute size)
 
 #include "RuiElementAdapter.h"
 #include "RuiEventProxy.h"
@@ -21,6 +23,7 @@
 #include "Styling/CoreStyle.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/SBoxPanel.h"
+#include "Widgets/SCanvas.h"
 #include "Widgets/SNullWidget.h"
 #include "Widgets/SOverlay.h"
 #include "Widgets/Text/STextBlock.h"
@@ -123,6 +126,8 @@ namespace
 	const FName SlotVAlignKey(TEXT("slot.valign"));
 	const FName SlotFillKey(TEXT("slot.fill"));
 	const FName SlotZOrderKey(TEXT("slot.zorder"));
+	const FName SlotPositionKey(TEXT("slot.position"));
+	const FName SlotSizeKey(TEXT("slot.size"));
 
 	float SlotFillOf(const FRuiStyleDict* SlotProps)
 	{
@@ -508,6 +513,118 @@ private:
 };
 
 // ─────────────────────────────────────────────────────────────────────────────────────────
+// Canvas (SCanvas) — MultiSlot, ABSOLUTE placement: slot.position + slot.size per child.
+// Paint order = child order (no per-slot z; the reconciler's declaration order is the
+// painter's order — keep emission stable, the Doom-demo container contract).
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+class FRuiCanvasPanelAdapter final : public IRuiElementAdapter
+{
+public:
+	virtual ERuiChildKind GetChildKind() const override { return ERuiChildKind::MultiSlot; }
+
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase&, const TSharedPtr<FRuiEventProxy>&) override
+	{
+		return SNew(SCanvas);
+	}
+
+	virtual void ApplyDiff(SWidget&, const FRuiPropsBase*, const FRuiPropsBase&) override {}
+
+	virtual void InsertChild(SWidget& Parent, const TSharedRef<SWidget>& Child, int32 Index,
+							 const FRuiStyleDict* SlotProps) override
+	{
+		// SCanvas has no indexed insertion; the reconciler appends in declaration order and
+		// ReorderChildren enforces any later divergence.
+		(void)Index;
+		SCanvas& Canvas = static_cast<SCanvas&>(Parent);
+		SCanvas::FScopedWidgetSlotArguments Slot = Canvas.AddSlot();
+		Slot.AttachWidget(Child);
+		ConfigureSlot(Slot, SlotProps);
+	}
+
+	virtual void RemoveChild(SWidget& Parent, const TSharedRef<SWidget>& Child) override
+	{
+		static_cast<SCanvas&>(Parent).RemoveSlot(Child);
+	}
+
+	virtual void ReorderChildren(SWidget& Parent, const TArray<TSharedRef<SWidget>>& Ordered,
+								 TFunctionRef<const FRuiStyleDict*(const TSharedRef<SWidget>&)> SlotPropsOf) override
+	{
+		// Order IS the painter's order here; a keyed reorder rebuilds (rare on this panel —
+		// the demo contract is stable emission order).
+		SCanvas& Canvas = static_cast<SCanvas&>(Parent);
+		Canvas.ClearChildren();
+		for (const TSharedRef<SWidget>& Child : Ordered)
+		{
+			SCanvas::FScopedWidgetSlotArguments Slot = Canvas.AddSlot();
+			Slot.AttachWidget(Child);
+			ConfigureSlot(Slot, SlotPropsOf(Child));
+		}
+	}
+
+	virtual void UpdateChildSlotProps(SWidget& Parent, const TSharedRef<SWidget>& Child,
+									  const FRuiStyleDict* SlotProps) override
+	{
+		// The hot path: SCanvas slots mutate Position/Size IN PLACE — no slot churn (this is
+		// what makes per-frame quad movement cheap; contrast the Overlay remove/re-add).
+		// Same live-FSlot pattern as the box panels (TD-010a): GetSlotAt returns a const ref,
+		// the slot is engine-mutable, so cast to the concrete FSlot and drive its setters.
+		SCanvas& Canvas = static_cast<SCanvas&>(Parent);
+		FChildren* Children = Canvas.GetChildren();
+		for (int32 i = 0; Children != nullptr && i < Children->Num(); ++i)
+		{
+			if (&Children->GetChildAt(i).Get() == &Child.Get())
+			{
+				SCanvas::FSlot& Slot =
+					const_cast<SCanvas::FSlot&>(static_cast<const SCanvas::FSlot&>(Children->GetSlotAt(i)));
+				ApplySlot(Slot, SlotProps);
+				Canvas.Invalidate(EInvalidateWidgetReason::Layout);
+				return;
+			}
+		}
+	}
+
+private:
+	static void ConfigureSlot(SCanvas::FScopedWidgetSlotArguments& Slot, const FRuiStyleDict* SlotProps)
+	{
+		if (SlotProps == nullptr)
+		{
+			return;
+		}
+		if (const FRuiValue* P = SlotProps->Find(SlotPositionKey))
+		{
+			Slot.Position(RUI::Slate::SlotValue::AsVector2(*P));
+		}
+		if (const FRuiValue* S = SlotProps->Find(SlotSizeKey))
+		{
+			Slot.Size(RUI::Slate::SlotValue::AsVector2(*S));
+		}
+		if (const FRuiValue* H = SlotProps->Find(SlotHAlignKey))
+		{
+			Slot.HAlign(ParseHAlign(*H));
+		}
+		if (const FRuiValue* V = SlotProps->Find(SlotVAlignKey))
+		{
+			Slot.VAlign(ParseVAlign(*V));
+		}
+	}
+
+	static void ApplySlot(SCanvas::FSlot& Slot, const FRuiStyleDict* SlotProps)
+	{
+		// Removal RESETS to the slot defaults (Position 0,0 / Size 1,1 / Left / Top) — the same
+		// family semantic the box panels honor: an update result mirrors a fresh reinsert.
+		const FRuiValue* P = SlotProps != nullptr ? SlotProps->Find(SlotPositionKey) : nullptr;
+		const FRuiValue* S = SlotProps != nullptr ? SlotProps->Find(SlotSizeKey) : nullptr;
+		const FRuiValue* H = SlotProps != nullptr ? SlotProps->Find(SlotHAlignKey) : nullptr;
+		const FRuiValue* V = SlotProps != nullptr ? SlotProps->Find(SlotVAlignKey) : nullptr;
+		Slot.SetPosition(P != nullptr ? RUI::Slate::SlotValue::AsVector2(*P) : FVector2D::ZeroVector);
+		Slot.SetSize(S != nullptr ? RUI::Slate::SlotValue::AsVector2(*S) : FVector2D(1.0, 1.0));
+		Slot.SetHorizontalAlignment(H != nullptr ? ParseHAlign(*H) : HAlign_Left);
+		Slot.SetVerticalAlignment(V != nullptr ? ParseVAlign(*V) : VAlign_Top);
+	}
+};
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
 // Element factories + registration
 // ─────────────────────────────────────────────────────────────────────────────────────────
 
@@ -531,6 +648,11 @@ namespace RUI::Slate
 	FRuiElementTypeId OverlayType()
 	{
 		static FRuiElementTypeId Id = RUI::InternElementType(FName(TEXT("Overlay")));
+		return Id;
+	}
+	FRuiElementTypeId CanvasType()
+	{
+		static FRuiElementTypeId Id = RUI::InternElementType(FName(TEXT("Canvas")));
 		return Id;
 	}
 
@@ -565,6 +687,10 @@ namespace RUI::Slate
 	{
 		return MakeHostNode(OverlayType(), MoveTemp(Props), MoveTemp(Children), Key);
 	}
+	FRuiNode Canvas(FRuiCanvasPanelProps Props, TArray<FRuiNode> Children, FRuiKey Key)
+	{
+		return MakeHostNode(CanvasType(), MoveTemp(Props), MoveTemp(Children), Key);
+	}
 
 	namespace Detail
 	{
@@ -586,6 +712,7 @@ namespace RUI::Slate
 		RegisterAdapter(HorizontalBoxType(), MakeUnique<FRuiHorizontalBoxAdapter>());
 		RegisterAdapter(ButtonType(), MakeUnique<FRuiButtonAdapter>());
 		RegisterAdapter(OverlayType(), MakeUnique<FRuiOverlayAdapter>());
+		RegisterAdapter(CanvasType(), MakeUnique<FRuiCanvasPanelAdapter>());
 		Detail::RegisterBatch2Adapters();
 		Detail::RegisterBatch2WidgetAdapters();
 		Detail::RegisterItemViewAdapters();
