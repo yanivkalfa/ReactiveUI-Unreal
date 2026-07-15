@@ -3,12 +3,6 @@ import { Alert, Box, Typography } from '@mui/material'
 
 const ITEMS: Array<[string, ReactNode]> = [
   [
-    'Localization is deferred',
-    <>FText gathering for <code>.uetkx</code> is not wired yet — it is the one deliberately deferred
-      production gap. Localized text works through the normal Unreal channels in the meantime; the
-      markup-level gathering lands post-v1.</>,
-  ],
-  [
     'Hot reload is Windows-only',
     <>HMR rides Unreal Live Coding, a Windows-editor capability, so live editing is a development-time
       convenience on that platform. Shipping builds are unaffected — they compile the committed{' '}

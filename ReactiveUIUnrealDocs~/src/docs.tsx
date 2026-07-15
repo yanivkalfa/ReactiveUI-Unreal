@@ -23,6 +23,7 @@ import { ApiReferencePage } from './pages/API/ApiReferencePage'
 import { DiagnosticsPage } from './pages/Diagnostics/DiagnosticsPage'
 import { ConfigPage } from './pages/Config/ConfigPage'
 import { AssetsPage } from './pages/Assets/AssetsPage'
+import { LocalizationPage } from './pages/Localization/LocalizationPage'
 import { RouterPage } from './pages/Router/RouterPage'
 import { SuspensePage } from './pages/Suspense/SuspensePage'
 import { DebuggingPage } from './pages/Debugging/DebuggingPage'
@@ -143,6 +144,16 @@ export const sections: DocSection[] = [
         searchContent:
           'assets slate brushes fonts colors not raw paths FSlateBrush references UObject RUI::Umg::MakeAssetBrush ResourceObject ImageSize Tint UTexture2D material render target TObjectPtr soft reference asset manager Image Border Button background FSlateFontInfo Font keys FSlateColor FLinearColor ColorAndOpacity literal unreal names lifetime handled process-wide GC root FRuiAssetBrushRoot NumTrackedAssetBrushes no manual rooting',
         element: () => <AssetsPage />,
+      },
+      {
+        id: 'localization',
+        canonicalId: 'localization',
+        title: 'Localization',
+        path: '/guides/localization',
+        keywords: ['localization', 'loc', 'FText', 'NSLOCTEXT', 'culture', 'gather', 'translation'],
+        searchContent:
+          'localization ftext gathering nsloctext uetkx string literals self-namespaced Uetkx file basename localization dashboard gather translate compile stock pipeline no custom gatherer *.inl FileNameFilters GatherTextFromSource file masks committed uetkx.inl demo target RuiDemo_Gather.ini manifest archive locres ReactiveUI.Loc.GatherManifest tripwire culture switching SetCurrentCulture text revision re-render mounted roots lazy ftext RUI::Fmt stable keys carry-over archive translation',
+        element: () => <LocalizationPage />,
       },
       {
         id: 'hooks-guide',
@@ -450,7 +461,7 @@ export const sections: DocSection[] = [
         path: '/faq',
         keywords: ['faq', 'questions', 'help', 'production', 'versions', 'umg', 'mvvm'],
         searchContent:
-          'faq frequently asked questions what is reactiveui for unreal react-style ui library pure c++ fiber reconciler slate widgets .uetkx compiles committed c++ which unreal versions 5.6 plugin no external native dependency no external runtime production ready beta pre-1.0 docs release localization deferred scripting vm no javascript engine bridge reflection-free existing umg widgets UUserWidget RUI::Umg::UserWidget MVVM view-models FieldNotify UseField CommonUI activatable event props OnClicked not onClick loyal to unreal hot reload live coding windows state preserved editor support vs code visual studio 2022 extensions offline',
+          'faq frequently asked questions what is reactiveui for unreal react-style ui library pure c++ fiber reconciler slate widgets .uetkx compiles committed c++ which unreal versions 5.6 plugin no external native dependency no external runtime production ready beta pre-1.0 docs release scripting vm no javascript engine bridge reflection-free existing umg widgets UUserWidget RUI::Umg::UserWidget MVVM view-models FieldNotify UseField CommonUI activatable event props OnClicked not onClick loyal to unreal hot reload live coding windows state preserved editor support vs code visual studio 2022 extensions offline',
         element: () => <FAQPage />,
       },
     ],
@@ -464,9 +475,9 @@ export const sections: DocSection[] = [
         canonicalId: 'known-issues',
         title: 'Known Issues',
         path: '/known-issues',
-        keywords: ['known issues', 'limitations', 'localization', 'hmr', 'hooks', 'transitions'],
+        keywords: ['known issues', 'limitations', 'hmr', 'hooks', 'transitions'],
         searchContent:
-          'known issues limitations beta localization deferred FText gathering post-v1 hot reload windows only live coding shipping unaffected committed uetkx.inl hooks unconditional positional slots @if @for desync rui.StrictMode transitions synchronous UseTransition no concurrent renderer api parity removed plain props do not reset style events refs draw reset intentional family semantic per-widget reference pages pending prop-map components overview slate class decisions not bugs',
+          'known issues limitations beta hot reload windows only live coding shipping unaffected committed uetkx.inl hooks unconditional positional slots @if @for desync rui.StrictMode transitions synchronous UseTransition no concurrent renderer api parity removed plain props do not reset style events refs draw reset intentional family semantic per-widget reference pages pending prop-map components overview slate class decisions not bugs',
         element: () => <KnownIssuesPage />,
       },
     ],
@@ -482,7 +493,7 @@ export const sections: DocSection[] = [
         path: '/roadmap',
         keywords: ['roadmap', 'status', 'phases', 'progress', 'release'],
         searchContent:
-          'roadmap living status plans/ROADMAP.md phases core reconciler hooks signals suspense slate host widgets style uetkx compiler build committed inl schema RUICompile formatter hot reload live coding ide extensions language server vs code vs2022 umg commonui mvvm interop UseField activatables production gaps virtualized lists focus animation portals drag and drop widget batch 2 localization deferred demos gallery benchmarks docs site in progress release publishing owner gated ship gate fab marketplace done in progress planned',
+          'roadmap living status plans/ROADMAP.md phases core reconciler hooks signals suspense slate host widgets style uetkx compiler build committed inl schema RUICompile formatter hot reload live coding ide extensions language server vs code vs2022 umg commonui mvvm interop UseField activatables production gaps virtualized lists focus animation portals drag and drop widget batch 2 localization gather culture switch demos gallery benchmarks docs site in progress release publishing owner gated ship gate fab marketplace done in progress planned',
         element: () => <RoadmapPage />,
       },
     ],

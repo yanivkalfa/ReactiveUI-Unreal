@@ -37,8 +37,8 @@ export const IntroductionPage: FC = () => (
 
     <Alert severity="info" sx={{ mb: 2 }}>
       ReactiveUI-Unreal is in <strong>beta</strong>: the product is built end to end (reconciler,
-      compiler, hot reload, IDE tooling, Epic interop) and green under the headless automation
-      battery. Remaining before v1: localization (FText gathering) and docs build-out — see{' '}
+      compiler, hot reload, IDE tooling, Epic interop, localization) and green under the headless
+      automation battery. Remaining before v1: docs build-out — see{' '}
       <Link href={ROADMAP_URL} target="_blank" rel="noreferrer">
         plans/ROADMAP.md
       </Link>{' '}

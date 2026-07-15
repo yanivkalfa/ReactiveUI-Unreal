@@ -17,8 +17,8 @@ const QA: Array<[string, ReactNode]> = [
   [
     'Is it production-ready?',
     <>It is in <strong>beta</strong> — built end to end and green under the headless automation
-      battery, but pre-1.0: localization (FText gathering) is deferred and the docs are still
-      building out. Expect minor API settling before v1.</>,
+      battery, but pre-1.0: the docs are still building out and the API may settle slightly
+      before v1.</>,
   ],
   [
     'Does it ship a scripting VM?',
