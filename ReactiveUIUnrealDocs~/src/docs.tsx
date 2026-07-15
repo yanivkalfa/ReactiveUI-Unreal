@@ -1,6 +1,9 @@
 import type { ReactElement } from 'react'
 import type { Page as LegacyPage } from './pages'
 import { pages as legacySections } from './pages'
+import { CORE_HOOKS, ROUTER_HOOKS } from './hooksCatalog'
+import type { HookEntry } from './hooksCatalog'
+import { HookPage } from './pages/Hooks/HookPage'
 import { PAGE_VERSIONS, isAvailableIn, compareVersions } from './versionManifest'
 import { IntroductionPage } from './pages/Introduction/IntroductionPage'
 import { GettingStartedPage } from './pages/GettingStarted/GettingStartedPage'
@@ -57,6 +60,20 @@ export type DocSection = {
 }
 
 const componentPages = legacySections.find((section) => section.id === 'components')?.pages ?? []
+
+// One page per hook, GENERATED from hooksCatalog.ts (authored from the real headers; the
+// docs-drift gate compares its counts against the code registries) — same model as the
+// Components catalog.
+const hookPages = (hooks: HookEntry[]): DocPage[] =>
+  hooks.map((hook) => ({
+    id: `hook-${hook.name.toLowerCase()}`,
+    canonicalId: `hook-${hook.name.toLowerCase()}`,
+    title: hook.name,
+    path: `/hooks/${hook.name.toLowerCase()}`,
+    keywords: [hook.name, 'hook', hook.category],
+    searchContent: `${hook.name} ${hook.category} hook ${hook.signature} ${hook.returns} ${hook.description} ${(hook.gotchas ?? []).join(' ')}`,
+    element: () => <HookPage hook={hook} />,
+  }))
 
 export const sections: DocSection[] = [
   {
@@ -449,6 +466,16 @@ export const sections: DocSection[] = [
       sinceUE: page.sinceUE,
       element: page.element,
     })),
+  },
+  {
+    id: 'hook-reference',
+    title: 'Hooks',
+    pages: hookPages(CORE_HOOKS),
+  },
+  {
+    id: 'router-hook-reference',
+    title: 'Router Hooks',
+    pages: hookPages(ROUTER_HOOKS),
   },
   {
     id: 'faq',

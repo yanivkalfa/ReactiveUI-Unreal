@@ -36,9 +36,9 @@
 
 ## 3. Verification debt (needs eyes/hands, mostly owner)
 
-- **Accessibility screen-reader pass** (audit §9-Q1): the "output is ordinary SWidgets" claim is
-  verified for Widget Reflector/styling but the screen-reader path has never been exercised;
-  docs copy is deliberately softened until it is.
+- **Accessibility screen-reader pass** (audit §9-Q1) — **DEFERRED by owner 2026-07-15** (no
+  screen reader available). Docs copy stays softened to what is verified until a pass runs;
+  revisit at/after v1.
 - **CI engine arming decision** (archive/OWNER_ACCEPTANCE_CHECKLIST_v2 §H): set
   `RUI_CI_ENGINE_ARMED=true` + `EPIC_GHCR_PAT` and verify the armed leg, or consciously stay
   local-battery-only. Unarmed is currently the documented state.
@@ -47,21 +47,20 @@
   change on a real device (CMU-1), asset-brush GC stress under `obj gc`.
 - **Owner setup**: re-add the branch ruleset with THIS repo's check names (the imported one
   carried the Godot repo's and was deleted — ROADMAP status note).
-- **Bench figures in README** (audit §9-Q6): 3 of 5 numbers match no committed
-  `BENCH_BASELINES.md` row; re-run and commit fresh rows, or correct the README to the
-  committed numbers (house rule: printed numbers come only from committed rows).
+- ~~**Bench figures in README**~~ (audit §9-Q6) — ✅ RESOLVED: the audit campaign had already
+  re-pointed the README at committed rows; 2026-07-15 re-ran the bench, committed fresh
+  baseline rows, and the README cites them.
 
 ## 4. Docs build-out (Phase 8 tail)
 
-- **Generated per-hook reference pages**: the per-widget Components catalog is generated from
-  the schema; the 23 core hooks + 17 router hooks still have only guide-level coverage
-  (ROADMAP row 8 "generated per-widget/per-hook references remain"). A production line
-  (template + registry-driven counts) mirrors the widgets one.
-- **Doom demo — OWNER DECIDED 2026-07-15: build it** (was the "marquee demo ship-or-defer",
-  MASTER_PLAN Phase 8). Port the family Doom demo like the Godot and Unity siblings: the
-  full game-UI showcase (HUD over a running game, menu stacks, live state) that historically
-  drove perf work (pooling, keyed diff, reorder) AND becomes the demo video. Own campaign
-  (1 branch, 1 PR); feeds `ReactiveUI.Bench` + the marketing capture.
+- ~~**Generated per-hook reference pages**~~ — ✅ SHIPPED 2026-07-15: hooksCatalog.ts
+  (23 core + 17 router entries authored from the real headers) renders one reference page
+  per hook (sidebar sections "Hooks" / "Router Hooks"); docs-drift compares the catalog
+  counts against RuiContext.h/RuiRouter.h (8 checks armed).
+- **Doom demo — OWNER DECIDED 2026-07-15: build it.** Research complete; the full
+  implementation plan is [DOOM_DEMO_PLAN.md](DOOM_DEMO_PLAN.md) (8 phases, Phase 0 = the
+  Slate column-renderer spike). Own campaign (`feat/doom-demo`, 1 branch, 1 PR); feeds
+  `ReactiveUI.Bench` + the demo video.
 - **Remaining demo decisions** (audit §9-Q5): which of todo / 5k-virtualized-inventory /
   world-space are v1-blocking vs v1.x gallery additions.
 
@@ -72,10 +71,10 @@
   FArguments surface recorded there is the same line's feedstock.
 - **TD-012 remainder**: runtime setters found by the header sweep and deferred by decision —
   WIDGET_INVENTORY tracks per-widget.
-- **Markup `Ref` attribute gap** (found 2026-07-15 during the docs sweep): capturing a host
-  handle (portals, focus) requires the C++ props-level `Props.Ref = …` — markup has no `Ref`
-  attr, so a pure-markup component cannot target a portal at its own subtree. Decide: grow a
-  `Ref={ … }` markup attr (codegen assigns the props field) or keep it a C++-level surface.
+- ~~**Markup `Ref` attribute gap**~~ — ✅ SHIPPED 2026-07-15 (owner decision): `Ref={ expr }`
+  is a universal reserved attribute (codegen assigns `Props.Ref`; expr-only, string form
+  diagnosed); LSP completion/hover, contract fixture `RefCapture`, AcceptanceLab §9 live
+  proof, Portals/CommonUI docs now show the markup form.
 - **TD-011 tail**: construct-only prop CHANGES rebuild via `ReplaceWidget`; the reconstruct-mask
   audit for future construct-only props stays a checklist item on the component pipeline.
 
@@ -99,6 +98,9 @@
 
 - **Q3**: `URuiWorldSubsystem : UWorldSubsystem` vs locked D-17's `UGameInstanceSubsystem` —
   bless the as-built design (banner the decision) or treat as a defect.
-- **Q4 remainder**: research-promised APIs never locked — `UseOwnedViewModel`, stale-VM policy,
-  a marshaling helper. Backlog or strike from the record. (The two concrete halves became
-  TD-028/TD-029 — §2 above.)
+- ~~**Q4 remainder**~~ — ✅ RESOLVED 2026-07-15 (owner decision: build them):
+  `RUI::Umg::UseOwnedViewModel<T>` (create-and-own for the component lifetime; suite
+  `ReactiveUI.Mvvm.OwnedViewModel`) and the marshaling helper
+  `RUI::Umg::MarshalToProperty/MarshalFromProperty` (the prop-map's conversion table made
+  public + shared; suite `ReactiveUI.Umg.Marshal`). Stale-VM policy was already recorded
+  (quiet defaults — RuiFieldHooks.h).

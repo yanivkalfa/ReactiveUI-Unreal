@@ -26,6 +26,13 @@ Vm->SetInt(Score);            // broadcasts on change, skips on equal
 // UMG views resolve it by context name:
 RUI::Mvvm::RegisterGlobalViewModel(GameInstance, TEXT("PlayerStats"), Vm);`
 
+const OWNED = `// Inside a component — create, own, and read a viewmodel in two lines:
+URuiSignalViewModel* Vm = RUI::Umg::UseOwnedViewModel<URuiSignalViewModel>(Ctx);
+const int32 Score = RUI::Umg::UseField<int32>(Ctx, Vm, "Int", 0);
+
+// Write it from events; anything bound to it (UMG views included) follows:
+<Button OnClicked={ Vm->SetInt(Score + 1) }>+1</Button>`
+
 export const MvvmGuidePage: FC = () => (
   <Box>
     <Typography variant="h4" component="h1" gutterBottom>
@@ -60,9 +67,22 @@ export const MvvmGuidePage: FC = () => (
     </Typography>
     <CodeBlock code={REVERSE} language="uetkx" />
 
+    <Typography variant="h5" component="h2" gutterBottom sx={{ mt: 3 }}>
+      Owning a viewmodel — <code>UseOwnedViewModel</code>
+    </Typography>
+    <Typography variant="body1" paragraph>
+      When the component itself should own the viewmodel,{' '}
+      <code>RUI::Umg::UseOwnedViewModel&lt;T&gt;(Ctx)</code> creates it on first render, keeps it
+      GC-rooted for the component&apos;s lifetime, and releases it on unmount — the{' '}
+      <code>UseMemo</code> + <code>TStrongObjectPtr</code> pattern, packaged into one hook.
+    </Typography>
+    <CodeBlock code={OWNED} language="uetkx" />
+
     <Alert severity="info">
-      Own a viewmodel from a component with <code>UseMemo</code> + <code>TStrongObjectPtr</code>{' '}
-      (created once, GC-rooted, released on unmount) — the MvvmDemo screen shows the exact pattern.
+      Moving single values between Rui state and reflected <code>UPROPERTY</code>s by hand? The
+      prop-map&apos;s conversion table is public: <code>RUI::Umg::MarshalToProperty</code> /{' '}
+      <code>MarshalFromProperty</code> (bool, int32/64, float/double, FString, FText, FName —
+      kind mismatches are skipped, never mangled).
     </Alert>
   </Box>
 )

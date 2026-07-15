@@ -742,6 +742,7 @@ namespace
 			bool bStyled = false;
 			FString StyleStmts;
 			FString ClassStmts;
+			FString RefStmts;
 			for (const FUetkxAttr& Attr : Node.Attrs)
 			{
 				if (Attr.Kind == EUetkxAttrKind::Comment)
@@ -778,6 +779,21 @@ namespace
 						}
 					}
 				}
+				else if (Attr.Name == TEXT("Ref"))
+				{
+					// universal reserved prop — see the element path below; expr-only.
+					if (Attr.Kind == EUetkxAttrKind::Expr)
+					{
+						bStyled = true;
+						RefStmts += FString::Printf(TEXT("\t\t__P->Ref = (%s);\n"), *EmitExpr(Attr.Value, AbsAt));
+					}
+					else
+					{
+						Fail(TEXT("UETKX0105"),
+							 TEXT("attribute 'Ref' on <TextBlock> needs an {expr} value (a ref callable)"),
+							 AbsAt + Attr.At);
+					}
+				}
 				else if (IsStyleKey(Attr.Name) || Attr.Name.StartsWith(TEXT("Slot.")))
 				{
 					bStyled = true;
@@ -806,6 +822,7 @@ namespace
 			Out += TEXT("\t\tTSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();\n");
 			Out += TEXT("\t\tTSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();\n");
 			Out += ClassStmts;
+			Out += RefStmts;
 			Out += StyleStmts;
 			Out += TEXT("\t\tif (!__Style->IsEmpty()) { __P->Style = __Style; }\n");
 			Out += TEXT("\t\tif (!__Slot->IsEmpty()) { __P->SlotProps = __Slot; }\n");
@@ -860,6 +877,26 @@ namespace
 						Out += FString::Printf(TEXT("\t\tP.Classes.Add(FName(TEXT(\"%s\")));\n"),
 											   *CppStringLiteral(ClassName));
 					}
+				}
+				continue;
+			}
+			if (Attr.Name == TEXT("Ref"))
+			{
+				// universal reserved prop: `Ref={ expr }` — the props-level host-handle capture
+				// (React ref lifecycle: called with the handle on attach, cleared on detach). The
+				// expression yields anything assignable to FRuiPropsBase::Ref — a
+				// TFunction<void(const FRuiHostHandle&)> lambda or a RUI::Slate::UseFocus
+				// handle's `.Ref`. Expr-only: a string form has no meaning for a callable.
+				if (Attr.Kind == EUetkxAttrKind::Expr)
+				{
+					Out += FString::Printf(TEXT("\t\tP.Ref = (%s);\n"), *EmitExpr(Attr.Value, AbsAt));
+				}
+				else
+				{
+					Fail(TEXT("UETKX0105"),
+						 FString::Printf(TEXT("attribute 'Ref' on <%s> needs an {expr} value (a ref callable)"),
+										 *Node.Tag),
+						 AbsAt + Attr.At);
 				}
 				continue;
 			}

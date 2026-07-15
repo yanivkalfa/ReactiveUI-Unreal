@@ -75,6 +75,10 @@ export const RouterPage: FC = () => (
     <Typography variant="h5" component="h2" gutterBottom sx={{ mt: 3 }}>
       The 17 router hooks
     </Typography>
+    <Typography variant="body2" paragraph color="text.secondary">
+      Each hook has its own generated reference page — see <strong>Router Hooks</strong> in the
+      sidebar for signatures, examples, and edge behavior.
+    </Typography>
     <TableContainer sx={{ mb: 2 }}>
       <Table size="small">
         <TableHead>

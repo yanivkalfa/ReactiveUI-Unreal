@@ -30,6 +30,16 @@ export component AcceptanceLab {
 	auto [bMounted, SetMounted] = UseState<bool>(false);
 	UseEffect([SetMounted]() { SetMounted(true); }, RUI::Deps());
 
+	// Ref={ } capture (section 9): the handle arrives on attach (post-commit); the effect flips
+	// a flag so the label below proves the markup-level Ref actually fired.
+	const TSharedRef<TRuiRef<FRuiHostHandle>>& RefTarget = UseRef<FRuiHostHandle>();
+	auto [bRefAttached, SetRefAttached] = UseState<bool>(false);
+	UseEffect(
+		[RefTarget, SetRefAttached, bRefAttached]() {
+			if (!bRefAttached && RefTarget->Current.IsValid()) { SetRefAttached(true); }
+		},
+		RUI::EveryCommit());
+
 	// A fixed list for the @for section (keyed rows).
 	static const TCHAR* Fruits[] = {TEXT("Apple"), TEXT("Banana"), TEXT("Cherry"), TEXT("Date")};
 
@@ -172,6 +182,14 @@ export component AcceptanceLab {
 								<LabCard Label="Always zero" Count={ 0 } />
 							</HorizontalBox>
 						</VerticalBox>
+					</Border>
+					<Spacer Size={ FVector2D(1.0f, 6.0f) } />
+
+					<!-- 9 · Ref={ } — the universal reserved prop from markup: the Border hands its host
+					     handle to the callable on attach (React ref lifecycle); the post-commit effect
+					     above flips the flag, so this label reads "attached: true" once mounted. -->
+					<Border Padding="8" BorderImage="WhiteBrush" BorderBackgroundColor={ FLinearColor(0.04f, 0.04f, 0.06f, 0.9f) } Ref={ [RefTarget](const FRuiHostHandle& H) { RefTarget->Current = H; } }>
+						<TextBlock Text={ RUI::Fmt(TEXT("9. Ref captured this Border - attached: {}"), bRefAttached) } />
 					</Border>
 				</VerticalBox>
 			</ScrollBox>

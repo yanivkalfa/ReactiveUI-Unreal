@@ -28,26 +28,31 @@ Values are min/med of n=5 in-process reps (µs).
 ## Bench.Core / mount_1000_leaves (cold mount: render + fibers + host nodes; 1 container + 1000 unkeyed leaf boxes)
 | date | sha | machine | config | min µs | med µs | notes |
 |---|---|---|---|---|---|---|
+| 2026-07-15 | 10d35cd+0.4.0-prep | M1 | Dev editor, mock host | 193 | 193 | re-run for the 0.4.0 campaign; parity with 2026-07-10 within noise |
 | 2026-07-10 | 286fecb | M1 | Dev editor, mock host | 188 | 199 | labels precomputed; teardown untimed |
 
 ## Bench.Core / noop_rerender_1000 (root RequestUpdate, zero prop changes)
 | date | sha | machine | config | min µs | med µs | notes |
 |---|---|---|---|---|---|---|
+| 2026-07-15 | 10d35cd+0.4.0-prep | M1 | Dev editor, mock host | 0 | 0 | unchanged |
 | 2026-07-10 | 286fecb | M1 | Dev editor, mock host | 0 | 0 | SUBTREE-SKIP adopts the whole tree — measures the skip path, not a bailout walk |
 
 ## Bench.Core / update_1_of_1000 (setState → 1 changed label among 1000)
 | date | sha | machine | config | min µs | med µs | notes |
 |---|---|---|---|---|---|---|
+| 2026-07-15 | 10d35cd+0.4.0-prep | M1 | Dev editor, mock host | 133 | 143 | slightly faster than 2026-07-10 (152) — same machine, treat as noise |
 | 2026-07-10 | 286fecb | M1 | Dev editor, mock host | 134 | 152 | full component re-render + fast-leaf diff + 1 CommitUpdate; 1 FString::Printf |
 
 ## Bench.Core / keyed_reverse_500 (500 keyed boxes, order fully reversed)
 | date | sha | machine | config | min µs | med µs | notes |
 |---|---|---|---|---|---|---|
+| 2026-07-15 | 10d35cd+0.4.0-prep | M1 | Dev editor, mock host | 174 | 188 | slightly slower than 2026-07-10 (173) — same machine, treat as noise |
 | 2026-07-10 | 286fecb | M1 | Dev editor, mock host | 165 | 173 | keyed mark-sweep + ReorderChildren enforce |
 
 ## Bench.Core / mount_unmount_churn_200 (20 rows × 10 cells, mount + full teardown)
 | date | sha | machine | config | min µs | med µs | notes |
 |---|---|---|---|---|---|---|
+| 2026-07-15 | 10d35cd+0.4.0-prep | M1 | Dev editor, mock host | 54 | 56 | parity |
 | 2026-07-10 | 286fecb | M1 | Dev editor, mock host | 54 | 55 | includes cleanups + slab release + mock-node teardown |
 
 ## Bench.SlateReorder — the Phase 2 step 1 reorder-strategy spike (raw SVerticalBox, 200 STextBlocks, no reconciler)

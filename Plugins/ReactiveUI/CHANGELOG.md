@@ -34,6 +34,21 @@ resync with `cp CHANGELOG.md Plugins/ReactiveUI/CHANGELOG.md` (CI byte-compares 
 - **Router gallery demo** — the docs' router samples, live: an in-memory two-route screen
   (`/` + `/users/:id`) with `UseNavigate`/`UseParams`, authored in `.uetkx` with the route
   table in the setup section and the Router as an expression child (gallery: 17 screens).
+- **`Ref={ expr }` markup attribute** — the universal reserved prop joins `key` and `classes`:
+  capture a mounted widget's host handle straight from markup (React ref lifecycle — called on
+  attach, cleared on detach). Powers pure-markup portal targeting and focus designation
+  (`<Button Ref={ Focus.Ref } …>`); expr-only (a string form is diagnosed). Pinned by the
+  `RefCapture` contract fixture and live in the Acceptance Lab's §9.
+- **`RUI::Umg::UseOwnedViewModel<T>`** — create-and-own a viewmodel for the component's
+  lifetime (constructed on first render, GC-rooted in a hook slot, released on unmount) — the
+  `UseMemo` + `TStrongObjectPtr` pattern, packaged. Suite: `ReactiveUI.Mvvm.OwnedViewModel`.
+- **`RUI::Umg::MarshalToProperty` / `MarshalFromProperty`** — the FRuiValue ↔ reflected-
+  UPROPERTY conversion table, promoted from the prop-map bridge's internals to a public,
+  shared helper (bool, int32/64, float/double, FString, FText, FName; kind mismatches skip,
+  never mangle). The prop-map now routes through it. Suite: `ReactiveUI.Umg.Marshal`.
+- **Generated per-hook reference docs** — every hook now has its own reference page (23 core +
+  17 router), generated from a header-authored catalog the docs-drift gate compares against
+  the code registries — the docs can never claim hooks the code doesn't have.
 
 ## [0.3.0] — 2026-07-14
 

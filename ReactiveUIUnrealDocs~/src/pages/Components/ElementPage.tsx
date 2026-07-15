@@ -108,8 +108,10 @@ export const ElementPage: FC<{ tag: string }> = ({ tag }) => {
         Generic style &amp; slot keys
       </Typography>
       <Typography variant="body2" paragraph color="text.secondary">
-        Every element also accepts the generic style keys and, under a panel, the parent-slot keys
-        (see the Styling guide for values and the cascade):
+        Every element also accepts the universal reserved props — <code>key</code> (reconciler
+        identity), <code>classes</code> (style classes), <code>Ref=&#123; expr &#125;</code>{' '}
+        (host-handle capture) — plus the generic style keys and, under a panel, the parent-slot
+        keys (see the Styling guide for values and the cascade):
       </Typography>
       <Stack direction="row" flexWrap="wrap" gap={0.75} sx={{ mb: 1 }}>
         {STYLE_KEYS.map((key) => (
