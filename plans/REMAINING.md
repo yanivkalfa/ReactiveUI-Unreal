@@ -12,19 +12,13 @@
 
 ## 1. v1 ship-gate items (block the 1.0 tag — MASTER_PLAN §3 gate)
 
-- **Localization (FText gathering + culture change)** — *IN FLIGHT on `feat/v1-gate-closeout`.*
-  The codegen already emits every markup string literal as a self-namespaced `NSLOCTEXT`
-  (`Uetkx.<Basename>`). Remaining: prove the pipeline end to end — the demo project's
-  localization target gathers from the committed `*.uetkx.inl` (add `*.inl` to the
-  `GatherTextFromSource` file masks), a test asserts entries appear, and a culture change
-  re-renders mounted roots so already-set FText re-resolves. Plus the docs page replacing the
-  "Localization is deferred" callout.
-- **TD-020 tail — embedded-C++ COMPLETION via clangd** — *IN FLIGHT on `feat/v1-gate-closeout`.*
-  The clangd proxy layer shipped 2026-07-12 (virtual doc, source map, hover + definition
-  forwarding, VS2022 polish — see TD-020 for the record), but `onCompletion` never consults it:
-  completion inside `{expr}`/setup/hook bodies is markup-baseline only. Forward completion over
-  the virtual document (translating replace ranges back to `.uetkx` coordinates) and the gate's
-  "embedded-C++ via clangd with graceful degradation" line is fully honest.
+- ~~**Localization (FText gathering + culture change)**~~ — ✅ SHIPPED 2026-07-15
+  (`feat/v1-gate-closeout`, plugin 0.4.0): verified gather pipeline (`*.inl` masks; reference
+  target `Config/Localization/RuiDemo_Gather.ini` + committed output), culture-change → root
+  re-render (`RuiCultureSync`), suite `ReactiveUI.Loc`, docs Localization guide.
+- ~~**TD-020 tail — embedded-C++ COMPLETION via clangd**~~ — ✅ SHIPPED 2026-07-15 (extensions
+  0.2.0): completion forwards over the virtual doc with range translation; hover/definition/
+  completion all clangd-backed inside setup/hook/module bodies. TD-020 RESOLVED.
 - **Phase 9 — release & publishing (owner-gated).** Per-engine zips (packaging stamps
   `EngineVersion` — release-process skill), Fab listing + upload (identity verification has
   lead time), the demo video (AI storyboards, owner records), Discord announcement, and the
@@ -33,12 +27,12 @@
 
 ## 2. Epic-interop polish (small, user-facing — audit 2026-07-14 findings)
 
-- **TD-028 — `URuiHostWidget` props/viewmodel channel** — *IN FLIGHT on `feat/v1-gate-closeout`.*
-  The ours-in-theirs door takes only `ComponentName`; a designer/Blueprint cannot parameterize
-  the hosted component (no `SynchronizeProperties` override, no props payload).
-- **TD-029 — `URuiActivatableScreen::GetDesiredFocusTarget()`** — *IN FLIGHT on
-  `feat/v1-gate-closeout`.* CommonUI's gamepad focus-restoration contract has nowhere to land;
-  today users must hand-roll `RUI::Slate::UseFocus` + an activation effect (docs say so).
+- ~~**TD-028 — `URuiHostWidget` props/viewmodel channel**~~ — ✅ SHIPPED 2026-07-15
+  (`InitialProps` + `ViewModel` UPROPERTYs → `RUI::Umg::UseHostProp`/`UseHostViewModel`;
+  suite `ReactiveUI.Umg.HostProps`). TD-028 RESOLVED.
+- ~~**TD-029 — `URuiActivatableScreen::GetDesiredFocusTarget()`**~~ — ✅ SHIPPED 2026-07-15
+  (`RUI::CommonUI::UseDesiredFocus` + the screen's focus-forwarding overrides; suite
+  `ReactiveUI.CommonUI.DesiredFocus`). TD-029 RESOLVED — the real-gamepad PIE pass stays in §3.
 
 ## 3. Verification debt (needs eyes/hands, mostly owner)
 

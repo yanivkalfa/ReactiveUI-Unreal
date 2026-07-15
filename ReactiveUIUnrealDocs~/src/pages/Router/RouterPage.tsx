@@ -10,9 +10,9 @@ import { UserScreen } from "./UserScreen"
 // A Router owns an in-memory history; Routes renders the best match for the
 // current location. Routes are data (FRuiRoute), not tags.
 export component AppShell {
-	TArray<FRuiRoute> RouteList;
-	RouteList.Add(FRuiRoute{ TEXT("/"),          HomeScreen() });
-	RouteList.Add(FRuiRoute{ TEXT("/users/:id"), UserScreen() });
+	TArray<RUI::FRuiRoute> RouteList;
+	RouteList.Add(RUI::FRuiRoute{ TEXT("/"),          HomeScreen() });
+	RouteList.Add(RUI::FRuiRoute{ TEXT("/users/:id"), UserScreen() });
 
 	return (
 		<Overlay>

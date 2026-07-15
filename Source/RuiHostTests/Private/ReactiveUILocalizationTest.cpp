@@ -6,6 +6,7 @@
 // masks live in Config/Localization/RuiDemo_Gather.ini; regenerate via
 //   UnrealEditor-Cmd <proj> -run=GatherText -config=Config/Localization/RuiDemo_Gather.ini).
 
+#include "Internationalization/Culture.h"
 #include "Internationalization/Internationalization.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/FileHelper.h"
@@ -108,10 +109,10 @@ bool FRuiLocGatherManifestTest::RunTest(const FString&)
 	{
 		return false;
 	}
-	// The .uetkx codegen self-namespaces every literal as "Uetkx.<Basename>" — if gathering from
-	// the committed *.uetkx.inl works, those namespaces are in the manifest.
-	TestTrue(TEXT("manifest gathered markup text (a 'Uetkx.' namespace is present)"),
-			 Manifest.Contains(TEXT("Uetkx.")));
+	// The .uetkx codegen self-namespaces every literal as "Uetkx.<Basename>"; the manifest nests
+	// the dotted form as a "Uetkx" parent namespace with per-file subnamespaces.
+	TestTrue(TEXT("manifest gathered markup text (the 'Uetkx' namespace is present)"),
+			 Manifest.Contains(TEXT("\"Uetkx\"")));
 	// And the plugin's own runtime strings gather too (palette category, design-time labels).
 	TestTrue(TEXT("manifest gathered plugin strings (the 'ReactiveUI' namespace is present)"),
 			 Manifest.Contains(TEXT("\"ReactiveUI\"")));

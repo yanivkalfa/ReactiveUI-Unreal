@@ -1,5 +1,13 @@
 # ReactiveUI-Unreal — Overview & Roadmap
 
+> **STATUS UPDATE — 2026-07-15 (`feat/v1-gate-closeout`).** Localization SHIPPED (the last
+> Phase-7 production gap): verified gather pipeline for markup text + culture-change → root
+> re-render (`RuiCultureSync`), suite `ReactiveUI.Loc`; plugin 0.4.0. TD-020 (embedded-C++
+> completion), TD-028 (host-widget props/VM channel), TD-029 (CommonUI desired focus) all
+> RESOLVED; extensions 0.2.0. Router gallery demo added (17 screens). Battery 108/108 on
+> UE 5.6. The consolidated backlog now lives in `plans/REMAINING.md`; finished campaign docs
+> moved to `plans/archive/`.
+>
 > **STATUS RECONCILIATION — 2026-07-14 (audit second pass, `plans/archive/AUDIT_2026-07-14.md`).**
 > Phase-4's row still claimed the interpreter/expression VM that **HMR v2 deleted**
 > (`plans/archive/HMR_V2_PLAN.md`) — struck below; hot reload is Live-Coding-driven recompile.
@@ -227,8 +235,8 @@ reconciler core, and anything touching a CI gate always stay on the strongest mo
 | 4 | ~~Interpreter +~~ hot reload | COMPLETE (re-scoped by HMR v2) | ~~D-20 expression VM + markup interpreter, FRuiHmr swap/link/reset + status line, editor watcher (3 triggers, MessageLog), rui.Hmr.AutoLiveCoding~~ — **SUPERSEDED 2026-07-14 (audit):** HMR v2 (`plans/archive/HMR_V2_PLAN.md`) deleted the interpreter/expression VM; hot reload = Live-Coding recompile via `FUetkxHmrController` + `FUetkxWatcher`, the `ReactiveUetkx` menu/window/settings, `ReactiveUetkx.HMR.*` console cmds (no `rui.Hmr.AutoLiveCoding` CVar exists) |
 | 5 | IDE extensions (LSP, VS Code, VS2022) | COMPLETE | uetkx-language-server (schema completions/hover, sidecar diags, formatting) + VS Code + VS2022 extensions; embedded-C++ clangd proxy + VS2022 polish added (feat/uetkx-*) |
 | 6 | UMG / CommonUI / MVVM interop | COMPLETE | Phase-6 core (URuiHostWidget, RUI::Umg::UserWidget, URuiWorldSubsystem, UseField) + TD-021 CommonUI activatables, MVVM global collection, UMG prop-map bridge (feat/uetkx-*) |
-| 7 | Production gaps (lists, loc, focus, animation, portals, widget batch 2) | SUBSTANTIALLY DELIVERED | Lists (virtualized ListView/TileView), focus, animation + SFX hooks (~~media~~ — only `UseSfx` exists, audit 2026-07-14), portals, widget batch-2 + specials, drag-and-drop, exit animations — all shipped. **Localization (FText gathering) DEFERRED** |
-| 8 | Demos, docs site, benchmarks | IN PROGRESS | Gallery ✅ (16 screens on the compiled path), Bench baselines ✅; docs site: guides + reference + Integration (four-pillar) pages authored (audit fix campaign 2026-07-14); generated per-widget/per-hook references remain |
+| 7 | Production gaps (lists, loc, focus, animation, portals, widget batch 2) | COMPLETE 2026-07-15 | Lists (virtualized ListView/TileView), focus, animation + SFX hooks (~~media~~ — only `UseSfx` exists, audit 2026-07-14), portals, widget batch-2 + specials, drag-and-drop, exit animations — all shipped. ~~Localization (FText gathering) DEFERRED~~ — **SHIPPED 2026-07-15** (gather from `*.uetkx.inl` + culture-change re-render; suite `ReactiveUI.Loc`; 0.4.0) |
+| 8 | Demos, docs site, benchmarks | IN PROGRESS | Gallery ✅ (17 screens on the compiled path, incl. RouterDemo), Bench baselines ✅; docs site: guides + reference + Integration (four-pillar) + Localization pages authored; generated per-widget catalog ✅; per-hook references remain |
 | 9 | Release & publishing | NOT STARTED | Owner-gated — needs the ship gate (§3) + the `feat/uetkx-imports` → `dev` → `master` merge + Fab/Discord |
 
 *Rows are updated by the `plan-progress` skill whenever a phase in

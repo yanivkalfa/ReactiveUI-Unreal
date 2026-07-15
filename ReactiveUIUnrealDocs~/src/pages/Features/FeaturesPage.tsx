@@ -8,8 +8,8 @@ const ROUTER = `#include "RuiRouter.h"
 FRuiNode App(FRuiContext& Ctx) {
 	return RUI::Router({
 		RUI::Routes({
-			FRuiRoute{ TEXT("/"),          RUI::FC(&HomeScreen) },
-			FRuiRoute{ TEXT("/users/:id"), RUI::FC(&UserScreen) },
+			RUI::FRuiRoute{ TEXT("/"),          RUI::FC(&HomeScreen) },
+			RUI::FRuiRoute{ TEXT("/users/:id"), RUI::FC(&UserScreen) },
 		}),
 	}, TEXT("/"));
 }

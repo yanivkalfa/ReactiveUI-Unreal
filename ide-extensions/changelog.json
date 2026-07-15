@@ -1,6 +1,16 @@
 {
   "entries": [
     {
+      "date": "2026-07-15",
+      "versions": {
+        "vscode": "0.2.0",
+        "vs2022": "0.2.0"
+      },
+      "shared": [
+        "Embedded C++ completion: inside a component setup / hook / module body, completion now forwards to clangd over the virtual document (locals, engine symbols, members) — hover, go-to-definition, and completion are all clangd-backed there. Replace ranges map back to .uetkx coordinates; without clangd on PATH everything degrades to the markup baseline as before."
+      ]
+    },
+    {
       "date": "2026-07-14",
       "versions": {
         "vscode": "0.1.2",

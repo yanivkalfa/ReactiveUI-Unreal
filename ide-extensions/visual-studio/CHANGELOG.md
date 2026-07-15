@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.2.0] - 2026-07-15
+- Embedded C++ completion: inside a component setup / hook / module body, completion now forwards to clangd over the virtual document (locals, engine symbols, members) — hover, go-to-definition, and completion are all clangd-backed there. Replace ranges map back to .uetkx coordinates; without clangd on PATH everything degrades to the markup baseline as before.
+
 ## [0.1.2] - 2026-07-14
 - Refreshed the ReactiveUI brand icon.
 

@@ -7,9 +7,9 @@ import { RouterUser } from "./components/RouterUser/RouterUser"
 // renders the best match for the current location. Routes are data (FRuiRoute),
 // not tags — the Router mounts as an expression child (the RUI:: structural API).
 export component RouterDemo {
-	TArray<FRuiRoute> RouteList;
-	RouteList.Add(FRuiRoute{ TEXT("/"),          RouterHome() });
-	RouteList.Add(FRuiRoute{ TEXT("/users/:id"), RouterUser() });
+	TArray<RUI::FRuiRoute> RouteList;
+	RouteList.Add(RUI::FRuiRoute{ TEXT("/"),          RouterHome() });
+	RouteList.Add(RUI::FRuiRoute{ TEXT("/users/:id"), RouterUser() });
 
 	return (
 		<Border Padding="12" BorderImage="WhiteBrush" BorderBackgroundColor={ FLinearColor(0.02f, 0.02f, 0.03f, 0.85f) } Slot.Padding="0,10,0,0">

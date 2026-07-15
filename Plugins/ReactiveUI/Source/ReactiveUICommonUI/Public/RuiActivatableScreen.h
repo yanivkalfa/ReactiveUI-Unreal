@@ -40,11 +40,13 @@ public:
 
 	URuiActivatableScreen(const FObjectInitializer& ObjectInitializer);
 
+	// UVisual declares this public — keep it so (hosts and tests drive teardown directly).
+	virtual void ReleaseSlateResources(bool bReleaseChildren) override;
+
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
 	virtual void NativeOnActivated() override;
 	virtual void NativeOnDeactivated() override;
-	virtual void ReleaseSlateResources(bool bReleaseChildren) override;
 	/** TD-029 — CommonUI's focus-restoration contract. The contract wants a UWidget but our tree
 	 *  is pure Slate, so when the hosted tree designated a target (UseDesiredFocus) the screen
 	 *  returns ITSELF; the focus then arrives at NativeOnFocusReceived, which forwards it to the

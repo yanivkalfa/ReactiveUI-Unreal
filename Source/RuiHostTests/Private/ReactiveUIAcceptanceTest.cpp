@@ -67,12 +67,13 @@ bool FRuiAcceptanceTest::RunTest(const FString&)
 		const FUetkxCheckResult Drift = FUetkxDriver::CheckDrift(Roots);
 		TestEqual(TEXT("1. no .uetkx drift"), Drift.Drift, 0);
 		TestEqual(TEXT("1. no .uetkx compile errors"), Drift.Errors, 0);
-		// 30 = 12 screens + 4 interop screens (MvvmDemo, CommonUiDemo, UmgHostDemo, InteropShowcase — the
-		// Epic-interop pillars authored in .uetkx) + 6 subcomponents (DemoContextPanel, SignalPanel,
-		// LabCard, ActivationProbe, ShowcaseProbe, UmgHostInner — one component per file, components/
-		// convention) + 4 support files (ContextDemo.style, SimpleCounter.hooks, AcceptanceLab.style,
-		// AcceptanceLab.hooks) + 2 CycleProof (CycleA/CycleB) + 2 ChildrenProof (ChildHost/ChildParent).
-		TestEqual(TEXT("1. all 30 swept .uetkx files (gallery + interop + cycle + children proof)"), Drift.Total, 30);
+		// 33 = 13 screens (incl. RouterDemo) + 4 interop screens (MvvmDemo, CommonUiDemo, UmgHostDemo,
+		// InteropShowcase — the Epic-interop pillars authored in .uetkx) + 8 subcomponents
+		// (DemoContextPanel, SignalPanel, LabCard, ActivationProbe, ShowcaseProbe, UmgHostInner,
+		// RouterHome, RouterUser — one component per file, components/ convention) + 4 support files
+		// (ContextDemo.style, SimpleCounter.hooks, AcceptanceLab.style, AcceptanceLab.hooks)
+		// + 2 CycleProof (CycleA/CycleB) + 2 ChildrenProof (ChildHost/ChildParent).
+		TestEqual(TEXT("1. all 33 swept .uetkx files (gallery + interop + cycle + children proof)"), Drift.Total, 33);
 	}
 
 	// 2. The contract goldens hold (codegen shape is what the fixtures pinned).

@@ -1,7 +1,19 @@
 # ReactiveUI-Unreal — Master Plan (AI-first)
 
 > **Status:** IN PROGRESS
-> **Branch:** `feat/uetkx-imports` → `dev`   **PR:** pending owner merge   **Phases:** 6/10 done + Phase 7 substantially delivered (localization deferred), Phase 8 in progress
+> **Branch:** `feat/v1-gate-closeout` → `dev`   **Phases:** 7/10 done (Phase 7 COMPLETE — localization shipped 2026-07-15), Phase 8 in progress, Phase 9 owner-gated
+> **STATUS UPDATE — 2026-07-15 (Phase 7 COMPLETE — `feat/v1-gate-closeout`).** Localization
+> shipped, closing the last Phase-7 production gap: markup text gathers through the stock
+> pipeline (`*.inl` in the gather masks; reference target `Config/Localization/RuiDemo_Gather.ini`
+> with committed output) and a culture change re-renders every mounted root (`RuiCultureSync`).
+> Suite `ReactiveUI.Loc` (3 tests incl. a gather-manifest tripwire); battery **108/108** on
+> UE 5.6; plugin **0.4.0**. Same campaign: TD-020 RESOLVED (embedded-C++ COMPLETION via clangd —
+> hover/definition/completion all forwarded; extensions **0.2.0**), TD-028 RESOLVED
+> (`URuiHostWidget` `InitialProps`+`ViewModel` → `UseHostProp`/`UseHostViewModel`), TD-029
+> RESOLVED (`UseDesiredFocus` + the screen's `GetDesiredFocusTarget` contract), RouterDemo
+> gallery screen (17 screens; the docs' router samples, compiled and mounted). The gate's
+> "Production gaps closed" line is now fully green; the consolidated backlog is
+> `plans/REMAINING.md`.
 > **STATUS RECONCILIATION — 2026-07-14 (audit, `plans/archive/AUDIT_2026-07-14.md`).** Four
 > never-reconciled divergences between this plan and the shipped code, struck in place below:
 > (1) **D-20/D-21's interpreter/expression VM was deleted by HMR v2** (`plans/archive/HMR_V2_PLAN.md`,
@@ -617,8 +629,10 @@ IN v1 (all must be green, verified by running):
 - [ ] Interop (the thesis — v1 ships it or the tagline is false): `URuiHostWidget`, `RUI::Umg`,
       `UseField`~~/`UseViewModel`~~ (never built — SUPERSEDED 2026-07-14; `UseField` is the
       shipped API), `URuiActivatableScreen` on a CommonUI stack — each with a demo.
-- [ ] Production gaps closed: virtualization, localization, brush/asset GC, focus restore,
-      portals.
+- [x] Production gaps closed: virtualization, localization, brush/asset GC, focus restore,
+      portals. — DONE 2026-07-15 (the last piece, localization, shipped on
+      `feat/v1-gate-closeout`: suite `ReactiveUI.Loc`, gather target + committed output,
+      `RuiCultureSync`; the rest per Phase 7's 2026-07-11/12 record — battery 108/108).
 - [ ] Demo gallery + docs site + measured benchmark table (no unmeasured perf claims).
 
 OUT of v1 (deliberate, tracked in `plans/TECH_DEBT.md` from Phase 0 — not "demand-gated where
