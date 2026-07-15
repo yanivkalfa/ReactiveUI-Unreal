@@ -113,6 +113,8 @@ export const HOOK_NAMES = [
   "UseDeferredValue",
   "UseTransition",
   "UseStableCallback",
+  "UseStableFunc",
+  "UseStableAction",
   "UseImperativeHandle",
   "UseSafeArea",
   "UseSignal",

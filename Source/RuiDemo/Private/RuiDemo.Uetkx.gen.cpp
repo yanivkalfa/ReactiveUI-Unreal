@@ -22,6 +22,7 @@
 #include "../Screens/DoomDemo/components/DoomHUD/DoomHUD.uetkx.inl"
 #include "../Screens/DoomDemo/components/DoomMainMenu/DoomMainMenu.uetkx.inl"
 #include "../Screens/DoomDemo/components/DoomMinimap/DoomMinimap.uetkx.inl"
+#include "../Screens/DoomDemo/DoomGameScreen.uetkx.inl"
 #include "../Screens/HelloWorld/HelloWorld.uetkx.inl"
 #include "../Screens/InteropShowcase/components/ShowcaseProbe/ShowcaseProbe.uetkx.inl"
 #include "../Screens/InteropShowcase/InteropShowcase.uetkx.inl"
@@ -43,6 +44,7 @@
 #include "../Screens/UmgHostDemo/UmgHostDemo.uetkx.inl"
 #include "../Screens/AcceptanceLab/AcceptanceLab.uetkx.inl"
 #include "../Screens/CommonUiDemo/CommonUiDemo.uetkx.inl"
+#include "../Screens/DoomDemo/DoomGame.uetkx.inl"
 #undef RUI_UETKX_DECL_PHASE
 #include "../Screens/AcceptanceLab/AcceptanceLab.hooks.uetkx.inl"
 #include "../Screens/AcceptanceLab/AcceptanceLab.style.uetkx.inl"
@@ -56,6 +58,7 @@
 #include "../Screens/DoomDemo/components/DoomHUD/DoomHUD.uetkx.inl"
 #include "../Screens/DoomDemo/components/DoomMainMenu/DoomMainMenu.uetkx.inl"
 #include "../Screens/DoomDemo/components/DoomMinimap/DoomMinimap.uetkx.inl"
+#include "../Screens/DoomDemo/DoomGameScreen.uetkx.inl"
 #include "../Screens/HelloWorld/HelloWorld.uetkx.inl"
 #include "../Screens/InteropShowcase/components/ShowcaseProbe/ShowcaseProbe.uetkx.inl"
 #include "../Screens/InteropShowcase/InteropShowcase.uetkx.inl"
@@ -77,3 +80,4 @@
 #include "../Screens/UmgHostDemo/UmgHostDemo.uetkx.inl"
 #include "../Screens/AcceptanceLab/AcceptanceLab.uetkx.inl"
 #include "../Screens/CommonUiDemo/CommonUiDemo.uetkx.inl"
+#include "../Screens/DoomDemo/DoomGame.uetkx.inl"

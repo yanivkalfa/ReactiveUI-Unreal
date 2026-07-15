@@ -28,6 +28,7 @@ namespace RuiDemo
 			{TEXT("Custom Draw"), +[]() { return RUI::Named(FName(TEXT("CustomDraw"))); }},
 			{TEXT("Stress Test"), +[]() { return RUI::Named(FName(TEXT("StressTest"))); }},
 			{TEXT("Router"), +[]() { return RUI::Named(FName(TEXT("RouterDemo"))); }},
+			{TEXT("Doom"), +[]() { return RUI::Named(FName(TEXT("DoomGame"))); }},
 			{TEXT("Acceptance Lab"), +[]() { return RUI::Named(FName(TEXT("AcceptanceLab"))); }},
 			// Epic-interop pillars (compiled .uetkx like everything else).
 			{TEXT("MVVM (data feed)"), +[]() { return RUI::Named(FName(TEXT("MvvmDemo"))); }},
@@ -46,7 +47,7 @@ namespace RuiDemo
 			FName(TEXT("KeyedDiff")),		FName(TEXT("StyledPanels")),	FName(TEXT("TicTacToe")),
 			FName(TEXT("CustomDraw")),		FName(TEXT("StressTest")),		FName(TEXT("RouterDemo")),
 			FName(TEXT("AcceptanceLab")),	FName(TEXT("MvvmDemo")),		FName(TEXT("CommonUiDemo")),
-			FName(TEXT("UmgHostDemo")),		FName(TEXT("InteropShowcase")),
+			FName(TEXT("UmgHostDemo")),		FName(TEXT("InteropShowcase")), FName(TEXT("DoomGame")),
 		};
 		return Names;
 	}
