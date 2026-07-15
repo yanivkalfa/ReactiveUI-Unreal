@@ -67,13 +67,13 @@ export const DifferencesPage: FC = () => (
       When a plain prop disappears from one render to the next, ReactiveUI leaves the widget&apos;s
       current value in place rather than snapping it back to a default — Slate setters have no
       universal &quot;unset.&quot; Style, events, refs and custom draw <em>do</em> reset. This is a
-      preserved family semantic, shared with the Unity and Godot siblings.
+      deliberate semantic, not a gap.
     </Typography>
 
     <Alert severity="info" sx={{ mt: 2 }}>
-      Coming from the Godot sibling, three things differ on Unreal: React-style ref lifecycle,
-      subscribe-in-effect for signals, and registry-<code>FName</code> component identity. See the
-      Hooks and Signals guides for each.
+      Three more decisions worth internalizing: React-style ref lifecycle, subscribe-in-effect for
+      signals, and registry-<code>FName</code> component identity. See the Hooks and Signals guides
+      for each.
     </Alert>
   </Box>
 )

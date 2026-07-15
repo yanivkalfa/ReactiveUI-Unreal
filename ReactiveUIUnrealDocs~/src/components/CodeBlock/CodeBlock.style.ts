@@ -68,6 +68,9 @@ const body: SxProps = {
 const preCustom = {
   margin: 0,
   padding: 10,
+  // Samples are tab-indented, byte-identical to the golden .uetkx formatter's output —
+  // render tabs 2 wide (the house display width) instead of the browser default.
+  tabSize: 2,
 }
 
 const Styles = { wrapper, header, headerNoTabs, tabs, tab, tabActive, copyBtn, body, preCustom }

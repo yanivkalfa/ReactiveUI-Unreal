@@ -69,7 +69,7 @@ export const sections: DocSection[] = [
         path: '/',
         keywords: ['introduction', 'markup', 'unreal', 'slate', 'uetkx'],
         searchContent:
-          'reactive ui for unreal react-style ui library unreal engine 5.6 pure c++ no javascript vm no bridge layer uetkx authoring language function-style components hooks state effects UseState UseEffect fiber reconciler decides which slate widgets exist each frame diffs patches only what changed widget reflector ordinary swidgets umg commonui mvvm stay in place feeding data hosting output .uetkx markup jsx-like same family grammar guitkx godot uitkx unity compiles to native c++ shipping builds hot-reloads live in pie save mid-play under a second state preserved siblings ReactiveUIToolKit unity c# ReactiveUI-Godot godot gdscript beta roadmap component counter UseState int32 VerticalBox TextBlock Button OnClicked RUI::Fmt SetCount',
+          'reactive ui for unreal react-style ui library unreal engine 5.6 pure c++ no javascript vm no bridge layer uetkx authoring language function-style components hooks state effects UseState UseEffect fiber reconciler decides which slate widgets exist each frame diffs patches only what changed widget reflector ordinary swidgets umg commonui mvvm stay in place feeding data hosting output .uetkx markup jsx-like compiles to native c++ shipping builds hot-reloads live in pie save mid-play under a second state preserved beta roadmap component counter UseState int32 VerticalBox TextBlock Button OnClicked RUI::Fmt SetCount',
         element: () => <IntroductionPage />,
       },
     ],
@@ -171,7 +171,7 @@ export const sections: DocSection[] = [
         path: '/differences',
         keywords: ['react', 'differences', 'events', 'onclicked', 'slate', 'synchronous', 'naming'],
         searchContent:
-          'different from react mental model pure c++ compiled to slate no javascript vm no bridge no reflection retained slate widgets not virtual dom hooks pascalcase UseState events unreal delegate name OnClicked OnCheckStateChanged OnValueChanged never onclick onchange elements slate class minus S VerticalBox TextBlock Slider Rui mark custom widgets UseTransition synchronous structural error boundaries removed plain props do not reset style events refs draw reset preserved family semantic godot divergences react ref lifecycle subscribe-in-effect signals registry fname component identity',
+          'different from react mental model pure c++ compiled to slate no javascript vm no bridge no reflection retained slate widgets not virtual dom hooks pascalcase UseState events unreal delegate name OnClicked OnCheckStateChanged OnValueChanged never onclick onchange elements slate class minus S VerticalBox TextBlock Slider Rui mark custom widgets UseTransition synchronous structural error boundaries removed plain props do not reset style events refs draw reset deliberate semantic divergences react ref lifecycle subscribe-in-effect signals registry fname component identity',
         element: () => <DifferencesPage />,
       },
       {
@@ -201,7 +201,7 @@ export const sections: DocSection[] = [
         path: '/guides/refs',
         keywords: ['ref', 'UseRef', 'Current', 'mutable', 'UseImperativeHandle'],
         searchContent:
-          'refs guide UseRef mutable box Current survives renders never triggers re-render escape hatch storage subscription handle previous value animation cursor timer handle not rendered vs UseState UseImperativeHandle expose imperative api parent focus scroll play ref lifecycle react model divergence from godot',
+          'refs guide UseRef mutable box Current survives renders never triggers re-render escape hatch storage subscription handle previous value animation cursor timer handle not rendered vs UseState UseImperativeHandle expose imperative api parent focus scroll play ref lifecycle react model attach on mount detach on unmount',
         element: () => <RefsGuidePage />,
       },
       {
@@ -267,7 +267,7 @@ export const sections: DocSection[] = [
         path: '/tooling/suspense',
         keywords: ['suspense', 'fallback', 'loading', 'async', 'boundary'],
         searchContent:
-          'suspense RUI::Suspense IsReady fallback children structural primitive not a tag expression child fallback content not ready swap loading state async resource streamed asset deferred computation no throw-to-suspend c++ has no equivalent declarative boundary polyfill readiness driven explicitly poll driver self-re-arming frame request signal flips fallback to content family divergence godot unity model not-ready state stress test poll-driver frame loop RUI::Suspense Fallback',
+          'suspense RUI::Suspense IsReady fallback children structural primitive not a tag expression child fallback content not ready swap loading state async resource streamed asset deferred computation no throw-to-suspend c++ has no equivalent declarative boundary polyfill readiness driven explicitly poll driver self-re-arming frame request signal flips fallback to content deliberate divergence from react model not-ready state stress test poll-driver frame loop RUI::Suspense Fallback',
         element: () => <SuspensePage />,
       },
       {
@@ -450,7 +450,7 @@ export const sections: DocSection[] = [
         path: '/faq',
         keywords: ['faq', 'questions', 'help', 'production', 'versions', 'umg', 'mvvm'],
         searchContent:
-          'faq frequently asked questions what is reactiveui for unreal react-style ui library pure c++ fiber reconciler slate widgets .uetkx compiles committed c++ which unreal versions 5.6 plugin no gdextension no external runtime production ready beta pre-1.0 docs release localization deferred scripting vm no javascript engine bridge reflection-free existing umg widgets UUserWidget RUI::Umg::UserWidget MVVM view-models FieldNotify UseField CommonUI activatable event props OnClicked not onClick loyal to unreal hot reload live coding windows state preserved editor support vs code visual studio 2022 extensions offline',
+          'faq frequently asked questions what is reactiveui for unreal react-style ui library pure c++ fiber reconciler slate widgets .uetkx compiles committed c++ which unreal versions 5.6 plugin no external native dependency no external runtime production ready beta pre-1.0 docs release localization deferred scripting vm no javascript engine bridge reflection-free existing umg widgets UUserWidget RUI::Umg::UserWidget MVVM view-models FieldNotify UseField CommonUI activatable event props OnClicked not onClick loyal to unreal hot reload live coding windows state preserved editor support vs code visual studio 2022 extensions offline',
         element: () => <FAQPage />,
       },
     ],

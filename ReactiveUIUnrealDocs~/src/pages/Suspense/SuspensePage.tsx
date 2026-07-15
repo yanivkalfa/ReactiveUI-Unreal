@@ -40,7 +40,7 @@ export const SuspensePage: FC = () => (
       <strong>declarative boundary polyfill</strong>: readiness is driven explicitly by the{' '}
       <code>IsReady</code> callable, re-evaluated as the tree updates — flip your state (or use a
       self-re-arming frame request, the poll-driver pattern the Stress Test demo uses) and the
-      boundary swaps. A deliberate family divergence, shared with the Godot and Unity siblings.
+      boundary swaps. A deliberate divergence from React, not a limitation to work around.
     </Typography>
 
     <Alert severity="info">

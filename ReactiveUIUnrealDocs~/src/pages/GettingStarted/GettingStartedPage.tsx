@@ -43,7 +43,7 @@ export const GettingStartedPage: FC = () => (
       Getting Started
     </Typography>
     <Typography variant="body1" paragraph>
-      ReactiveUI for Unreal is a normal engine plugin — no GDExtension, no external runtime. You
+      ReactiveUI for Unreal is a normal engine plugin — pure C++, no external runtime, no VM. You
       enable the plugin, depend on two modules, write a <code>.uetkx</code> component, and mount it
       onto a <code>UWorld</code>. It targets <strong>Unreal Engine 5.6+</strong>.
     </Typography>
