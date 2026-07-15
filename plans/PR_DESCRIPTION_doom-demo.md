@@ -41,13 +41,24 @@ apply of the full ~168-quad framebuffer (walking E1M1 scene, M1, UE 5.6.1). The 
 - **`ReactiveUI.Doom` determinism suite** — 182 checks (vs the family's 179; 4 Godot-host-only
   checks replaced by 7 exit/boss-gate checks): every expectation matched the port on first
   execution. **Zero sim-port bugs found.**
-- **A library bug found & fixed by the first PIE playtest**: the `ColorAndOpacity` STYLE key
-  (markup's route) was silently dropped on `Image`/`Separator` — only the C++ typed-props path
-  had a handler — so the demo's alpha-0 full-screen flash quads painted opaque white over the
-  whole viewport. Both adapters now handle the style key (removal-reset to opaque white).
-  New suites: `ReactiveUI.Style.WidgetColorKeys` + `ReactiveUI.Doom.MountedFrame` (mounts the
-  REAL game screen and asserts canvas population, live slot geometry, and transparent flash
-  quads — the exact failure class headless sim tests can't see).
+- **Three library gaps found & fixed by the PIE playtest rounds** (owner-verified playable
+  2026-07-16 — headless proves logic, playtests proved pixels):
+  1. The `ColorAndOpacity` STYLE key (markup's route) was silently dropped on
+     `Image`/`Separator` — only the C++ typed-props path had a handler — so the demo's
+     alpha-0 full-screen flash quads painted opaque white over the whole viewport. New
+     suites: `ReactiveUI.Style.WidgetColorKeys` + `ReactiveUI.Doom.MountedFrame` (mounts
+     the REAL game screen; asserts canvas population, live slot geometry, transparent
+     flash quads — the failure class headless sim tests can't see).
+  2. **Universal `Clipping` style key** (`SWidget::SetClipping`, loyal `EWidgetClipping`
+     names): Slate never clips children to bounds by default, and the library had no
+     clipping surface — the framebuffer's horizon-riding overflow quads painted over the
+     HUD. The viewport Box now clips (the Godot port's `clip_contents: true` equivalent).
+  3. **`ScaleBox HAlign/VAlign`** (live setters): the letterboxed game anchors
+     `VAlign=bottom`, HUD flush on the window's bottom edge.
+- **Demo input tuned to the family feel**: raw mouse counts via `GetRawKeyValue` (the
+  engine's `GetInputMouseDelta` massages through `Sensitivity=0.07` axis config — 7% of the
+  intended feel), the Y-axis convention fixed (was inverted + double-scaled), Ctrl+R FPS
+  readout (the Godot bootstrap counter), and the gallery shell now fills the viewport.
 
 ## Gates (all green)
 
@@ -58,7 +69,7 @@ apply of the full ~168-quad framebuffer (walking E1M1 scene, M1, UE 5.6.1). The 
 
 ## What remains (the owner slice)
 
-- **PIE playtest** — headless proves logic, not pixels: press Play → gallery → "Doom"
-  (WASD + mouse, click to shoot, E for doors, 1–7 weapons, ESC frees the cursor)
-- Then the demo video + showcase copy; the optional BSP renderer upgrade stays deferred
+- ~~PIE playtest~~ — DONE 2026-07-16 (three rounds; the fixes above came out of them;
+  owner verdict: "nice, works")
+- The demo video + showcase copy; the optional BSP renderer upgrade stays deferred
   (DOOM_DEMO_PLAN Phase 7)

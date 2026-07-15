@@ -6,8 +6,12 @@
 > screens, the UseDoomGame loop hook with mouse capture, the 182-check `ReactiveUI.Doom`
 > determinism suite (10/10 green, ZERO sim-port bugs found), and `Bench.Doom`
 > (**~197 µs median per whole game frame** — committed in BENCH_BASELINES.md).
-> Battery 122/122. Remaining: Phase 7 (optional BSP) stays deferred; Phase 8 (owner PIE
-> playtest → demo video → showcase copy) is the owner's.
+> Battery 124/124. **PLAYTESTED 2026-07-16** — three owner PIE rounds surfaced and fixed
+> three library gaps (ColorAndOpacity style key dropped on Image/Separator; no Clipping
+> surface at all — the universal style key was born here; ScaleBox alignment) plus the
+> raw-mouse input feel (GetInputMouseDelta massages by 0.07 — poll GetRawKeyValue) and a
+> Ctrl+R FPS readout; owner verdict "nice, works". Remaining: Phase 7 (optional BSP)
+> stays deferred; the demo video → showcase copy is the owner's.
 > **What it is:** the family's marquee stress showcase, ported third: a fully playable,
 > software-rendered, sector/portal raycast Doom-style FPS whose **entire framebuffer is the
 > ReactiveUI element tree**. Not a 3D scene with a HUD on top, and no custom-draw escape hatch:
