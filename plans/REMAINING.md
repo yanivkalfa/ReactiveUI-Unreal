@@ -58,7 +58,7 @@
   per hook (sidebar sections "Hooks" / "Router Hooks"); docs-drift compares the catalog
   counts against RuiContext.h/RuiRouter.h (8 checks armed).
 - ~~**Doom demo**~~ — ✅ BUILT 2026-07-15 (`feat/doom-demo`): playable, 182-check
-  determinism suite green, whole-frame bench ~197 µs (DOOM_DEMO_PLAN.md has the record).
+  determinism suite green, whole-frame bench ~197 µs (archive/DOOM_DEMO_PLAN.md has the record).
   PIE playtest DONE 2026-07-16 (3 rounds; surfaced + fixed the ColorAndOpacity/Clipping/
   ScaleBox-alignment library gaps and the raw-mouse input feel). Remaining: the demo video +
   showcase copy; optional BSP upgrade stays deferred (plan Phase 7).
