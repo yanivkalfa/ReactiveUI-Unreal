@@ -8,6 +8,7 @@ import {
   buildEmbeddedView,
   isEmbeddedOffset,
   embeddedPositionRequest,
+  translateEmbeddedCompletion,
   virtualUriOf,
   type PositionResponder,
 } from "../embeddedIntel";
@@ -93,4 +94,77 @@ test("embeddedPositionRequest: graceful degradation — unavailable proxy return
   assert.strictEqual(result, null);
   assert.strictEqual(proxy.requests.length, 0);
   assert.strictEqual(proxy.opened.length, 0);
+});
+
+// ── completion translation (the TD-020 tail) ────────────────────────────────────────────────
+
+/** A virtual-doc range spanning `length` chars starting at the virtual position of `sourceOffset`. */
+function virtualRangeAt(sourceOffset: number, length: number) {
+  const view = buildEmbeddedView(SOURCE);
+  const start = view.positionInVirtual(sourceOffset)!;
+  const end = view.positionInVirtual(sourceOffset + length)!;
+  assert.ok(start && end, "test range must sit inside an embedded region");
+  return { start, end };
+}
+
+test("translateEmbeddedCompletion: a textEdit range maps back to .uetkx coordinates", () => {
+  const off = SOURCE.indexOf("Doubled = Start");
+  const result = [
+    { label: "Doubled", kind: 6, textEdit: { range: virtualRangeAt(off, "Doubled".length), newText: "Doubled" } },
+  ];
+  const translated = translateEmbeddedCompletion(result, SOURCE);
+  assert.notStrictEqual(translated, null);
+  assert.strictEqual(translated!.isIncomplete, false);
+  assert.strictEqual(translated!.items.length, 1);
+  const item = translated!.items[0] as { label: string; textEdit: { range: { start: { line: number; character: number } }; newText: string } };
+  assert.strictEqual(item.label, "Doubled");
+  // SOURCE line 3 is the body line holding "Doubled" — the range must be in SOURCE coordinates.
+  assert.strictEqual(item.textEdit.range.start.line, 3);
+  assert.strictEqual(item.textEdit.range.start.character, SOURCE.split("\n")[3].indexOf("Doubled"));
+});
+
+test("translateEmbeddedCompletion: the insert/replace edit form maps both ranges", () => {
+  const off = SOURCE.indexOf("Doubled = Start");
+  const result = {
+    isIncomplete: true,
+    items: [
+      {
+        label: "Doubled",
+        textEdit: {
+          insert: virtualRangeAt(off, 3),
+          replace: virtualRangeAt(off, "Doubled".length),
+          newText: "Doubled",
+        },
+      },
+    ],
+  };
+  const translated = translateEmbeddedCompletion(result, SOURCE);
+  assert.notStrictEqual(translated, null);
+  assert.strictEqual(translated!.isIncomplete, true, "isIncomplete passes through");
+  const edit = (translated!.items[0] as { textEdit: { insert: { start: { line: number } }; replace: object } }).textEdit;
+  assert.strictEqual(edit.insert.start.line, 3);
+  assert.ok(edit.replace, "replace range survives");
+});
+
+test("translateEmbeddedCompletion: prelude-scaffolding edits are dropped from the item, not the item itself", () => {
+  const preludeRange = { start: { line: 0, character: 0 }, end: { line: 0, character: 4 } }; // the prelude comment
+  const result = [
+    {
+      label: "FVector",
+      textEdit: { range: preludeRange, newText: "FVector" },
+      additionalTextEdits: [{ range: preludeRange, newText: '#include "Math/Vector.h"\n' }],
+    },
+  ];
+  const translated = translateEmbeddedCompletion(result, SOURCE);
+  assert.notStrictEqual(translated, null);
+  const item = translated!.items[0] as { label: string; textEdit?: unknown; additionalTextEdits?: unknown };
+  assert.strictEqual(item.label, "FVector", "the item survives");
+  assert.strictEqual(item.textEdit, undefined, "the untranslatable edit is dropped");
+  assert.strictEqual(item.additionalTextEdits, undefined, "auto-include edits never pass through");
+});
+
+test("translateEmbeddedCompletion: empty or absent results fall through to the baseline (null)", () => {
+  assert.strictEqual(translateEmbeddedCompletion(null, SOURCE), null);
+  assert.strictEqual(translateEmbeddedCompletion([], SOURCE), null);
+  assert.strictEqual(translateEmbeddedCompletion({ isIncomplete: false, items: [] }, SOURCE), null);
 });

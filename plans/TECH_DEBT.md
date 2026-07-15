@@ -416,8 +416,15 @@ referenced from plans/PRs.
   pattern; HookStubs.h parity test), sourceMap.ts spans, clangdProxy.ts child process with
   graceful-degradation notice. The VS2022 polish set (options page, format-on-save, smart
   indent, brace completion — present in the Godot sibling) rides the same follow-up.
-- **Status:** SUBSTANTIALLY DELIVERED (core modules) 2026-07-12 — the three
-  `ide-extensions/lsp-server` modules landed with `node --test` coverage:
+- **Status:** ✅ RESOLVED 2026-07-15 — the last hole closed on `feat/v1-gate-closeout`:
+  `onCompletion` now consults the embedded layer first (`translateEmbeddedCompletion` maps
+  clangd textEdit ranges — classic AND insert/replace forms — back to `.uetkx` coordinates;
+  prelude-targeting edits are dropped from their item, `additionalTextEdits` never pass
+  through; empty results fall to the markup baseline). LSP suite 33/33 + smoke. Hover,
+  definition, and completion now all forward inside setup/hook/module bodies; markup
+  `{expr}` attr values remain baseline-only by design (they reference markup-scope locals
+  the virtual doc deliberately does not synthesize — the documented degradation).
+  The 2026-07-12 record of the layers beneath:
   - **`sourceMap.ts`** — a bidirectional span-based map (.uetkx ↔ virtual C++), binary-searched,
     plus offset↔position helpers; a virtual offset inside synthetic scaffolding maps to null.
   - **`virtualDoc.ts`** — `buildVirtualCpp(source)` scans the file and lifts every embedded-C++
