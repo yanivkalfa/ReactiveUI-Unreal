@@ -9,7 +9,7 @@ const PHASES: Array<[string, string, Status, string]> = [
   ['4', 'Hot reload', 'done', 'Live Coding-driven HMR, editor watcher, the ReactiveUetkx window, status line.'],
   ['5', 'IDE extensions', 'done', 'uetkx-language-server + VS Code and VS2022 extensions (completion, hover, diagnostics, formatting).'],
   ['6', 'UMG / CommonUI / MVVM interop', 'done', 'URuiHostWidget, RUI::Umg::UserWidget, UseField, CommonUI activatables, MVVM collection, UMG prop-map.'],
-  ['7', 'Production gaps', 'done', 'Virtualized lists, focus, animation/media hooks, portals, drag-and-drop, widget batch 2. Localization deferred.'],
+  ['7', 'Production gaps', 'done', 'Virtualized lists, focus, animation/media hooks, portals, drag-and-drop, widget batch 2, localization (gather + live culture switch).'],
   ['8', 'Demos, docs, benchmarks', 'progress', 'Gallery and benchmark baselines done; the docs site content (this site) is being written.'],
   ['9', 'Release & publishing', 'planned', 'Owner-gated: the v1 ship gate, the merge to release, and the Fab/marketplace uploads.'],
 ]
@@ -59,8 +59,8 @@ export const RoadmapPage: FC = () => (
     </TableContainer>
 
     <Alert severity="info">
-      Post-v1 subsystems and the deferred localization work are tracked on the{' '}
-      <strong>Beyond v1</strong> and <strong>Known Issues</strong> pages.
+      Post-v1 subsystems and current limitations are tracked on the <strong>Known Issues</strong>{' '}
+      page.
     </Alert>
   </Box>
 )

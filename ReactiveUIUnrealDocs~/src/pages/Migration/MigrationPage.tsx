@@ -87,7 +87,7 @@ export const MigrationPage: FC = () => (
     <Typography variant="body1" paragraph>
       If you started with C++ <code>RUI::</code> builder calls, moving to markup is mechanical —
       the reconciler and hooks are identical; only the authoring changes. The demo gallery&apos;s
-      16 screens are all compiled <code>.uetkx</code> and double as conversion references.
+      17 screens are all compiled <code>.uetkx</code> and double as conversion references.
     </Typography>
     <CodeBlock code={CONVERT} language="uetkx" />
 

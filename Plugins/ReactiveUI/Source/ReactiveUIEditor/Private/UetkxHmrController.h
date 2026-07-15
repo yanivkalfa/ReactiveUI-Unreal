@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 //
-// HMR v2 (plans/HMR_V2_PLAN.md) — the Live-Coding-driven Hot Module Reload controller. The C++
+// HMR v2 (plans/archive/HMR_V2_PLAN.md) — the Live-Coding-driven Hot Module Reload controller. The C++
 // sibling of the Unity toolkit's UitkxHmrController: a Start/Stop MODE. START enables the Unreal
 // Live Coding session (external builds pause while active — the honest tradeoff, owned explicitly);
 // while active, ANY .uetkx change (the watcher already regenerates the .inl) triggers a Live Coding

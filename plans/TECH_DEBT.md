@@ -368,7 +368,7 @@ referenced from plans/PRs.
 - **Production-grade resolution:** port `_parse_hook_at`/module member loops from guitkx.gd
   into FUetkxFileScan, emit free functions in the `.inl`, corpus + contract fixtures. Do it
   when the docs site (Phase 8) starts teaching cross-family authoring, or on user demand.
-- **Status:** RESOLVED 2026-07-11 — hook/module declarations + one-component-per-file + companion suffixes + refs-topo aggregator shipped on feat/uetkx-compiler (plans/UETKX_DECLARATIONS_PLAN.md; owner field-test directive)
+- **Status:** RESOLVED 2026-07-11 — hook/module declarations + one-component-per-file + companion suffixes + refs-topo aggregator shipped on feat/uetkx-compiler (plans/archive/UETKX_DECLARATIONS_PLAN.md; owner field-test directive)
 
 ## TD-018 — Cross-repo grammar-corpus mirroring (Godot follow-up PR)
 - **Where:** `ide-extensions/lsp-server/test-fixtures/uetkx-*.json` ↔ the Godot repo's
@@ -416,8 +416,15 @@ referenced from plans/PRs.
   pattern; HookStubs.h parity test), sourceMap.ts spans, clangdProxy.ts child process with
   graceful-degradation notice. The VS2022 polish set (options page, format-on-save, smart
   indent, brace completion — present in the Godot sibling) rides the same follow-up.
-- **Status:** SUBSTANTIALLY DELIVERED (core modules) 2026-07-12 — the three
-  `ide-extensions/lsp-server` modules landed with `node --test` coverage:
+- **Status:** ✅ RESOLVED 2026-07-15 — the last hole closed on `feat/v1-gate-closeout`:
+  `onCompletion` now consults the embedded layer first (`translateEmbeddedCompletion` maps
+  clangd textEdit ranges — classic AND insert/replace forms — back to `.uetkx` coordinates;
+  prelude-targeting edits are dropped from their item, `additionalTextEdits` never pass
+  through; empty results fall to the markup baseline). LSP suite 33/33 + smoke. Hover,
+  definition, and completion now all forward inside setup/hook/module bodies; markup
+  `{expr}` attr values remain baseline-only by design (they reference markup-scope locals
+  the virtual doc deliberately does not synthesize — the documented degradation).
+  The 2026-07-12 record of the layers beneath:
   - **`sourceMap.ts`** — a bidirectional span-based map (.uetkx ↔ virtual C++), binary-searched,
     plus offset↔position helpers; a virtual offset inside synthetic scaffolding maps to null.
   - **`virtualDoc.ts`** — `buildVirtualCpp(source)` scans the file and lifts every embedded-C++
@@ -646,7 +653,7 @@ referenced from plans/PRs.
 
 ## TD-027 — HMR v2: Live-Coding-driven whole-project HMR + `ReactiveUetkx` menu/window
 - **Where:** `ReactiveUIInterp` (the interpreter executor), `RuiHmr.*`, `UetkxWatcher.cpp`,
-  `ReactiveUIEditor` (new menu/window/commands/settings). Full design: `plans/HMR_V2_PLAN.md`.
+  `ReactiveUIEditor` (new menu/window/commands/settings). Full design: `plans/archive/HMR_V2_PLAN.md`.
 - **What/why deferred:** the shipped HMR makes a single-file INTERPRETER the default path — it can't
   resolve imports or run user hooks/effects, so a component using an imported hook (e.g. the
   `.hooks.uetkx` pattern) can't be hot-reloaded and (pre-fix) was swapped to a dead version. That is
@@ -666,7 +673,7 @@ referenced from plans/PRs.
   (interpreter deleted; `ReactiveUIInterp` now parser-only; preview + acceptance §5 reworked to the
   compiled component), `fa819dc` (`ReactiveUetkx` menu + `SReactiveUetkxHmrPanel` window), `95db6ac`
   (commands + settings + in-window rebinding), `b02390f` (repeat-key bughunt). Build OK; drift 23/0/0;
-  suite 99/99; gates green. Two deliberate naming deviations recorded in `plans/HMR_V2_PLAN.md`'s
+  suite 99/99; gates green. Two deliberate naming deviations recorded in `plans/archive/HMR_V2_PLAN.md`'s
   status banner (controller is `FUetkxHmrController` not `FRuiHmr`; shortcut chords live only in the
   input binding manager, not the settings object). The live Live-Coding loop is owner-verified
   in-editor (no headless test can drive Live Coding).
@@ -719,14 +726,22 @@ referenced from plans/PRs.
 - **What/why deferred:** the ours-in-theirs UMG door hosts by `ComponentName` only — no
   `SynchronizeProperties` override, no Blueprint-passed initial props, no VM handoff (research
   D_interop b2 promised "BP can pass initial props and a VM"). Shipped minimal in Phase 6;
-  surfaced by the 2026-07-14 audit (`plans/AUDIT_2026-07-14.md` §11-N1). Workaround today:
+  surfaced by the 2026-07-14 audit (`plans/archive/AUDIT_2026-07-14.md` §11-N1). Workaround today:
   share state via a Signal or a FieldNotify VM read with `UseField` (documented in the UMG guide).
 - **Production-grade resolution:** an `Instanced`/map UPROPERTY of initial props applied through
   the existing `ApplyPropMap`-style reflection path + an optional `TScriptInterface
   <INotifyFieldValueChanged>` VM property provided into the tree as context; `SynchronizeProperties`
   forwards designer edits; design-time stays placeholder-only. Tests: BP-set props reach the
   component; VM flows to `UseField`.
-- **Status:** OPEN
+- **Status:** ✅ RESOLVED 2026-07-15 (`feat/v1-gate-closeout`) — `InitialProps`
+  (TMap<FName,FString>) + `ViewModel` (TScriptInterface<INotifyFieldValueChanged>) UPROPERTYs on
+  `URuiHostWidget`, published into the tree via the new `RuiHostProps` context seam (same
+  provider-node pattern as the CommonUI activation seam); components read with
+  `RUI::Umg::UseHostProp/UseHostProps/UseHostViewModel` (the VM feeds `UseField` directly).
+  `SynchronizeProperties` re-publishes live (Update + FlushSync — no remount, hook state
+  preserved); design time stays placeholder-only. Test `ReactiveUI.Umg.HostProps` (props + VM
+  reach the component; live re-publish; quiet defaults). Docs: UMG guide "Passing props & a
+  viewmodel from the Designer".
 
 ## TD-029 — `URuiActivatableScreen` lacks `GetDesiredFocusTarget()` (audit N2)
 - **Where:** `Plugins/ReactiveUI/Source/ReactiveUICommonUI/Public/RuiActivatableScreen.h`
@@ -738,4 +753,13 @@ referenced from plans/PRs.
 - **Production-grade resolution:** a focus-target designation the hosted tree can set (e.g. a
   reserved prop or a `RUI::CommonUI::` focus-target registration hook) that the screen's
   `GetDesiredFocusTarget()` returns; gamepad-focus test on activation.
-- **Status:** OPEN
+- **Status:** ✅ RESOLVED 2026-07-15 (`feat/v1-gate-closeout`) — `RUI::CommonUI::UseDesiredFocus`
+  (pair with `RUI::Slate::UseFocus`) designates from inside the tree via the new
+  `FRuiFocusTargetRegistry` context (screen-owned, provided by `FocusTargetProvider`; latest
+  designation per commit wins, cleared on unmount). CommonUI's contract wants a UWidget while our
+  tree is pure Slate, so `NativeGetDesiredFocusTarget()` returns the (now focusable) screen
+  itself and `NativeOnFocusReceived` forwards the arriving focus to the designated widget; no
+  designation → base behavior (a BP override still wins). Test `ReactiveUI.CommonUI.DesiredFocus`
+  (mechanism headless + screen end-to-end + clear-on-teardown). Docs: CommonUI guide "Gamepad
+  focus — UseDesiredFocus". The real-gamepad PIE pass stays on the owner verification list
+  (`plans/REMAINING.md` §3).

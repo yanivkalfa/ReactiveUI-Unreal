@@ -45,8 +45,9 @@ export const RefsGuidePage: FC = () => (
     </Typography>
 
     <Alert severity="info">
-      Ref lifecycle follows React&apos;s model here — one deliberate divergence from the Godot
-      sibling. See <strong>Different from React</strong> for the family notes.
+      Ref lifecycle follows React&apos;s model exactly: attach on mount, detach on unmount, and a
+      re-created callback ref re-fires. See <strong>Different from React</strong> for the full list
+      of deliberate decisions.
     </Alert>
   </Box>
 )

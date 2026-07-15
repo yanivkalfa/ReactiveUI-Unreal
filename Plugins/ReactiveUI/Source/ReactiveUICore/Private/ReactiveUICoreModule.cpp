@@ -3,6 +3,7 @@
 #include "Modules/ModuleManager.h"
 #include "Interfaces/IPluginManager.h"
 #include "Logging/LogMacros.h"
+#include "RuiCultureSync.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogRuiCore, Log, All);
 
@@ -21,9 +22,13 @@ public:
 			VersionName = Plugin->GetDescriptor().VersionName;
 		}
 		UE_LOG(LogRuiCore, Display, TEXT("ReactiveUI %s loaded (ReactiveUICore)"), *VersionName);
+
+		// Culture-change → root re-render (Phase 7 localization): live roots re-render when the
+		// text revision bumps, healing anything a component baked under the previous culture.
+		RUI::RegisterCultureSync();
 	}
 
-	virtual void ShutdownModule() override {}
+	virtual void ShutdownModule() override { RUI::UnregisterCultureSync(); }
 };
 
 IMPLEMENT_MODULE(FReactiveUICoreModule, ReactiveUICore)

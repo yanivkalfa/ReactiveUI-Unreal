@@ -7,6 +7,34 @@ resync with `cp CHANGELOG.md Plugins/ReactiveUI/CHANGELOG.md` (CI byte-compares 
 `scripts/verify-mirror.mjs`). The IDE extensions are NOT covered here — they use
 `ide-extensions/changelog.json` (Lane B; see the release-process skill).
 
+## [0.4.0] — 2026-07-15
+
+### Added
+
+- **Localization** — the last v1-gate production gap closes. Markup text (emitted as
+  self-namespaced `NSLOCTEXT` since the first compiler release) now has a verified gather
+  pipeline: add `*.inl` to a localization target's `GatherTextFromSource` masks (the demo
+  project ships a complete reference target, `Config/Localization/RuiDemo_Gather.ini`) and
+  the Localization Dashboard sees markup text like any C++. A culture switch re-renders every
+  mounted root (`RuiCultureSync` subscribes the reconciler to the engine's text-revision
+  event), healing values components baked under the previous culture. New suite:
+  `ReactiveUI.Loc` (mechanism, live culture switch, gather-manifest tripwire).
+- **`URuiHostWidget` designer props & viewmodel channel** — `InitialProps` (name → string map)
+  and `ViewModel` (any FieldNotify object) are designer/Blueprint-editable and publish into the
+  hosted tree as context; components read them with `RUI::Umg::UseHostProp` /
+  `UseHostViewModel` (the viewmodel feeds `UseField` directly). `SynchronizeProperties`
+  forwards edits live — no remount, hook state preserved. Suite: `ReactiveUI.Umg.HostProps`.
+- **CommonUI desired focus** — `RUI::CommonUI::UseDesiredFocus` lets the hosted tree designate
+  its initial gamepad-focus widget (pair with `RUI::Slate::UseFocus`); `URuiActivatableScreen`
+  now honors CommonUI's `GetDesiredFocusTarget()` contract by returning itself and forwarding
+  the arriving focus to the designated widget. Suite: `ReactiveUI.CommonUI.DesiredFocus`.
+- **Embedded-C++ completion in the IDE extensions** (ships as vscode/vs2022 0.2.0): completion
+  inside `setup`/`hook`/`module` bodies now forwards to clangd over the virtual document —
+  hover, definition, and completion are all wired; markup-only remains the no-clangd baseline.
+- **Router gallery demo** — the docs' router samples, live: an in-memory two-route screen
+  (`/` + `/users/:id`) with `UseNavigate`/`UseParams`, authored in `.uetkx` with the route
+  table in the setup section and the Router as an expression child (gallery: 17 screens).
+
 ## [0.3.0] — 2026-07-14
 
 ### Added

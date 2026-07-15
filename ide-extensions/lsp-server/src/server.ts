@@ -14,6 +14,7 @@ import {
   CompletionItemKind,
   DiagnosticSeverity,
   type CompletionItem,
+  type CompletionList,
   type Definition,
   type Diagnostic,
   type Hover,
@@ -42,7 +43,13 @@ import {
   workspaceRootFor,
 } from "./uetkxWorkspace";
 import { ClangdProxy } from "./clangdProxy";
-import { buildEmbeddedView, embeddedPositionRequest, isEmbeddedOffset, virtualUriOf } from "./embeddedIntel";
+import {
+  buildEmbeddedView,
+  embeddedPositionRequest,
+  isEmbeddedOffset,
+  translateEmbeddedCompletion,
+  virtualUriOf,
+} from "./embeddedIntel";
 
 const connection = createConnection(ProposedFeatures.all);
 const documents = new TextDocuments(TextDocument);
@@ -124,10 +131,24 @@ documents.onDidClose((e) => connection.sendDiagnostics({ uri: e.document.uri, di
 
 // ── completions ────────────────────────────────────────────────────────────────────────────
 
-connection.onCompletion((params): CompletionItem[] => {
+connection.onCompletion(async (params): Promise<CompletionItem[] | CompletionList> => {
   const doc = documents.get(params.textDocument.uri);
   if (!doc) return [];
   const text = doc.getText();
+
+  // Embedded C++ first (the TD-020 tail — hover/definition shipped before completion): inside a
+  // setup/hook/module body, clangd's completions (locals, engine symbols, members) beat the
+  // markup baseline. textEdit ranges come back in VIRTUAL coordinates and are translated;
+  // null (not embedded / clangd absent / nothing to offer) falls through to the baseline paths.
+  const embeddedOffset = doc.offsetAt(params.position);
+  if (isEmbeddedOffset(text, embeddedOffset)) {
+    const proxy = await embeddedProxy(doc);
+    if (proxy) {
+      const result = await embeddedPositionRequest(proxy, "textDocument/completion", doc.uri, text, embeddedOffset);
+      const translated = translateEmbeddedCompletion(result, text);
+      if (translated) return translated as CompletionList;
+    }
+  }
 
   // Import intelligence takes precedence in the preamble: a `import { … } from "…"` cursor
   // completes exported NAMES of the resolved target, or workspace-relative SPECIFIER paths.

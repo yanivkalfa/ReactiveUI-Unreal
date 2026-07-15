@@ -17,7 +17,7 @@
 #include "RuiAssetBrush.h"
 #include "RuiCoreElements.h"
 #include "RuiFieldHooks.h"
-#include "RuiFieldHooks.h"
+#include "RuiHostProps.h"
 #include "RuiHostWidget.h"
 #include "RuiNode.h"
 #include "RuiReconciler.h"
@@ -386,6 +386,59 @@ bool FRuiUmgLifecycleTest::RunTest(const FString&)
 			World->DestroyWorld(false);
 		}
 	}
+	return true;
+}
+
+// ── TD-028: the designer/BP → component channel — InitialProps + ViewModel through context ──
+
+namespace UmgTest
+{
+	static FRuiNodeArray HostPropReaderComp(FRuiContext& Ctx, const FRuiEmptyProps&, const TArray<FRuiNode>&)
+	{
+		const FString Title = RUI::Umg::UseHostProp(Ctx, FName(TEXT("Title")), TEXT("<default>"));
+		UObject* Vm = RUI::Umg::UseHostViewModel(Ctx);
+		const int32 N = RUI::Umg::UseField<int32>(Ctx, Vm, FName(TEXT("Int")), -1);
+		return {RUI::TextBlock(FString::Printf(TEXT("T:%s N:%d"), *Title, N))};
+	}
+	RUI_COMPONENT(HostPropReaderComp)
+} // namespace UmgTest
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRuiUmgHostPropsTest, "ReactiveUI.Umg.HostProps",
+								 EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+bool FRuiUmgHostPropsTest::RunTest(const FString&)
+{
+	RUI::RegisterNamedFactory(FName(TEXT("RuiHostPropReader")), []() { return RUI::FC(&UmgTest::HostPropReaderComp); });
+
+	URuiSignalViewModel* Vm = NewObject<URuiSignalViewModel>();
+	Vm->AddToRoot();
+	Vm->SetInt(5);
+
+	// ── BP-set props + VM reach the hosted component ───────────────────────────────────────
+	URuiHostWidget* Host = NewObject<URuiHostWidget>(GetTransientPackage());
+	Host->ComponentName = FName(TEXT("RuiHostPropReader"));
+	Host->InitialProps.Add(FName(TEXT("Title")), TEXT("Hello"));
+	Host->ViewModel = Vm;
+	TSharedRef<SWidget> Widget = Host->TakeWidget();
+	TestTrue(TEXT("initial props + viewmodel reached the component"),
+			 UmgTest::ContainsText(Widget.Get(), TEXT("T:Hello N:5")));
+
+	// ── SynchronizeProperties forwards edits into the LIVE tree (no remount) ─────────────────
+	Host->InitialProps.Add(FName(TEXT("Title")), TEXT("Renamed"));
+	Vm->SetInt(9);
+	Host->SynchronizeProperties();
+	TestTrue(TEXT("SynchronizeProperties re-published props + VM state in place"),
+			 UmgTest::ContainsText(Widget.Get(), TEXT("T:Renamed N:9")));
+
+	Host->ReleaseSlateResources(true);
+
+	// ── nothing set → quiet defaults ─────────────────────────────────────────────────────────
+	URuiHostWidget* Bare = NewObject<URuiHostWidget>(GetTransientPackage());
+	Bare->ComponentName = FName(TEXT("RuiHostPropReader"));
+	TestTrue(TEXT("unset host props read the caller defaults"),
+			 UmgTest::ContainsText(Bare->TakeWidget().Get(), TEXT("T:<default> N:-1")));
+	Bare->ReleaseSlateResources(true);
+
+	Vm->RemoveFromRoot();
 	return true;
 }
 

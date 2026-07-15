@@ -33,6 +33,13 @@ State.bActive = true;
 State.InputMethod = ERuiInputMethod::MouseAndKeyboard;
 ProvideContext(RUI::CommonUI::ActivationContext(), State);`
 
+const FOCUS = `// Inside the hosted component — designate this button as the screen's focus target.
+auto Focus = RUI::Slate::UseFocus();
+RUI::CommonUI::UseDesiredFocus(Focus.Focus);   // the compiler passes Ctx to both
+
+// Attach Focus.Ref to the widget gamepad focus should land on (the props-level Ref —
+// same pattern the Portals page shows); CommonUI's focus-restoration then finds it.`
+
 export const CommonUiGuidePage: FC = () => (
   <Box>
     <Typography variant="h4" component="h1" gutterBottom>
@@ -65,13 +72,24 @@ export const CommonUiGuidePage: FC = () => (
     </Typography>
     <CodeBlock code={PROVIDER} language="uetkx" />
 
+    <Typography variant="h5" component="h2" gutterBottom sx={{ mt: 3 }}>
+      Gamepad focus — <code>UseDesiredFocus</code>
+    </Typography>
+    <Typography variant="body1" paragraph>
+      CommonUI restores gamepad focus through the activatable&apos;s{' '}
+      <code>GetDesiredFocusTarget()</code>. The hosted tree designates that target from the
+      inside: pair <code>RUI::Slate::UseFocus</code> (attach its <code>Ref</code> to the widget)
+      with <code>RUI::CommonUI::UseDesiredFocus(Ctx, Handle.Focus)</code> — when the screen
+      activates (or the input method demands focus), CommonUI&apos;s focus lands on your
+      designated widget. The designation clears automatically on unmount; without one the screen
+      keeps CommonUI&apos;s default behavior.
+    </Typography>
+    <CodeBlock code={FOCUS} language="uetkx" />
+
     <Alert severity="info" sx={{ mt: 2 }}>
-      Beta caveats: wrap plain Common widgets (e.g. <code>UCommonButtonBase</code>) via{' '}
+      Beta caveat: wrap plain Common widgets (e.g. <code>UCommonButtonBase</code>) via{' '}
       <code>RUI::Umg::UserWidget</code> as children, but host <em>activatables</em> only through{' '}
-      <code>URuiActivatableScreen</code>. The screen does not yet override{' '}
-      <code>GetDesiredFocusTarget()</code>, so designate initial gamepad focus yourself (e.g.{' '}
-      <code>RUI::Slate::UseFocus</code> + an activation effect) — a first-class focus-target prop
-      is tracked for v1.x.
+      <code>URuiActivatableScreen</code>.
     </Alert>
   </Box>
 )

@@ -12,13 +12,13 @@ const QA: Array<[string, ReactNode]> = [
     'Which Unreal versions are supported?',
     <><strong>UE 5.6 and up</strong> — the full automation battery runs green on 5.6, 5.7, and 5.8
       (5.6 is the floor; new engine versions go through a scripted catch-up process). It is a
-      normal engine plugin — no GDExtension-style native dependency, no external runtime.</>,
+      normal engine plugin — pure C++, no external native dependency, no external runtime.</>,
   ],
   [
     'Is it production-ready?',
     <>It is in <strong>beta</strong> — built end to end and green under the headless automation
-      battery, but pre-1.0: localization (FText gathering) is deferred and the docs are still
-      building out. Expect minor API settling before v1.</>,
+      battery, but pre-1.0: the docs are still building out and the API may settle slightly
+      before v1.</>,
   ],
   [
     'Does it ship a scripting VM?',

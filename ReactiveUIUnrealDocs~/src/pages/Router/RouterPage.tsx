@@ -4,29 +4,37 @@ import { CodeBlock } from '../../components/CodeBlock/CodeBlock'
 
 const ROUTES = `#include "RuiRouter.h"
 
+import { HomeScreen } from "./HomeScreen"
+import { UserScreen } from "./UserScreen"
+
 // A Router owns an in-memory history; Routes renders the best match for the
 // current location. Routes are data (FRuiRoute), not tags.
-FRuiNode App(FRuiContext& Ctx) {
-	return RUI::Router({
-		RUI::Routes({
-			FRuiRoute{ TEXT("/"),          RUI::FC(&HomeScreen) },
-			FRuiRoute{ TEXT("/users/:id"), RUI::FC(&UserScreen) },
-		}),
-	}, /*InitialPath*/ TEXT("/"));
+export component AppShell {
+	TArray<RUI::FRuiRoute> RouteList;
+	RouteList.Add(RUI::FRuiRoute{ TEXT("/"),          HomeScreen() });
+	RouteList.Add(RUI::FRuiRoute{ TEXT("/users/:id"), UserScreen() });
+
+	return (
+		<Overlay>
+			{ RUI::Router({ RUI::Routes(MoveTemp(RouteList)) }, /*InitialPath*/ TEXT("/")) }
+		</Overlay>
+	);
 }`
 
-const HOOKS_SAMPLE = `// Inside a routed component — the router hooks are free functions over Ctx.
-const FString Path = UsePathname(Ctx);
-const TMap<FString, FString>& Params = UseParams(Ctx);   // { "id": "42" }
-auto Navigate = UseNavigate(Ctx);                          // Navigate(TEXT("/users/7"), false)
+const HOOKS_SAMPLE = `// Inside a routed component — the compiler passes Ctx to every Use* call for you.
+export component UserScreen {
+	const FString Path = UsePathname();
+	const TMap<FString, FString>& Params = UseParams();   // { "id": "42" }
+	auto Navigate = UseNavigate();                        // Navigate(TEXT("/users/7"), false)
 
-// A parent route renders its matched child wherever it calls UseOutlet:
-return (
-	<VerticalBox>
-		<NavBar />
-		{ UseOutlet(Ctx) }
-	</VerticalBox>
-);`
+	// A parent route renders its matched child wherever it embeds UseOutlet:
+	return (
+		<VerticalBox>
+			<TextBlock Text={ RUI::Fmt(TEXT("User {}"), Params[TEXT("id")]) } />
+			{ UseOutlet() }
+		</VerticalBox>
+	);
+}`
 
 const HOOKS: Array<[string, string]> = [
   ['UseNavigate / UseGo / UseBackStack', 'Imperative navigation — push/replace a path, walk history.'],

@@ -19,11 +19,13 @@ sequence of components + hooks + modules. `-run=RUIMigrateImports` is the idempo
 adds `export` + the needed imports to an existing tree (`RUICompile -check` enforces resolution).
 
 **The plans are the source of truth**: [plans/ROADMAP.md](plans/ROADMAP.md) (living status
-table) and [plans/MASTER_PLAN.md](plans/MASTER_PLAN.md) (locked decisions D-01..D-32, the 10
-phases, the v1 ship gate, the delegation matrix). Its §Resume-protocol says how to join
+table), [plans/MASTER_PLAN.md](plans/MASTER_PLAN.md) (locked decisions D-01..D-33, the 10
+phases, the v1 ship gate, the delegation matrix), and [plans/REMAINING.md](plans/REMAINING.md)
+(the consolidated backlog — every open item, categorized). Its §Resume-protocol says how to join
 mid-project: ROADMAP table → MASTER_PLAN banners → §1 decisions → first unchecked phase only —
 then establish ground truth by RUNNING the phase's Verify commands, never by trusting prose.
-Full research corpus in `research/` (two rounds + audit ledgers).
+Finished campaign docs live in `plans/archive/`; full research corpus in `research/` (two
+rounds + audit ledgers).
 
 ## Deliverables & versions
 
@@ -68,7 +70,7 @@ Engine commands (require UE 5.6+ installed; paths per the `test-run` skill's env
 
 Suite filters are prefix-matched: `ReactiveUI.Boot` (the boot check — unit suites do NOT run
 `StartupModule`, so it is never optional), `.Core`, `.Update`, `.Style`, `.Widgets.*`, `.Demos`,
-`.Uetkx`, `.Contract`, `.Umg`, `.Mvvm`, `.CommonUI` (plus `.Slate`, `.Router`, `.Hooks`,
+`.Uetkx`, `.Contract`, `.Umg`, `.Mvvm`, `.CommonUI`, `.Loc` (plus `.Slate`, `.Router`, `.Hooks`,
 `.Bugfix*`, `.Acceptance`, `.Editor` — there is no `.Hmr` suite); `ReactiveUI.Bench` is NOT
 pass/fail (numbers go to `plans/BENCH_BASELINES.md` with machine/config context).
 

@@ -13,7 +13,7 @@ UseEffect([=]() -> TFunction<void()>
 {
 	auto Handle = Store->Subscribe(OnChange);
 	return [=]() { Store->Unsubscribe(Handle); };   // cleanup on unmount / dep change
-}, { PlayerId });`
+}, RUI::Deps(PlayerId));`
 
 const HOOKS: Array<[string, string, string]> = [
   ['UseState<T>', 'State', 'A value and its setter; the setter accepts a new value or an updater lambda.'],

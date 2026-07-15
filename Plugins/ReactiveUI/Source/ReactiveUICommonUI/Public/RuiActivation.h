@@ -41,6 +41,19 @@ struct REACTIVEUICOMMONUI_API FRuiActivationState
 	bool operator!=(const FRuiActivationState& Other) const { return !(*this == Other); }
 };
 
+/** TD-029 — the screen's desired-focus registry. The hosted tree designates its initial gamepad
+ *  focus with UseDesiredFocus; the screen's CommonUI `GetDesiredFocusTarget()` contract then has
+ *  somewhere to land (URuiActivatableScreen returns itself and forwards the received focus by
+ *  invoking `FocusDesired`). Owned by the screen; reaches the tree via FocusTargetContext. */
+struct REACTIVEUICOMMONUI_API FRuiFocusTargetRegistry
+{
+	/** Moves focus to the designated widget (typically a RUI::Slate::UseFocus handle's Focus).
+	 *  Unset when nothing is designated. */
+	TFunction<void()> FocusDesired;
+
+	bool HasTarget() const { return static_cast<bool>(FocusDesired); }
+};
+
 namespace RUI::CommonUI
 {
 	/** The context handle carrying activation state to descendants (default = inactive / M&K). */
@@ -59,4 +72,21 @@ namespace RUI::CommonUI
 	REACTIVEUICOMMONUI_API FRuiNode ActivationProvider(FRuiActivationState State,
 													   TArray<FRuiNode> Children = TArray<FRuiNode>(),
 													   FRuiKey Key = FRuiKey());
+
+	// ── TD-029: desired focus ─────────────────────────────────────────────────────────────
+
+	/** The context carrying the screen's focus registry (null outside an activatable host). */
+	REACTIVEUICOMMONUI_API TRuiContext<TSharedPtr<FRuiFocusTargetRegistry>>& FocusTargetContext();
+
+	/** Designate this component's widget as the screen's desired (gamepad) focus target.
+	 *  Pass a callable that moves focus there — typically `Handle.Focus` from
+	 *  `RUI::Slate::UseFocus` (whose `Ref` you attached to the widget's props). Latest call
+	 *  per commit wins; the designation clears on unmount. Call unconditionally (hook rules);
+	 *  outside a screen (no registry in context) it is a quiet no-op. */
+	REACTIVEUICOMMONUI_API void UseDesiredFocus(FRuiContext& Ctx, TFunction<void()> FocusAction);
+
+	/** Provide `Registry` to `Children` (what URuiActivatableScreen wraps the component in). */
+	REACTIVEUICOMMONUI_API FRuiNode FocusTargetProvider(TSharedPtr<FRuiFocusTargetRegistry> Registry,
+														TArray<FRuiNode> Children = TArray<FRuiNode>(),
+														FRuiKey Key = FRuiKey());
 } // namespace RUI::CommonUI

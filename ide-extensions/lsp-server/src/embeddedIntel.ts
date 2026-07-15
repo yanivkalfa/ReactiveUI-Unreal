@@ -83,3 +83,64 @@ export async function embeddedPositionRequest(
 export function isEmbeddedOffset(source: string, sourceOffset: number): boolean {
   return buildEmbeddedView(source).positionInVirtual(sourceOffset) !== null;
 }
+
+// ── completion translation (the TD-020 tail: hover/definition shipped first) ────────────────
+
+type EmbeddedRange = { start: ClangdPosition; end: ClangdPosition };
+
+/**
+ * Translate a clangd completion result (CompletionItem[] or CompletionList) from VIRTUAL-doc
+ * coordinates back to .uetkx coordinates:
+ *   - a `textEdit` range (both the classic and the insert/replace form) is remapped; an edit that
+ *     lands in the prelude scaffolding is DROPPED from its item (the client then inserts the
+ *     label at the cursor — still useful) rather than dropping the item,
+ *   - `additionalTextEdits` are dropped wholesale (clangd's auto-include insertions target the
+ *     virtual prelude — meaningless in a .uetkx file).
+ * Returns null for an empty/absent result so the caller falls through to the markup baseline.
+ */
+export function translateEmbeddedCompletion(
+  result: unknown,
+  source: string,
+): { isIncomplete: boolean; items: object[] } | null {
+  if (!result) return null;
+  const list = Array.isArray(result)
+    ? { isIncomplete: false, items: result as unknown[] }
+    : (result as { isIncomplete?: boolean; items?: unknown[] });
+  const rawItems = Array.isArray(list.items) ? list.items : [];
+  if (rawItems.length === 0) return null;
+
+  const view = buildEmbeddedView(source);
+  const mapRange = (range: EmbeddedRange): { start: ClangdPosition; end: ClangdPosition } | null => {
+    const startOff = view.sourceOffsetOf(range.start);
+    const endOff = view.sourceOffsetOf(range.end);
+    if (startOff === null || endOff === null) return null;
+    return { start: offsetToPosition(source, startOff), end: offsetToPosition(source, endOff) };
+  };
+
+  const items: object[] = [];
+  for (const raw of rawItems) {
+    if (!raw || typeof raw !== "object") continue;
+    const item = { ...(raw as Record<string, unknown>) };
+    delete item.additionalTextEdits;
+    const edit = item.textEdit as
+      | { newText: string; range?: EmbeddedRange; insert?: EmbeddedRange; replace?: EmbeddedRange }
+      | undefined;
+    if (edit) {
+      if (edit.range) {
+        const range = mapRange(edit.range);
+        if (range) item.textEdit = { range, newText: edit.newText };
+        else delete item.textEdit;
+      } else if (edit.insert && edit.replace) {
+        const insert = mapRange(edit.insert);
+        const replace = mapRange(edit.replace);
+        if (insert && replace) item.textEdit = { insert, replace, newText: edit.newText };
+        else delete item.textEdit;
+      } else {
+        delete item.textEdit;
+      }
+    }
+    items.push(item);
+  }
+  if (items.length === 0) return null;
+  return { isIncomplete: list.isIncomplete === true, items };
+}

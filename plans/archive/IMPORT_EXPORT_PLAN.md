@@ -1,6 +1,6 @@
 # uetkx Import/Export — Unreal leg EXECUTION PLAN (leg 1 of 3)
 
-> **Status:** EXECUTION-GRADE, derived from plans/IMPORT_EXPORT_MASTER_PLAN.md (locked rounds 1–3,
+> **Status:** EXECUTION-GRADE, derived from plans/archive/IMPORT_EXPORT_MASTER_PLAN.md (locked rounds 1–3,
 > amendments A1–A8) + the 7-agent review round (2026-07-11). Self-contained: do NOT re-research.
 > **Branch:** `feat/uetkx-imports` off `dev`, ONLY after PR #14 (feat/uetkx-compiler) merges.
 > **Vehicle:** one branch, one PR. Codemod correctness = first milestone gate (strict-day-one).
@@ -503,7 +503,7 @@ compiler fingerprint) — all fold into ONE CodegenVersion bump + one golden re-
 - plans/TECH_DEBT.md: TD-009 status → "mechanism shipped leg 1; sibling PRs pending"; new TD entries
   for accepted caveats (interp global-name scoping; private-FName last-swap-wins; #line single-line
   expr granularity).
-- Update `plans/IMPORT_EXPORT_MASTER_PLAN.md` status line when the leg merges.
+- Update `plans/archive/IMPORT_EXPORT_MASTER_PLAN.md` status line when the leg merges.
 
 ### M13 — Test matrix (every suite/corpus/fixture + verify commands)
 
