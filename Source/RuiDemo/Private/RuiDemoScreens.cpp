@@ -97,24 +97,26 @@ static FRuiNodeArray GalleryShellComp(FRuiContext& Ctx, const FRuiEmptyProps&, c
 	MenuWidth.SetVAlign(FName(TEXT("top")));
 
 	// Key the content by index: switching demos fully unmounts the old screen (cleanups run).
+	// The content slot FILLS the remaining viewport (Slot.Fill both axes) — card-style demo
+	// screens are top-left content and look the same, but screens that scale to their area
+	// (Doom's ScaleBox letterbox) get the real estate they need to reach the window bottom.
 	FRuiNode Content = Entries[SelectedNow].Make();
 	Content.Key = FRuiKey(1000 + SelectedNow);
 	FRuiNode ContentSlot = WithSlot(MoveTemp(Content), FName(TEXT("Slot.Padding")), FRuiValue(TEXT("10,0,0,0")));
+	ContentSlot = WithSlot(MoveTemp(ContentSlot), FName(TEXT("Slot.Fill")), FRuiValue(1.0f));
 
-	FRuiBoxProps Root;
-	Root.SetHAlign(FName(TEXT("left")));
-	Root.SetVAlign(FName(TEXT("top")));
+	FRuiNode BodyRow = RUI::Slate::HorizontalBox(
+		FRuiHorizontalBoxProps(),
+		{RUI::Slate::Box(MoveTemp(MenuWidth),
+						 {RUI::Slate::Border(MoveTemp(MenuCard),
+											 {RUI::Slate::VerticalBox(FRuiVerticalBoxProps(), MoveTemp(MenuRows))})}),
+		 MoveTemp(ContentSlot)});
+	BodyRow = WithSlot(MoveTemp(BodyRow), FName(TEXT("Slot.Fill")), FRuiValue(1.0f));
+
 	return {RUI::Slate::Box(
-		MoveTemp(Root), {RUI::Slate::VerticalBox(
-							FRuiVerticalBoxProps(),
-							{StyledText(TEXT("ReactiveUI for Unreal — example gallery"), 20.0f), Gap(4.0f),
-							 RUI::Slate::HorizontalBox(
-								 FRuiHorizontalBoxProps(),
-								 {RUI::Slate::Box(MoveTemp(MenuWidth),
-												  {RUI::Slate::Border(MoveTemp(MenuCard),
-																	  {RUI::Slate::VerticalBox(FRuiVerticalBoxProps(),
-																							   MoveTemp(MenuRows))})}),
-								  MoveTemp(ContentSlot)})})})};
+		FRuiBoxProps(), {RUI::Slate::VerticalBox(FRuiVerticalBoxProps(),
+												 {StyledText(TEXT("ReactiveUI for Unreal — example gallery"), 20.0f),
+												  Gap(4.0f), MoveTemp(BodyRow)})})};
 }
 RUI_COMPONENT(GalleryShellComp)
 
