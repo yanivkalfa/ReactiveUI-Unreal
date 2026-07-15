@@ -25,6 +25,15 @@ namespace
 	}
 } // namespace
 
+URuiActivatableScreen::URuiActivatableScreen(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
+{
+	// TD-029: the screen must be focusable so CommonUI's SetFocus on GetDesiredFocusTarget()
+	// (which returns THIS widget when the tree designated a target) actually lands here —
+	// NativeOnFocusReceived then forwards to the designated Slate widget.
+	SetIsFocusable(true);
+	FocusRegistry = MakeShared<FRuiFocusTargetRegistry>();
+}
+
 FRuiNode URuiActivatableScreen::BuildTree() const
 {
 	TArray<FRuiNode> Children;
@@ -32,7 +41,9 @@ FRuiNode URuiActivatableScreen::BuildTree() const
 	{
 		Children.Add(RUI::Named(ComponentName));
 	}
-	return RUI::CommonUI::ActivationProvider(State, MoveTemp(Children));
+	// Activation state outside, focus registry inside — components read both from context.
+	return RUI::CommonUI::ActivationProvider(State,
+											 {RUI::CommonUI::FocusTargetProvider(FocusRegistry, MoveTemp(Children))});
 }
 
 TSharedRef<SWidget> URuiActivatableScreen::RebuildWidget()
@@ -108,6 +119,30 @@ void URuiActivatableScreen::UnbindInputMethod()
 		InputMethodHandle.Reset();
 	}
 	BoundInputSubsystem.Reset();
+}
+
+UWidget* URuiActivatableScreen::NativeGetDesiredFocusTarget() const
+{
+	// TD-029: with a tree-designated target, hand CommonUI this widget — the focus it sets is
+	// forwarded by NativeOnFocusReceived below. Without one, defer to the base class (a BP
+	// override of GetDesiredFocusTarget still wins there).
+	if (HasDesiredFocusTarget())
+	{
+		return const_cast<URuiActivatableScreen*>(this);
+	}
+	return Super::NativeGetDesiredFocusTarget();
+}
+
+FReply URuiActivatableScreen::NativeOnFocusReceived(const FGeometry& InGeometry, const FFocusEvent& InFocusEvent)
+{
+	if (HasDesiredFocusTarget())
+	{
+		// Forward to the designated Slate widget (focus moves off this screen widget; the
+		// child's own focus events fire — no re-entry back here).
+		FocusRegistry->FocusDesired();
+		return FReply::Handled();
+	}
+	return Super::NativeOnFocusReceived(InGeometry, InFocusEvent);
 }
 
 void URuiActivatableScreen::HandleInputMethodChanged(ECommonInputType NewInputType)

@@ -733,7 +733,15 @@ referenced from plans/PRs.
   <INotifyFieldValueChanged>` VM property provided into the tree as context; `SynchronizeProperties`
   forwards designer edits; design-time stays placeholder-only. Tests: BP-set props reach the
   component; VM flows to `UseField`.
-- **Status:** OPEN
+- **Status:** ✅ RESOLVED 2026-07-15 (`feat/v1-gate-closeout`) — `InitialProps`
+  (TMap<FName,FString>) + `ViewModel` (TScriptInterface<INotifyFieldValueChanged>) UPROPERTYs on
+  `URuiHostWidget`, published into the tree via the new `RuiHostProps` context seam (same
+  provider-node pattern as the CommonUI activation seam); components read with
+  `RUI::Umg::UseHostProp/UseHostProps/UseHostViewModel` (the VM feeds `UseField` directly).
+  `SynchronizeProperties` re-publishes live (Update + FlushSync — no remount, hook state
+  preserved); design time stays placeholder-only. Test `ReactiveUI.Umg.HostProps` (props + VM
+  reach the component; live re-publish; quiet defaults). Docs: UMG guide "Passing props & a
+  viewmodel from the Designer".
 
 ## TD-029 — `URuiActivatableScreen` lacks `GetDesiredFocusTarget()` (audit N2)
 - **Where:** `Plugins/ReactiveUI/Source/ReactiveUICommonUI/Public/RuiActivatableScreen.h`
@@ -745,4 +753,13 @@ referenced from plans/PRs.
 - **Production-grade resolution:** a focus-target designation the hosted tree can set (e.g. a
   reserved prop or a `RUI::CommonUI::` focus-target registration hook) that the screen's
   `GetDesiredFocusTarget()` returns; gamepad-focus test on activation.
-- **Status:** OPEN
+- **Status:** ✅ RESOLVED 2026-07-15 (`feat/v1-gate-closeout`) — `RUI::CommonUI::UseDesiredFocus`
+  (pair with `RUI::Slate::UseFocus`) designates from inside the tree via the new
+  `FRuiFocusTargetRegistry` context (screen-owned, provided by `FocusTargetProvider`; latest
+  designation per commit wins, cleared on unmount). CommonUI's contract wants a UWidget while our
+  tree is pure Slate, so `NativeGetDesiredFocusTarget()` returns the (now focusable) screen
+  itself and `NativeOnFocusReceived` forwards the arriving focus to the designated widget; no
+  designation → base behavior (a BP override still wins). Test `ReactiveUI.CommonUI.DesiredFocus`
+  (mechanism headless + screen end-to-end + clear-on-teardown). Docs: CommonUI guide "Gamepad
+  focus — UseDesiredFocus". The real-gamepad PIE pass stays on the owner verification list
+  (`plans/REMAINING.md` §3).

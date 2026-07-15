@@ -314,7 +314,7 @@ export const sections: DocSection[] = [
         path: '/integration/umg',
         keywords: ['umg', 'URuiHostWidget', 'UserWidget', 'MountNamed', 'prop map', 'designer'],
         searchContent:
-          'umg interop door both directions our ui inside theirs URuiHostWidget designer-placeable ReactiveUI Host palette ComponentName registered component RebuildWidget mounts ReleaseSlateResources unmounts cleanups Remount design time placeholder never runs live code URuiWorldSubsystem MountNamed blueprint-callable viewport zorder teardown world death their widgets inside ours RUI::Umg::UserWidget UUserWidget expression child owning world SObjectWidget gc-alive strong pointer deletion commit FRuiStyleDict WidgetProps reflection prop map UPROPERTYs diffing MakeAssetBrush textures materials beta caveat no blueprint props viewmodel channel signal UseField',
+          'umg interop door both directions our ui inside theirs URuiHostWidget designer-placeable ReactiveUI Host palette ComponentName registered component RebuildWidget mounts ReleaseSlateResources unmounts cleanups Remount design time placeholder never runs live code URuiWorldSubsystem MountNamed blueprint-callable viewport zorder teardown world death InitialProps ViewModel designer blueprint props channel UseHostProp UseHostProps UseHostViewModel SynchronizeProperties host props context their widgets inside ours RUI::Umg::UserWidget UUserWidget expression child owning world SObjectWidget gc-alive strong pointer deletion commit FRuiStyleDict WidgetProps reflection prop map UPROPERTYs diffing MakeAssetBrush textures materials signal UseField',
         element: () => <UmgGuidePage />,
       },
       {
@@ -324,7 +324,7 @@ export const sections: DocSection[] = [
         path: '/integration/commonui',
         keywords: ['commonui', 'URuiActivatableScreen', 'activation', 'input method', 'gamepad', 'stack'],
         searchContent:
-          'commonui interop their stacks our screens menu stacks input routing back-handling console-cert never installs input preprocessor URuiActivatableScreen UCommonActivatableWidget push AddWidgetInstance UCommonActivatableWidgetContainerBase CreateWidget owning player ComponentName re-renders activation deactivation input method change FRuiActivationState UseIsActive UseInputMethod ERuiInputMethod MouseAndKeyboard Gamepad Touch glyph prompt swap ActivationProvider ProvideContext ActivationContext stand-in tests CommonUiDemo wrap common widgets UCommonButtonBase children activatables only through screen GetDesiredFocusTarget focus target UseFocus activation effect v1.x',
+          'commonui interop their stacks our screens menu stacks input routing back-handling console-cert never installs input preprocessor URuiActivatableScreen UCommonActivatableWidget push AddWidgetInstance UCommonActivatableWidgetContainerBase CreateWidget owning player ComponentName re-renders activation deactivation input method change FRuiActivationState UseIsActive UseInputMethod ERuiInputMethod MouseAndKeyboard Gamepad Touch glyph prompt swap ActivationProvider ProvideContext ActivationContext stand-in tests CommonUiDemo wrap common widgets UCommonButtonBase children activatables only through screen GetDesiredFocusTarget gamepad focus UseDesiredFocus UseFocus focus target designation focus restoration',
         element: () => <CommonUiGuidePage />,
       },
       {

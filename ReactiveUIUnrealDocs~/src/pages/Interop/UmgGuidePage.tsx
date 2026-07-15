@@ -1,5 +1,5 @@
 import type { FC } from 'react'
-import { Alert, Box, Typography } from '@mui/material'
+import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../components/CodeBlock/CodeBlock'
 
 const OURS_IN_THEIRS = `// 1) Register a component (compiled .uetkx components self-register by name).
@@ -15,6 +15,16 @@ RUI_COMPONENT(InventoryPanel);   // or: RUI::RegisterNamedFactory(TEXT("Inventor
 URuiWorldSubsystem* Rui = World->GetSubsystem<URuiWorldSubsystem>();
 int32 Handle = Rui->MountNamed(TEXT("InventoryPanel"), /*ZOrder*/ 10);
 // Roots tear down automatically when the world dies (PIE-end safe).`
+
+const HOST_PROPS = `// Inside the hosted component — read what the Designer/Blueprint set on the host:
+const FString Title = RUI::Umg::UseHostProp(FName(TEXT("Title")), TEXT("Inventory"));
+UObject* Vm = RUI::Umg::UseHostViewModel();                  // the host's ViewModel property
+const int32 Gold = RUI::Umg::UseField<int32>(Ctx, Vm, "Gold", 0); // subscribes; re-renders on change
+
+// On the UMG side (Designer details panel or Blueprint):
+//   Host->InitialProps.Add("Title", "War Chest");
+//   Host->ViewModel = MyGoldViewModel;   // any INotifyFieldValueChanged
+//   Host->SynchronizeProperties();       // runtime edits forward live (the Designer calls it for you)`
 
 const THEIRS_IN_OURS = `// A UUserWidget as a child of our tree — from the InteropShowcase demo.
 // The widget is created for the owning world and its SObjectWidget slots in
@@ -49,12 +59,19 @@ export const UmgGuidePage: FC = () => (
       mounts straight into the viewport, Blueprint-callable, with automatic teardown on world death.
     </Typography>
     <CodeBlock code={OURS_IN_THEIRS} language="uetkx" />
-    <Alert severity="info" sx={{ my: 2 }}>
-      Beta caveat: the host widget carries <em>only</em> <code>ComponentName</code> — there is no
-      Blueprint-passed props/viewmodel channel yet. To feed data in today, share state through a{' '}
-      <strong>Signal</strong> or a FieldNotify viewmodel the component reads with{' '}
-      <code>UseField</code> (see the MVVM guide).
-    </Alert>
+
+    <Typography variant="h5" component="h2" gutterBottom sx={{ mt: 3 }}>
+      Passing props &amp; a viewmodel from the Designer
+    </Typography>
+    <Typography variant="body1" paragraph>
+      The host widget carries two designer/Blueprint-editable channels beside{' '}
+      <code>ComponentName</code>: <code>InitialProps</code> (a name → string map) and{' '}
+      <code>ViewModel</code> (any FieldNotify object). Both publish into the hosted tree as
+      context — no remount, and edits forward live through <code>SynchronizeProperties</code>.
+      For bigger data, a <strong>Signal</strong> or a shared viewmodel (see the MVVM guide)
+      remains the idiomatic channel.
+    </Typography>
+    <CodeBlock code={HOST_PROPS} language="uetkx" />
 
     <Typography variant="h5" component="h2" gutterBottom sx={{ mt: 3 }}>
       Their widgets inside ours — <code>RUI::Umg::UserWidget</code>

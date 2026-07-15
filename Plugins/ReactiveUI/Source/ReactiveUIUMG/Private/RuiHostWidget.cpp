@@ -2,10 +2,21 @@
 
 #include "RuiHostWidget.h"
 
+#include "RuiHostProps.h"
 #include "RuiNode.h"
 #include "RuiRoot.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Text/STextBlock.h"
+
+FRuiNode URuiHostWidget::BuildTree() const
+{
+	// The hosted component wrapped in the host-props provider (TD-028): the designer/BP-set
+	// initial props + viewmodel arrive as context (UseHostProp / UseHostViewModel).
+	FRuiHostPropsState State;
+	State.Props = InitialProps;
+	State.ViewModel = ViewModel.GetObject();
+	return RUI::Umg::HostPropsProvider(MoveTemp(State), {RUI::Named(ComponentName)});
+}
 
 TSharedRef<SWidget> URuiHostWidget::BuildContent()
 {
@@ -23,7 +34,7 @@ TSharedRef<SWidget> URuiHostWidget::BuildContent()
 				NSLOCTEXT("ReactiveUI", "HostUnknown", "[ReactiveUI: '{0}' is not a registered component]"),
 				FText::FromName(ComponentName)));
 	}
-	Root = FRuiRoot::Create(RUI::Named(ComponentName));
+	Root = FRuiRoot::Create(BuildTree());
 	Root->FlushSync();
 	return Root->GetWidget();
 }
@@ -47,6 +58,19 @@ void URuiHostWidget::Remount()
 		Container->SetContent(BuildContent()); // in place — the parent slot keeps the wrapper
 	}
 	InvalidateLayoutAndVolatility();
+}
+
+void URuiHostWidget::SynchronizeProperties()
+{
+	Super::SynchronizeProperties();
+	// Forward property edits into the live tree: re-handing the SAME component under a provider
+	// with new state re-provides the context (provider props equality gates it) — consumers
+	// re-render in place, hook state preserved. Never runs live code at design time.
+	if (!IsDesignTime() && Root.IsValid())
+	{
+		Root->Update(BuildTree());
+		Root->FlushSync();
+	}
 }
 
 void URuiHostWidget::ReleaseSlateResources(bool bReleaseChildren)

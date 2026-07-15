@@ -164,4 +164,85 @@ bool FRuiCommonUIInputMethodTest::RunTest(const FString&)
 	return true;
 }
 
+// ── TD-029: the desired-focus seam — UseDesiredFocus designates; the screen answers CommonUI ────
+
+namespace CommonUITest
+{
+	static int32 GFocusInvocations = 0;
+
+	// Designates itself as the screen's desired focus target (the TD-029 tree-side hook).
+	static FRuiNodeArray FocusProbe(FRuiContext& Ctx, const FRuiEmptyProps&, const TArray<FRuiNode>&)
+	{
+		RUI::CommonUI::UseDesiredFocus(Ctx, []() { ++GFocusInvocations; });
+		return {RUI::TextBlock(FString(TEXT("FOCUS-PROBE")))};
+	}
+	RUI_COMPONENT(FocusProbe)
+} // namespace CommonUITest
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRuiCommonUIDesiredFocusTest, "ReactiveUI.CommonUI.DesiredFocus",
+								 EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+bool FRuiCommonUIDesiredFocusTest::RunTest(const FString&)
+{
+	using namespace RUI::CommonUI;
+	using namespace CommonUITest;
+	GFocusInvocations = 0;
+
+	// ── the mechanism, headless: provider + hook + clear-on-unmount ───────────────────────────
+	{
+		const TSharedPtr<FRuiFocusTargetRegistry> Registry = MakeShared<FRuiFocusTargetRegistry>();
+		TestFalse(TEXT("registry starts without a target"), Registry->HasTarget());
+
+		TSharedRef<FRuiRoot> Root = FRuiRoot::Create(FocusTargetProvider(Registry, {RUI::FC(&FocusProbe)}));
+		Root->FlushSync();
+		if (TestTrue(TEXT("UseDesiredFocus designated a target"), Registry->HasTarget()))
+		{
+			Registry->FocusDesired();
+			TestEqual(TEXT("invoking the registry reaches the designated action"), GFocusInvocations, 1);
+		}
+
+		Root->Unmount();
+		TestFalse(TEXT("unmount clears the designation"), Registry->HasTarget());
+	}
+
+	// ── the screen end-to-end: GetDesiredFocusTarget has somewhere to land ────────────────────
+	RUI::RegisterNamedFactory(FName(TEXT("RuiFocusProbe")), []() { return RUI::FC(&FocusProbe); });
+	RUI::RegisterNamedFactory(FName(TEXT("RuiActiveProbe")), []() { return RUI::FC(&ActiveProbe); });
+	if (GEngine == nullptr)
+	{
+		AddInfo(TEXT("[commonui] no GEngine — UObject screen construction skipped."));
+		return true;
+	}
+	UGameInstance* GameInstance = NewObject<UGameInstance>(GEngine);
+	GameInstance->AddToRoot();
+	GameInstance->InitializeStandalone();
+
+	URuiActivatableScreen* Screen = CreateWidget<URuiActivatableScreen>(GameInstance);
+	if (TestNotNull(TEXT("screen created"), Screen))
+	{
+		Screen->ComponentName = FName(TEXT("RuiFocusProbe"));
+		TSharedRef<SWidget> Widget = Screen->TakeWidget();
+		TestTrue(TEXT("hosted tree designated the screen's focus target"), Screen->HasDesiredFocusTarget());
+		TestTrue(TEXT("GetDesiredFocusTarget returns the screen (the focus-forwarding landing pad)"),
+				 Screen->GetDesiredFocusTarget() == Screen);
+
+		Screen->ReleaseSlateResources(true);
+		TestFalse(TEXT("teardown clears the designation"), Screen->HasDesiredFocusTarget());
+	}
+
+	// A screen whose component designates nothing keeps the base behavior (no target).
+	URuiActivatableScreen* Plain = CreateWidget<URuiActivatableScreen>(GameInstance);
+	if (TestNotNull(TEXT("plain screen created"), Plain))
+	{
+		Plain->ComponentName = FName(TEXT("RuiActiveProbe"));
+		TSharedRef<SWidget> Widget = Plain->TakeWidget();
+		TestFalse(TEXT("no designation without UseDesiredFocus"), Plain->HasDesiredFocusTarget());
+		TestTrue(TEXT("GetDesiredFocusTarget stays the base default (null)"),
+				 Plain->GetDesiredFocusTarget() == nullptr);
+	}
+
+	GameInstance->Shutdown();
+	GameInstance->RemoveFromRoot();
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -35,11 +35,22 @@ public:
 	/** The activation state currently published to the hosted tree. */
 	const FRuiActivationState& GetActivationState() const { return State; }
 
+	/** Has the hosted tree designated a desired focus target (RUI::CommonUI::UseDesiredFocus)? */
+	bool HasDesiredFocusTarget() const { return FocusRegistry.IsValid() && FocusRegistry->HasTarget(); }
+
+	URuiActivatableScreen(const FObjectInitializer& ObjectInitializer);
+
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
 	virtual void NativeOnActivated() override;
 	virtual void NativeOnDeactivated() override;
 	virtual void ReleaseSlateResources(bool bReleaseChildren) override;
+	/** TD-029 — CommonUI's focus-restoration contract. The contract wants a UWidget but our tree
+	 *  is pure Slate, so when the hosted tree designated a target (UseDesiredFocus) the screen
+	 *  returns ITSELF; the focus then arrives at NativeOnFocusReceived, which forwards it to the
+	 *  designated widget. No designation → the base behavior. */
+	virtual UWidget* NativeGetDesiredFocusTarget() const override;
+	virtual FReply NativeOnFocusReceived(const FGeometry& InGeometry, const FFocusEvent& InFocusEvent) override;
 
 #if WITH_EDITOR
 	virtual const FText GetPaletteCategory() override;
@@ -57,6 +68,8 @@ private:
 
 	TSharedPtr<FRuiRoot> Root;
 	FRuiActivationState State;
+	/** TD-029 — owned by the screen, provided into the tree via FocusTargetProvider. */
+	TSharedPtr<FRuiFocusTargetRegistry> FocusRegistry;
 	FDelegateHandle InputMethodHandle;
 	/** The subsystem InputMethodHandle is registered on — tracked so an owning-player change re-points
 	 *  the subscription and teardown removes it from the RIGHT subsystem (bughunt CMU-1). */

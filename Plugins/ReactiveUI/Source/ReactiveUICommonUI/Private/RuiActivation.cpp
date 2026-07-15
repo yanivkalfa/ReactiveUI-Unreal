@@ -59,3 +59,67 @@ FRuiNode RUI::CommonUI::ActivationProvider(FRuiActivationState State, TArray<FRu
 	Props.State = State;
 	return RUI::FC(&ActivationProviderComp, MoveTemp(Props), MoveTemp(Children), Key);
 }
+
+// ── TD-029: desired focus ─────────────────────────────────────────────────────────────────
+
+TRuiContext<TSharedPtr<FRuiFocusTargetRegistry>>& RUI::CommonUI::FocusTargetContext()
+{
+	static TRuiContext<TSharedPtr<FRuiFocusTargetRegistry>> Ctx(TSharedPtr<FRuiFocusTargetRegistry>(),
+																FName(TEXT("RuiFocusTarget")));
+	return Ctx;
+}
+
+namespace
+{
+	struct FRuiFocusTargetProviderProps final : public FRuiPropsBase
+	{
+		TSharedPtr<FRuiFocusTargetRegistry> Registry;
+
+		virtual bool Equals(const FRuiPropsBase& Other) const override
+		{
+			const FRuiFocusTargetProviderProps& O = static_cast<const FRuiFocusTargetProviderProps&>(Other);
+			return BaseFieldsEqual(Other) && Registry == O.Registry;
+		}
+	};
+
+	FRuiNodeArray FocusTargetProviderComp(FRuiContext& Ctx, const FRuiFocusTargetProviderProps& Props,
+										  const TArray<FRuiNode>& Children)
+	{
+		Ctx.ProvideContext(RUI::CommonUI::FocusTargetContext(), Props.Registry);
+		return FRuiNodeArray(Children);
+	}
+	RUI_COMPONENT(FocusTargetProviderComp)
+} // namespace
+
+void RUI::CommonUI::UseDesiredFocus(FRuiContext& Ctx, TFunction<void()> FocusAction)
+{
+	const TSharedPtr<FRuiFocusTargetRegistry> Registry = Ctx.UseContext(FocusTargetContext());
+	// One effect slot, re-run every commit: the render phase stays pure, the LATEST action wins
+	// (it may capture fresh state), and the cleanup clears the designation on unmount. The weak
+	// capture never extends the screen-owned registry's lifetime.
+	TWeakPtr<FRuiFocusTargetRegistry> Weak = Registry;
+	Ctx.UseEffect(
+		[Weak, Action = MoveTemp(FocusAction)]() -> TFunction<void()>
+		{
+			if (const TSharedPtr<FRuiFocusTargetRegistry> Pinned = Weak.Pin())
+			{
+				Pinned->FocusDesired = Action;
+			}
+			return [Weak]()
+			{
+				if (const TSharedPtr<FRuiFocusTargetRegistry> Pinned = Weak.Pin())
+				{
+					Pinned->FocusDesired = nullptr;
+				}
+			};
+		},
+		RUI::EveryCommit());
+}
+
+FRuiNode RUI::CommonUI::FocusTargetProvider(TSharedPtr<FRuiFocusTargetRegistry> Registry, TArray<FRuiNode> Children,
+											FRuiKey Key)
+{
+	FRuiFocusTargetProviderProps Props;
+	Props.Registry = MoveTemp(Registry);
+	return RUI::FC(&FocusTargetProviderComp, MoveTemp(Props), MoveTemp(Children), Key);
+}
