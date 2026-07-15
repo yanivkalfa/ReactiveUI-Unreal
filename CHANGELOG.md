@@ -7,7 +7,7 @@ resync with `cp CHANGELOG.md Plugins/ReactiveUI/CHANGELOG.md` (CI byte-compares 
 `scripts/verify-mirror.mjs`). The IDE extensions are NOT covered here — they use
 `ide-extensions/changelog.json` (Lane B; see the release-process skill).
 
-## [0.4.0] — 2026-07-15
+## [0.4.0] — 2026-07-16
 
 ### Added
 
