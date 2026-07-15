@@ -236,12 +236,19 @@ namespace
 
 	const TSet<FString>& StyleKeys()
 	{
-		static const TSet<FString> Keys = {
-			TEXT("RenderOpacity"),		  TEXT("Visibility"),	   TEXT("Enabled"),
-			TEXT("RenderTranslation"),	  TEXT("RenderScale"),	   TEXT("RenderTransformAngle"),
-			TEXT("RenderTransformPivot"), TEXT("ColorAndOpacity"), TEXT("Font.Size"),
-			TEXT("Justification"),		  TEXT("AutoWrapText"),	   TEXT("FillColorAndOpacity"),
-			TEXT("Clipping")};
+		static const TSet<FString> Keys = {TEXT("RenderOpacity"),
+										   TEXT("Visibility"),
+										   TEXT("Enabled"),
+										   TEXT("RenderTranslation"),
+										   TEXT("RenderScale"),
+										   TEXT("RenderTransformAngle"),
+										   TEXT("RenderTransformPivot"),
+										   TEXT("ColorAndOpacity"),
+										   TEXT("Font.Size"),
+										   TEXT("Justification"),
+										   TEXT("AutoWrapText"),
+										   TEXT("FillColorAndOpacity"),
+										   TEXT("Clipping")};
 		return Keys;
 	}
 
