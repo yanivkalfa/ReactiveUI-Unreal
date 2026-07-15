@@ -49,6 +49,24 @@ resync with `cp CHANGELOG.md Plugins/ReactiveUI/CHANGELOG.md` (CI byte-compares 
 - **Generated per-hook reference docs** — every hook now has its own reference page (23 core +
   17 router), generated from a header-authored catalog the docs-drift gate compares against
   the code registries — the docs can never claim hooks the code doesn't have.
+- **`Canvas` widget** — absolute placement over `SCanvas`: children position/size themselves
+  via `Slot.Position`/`Slot.Size` (expr or "x,y" literals); paint order = child order; a
+  slot-prop update mutates the LIVE slot in place, so per-frame quad movement costs no slot
+  churn. Built as the Doom demo's framebuffer container. Suite: `ReactiveUI.Widgets.Canvas`.
+- **`<Image Image={ Brush } />`** — the asset-brush prop is now a markup attribute (and the
+  props field is renamed `Brush` → `Image`, the loyal Unreal name — D-33; pre-1.0 rename).
+- **The Doom demo** — the family's marquee stress showcase, ported third: a fully playable
+  software-raycast FPS whose ENTIRE framebuffer is the widget tree — every wall strip, floor/
+  ceiling band, sprite, and tracer is a real keyed `<Image>` diffed per tick (~7k LOC; six
+  levels; 100% procedural textures, zero assets). Gallery: 18 screens. Determinism suite
+  `ReactiveUI.Doom` (182 checks, ported from the family); `ReactiveUI.Bench.Doom` measures
+  the WHOLE frame — sim + geometry + reconcile + Slate apply — at **~197 µs median**.
+
+### Fixed
+
+- `UseStableFunc`/`UseStableAction` were missing from the markup compiler's built-in hook
+  table — calling them from `.uetkx` emitted uncompilable code. Added in both
+  implementations (C++ scanner + TS language-server mirror); schema re-exported (22 hooks).
 
 ## [0.3.0] — 2026-07-14
 

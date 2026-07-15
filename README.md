@@ -48,7 +48,10 @@ component SimpleCounter {
 Reconciler numbers (headless bench, Win64 dev build, 2026-07-15 — medians from the committed
 [plans/BENCH_BASELINES.md](plans/BENCH_BASELINES.md)): mount 1000 leaves ≈ **193 µs**; no-op
 re-render ≈ **0 µs**; 1-of-1000 targeted update ≈ **143 µs**; 500 keyed rows fully reversed ≈
-**188 µs**; minimal-move single reorder ≈ **3 µs**.
+**188 µs**; minimal-move single reorder ≈ **3 µs**. And the stress proof: the gallery's **Doom
+demo** — a playable software-raycast FPS whose entire framebuffer is the widget tree — spends
+≈ **197 µs** of CPU per WHOLE game frame (sim + geometry + reconcile + Slate apply,
+`Bench.Doom`).
 
 ## The one-sentence thesis
 

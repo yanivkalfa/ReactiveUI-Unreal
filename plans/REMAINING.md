@@ -57,10 +57,10 @@
   (23 core + 17 router entries authored from the real headers) renders one reference page
   per hook (sidebar sections "Hooks" / "Router Hooks"); docs-drift compares the catalog
   counts against RuiContext.h/RuiRouter.h (8 checks armed).
-- **Doom demo — OWNER DECIDED 2026-07-15: build it.** Research complete; the full
-  implementation plan is [DOOM_DEMO_PLAN.md](DOOM_DEMO_PLAN.md) (8 phases, Phase 0 = the
-  Slate column-renderer spike). Own campaign (`feat/doom-demo`, 1 branch, 1 PR); feeds
-  `ReactiveUI.Bench` + the demo video.
+- ~~**Doom demo**~~ — ✅ BUILT 2026-07-15 (`feat/doom-demo`): playable, 182-check
+  determinism suite green, whole-frame bench ~197 µs (DOOM_DEMO_PLAN.md has the record).
+  Remaining slice is the owner's: PIE playtest (visual truth), then the demo video +
+  showcase copy; optional BSP upgrade stays deferred (plan Phase 7).
 - **Remaining demo decisions** (audit §9-Q5): which of todo / 5k-virtualized-inventory /
   world-space are v1-blocking vs v1.x gallery additions.
 

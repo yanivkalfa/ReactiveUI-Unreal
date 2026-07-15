@@ -1,7 +1,13 @@
 # Doom demo — the Unreal port (owner-decided 2026-07-15)
 
-> **Status:** PLANNED (research complete — this file). **Branch (when it runs):** `feat/doom-demo`
-> → `dev`, one PR, own campaign.
+> **Status: BUILT 2026-07-15** (`feat/doom-demo`) — phases 0–6 complete in one campaign:
+> Canvas widget + spike verdict, the full C++ port (~7k LOC: Types/Textures/Maps/Raycast/
+> GameLogic/ScreenGeometry, every module verified against the originals), all six .uetkx
+> screens, the UseDoomGame loop hook with mouse capture, the 182-check `ReactiveUI.Doom`
+> determinism suite (10/10 green, ZERO sim-port bugs found), and `Bench.Doom`
+> (**~197 µs median per whole game frame** — committed in BENCH_BASELINES.md).
+> Battery 122/122. Remaining: Phase 7 (optional BSP) stays deferred; Phase 8 (owner PIE
+> playtest → demo video → showcase copy) is the owner's.
 > **What it is:** the family's marquee stress showcase, ported third: a fully playable,
 > software-rendered, sector/portal raycast Doom-style FPS whose **entire framebuffer is the
 > ReactiveUI element tree**. Not a 3D scene with a HUD on top, and no custom-draw escape hatch:
