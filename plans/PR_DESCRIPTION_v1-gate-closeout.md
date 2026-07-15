@@ -47,11 +47,25 @@ The five-task campaign, one branch as always:
 - `URuiActivatableScreen`: `RUI::CommonUI::UseDesiredFocus` + the `GetDesiredFocusTarget()`
   contract honored via focus forwarding (suite `ReactiveUI.CommonUI.DesiredFocus`)
 
+## 6 · Second batch (owner-directed, 2026-07-15)
+
+- **`Ref={ expr }` markup attribute** — universal reserved prop (joins `key`/`classes`):
+  host-handle capture from pure markup (portal targets, focus designation). Contract fixture
+  `RefCapture` + AcceptanceLab §9 live proof + LSP completion/hover + docs.
+- **`RUI::Umg::UseOwnedViewModel<T>`** + **`MarshalToProperty/FromProperty`** — the audit's
+  Q4 research-promised APIs, built (suites `ReactiveUI.Mvvm.OwnedViewModel`,
+  `ReactiveUI.Umg.Marshal`); the prop-map now routes through the shared marshal table.
+- **Generated per-hook reference docs** — 23 core + 17 router pages from a header-authored
+  catalog; docs-drift now 8 checks (catalog counts vs `RuiContext.h`/`RuiRouter.h`).
+- **Bench re-run** — 5 fresh `BENCH_BASELINES.md` rows (M1 / UE 5.6.1); README cites them.
+- **`plans/DOOM_DEMO_PLAN.md`** — the Unreal Doom-demo port plan from Godot+Unity research
+  (owner-decided; own campaign next). Screen-reader pass DEFERRED by owner (REMAINING §3).
+
 ## Gates (all green)
 
-- UE 5.6: build · `RUICompile -check` 33 files / 0 drifted / 0 errors · GatherText ·
-  **battery 108/108, 0 failed** (incl. the boot check + Demos mounting all 17 screens)
-- Engine-free: changelog verify · mirror byte-check · headers · skills lint · docs-drift (6) ·
+- UE 5.6: build · `RUICompile -check` 33 files / 0 drifted / 0 errors · GatherText · contract goldens 10/10 ·
+  **battery 110/110, 0 failed** (incl. the boot check + Demos mounting all 17 screens)
+- Engine-free: changelog verify · mirror byte-check · headers · skills lint · docs-drift (8) ·
   corpus hash · LSP 33/33 + smoke · docs build + eslint · clang-format full set
 
 ## Versions staged
