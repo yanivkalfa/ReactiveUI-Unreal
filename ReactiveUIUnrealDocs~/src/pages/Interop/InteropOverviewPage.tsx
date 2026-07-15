@@ -84,9 +84,10 @@ export const InteropOverviewPage: FC = () => (
     </Typography>
 
     <Alert severity="info">
-      Current beta caveats, stated honestly: <code>URuiHostWidget</code> hosts by name only (no
-      Blueprint-passed props/viewmodel yet), and <code>URuiActivatableScreen</code> does not yet
-      designate a gamepad focus target on activation. Both are tracked for v1.x.
+      Both doors are fully parameterizable: <code>URuiHostWidget</code> takes designer/Blueprint
+      <code>InitialProps</code> and a <code>ViewModel</code> (see the UMG guide), and a hosted
+      tree designates its gamepad focus target with{' '}
+      <code>RUI::CommonUI::UseDesiredFocus</code> (see the CommonUI guide).
     </Alert>
   </Box>
 )

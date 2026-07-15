@@ -257,6 +257,7 @@ connection.onCompletion(async (params): Promise<CompletionItem[] | CompletionLis
     for (const key of schema.slotKeys) items.push({ label: key, kind: CompletionItemKind.Unit, detail: "slot" });
     items.push({ label: "key", kind: CompletionItemKind.Keyword, detail: "reconciler identity" });
     items.push({ label: "classes", kind: CompletionItemKind.Keyword, detail: "style classes" });
+    items.push({ label: "Ref", kind: CompletionItemKind.Keyword, detail: "host-handle capture (expr)" });
     return items;
   }
   if (ctx.kind === "directive") {
@@ -309,6 +310,15 @@ connection.onHover(async (params) => {
   }
   if (schema.styleKeys.includes(word)) {
     return { contents: { kind: "markdown" as const, value: `**${word}** — style key (host-applied; resets on removal)` } };
+  }
+  if (word === "Ref") {
+    return {
+      contents: {
+        kind: "markdown" as const,
+        value:
+          "**Ref** — universal reserved prop: `Ref={ expr }` captures the mounted widget's host handle (React ref lifecycle — called on attach, cleared on detach). Pass a `TFunction<void(const FRuiHostHandle&)>` or a `RUI::Slate::UseFocus` handle's `.Ref`.",
+      },
+    };
   }
   // TD-016: an event attribute — show the payload its handler's `Value` carries.
   if (schema.eventPayloads && schema.eventPayloads[word] !== undefined) {

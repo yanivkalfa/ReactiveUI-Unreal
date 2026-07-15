@@ -37,8 +37,11 @@ const FOCUS = `// Inside the hosted component — designate this button as the s
 auto Focus = RUI::Slate::UseFocus();
 RUI::CommonUI::UseDesiredFocus(Focus.Focus);   // the compiler passes Ctx to both
 
-// Attach Focus.Ref to the widget gamepad focus should land on (the props-level Ref —
-// same pattern the Portals page shows); CommonUI's focus-restoration then finds it.`
+return (
+	<VerticalBox>
+		<Button Ref={ Focus.Ref } OnClicked={ OnContinue() } ContentPadding="12,4">Continue</Button>
+	</VerticalBox>
+);`
 
 export const CommonUiGuidePage: FC = () => (
   <Box>

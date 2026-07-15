@@ -73,6 +73,26 @@ function countGalleryScreens() {
   ).length;
 }
 
+/** Router hooks = the REACTIVEUICORE_API Use* free functions in RuiRouter.h. */
+function countRouterHooks() {
+  const text = readFileSync(
+    resolve(REPO_ROOT, 'Plugins/ReactiveUI/Source/ReactiveUICore/Public/RuiRouter.h'),
+    'utf8',
+  );
+  const names = new Set();
+  for (const m of text.matchAll(/REACTIVEUICORE_API [\w<>,&:\s]+?\b(Use[A-Z]\w+)\s*\(/g)) {
+    names.add(m[1]);
+  }
+  return names.size;
+}
+
+/** Hook catalog entries by category — the generated per-hook docs pages read this file.
+ *  The trailing comma distinguishes data entries from the interface's union-type line. */
+function countHooksCatalog(category) {
+  const text = readFileSync(resolve(REPO_ROOT, 'ReactiveUIUnrealDocs~/src/hooksCatalog.ts'), 'utf8');
+  return (text.match(new RegExp(`category: '${category}',`, 'g')) ?? []).length;
+}
+
 /** Automation tests = IMPLEMENT_*_AUTOMATION_TEST macros in the test module. */
 function countAutomationTests() {
   const dir = resolve(REPO_ROOT, 'Source/RuiHostTests/Private');
@@ -127,6 +147,27 @@ const CHECKS = [
     file: 'ReactiveUIUnrealDocs~/src/pages/ComponentsOverview/ComponentsOverviewPage.tsx',
     pattern: /\((\d+) of them\)/,
     source: () => Object.keys(readUetkxSchema().elements ?? {}).length,
+  },
+  {
+    // The generated per-hook docs pages: the catalog's CORE entries must cover every core hook.
+    // (The claim line lives in the catalog header so the check self-anchors to the data file.)
+    file: 'ReactiveUIUnrealDocs~/src/hooksCatalog.ts',
+    pattern: /(\d+) core hook entries/,
+    source: () => {
+      const registry = countCoreHooks();
+      const catalog = countHooksCatalog('core');
+      return catalog === registry ? registry : catalog; // any mismatch surfaces both ways
+    },
+  },
+  {
+    // ...and the ROUTER entries must cover every RuiRouter.h hook.
+    file: 'ReactiveUIUnrealDocs~/src/hooksCatalog.ts',
+    pattern: /(\d+) router hook entries/,
+    source: () => {
+      const registry = countRouterHooks();
+      const catalog = countHooksCatalog('router');
+      return catalog === registry ? registry : catalog;
+    },
   },
 ];
 

@@ -12,6 +12,8 @@
 #include "FieldNotificationId.h"
 #include "INotifyFieldValueChanged.h"
 #include "RuiContext.h"
+#include "UObject/Package.h"
+#include "UObject/StrongObjectPtr.h"
 #include "UObject/UnrealType.h"
 #include "UObject/WeakInterfacePtr.h"
 
@@ -97,5 +99,24 @@ namespace RUI::Umg
 		T Value = Default;
 		Private::ReadProperty<T>(ViewModel, FieldName, Value);
 		return Value;
+	}
+
+	/**
+	 * Create-and-OWN a viewmodel for the component's lifetime: constructed on first render
+	 * (transient outer), GC-rooted by a strong pointer living in a hook slot, released when the
+	 * component unmounts. The hand-rolled `UseMemo` + `TStrongObjectPtr` pattern, packaged.
+	 * Template call — pass Ctx explicitly (like UseField):
+	 *
+	 *   URuiSignalViewModel* Vm = RUI::Umg::UseOwnedViewModel<URuiSignalViewModel>(Ctx);
+	 *   const int32 N = RUI::Umg::UseField<int32>(Ctx, Vm, "Int", 0);
+	 */
+	template <typename T> T* UseOwnedViewModel(FRuiContext& Ctx)
+	{
+		const TSharedRef<TRuiRef<TStrongObjectPtr<T>>>& Box = Ctx.UseRef<TStrongObjectPtr<T>>();
+		if (!Box->Current.IsValid())
+		{
+			Box->Current = TStrongObjectPtr<T>(NewObject<T>(GetTransientPackage()));
+		}
+		return Box->Current.Get();
 	}
 } // namespace RUI::Umg

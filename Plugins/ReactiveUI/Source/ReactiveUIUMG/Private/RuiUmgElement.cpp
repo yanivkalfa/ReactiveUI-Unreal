@@ -4,6 +4,7 @@
 
 #include "Blueprint/UserWidget.h"
 #include "RuiElementAdapter.h"
+#include "RuiMarshal.h"
 #include "RuiSlateHost.h"
 #include "Slate/SObjectWidget.h"
 #include "UObject/UnrealType.h"
@@ -16,76 +17,12 @@ int32 RUI::Umg::ApplyPropMap(UUserWidget* Widget, const FRuiStyleDict& WidgetPro
 	{
 		return 0;
 	}
-	UClass* Class = Widget->GetClass();
+	// One conversion table for every seam: the per-property dispatch lives in RuiMarshal
+	// (MarshalToProperty — B13 kind-validation rules preserved there verbatim).
 	int32 Applied = 0;
 	for (const TPair<FName, FRuiValue>& Pair : WidgetProps)
 	{
-		FProperty* Prop = Class->FindPropertyByName(Pair.Key);
-		if (Prop == nullptr)
-		{
-			continue;
-		}
-		void* ValuePtr = Prop->ContainerPtrToValuePtr<void>(Widget);
-		const FRuiValue& V = Pair.Value;
-		bool bSet = true;
-
-		// Dispatch on the DESTINATION property type but validate against V.Kind (bughunt B13): FRuiValue
-		// stores each kind in a separate zero-defaulted member, so reading (e.g.) V.FloatValue on an
-		// Int-kind value silently yields 0.0. Numeric props coerce Int<->Float; every other category
-		// requires a compatible kind, else the pair is SKIPPED (the documented "mismatches are skipped").
-		using EKind = FRuiValue::EKind;
-		const bool bNumeric = (V.Kind == EKind::Int || V.Kind == EKind::Float);
-		const double NumD = (V.Kind == EKind::Float) ? V.FloatValue : static_cast<double>(V.IntValue);
-		const int64 NumI = (V.Kind == EKind::Float) ? static_cast<int64>(V.FloatValue) : V.IntValue;
-		const bool bStringy = (V.Kind == EKind::String || V.Kind == EKind::Text || V.Kind == EKind::Name);
-		auto AsString = [&V]() -> FString
-		{
-			return V.Kind == EKind::Text ? V.TextValue.ToString()
-										 : (V.Kind == EKind::Name ? V.NameValue.ToString() : V.StringValue);
-		};
-
-		if (FIntProperty* IntProp = CastField<FIntProperty>(Prop))
-		{
-			bSet = bNumeric && (IntProp->SetPropertyValue(ValuePtr, static_cast<int32>(NumI)), true);
-		}
-		else if (FInt64Property* Int64Prop = CastField<FInt64Property>(Prop))
-		{
-			bSet = bNumeric && (Int64Prop->SetPropertyValue(ValuePtr, NumI), true);
-		}
-		else if (FFloatProperty* FloatProp = CastField<FFloatProperty>(Prop))
-		{
-			bSet = bNumeric && (FloatProp->SetPropertyValue(ValuePtr, static_cast<float>(NumD)), true);
-		}
-		else if (FDoubleProperty* DoubleProp = CastField<FDoubleProperty>(Prop))
-		{
-			bSet = bNumeric && (DoubleProp->SetPropertyValue(ValuePtr, NumD), true);
-		}
-		else if (FBoolProperty* BoolProp = CastField<FBoolProperty>(Prop))
-		{
-			bSet = (V.Kind == EKind::Bool) && (BoolProp->SetPropertyValue(ValuePtr, V.BoolValue), true);
-		}
-		else if (FStrProperty* StrProp = CastField<FStrProperty>(Prop))
-		{
-			bSet = bStringy && (StrProp->SetPropertyValue(ValuePtr, AsString()), true);
-		}
-		else if (FTextProperty* TextProp = CastField<FTextProperty>(Prop))
-		{
-			bSet = bStringy && (TextProp->SetPropertyValue(
-									ValuePtr, V.Kind == EKind::Text ? V.TextValue : FText::FromString(AsString())),
-								true);
-		}
-		else if (FNameProperty* NameProp = CastField<FNameProperty>(Prop))
-		{
-			bSet =
-				bStringy &&
-				(NameProp->SetPropertyValue(ValuePtr, V.Kind == EKind::Name ? V.NameValue : FName(*AsString())), true);
-		}
-		else
-		{
-			bSet = false; // an unsupported property type — skipped, not an error
-		}
-
-		if (bSet)
+		if (RUI::Umg::MarshalToProperty(Widget, Pair.Key, Pair.Value))
 		{
 			++Applied;
 		}

@@ -1,6 +1,9 @@
 import type { ReactElement } from 'react'
 import type { Page as LegacyPage } from './pages'
 import { pages as legacySections } from './pages'
+import { CORE_HOOKS, ROUTER_HOOKS } from './hooksCatalog'
+import type { HookEntry } from './hooksCatalog'
+import { HookPage } from './pages/Hooks/HookPage'
 import { PAGE_VERSIONS, isAvailableIn, compareVersions } from './versionManifest'
 import { IntroductionPage } from './pages/Introduction/IntroductionPage'
 import { GettingStartedPage } from './pages/GettingStarted/GettingStartedPage'
@@ -57,6 +60,20 @@ export type DocSection = {
 }
 
 const componentPages = legacySections.find((section) => section.id === 'components')?.pages ?? []
+
+// One page per hook, GENERATED from hooksCatalog.ts (authored from the real headers; the
+// docs-drift gate compares its counts against the code registries) — same model as the
+// Components catalog.
+const hookPages = (hooks: HookEntry[]): DocPage[] =>
+  hooks.map((hook) => ({
+    id: `hook-${hook.name.toLowerCase()}`,
+    canonicalId: `hook-${hook.name.toLowerCase()}`,
+    title: hook.name,
+    path: `/hooks/${hook.name.toLowerCase()}`,
+    keywords: [hook.name, 'hook', hook.category],
+    searchContent: `${hook.name} ${hook.category} hook ${hook.signature} ${hook.returns} ${hook.description} ${(hook.gotchas ?? []).join(' ')}`,
+    element: () => <HookPage hook={hook} />,
+  }))
 
 export const sections: DocSection[] = [
   {
@@ -304,7 +321,7 @@ export const sections: DocSection[] = [
         path: '/integration',
         keywords: ['integration', 'interop', 'epic', 'umg', 'commonui', 'mvvm', 'slate', 'pillars'],
         searchContent:
-          'integration overview four pillars layer decides which slate widgets exist each frame everything epic stays in place feeding data hosting output slate render target ordinary swidgets widget reflector umg door both directions URuiHostWidget RUI::Umg::UserWidget commonui owns menus input routing focus activatable stacks URuiActivatableScreen mvvm fieldnotify UseField they own values we own structure named-component registry ComponentName RUI_COMPONENT RegisterNamedFactory MountNamed designer dropdown incremental adoption leaf panel screen interop showcase demo beta caveats',
+          'integration overview four pillars layer decides which slate widgets exist each frame everything epic stays in place feeding data hosting output slate render target ordinary swidgets widget reflector umg door both directions URuiHostWidget RUI::Umg::UserWidget commonui owns menus input routing focus activatable stacks URuiActivatableScreen mvvm fieldnotify UseField they own values we own structure named-component registry ComponentName RUI_COMPONENT RegisterNamedFactory MountNamed designer dropdown incremental adoption leaf panel screen interop showcase demo InitialProps ViewModel UseDesiredFocus gamepad focus',
         element: () => <InteropOverviewPage />,
       },
       {
@@ -451,6 +468,16 @@ export const sections: DocSection[] = [
     })),
   },
   {
+    id: 'hook-reference',
+    title: 'Hooks',
+    pages: hookPages(CORE_HOOKS),
+  },
+  {
+    id: 'router-hook-reference',
+    title: 'Router Hooks',
+    pages: hookPages(ROUTER_HOOKS),
+  },
+  {
     id: 'faq',
     title: 'FAQ',
     pages: [
@@ -477,7 +504,7 @@ export const sections: DocSection[] = [
         path: '/known-issues',
         keywords: ['known issues', 'limitations', 'hmr', 'hooks', 'transitions'],
         searchContent:
-          'known issues limitations beta hot reload windows only live coding shipping unaffected committed uetkx.inl hooks unconditional positional slots @if @for desync rui.StrictMode transitions synchronous UseTransition no concurrent renderer api parity removed plain props do not reset style events refs draw reset intentional family semantic per-widget reference pages pending prop-map components overview slate class decisions not bugs',
+          'known issues limitations beta hot reload windows only live coding shipping unaffected committed uetkx.inl hooks unconditional positional slots @if @for desync rui.StrictMode transitions synchronous UseTransition no concurrent renderer api parity removed plain props do not reset style events refs draw reset intentional semantic c++-only factories no generated pages listview tileview drag-and-drop render-prop specials subsystems in depth decisions not bugs',
         element: () => <KnownIssuesPage />,
       },
     ],

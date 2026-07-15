@@ -19,6 +19,7 @@
 #include "RuiFieldHooks.h"
 #include "RuiHostProps.h"
 #include "RuiHostWidget.h"
+#include "RuiMarshal.h"
 #include "RuiNode.h"
 #include "RuiReconciler.h"
 #include "RuiRoot.h"
@@ -386,6 +387,98 @@ bool FRuiUmgLifecycleTest::RunTest(const FString&)
 			World->DestroyWorld(false);
 		}
 	}
+	return true;
+}
+
+// ── RuiMarshal — the single FRuiValue ↔ UPROPERTY conversion table (research-promised helper) ──
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRuiMarshalTest, "ReactiveUI.Umg.Marshal",
+								 EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+bool FRuiMarshalTest::RunTest(const FString&)
+{
+	URuiSignalViewModel* Vm = NewObject<URuiSignalViewModel>();
+	Vm->AddToRoot();
+
+	// write: every supported category, with kind coercion where documented
+	TestTrue(TEXT("int written"), RUI::Umg::MarshalToProperty(Vm, FName(TEXT("Int")), FRuiValue(7)));
+	TestEqual(TEXT("int landed"), Vm->Int, 7);
+	TestTrue(TEXT("float<-int coerces"), RUI::Umg::MarshalToProperty(Vm, FName(TEXT("Float")), FRuiValue(3)));
+	TestEqual(TEXT("float landed"), Vm->Float, 3.0f);
+	TestTrue(TEXT("bool written"), RUI::Umg::MarshalToProperty(Vm, FName(TEXT("Bool")), FRuiValue(true)));
+	TestTrue(TEXT("bool landed"), Vm->Bool);
+	TestTrue(TEXT("text<-string coerces"),
+			 RUI::Umg::MarshalToProperty(Vm, FName(TEXT("Text")), FRuiValue(FString(TEXT("hello")))));
+	TestEqual(TEXT("text landed"), Vm->Text.ToString(), FString(TEXT("hello")));
+
+	// mismatches are skipped, never mangled (B13 rules)
+	TestFalse(TEXT("bool into int refuses"), RUI::Umg::MarshalToProperty(Vm, FName(TEXT("Int")), FRuiValue(true)));
+	TestEqual(TEXT("int untouched by the refusal"), Vm->Int, 7);
+	TestFalse(TEXT("missing property refuses"),
+			  RUI::Umg::MarshalToProperty(Vm, FName(TEXT("NoSuchProp")), FRuiValue(1)));
+	TestFalse(TEXT("null object refuses"), RUI::Umg::MarshalToProperty(nullptr, FName(TEXT("Int")), FRuiValue(1)));
+
+	// read: round-trips with the kind following the property type
+	FRuiValue Out;
+	TestTrue(TEXT("int read"), RUI::Umg::MarshalFromProperty(Vm, FName(TEXT("Int")), Out));
+	TestTrue(TEXT("int kind + value"), Out.Kind == FRuiValue::EKind::Int && Out.IntValue == 7);
+	TestTrue(TEXT("text read"), RUI::Umg::MarshalFromProperty(Vm, FName(TEXT("Text")), Out));
+	TestTrue(TEXT("text kind + value"),
+			 Out.Kind == FRuiValue::EKind::Text && Out.TextValue.ToString() == TEXT("hello"));
+	TestFalse(TEXT("missing property read refuses"), RUI::Umg::MarshalFromProperty(Vm, FName(TEXT("NoSuchProp")), Out));
+
+	Vm->RemoveFromRoot();
+	return true;
+}
+
+// ── UseOwnedViewModel — create-and-own for the component lifetime (research-promised hook) ──
+
+namespace UmgTest
+{
+	static URuiSignalViewModel* GOwnedVmSeen = nullptr;
+	static int32 GOwnedVmRenders = 0;
+
+	static FRuiNodeArray OwnedVmComp(FRuiContext& Ctx, const FRuiEmptyProps&, const TArray<FRuiNode>&)
+	{
+		URuiSignalViewModel* Vm = RUI::Umg::UseOwnedViewModel<URuiSignalViewModel>(Ctx);
+		GOwnedVmSeen = Vm;
+		++GOwnedVmRenders;
+		const int32 N = RUI::Umg::UseField<int32>(Ctx, Vm, FName(TEXT("Int")), -1);
+		return {RUI::TextBlock(FString::Printf(TEXT("Owned:%d"), N))};
+	}
+	RUI_COMPONENT(OwnedVmComp)
+} // namespace UmgTest
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRuiOwnedViewModelTest, "ReactiveUI.Mvvm.OwnedViewModel",
+								 EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+bool FRuiOwnedViewModelTest::RunTest(const FString&)
+{
+	UmgTest::GOwnedVmSeen = nullptr;
+	UmgTest::GOwnedVmRenders = 0;
+
+	TSharedRef<FRuiRoot> Root = FRuiRoot::Create(RUI::FC(&UmgTest::OwnedVmComp));
+	Root->FlushSync();
+	URuiSignalViewModel* Vm = UmgTest::GOwnedVmSeen;
+	if (!TestNotNull(TEXT("hook created a viewmodel on first render"), Vm))
+	{
+		return false;
+	}
+	TWeakObjectPtr<URuiSignalViewModel> Weak(Vm);
+	TestTrue(TEXT("component reads its own VM"), UmgTest::ContainsText(*Root->GetWidget(), TEXT("Owned:0")));
+
+	// identity is stable across re-renders, and the VM survives a full GC purge while mounted
+	Vm->SetInt(4);
+	Root->FlushSync();
+	TestTrue(TEXT("same instance on re-render"), UmgTest::GOwnedVmSeen == Vm);
+	TestTrue(TEXT("broadcast re-rendered through UseField"),
+			 UmgTest::ContainsText(*Root->GetWidget(), TEXT("Owned:4")));
+	CollectGarbage(RF_NoFlags, /*bPerformFullPurge*/ true);
+	TestTrue(TEXT("owned VM survives GC while mounted"), Weak.IsValid());
+
+	// unmount releases ownership — the VM becomes collectable
+	Root->Unmount();
+	UmgTest::GOwnedVmSeen = nullptr;
+	CollectGarbage(RF_NoFlags, /*bPerformFullPurge*/ true);
+	TestFalse(TEXT("owned VM collectable after unmount"), Weak.IsValid());
 	return true;
 }
 

@@ -2,11 +2,14 @@ import type { FC } from 'react'
 import { Alert, Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../components/CodeBlock/CodeBlock'
 
-const PORTAL = `// 1) Get a target: a portal target is a host handle. Capture one from a
-//    mounted widget via the props-level Ref field (it receives the handle on
-//    attach and is cleared on detach — React ref lifecycle):
+const PORTAL = `// 1) Get a target: a portal target is a host handle. Capture one from any
+//    mounted widget with the universal Ref={ } attribute (React ref lifecycle:
+//    called with the handle on attach, cleared on detach):
 const TSharedRef<TRuiRef<FRuiPortalHandle>>& Target = UseRef<FRuiPortalHandle>();
-OverlayProps.Ref = [Target](const FRuiHostHandle& H) { Target->Current = H; };
+
+<Overlay Ref={ [Target](const FRuiHostHandle& H) { Target->Current = H; } }>
+	{ /* ...app content... */ }
+</Overlay>
 
 // 2) Render children into it from anywhere in the tree (an {expr} child):
 { bShowModal && Target->Current
@@ -32,9 +35,10 @@ export const PortalsPage: FC = () => (
     </Typography>
     <Typography variant="body1" paragraph>
       A portal target (<code>FRuiPortalHandle</code>) is a handle to a live host widget — capture
-      one with a <code>Ref</code> (it receives the handle on attach, and is cleared on detach) or
-      obtain it from whatever owns the destination panel. On the Slate host, targets are ordinary
-      widget handles, so any panel you can reference can receive portal children.
+      one with the universal <code>Ref=&#123; expr &#125;</code> attribute (markup) or the
+      props-level <code>Ref</code> field (C++); both receive the handle on attach and clear on
+      detach. On the Slate host, targets are ordinary widget handles, so any panel you can
+      reference can receive portal children.
     </Typography>
 
     <Alert severity="info">

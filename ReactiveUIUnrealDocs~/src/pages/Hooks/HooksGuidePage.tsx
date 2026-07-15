@@ -47,7 +47,9 @@ export const HooksGuidePage: FC = () => (
       Hooks give a function component memory. They are PascalCase (<code>UseState</code>, not{' '}
       <code>useState</code>) and must be called <strong>unconditionally at the top</strong> of a
       component or another hook — state is stored by call order, so a conditional hook desyncs the
-      slots. Router hooks live in the <strong>Router</strong> guide.
+      slots. Router hooks live in the <strong>Router</strong> guide. Every hook also has its own
+      generated reference page — see the <strong>Hooks</strong> and <strong>Router Hooks</strong>{' '}
+      sections in the sidebar.
     </Typography>
 
     <Typography variant="h5" component="h2" gutterBottom sx={{ mt: 3 }}>

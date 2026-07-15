@@ -32,13 +32,23 @@ static FRuiNodeArray AcceptanceLab_UetkxImpl(FRuiContext& Ctx, const FAcceptance
 		auto [bMounted, SetMounted] = Ctx.UseState<bool>(false);
 		Ctx.UseEffect([SetMounted]() { SetMounted(true); }, RUI::Deps());
 	
+		// Ref={ } capture (section 9): the handle arrives on attach (post-commit); the effect flips
+		// a flag so the label below proves the markup-level Ref actually fired.
+		const TSharedRef<TRuiRef<FRuiHostHandle>>& RefTarget = Ctx.UseRef<FRuiHostHandle>();
+		auto [bRefAttached, SetRefAttached] = Ctx.UseState<bool>(false);
+		Ctx.UseEffect(
+			[RefTarget, SetRefAttached, bRefAttached]() {
+				if (!bRefAttached && RefTarget->Current.IsValid()) { SetRefAttached(true); }
+			},
+			RUI::EveryCommit());
+	
 		// A fixed list for the @for section (keyed rows).
 		static const TCHAR* Fruits[] = {TEXT("Apple"), TEXT("Banana"), TEXT("Cherry"), TEXT("Date")};
 	
 		// A mutable counter the bounded @while advances. It is re-declared (=0) every render, so the
 		// loop always terminates at 3 — a SAFE, actually-iterating @while (not the @while(false) guard).
 		int32 WhileI = 0;
-#line 42 "AcceptanceLab.uetkx.inl"
+#line 52 "AcceptanceLab.uetkx.inl"
 	return { [&]() -> FRuiNode {
 		FRuiBorderProps P;
 		P.SetPadding(FMargin(12));
@@ -465,6 +475,21 @@ static FRuiNodeArray AcceptanceLab_UetkxImpl(FRuiContext& Ctx, const FAcceptance
 	}());
 		return RUI::Slate::Border(MoveTemp(P), MoveTemp(Ch), FRuiKey());
 	}());
+		Ch.Add([&]() -> FRuiNode {
+		FRuiSpacerProps P;
+		P.SetSize((FVector2D(1.0f, 6.0f)));
+		return RUI::Slate::Spacer(MoveTemp(P), FRuiKey());
+	}());
+		Ch.Add([&]() -> FRuiNode {
+		FRuiBorderProps P;
+		P.SetPadding(FMargin(8));
+		P.SetBorderImage(FName(TEXT("WhiteBrush")));
+		P.SetBorderBackgroundColor((FLinearColor(0.04f, 0.04f, 0.06f, 0.9f)));
+		P.Ref = ([RefTarget](const FRuiHostHandle& H) { RefTarget->Current = H; });
+		TArray<FRuiNode> Ch;
+		Ch.Add(RUI::TextBlock((RUI::Fmt(TEXT("9. Ref captured this Border - attached: {}"), bRefAttached)), FRuiKey()));
+		return RUI::Slate::Border(MoveTemp(P), MoveTemp(Ch), FRuiKey());
+	}());
 		return RUI::Slate::VerticalBox(MoveTemp(P), MoveTemp(Ch), FRuiKey());
 	}());
 		return RUI::Slate::ScrollBox(MoveTemp(P), MoveTemp(Ch), FRuiKey());
@@ -473,7 +498,7 @@ static FRuiNodeArray AcceptanceLab_UetkxImpl(FRuiContext& Ctx, const FAcceptance
 	}() };
 }
 static const FName GAcceptanceLabUetkxId = RUI::RegisterComponentId((void*)&AcceptanceLab_UetkxImpl, FName(TEXT("AcceptanceLab")));
-static constexpr uint32 AcceptanceLab_RUI_HOOK_SIG = 0x19335D65u;
+static constexpr uint32 AcceptanceLab_RUI_HOOK_SIG = 0x49531E04u;
 inline FRuiNode AcceptanceLab(FAcceptanceLabUetkxProps InProps, TArray<FRuiNode> InChildren, FRuiKey InKey)
 {
 	return RUI::FC(&AcceptanceLab_UetkxImpl, MoveTemp(InProps), MoveTemp(InChildren), InKey);
