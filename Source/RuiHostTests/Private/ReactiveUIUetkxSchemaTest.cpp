@@ -44,10 +44,10 @@ bool FRuiUetkxSchemaTest::RunTest(const FString&)
 		TestEqual(TEXT("schema v1"), (int32)Schema->GetNumberField(TEXT("v")), 1);
 
 		const TSharedPtr<FJsonObject> Elements = Schema->GetObjectField(TEXT("elements"));
-		// 15 Phase-2 + 14 Batch-2 (Phase 7): WidgetSwitcher, ScaleBox, Throbber, WrapBox,
+		// 15 Phase-2 + 14 Batch-2 (Phase 7) + Canvas (Doom Phase 0): WidgetSwitcher, ScaleBox, Throbber, WrapBox,
 		// MultiLineEditableTextBox, SearchBox, SafeZone, DPIScaler, Separator, SpinBox,
 		// UniformWrapPanel, RichTextBlock, GridPanel, UniformGridPanel.
-		TestEqual(TEXT("29 host tags"), Elements->Values.Num(), 29);
+		TestEqual(TEXT("30 host tags"), Elements->Values.Num(), 30);
 		const TSharedPtr<FJsonObject> Switcher = Elements->GetObjectField(TEXT("WidgetSwitcher"));
 		TestEqual(TEXT("WidgetSwitcher factory"), Switcher->GetStringField(TEXT("factory")),
 				  FString(TEXT("RUI::Slate::WidgetSwitcher")));
@@ -70,12 +70,13 @@ bool FRuiUetkxSchemaTest::RunTest(const FString&)
 				  Elements->GetObjectField(TEXT("Spacer"))->GetBoolField(TEXT("children")));
 
 		const TArray<TSharedPtr<FJsonValue>>& StyleKeys = Schema->GetArrayField(TEXT("styleKeys"));
-		TestEqual(TEXT("12 style keys"), StyleKeys.Num(), 12);
+		TestEqual(TEXT("13 style keys"), StyleKeys.Num(), 13);
+		TestTrue(TEXT("Clipping styled"), HasString(StyleKeys, TEXT("Clipping")));
 		TestTrue(TEXT("RenderOpacity styled"), HasString(StyleKeys, TEXT("RenderOpacity")));
 		TestTrue(TEXT("Font.Size styled"), HasString(StyleKeys, TEXT("Font.Size")));
 
 		TestEqual(TEXT("slot prefix"), Schema->GetStringField(TEXT("slotPrefix")), FString(TEXT("Slot.")));
-		TestEqual(TEXT("5 canonical slot keys"), Schema->GetArrayField(TEXT("slotKeys")).Num(), 5);
+		TestEqual(TEXT("7 canonical slot keys"), Schema->GetArrayField(TEXT("slotKeys")).Num(), 7);
 
 		const TArray<TSharedPtr<FJsonValue>>& Hooks = Schema->GetArrayField(TEXT("hooks"));
 		TestEqual(TEXT("all hooks exported"), Hooks.Num(), FUetkxFileScan::HookNames().Num());

@@ -372,7 +372,7 @@ bool FRuiBugfixAssetBrushTest::RunTest(const FString&)
 		return false;
 	}
 	FRuiImageProps WithBrush;
-	WithBrush.SetBrush(MakeShared<FSlateBrush>());
+	WithBrush.SetImage(MakeShared<FSlateBrush>());
 	TSharedRef<SWidget> Widget = Img->CreateWidget(WithBrush, nullptr);
 	Img->ApplyDiff(Widget.Get(), nullptr, WithBrush);
 	TestTrue(TEXT("B11: image is an SImage"), Widget->GetType() == FName(TEXT("SImage")));

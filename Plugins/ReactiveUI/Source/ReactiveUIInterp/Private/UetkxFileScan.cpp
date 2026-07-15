@@ -555,6 +555,8 @@ const TArray<FString>& FUetkxFileScan::HookNames()
 										  TEXT("UseDeferredValue"),
 										  TEXT("UseTransition"),
 										  TEXT("UseStableCallback"),
+										  TEXT("UseStableFunc"),
+										  TEXT("UseStableAction"),
 										  TEXT("UseImperativeHandle"),
 										  TEXT("UseSafeArea"),
 										  TEXT("UseSignal"),

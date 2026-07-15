@@ -194,14 +194,28 @@ public:
 		// Asset brush (D-17): POINTER-backed, so it must RESET on removal — the committed props own the
 		// sole TSharedPtr, and once they are released SImage's raw FSlateBrush* dangles (use-after-free on
 		// the next Paint, bughunt B11). Removed asset -> reset to the no-brush default.
-		if (O != nullptr && O->HasBrush() && !N.HasBrush())
+		if (O != nullptr && O->HasImage() && !N.HasImage())
 		{
 			W.SetImage(FStyleDefaults::GetNoBrush());
 		}
 		else
 		{
-			RUI_ROW(Brush, W.SetImage(N.Brush.Get()))
+			RUI_ROW(Image, W.SetImage(N.Image.Get()))
 		}
+	}
+
+	// Markup routes ColorAndOpacity through the STYLE dict (D-13 widget-specific key, like
+	// TextBlock's) — the typed row above only serves the C++ authoring API. null = reset to
+	// the SImage default (opaque white).
+	virtual bool ApplyStyleKey(SWidget& Widget, FName Key, const FRuiValue* Value) override
+	{
+		if (Key == FName(TEXT("ColorAndOpacity")))
+		{
+			static_cast<SImage&>(Widget).SetColorAndOpacity(Value != nullptr ? FSlateColor(Value->ColorValue)
+																			 : FSlateColor(FLinearColor::White));
+			return true;
+		}
+		return false;
 	}
 };
 

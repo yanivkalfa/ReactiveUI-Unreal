@@ -1,0 +1,161 @@
+#include "Doom/DoomTypes.h"
+
+// DoomMinimap.uetkx — the top-right automap. Faithful port of the Unity sample's
+// `DoomMinimap.uitkx` (cross-checked against the Godot `doom_minimap.guitkx`): wall/door/
+// exit cells and mobj dots become absolutely-placed solid quads on a <Canvas>
+// (Slot.Position / Slot.Size), each quad a WhiteBrush Border tinted with the exact
+// original color. `State` is the live game state, mutated in place — `Version` exists
+// purely to defeat the props-equality bailout (bump it every simulation tick).
+export component DoomMinimap(State: const RuiDoom::FGameState* = nullptr, Version: int32 = 0) {
+	(void)Version; // re-render key only
+
+	constexpr int32 MAP_PX = 160;
+
+	const FLinearColor BgClr(0.05f, 0.05f, 0.05f, 0.78f);
+	const FLinearColor BorderClr(0.85f, 0.55f, 0.20f, 1.0f);
+	const FLinearColor WallClr(0.55f, 0.40f, 0.20f, 1.0f);
+	const FLinearColor DoorClr(0.85f, 0.65f, 0.10f, 1.0f);
+	const FLinearColor DoorBlueClr(0.30f, 0.55f, 1.00f, 1.0f);
+	const FLinearColor DoorYellowClr(0.95f, 0.85f, 0.20f, 1.0f);
+	const FLinearColor DoorRedClr(0.95f, 0.20f, 0.20f, 1.0f);
+	const FLinearColor ExitClr(0.40f, 0.95f, 0.40f, 1.0f);
+	const FLinearColor PlayerClr(0.95f, 0.95f, 0.50f, 1.0f);
+	const FLinearColor EnemyClr(0.95f, 0.20f, 0.15f, 1.0f);
+	const FLinearColor PickupClr(0.30f, 0.85f, 0.85f, 1.0f);
+
+	const int32 Mw = State != nullptr ? State->Map.Width : 1;
+	const int32 Mh = State != nullptr ? State->Map.Height : 1;
+	const float Scale = static_cast<float>(MAP_PX) / static_cast<float>(FMath::Max(Mw, Mh));
+	const int32 InnerW = FMath::RoundToInt(Mw * Scale);
+	const int32 InnerH = FMath::RoundToInt(Mh * Scale);
+	const int32 CellPx = FMath::Max(1, FMath::RoundToInt(Scale));
+
+	struct FQuad
+	{
+		float X = 0.0f;
+		float Y = 0.0f;
+		FLinearColor Color = FLinearColor::White;
+	};
+
+	// Map cells (walls/doors/exits) — same color classification as the original.
+	TArray<FQuad> Cells;
+	if (State != nullptr)
+	{
+		Cells.Reserve(64);
+		for (int32 Cy = 0; Cy < Mh; ++Cy)
+		{
+			for (int32 Cx = 0; Cx < Mw; ++Cx)
+			{
+				const RuiDoom::FCell& Cell = State->Map.Cells[Cy * Mw + Cx];
+				FLinearColor Col;
+				if (Cell.Kind == RuiDoom::ECellKind::Wall) { Col = WallClr; }
+				else if (Cell.Kind == RuiDoom::ECellKind::Exit) { Col = ExitClr; }
+				else if (Cell.Kind == RuiDoom::ECellKind::DoorBlue) { Col = DoorBlueClr; }
+				else if (Cell.Kind == RuiDoom::ECellKind::DoorYellow) { Col = DoorYellowClr; }
+				else if (Cell.Kind == RuiDoom::ECellKind::DoorRed) { Col = DoorRedClr; }
+				else if (Cell.Kind == RuiDoom::ECellKind::Door) { Col = DoorClr; }
+				else { continue; }
+				FQuad Q;
+				Q.X = Cx * Scale;
+				Q.Y = (Mh - 1 - Cy) * Scale;
+				Q.Color = Col;
+				Cells.Add(Q);
+			}
+		}
+	}
+
+	// Mobj dots: enemies red, keys their card color, pickups cyan (dead/collected skipped).
+	TArray<FQuad> Dots;
+	if (State != nullptr)
+	{
+		Dots.Reserve(State->Mobjs.Num());
+		for (int32 i = 0; i < State->Mobjs.Num(); ++i)
+		{
+			const RuiDoom::FMobj& M = State->Mobjs[i];
+			if (M.Collected || M.State == RuiDoom::EAIState::Dead)
+			{
+				continue;
+			}
+			FLinearColor Dc;
+			switch (M.Kind)
+			{
+			case RuiDoom::EMobjKind::Imp:
+			case RuiDoom::EMobjKind::Demon:
+			case RuiDoom::EMobjKind::Baron:
+			case RuiDoom::EMobjKind::Cacodemon:
+			case RuiDoom::EMobjKind::LostSoul:
+			case RuiDoom::EMobjKind::Zombieman:
+			case RuiDoom::EMobjKind::Shotgunner:
+				Dc = EnemyClr;
+				break;
+			case RuiDoom::EMobjKind::KeyBlue:
+				Dc = DoorBlueClr;
+				break;
+			case RuiDoom::EMobjKind::KeyYellow:
+				Dc = DoorYellowClr;
+				break;
+			case RuiDoom::EMobjKind::KeyRed:
+				Dc = DoorRedClr;
+				break;
+			case RuiDoom::EMobjKind::PickupHealth:
+			case RuiDoom::EMobjKind::PickupArmor:
+			case RuiDoom::EMobjKind::PickupArmorBlue:
+			case RuiDoom::EMobjKind::PickupBullets:
+			case RuiDoom::EMobjKind::PickupShells:
+			case RuiDoom::EMobjKind::PickupRockets:
+			case RuiDoom::EMobjKind::PickupCells:
+			case RuiDoom::EMobjKind::PickupShotgun:
+			case RuiDoom::EMobjKind::PickupChaingun:
+			case RuiDoom::EMobjKind::PickupRocketLauncher:
+			case RuiDoom::EMobjKind::PickupPlasma:
+			case RuiDoom::EMobjKind::PickupBFG:
+				Dc = PickupClr;
+				break;
+			default:
+				continue;
+			}
+			FQuad Q;
+			Q.X = M.X * Scale;
+			Q.Y = (Mh - M.Y) * Scale;
+			Q.Color = Dc;
+			Dots.Add(Q);
+		}
+	}
+
+	const float PxX = State != nullptr ? State->Player.X * Scale : 0.0f;
+	const float PxY = State != nullptr ? (Mh - State->Player.Y) * Scale : 0.0f;
+	const float PAngle = State != nullptr ? State->Player.Angle : 0.0f;
+
+	return (
+		<Box WidthOverride={ static_cast<float>(InnerW + 6) } HeightOverride={ static_cast<float>(InnerH + 6) }>
+			<Border BorderImage="WhiteBrush" BorderBackgroundColor={ BorderClr } Padding="1">
+				<Border BorderImage="WhiteBrush" BorderBackgroundColor={ BgClr } Padding="2">
+					<Canvas>
+						@for (int32 i = 0; i < Cells.Num(); ++i) {
+							return (
+								<Border key={ FName(*FString::Printf(TEXT("c%d"), i)) } BorderImage="WhiteBrush" BorderBackgroundColor={ Cells[i].Color } Slot.Position={ FVector2D(Cells[i].X, Cells[i].Y) } Slot.Size={ FVector2D(static_cast<float>(CellPx), static_cast<float>(CellPx)) } />
+							);
+						}
+						@for (int32 i = 0; i < Dots.Num(); ++i) {
+							return (
+								<Border key={ FName(*FString::Printf(TEXT("m%d"), i)) } BorderImage="WhiteBrush" BorderBackgroundColor={ Dots[i].Color } Slot.Position={ FVector2D(Dots[i].X - 2.0f, Dots[i].Y - 2.0f) } Slot.Size={ FVector2D(4.0f, 4.0f) } />
+							);
+						}
+						@if (State != nullptr) {
+							// Player marker.
+							return (
+								<Border key="player" BorderImage="WhiteBrush" BorderBackgroundColor={ PlayerClr } Slot.Position={ FVector2D(PxX - 3.0f, PxY - 3.0f) } Slot.Size={ FVector2D(6.0f, 6.0f) } />
+							);
+						}
+						@if (State != nullptr) {
+							// Heading indicator.
+							return (
+								<Border key="heading" BorderImage="WhiteBrush" BorderBackgroundColor={ PlayerClr } Slot.Position={ FVector2D(PxX + FMath::Cos(PAngle) * 4.0f - 1.0f, PxY - FMath::Sin(PAngle) * 4.0f - 1.0f) } Slot.Size={ FVector2D(2.0f, 2.0f) } />
+							);
+						}
+					</Canvas>
+				</Border>
+			</Border>
+		</Box>
+	);
+}

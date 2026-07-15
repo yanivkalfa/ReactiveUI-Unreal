@@ -11,6 +11,8 @@
 #include "RuiSlateElements.h"
 #include "RuiSlateHost.h"
 #include "RuiStyle.h"
+#include "Widgets/Images/SImage.h"
+#include "Widgets/Layout/SSeparator.h"
 #include "Widgets/Text/STextBlock.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -25,6 +27,21 @@ namespace StyleTest
 	{
 		FChildren* Children = Root.GetWidget()->GetRootPanel()->GetChildren();
 		return Children->Num() > 0 ? TSharedPtr<SWidget>(Children->GetChildAt(0)) : nullptr;
+	}
+
+	// SImage keeps GetColorAndOpacityAttribute protected — a data-free peek subclass re-exports
+	// it for assertions (the standard Slate test trick; layout-identical, so the cast is safe).
+	struct FImageTintPeek : public SImage
+	{
+		using SImage::GetColorAndOpacityAttribute;
+	};
+
+	static FLinearColor ImageTint(const TSharedRef<SWidget>& W)
+	{
+		return static_cast<FImageTintPeek&>(static_cast<SImage&>(W.Get()))
+			.GetColorAndOpacityAttribute()
+			.Get()
+			.GetSpecifiedColor();
 	}
 
 	static FRuiNode StyledText(const FString& S, TSharedPtr<FRuiStyleDict> Style, TArray<FName> Classes = {})
@@ -54,6 +71,7 @@ static FRuiNodeArray StyleModesComp(FRuiContext& Ctx, const FRuiEmptyProps&, con
 		{
 			Style->Add(FName(TEXT("visibility")), FRuiValue(FName(TEXT("hidden"))));
 			Style->Add(FName(TEXT("RenderTranslation")), FRuiValue(FVector2D(5.0f, 7.0f)));
+			Style->Add(FName(TEXT("Clipping")), FRuiValue(FName(TEXT("clipToBounds"))));
 		}
 	}
 	return {RUI::Slate::VerticalBox(FRuiVerticalBoxProps(), {StyleTest::StyledText(TEXT("styled"), MoveTemp(Style))})};
@@ -74,6 +92,7 @@ bool FRuiStyleApplyTest::RunTest(const FString&)
 	TestEqual(TEXT("opacity applied at mount"), Text->GetRenderOpacity(), 0.4f);
 	TestTrue(TEXT("visibility applied"), Text->GetVisibility() == EVisibility::Hidden);
 	TestTrue(TEXT("render transform applied"), Text->GetRenderTransform().IsSet());
+	TestTrue(TEXT("clipping applied (the Doom framebuffer key)"), Text->GetClipping() == EWidgetClipping::ClipToBounds);
 
 	AddInfo(TEXT("[style] style-only change: same widget, new values, removed keys reset"));
 	StyleTest::IntSetter(1);
@@ -83,6 +102,7 @@ bool FRuiStyleApplyTest::RunTest(const FString&)
 	TestEqual(TEXT("opacity updated"), TextAfter->GetRenderOpacity(), 0.8f);
 	TestTrue(TEXT("removed visibility RESET to visible"), TextAfter->GetVisibility() == EVisibility::Visible);
 	TestFalse(TEXT("removed translation RESET to identity"), TextAfter->GetRenderTransform().IsSet());
+	TestTrue(TEXT("removed clipping RESET to inherit"), TextAfter->GetClipping() == EWidgetClipping::Inherit);
 
 	AddInfo(TEXT("[style] whole dict removed -> everything resets"));
 	StyleTest::IntSetter(2);
@@ -190,6 +210,68 @@ bool FRuiStylePoolTest::RunTest(const FString&)
 		TestEqual(TEXT("reused row text"), StaticCastSharedRef<STextBlock>(W)->GetText().ToString(),
 				  FString::Printf(TEXT("row %d"), i));
 	}
+	return true;
+}
+
+// ── widget-specific ColorAndOpacity style key: Image + Separator (Doom regression) ────────
+// Markup routes ColorAndOpacity through the style dict; adapters without an ApplyStyleKey
+// handler silently dropped it — the Doom viewport's alpha-0 flash quads painted OPAQUE WHITE
+// over the whole frame. Asserts apply at mount, live update, and removal-reset for both.
+
+static FRuiNodeArray StyleTintLeavesComp(FRuiContext& Ctx, const FRuiEmptyProps&, const TArray<FRuiNode>&)
+{
+	auto [Mode, SetMode] = Ctx.UseState<int32>(0);
+	StyleTest::IntSetter = SetMode;
+
+	FRuiImageProps ImageProps;
+	FRuiSeparatorProps SepProps;
+	if (Mode < 2)
+	{
+		const FLinearColor ImageTint = Mode == 0 ? FLinearColor(0.85f, 0.05f, 0.05f, 0.0f) // the Doom hurt flash
+												 : FLinearColor(0.95f, 0.85f, 0.2f, 0.35f);
+		TSharedRef<FRuiStyleDict> ImageStyle = MakeShared<FRuiStyleDict>();
+		ImageStyle->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(ImageTint));
+		ImageProps.Style = ImageStyle;
+
+		const FLinearColor SepTint =
+			Mode == 0 ? FLinearColor(0.2f, 0.4f, 0.6f, 0.5f) : FLinearColor(0.6f, 0.4f, 0.2f, 1.0f);
+		TSharedRef<FRuiStyleDict> SepStyle = MakeShared<FRuiStyleDict>();
+		SepStyle->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(SepTint));
+		SepProps.Style = SepStyle;
+	}
+	return {RUI::Slate::VerticalBox(
+		FRuiVerticalBoxProps(), {RUI::Slate::Image(MoveTemp(ImageProps)), RUI::Slate::Separator(MoveTemp(SepProps))})};
+}
+RUI_COMPONENT(StyleTintLeavesComp)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRuiStyleTintLeavesTest, "ReactiveUI.Style.WidgetColorKeys", RUI_STYLE_TEST_FLAGS)
+bool FRuiStyleTintLeavesTest::RunTest(const FString&)
+{
+	TSharedRef<FRuiRoot> Root = FRuiRoot::Create(RUI::FC(&StyleTintLeavesComp));
+	TSharedPtr<SWidget> Panel = StyleTest::RootChild(*Root);
+	if (!TestTrue(TEXT("panel mounted"), Panel.IsValid()))
+	{
+		return false;
+	}
+	TSharedRef<SWidget> Image = Panel->GetChildren()->GetChildAt(0);
+	TSharedRef<SSeparator> Sep = StaticCastSharedRef<SSeparator>(Panel->GetChildren()->GetChildAt(1));
+
+	TestTrue(TEXT("Image tint applied at mount (alpha 0 — the Doom flash)"),
+			 StyleTest::ImageTint(Image) == FLinearColor(0.85f, 0.05f, 0.05f, 0.0f));
+	TestTrue(TEXT("Separator tint applied at mount"),
+			 Sep->GetColorAndOpacity() == FLinearColor(0.2f, 0.4f, 0.6f, 0.5f));
+
+	AddInfo(TEXT("[style] tint-only change updates in place"));
+	StyleTest::IntSetter(1);
+	Root->FlushSync();
+	TestTrue(TEXT("Image tint updated"), StyleTest::ImageTint(Image) == FLinearColor(0.95f, 0.85f, 0.2f, 0.35f));
+	TestTrue(TEXT("Separator tint updated"), Sep->GetColorAndOpacity() == FLinearColor(0.6f, 0.4f, 0.2f, 1.0f));
+
+	AddInfo(TEXT("[style] removed key resets to opaque white (the family rule)"));
+	StyleTest::IntSetter(2);
+	Root->FlushSync();
+	TestTrue(TEXT("Image tint reset"), StyleTest::ImageTint(Image) == FLinearColor::White);
+	TestTrue(TEXT("Separator tint reset"), Sep->GetColorAndOpacity() == FLinearColor::White);
 	return true;
 }
 

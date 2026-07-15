@@ -46,6 +46,14 @@ struct REACTIVEUISLATE_API FRuiOverlayProps final : public FRuiPropsBase
 	RUI_PROPS_BODY(FRuiOverlayProps, )
 };
 
+/** SCanvas (MultiSlot) — ABSOLUTE placement: each child positions/sizes itself via
+ *  `Slot.Position` + `Slot.Size` (FVector2D or "x,y" literals). Paint order = child order
+ *  (SCanvas has no per-slot z; keep emission order stable — the Doom-demo container). */
+struct REACTIVEUISLATE_API FRuiCanvasPanelProps final : public FRuiPropsBase
+{
+	RUI_PROPS_BODY(FRuiCanvasPanelProps, )
+};
+
 /** SBorder (SingleContent). Alignment values: fill|left|center|right / fill|top|center|bottom.
  *  BorderImage takes an FCoreStyle brush NAME (v1 — e.g. "WhiteBrush" for a solid fill
  *  tinted by BorderBackgroundColor; the engine default is a thin frame-type brush). Asset
@@ -79,15 +87,17 @@ struct REACTIVEUISLATE_API FRuiBoxProps final : public FRuiPropsBase
 					   RUI_EQ(MaxDesiredWidth) RUI_EQ(MaxDesiredHeight) RUI_EQ(HAlign) RUI_EQ(VAlign))
 };
 
-/** SImage (Leaf): tint + desired size + an optional asset Brush (D-17). Build the brush ONCE
- *  with RUI::Umg::MakeAssetBrush (it GC-roots the texture/material) and pass it by identity —
- *  RUI_EQ(Brush) compares the shared pointer, so wrap it in UseMemo/UseRef to avoid re-applying. */
+/** SImage (Leaf): tint + desired size + an optional asset brush (D-17). The field is `Image` —
+ *  the loyal Unreal name (SImage::SetImage), also the markup attr: `<Image Image={ Brush } />`.
+ *  Build the brush ONCE with RUI::Umg::MakeAssetBrush (it GC-roots the texture/material) and
+ *  pass it by identity — RUI_EQ(Image) compares the shared pointer, so wrap it in
+ *  UseMemo/UseRef to avoid re-applying. (Renamed from `Brush` 2026-07-15, D-33 compliance.) */
 struct REACTIVEUISLATE_API FRuiImageProps final : public FRuiPropsBase
 {
 	RUI_PROP(FLinearColor, ColorAndOpacity, 0)
 	RUI_PROP(FVector2D, DesiredSizeOverride, 1)
-	RUI_PROP(TSharedPtr<FSlateBrush>, Brush, 2)
-	RUI_PROPS_BODY(FRuiImageProps, RUI_EQ(ColorAndOpacity) RUI_EQ(DesiredSizeOverride) RUI_EQ(Brush))
+	RUI_PROP(TSharedPtr<FSlateBrush>, Image, 2)
+	RUI_PROPS_BODY(FRuiImageProps, RUI_EQ(ColorAndOpacity) RUI_EQ(DesiredSizeOverride) RUI_EQ(Image))
 };
 
 /** SScrollBox (MultiSlot). Orientation is runtime-settable (header-sweep verified). */
@@ -171,12 +181,15 @@ struct REACTIVEUISLATE_API FRuiWidgetSwitcherProps final : public FRuiPropsBase
 };
 
 /** SScaleBox (SingleContent): scales its content. Stretch = none|fill|scaleToFit|scaleToFitX|
- *  scaleToFitY|scaleToFill|scaleBySafeZone; StretchDirection = both|downOnly|upOnly. */
+ *  scaleToFitY|scaleToFill|scaleBySafeZone; StretchDirection = both|downOnly|upOnly.
+ *  HAlign/VAlign place the scaled content inside the box (default center|center). */
 struct REACTIVEUISLATE_API FRuiScaleBoxProps final : public FRuiPropsBase
 {
 	RUI_PROP(FName, Stretch, 0)
 	RUI_PROP(FName, StretchDirection, 1)
-	RUI_PROPS_BODY(FRuiScaleBoxProps, RUI_EQ(Stretch) RUI_EQ(StretchDirection))
+	RUI_PROP(FName, HAlign, 2)
+	RUI_PROP(FName, VAlign, 3)
+	RUI_PROPS_BODY(FRuiScaleBoxProps, RUI_EQ(Stretch) RUI_EQ(StretchDirection) RUI_EQ(HAlign) RUI_EQ(VAlign))
 };
 
 /** SThrobber (Leaf): a busy indicator. Animate = all|vertical|horizontal|opacity|
@@ -329,6 +342,7 @@ namespace RUI::Slate
 	REACTIVEUISLATE_API FRuiElementTypeId HorizontalBoxType();
 	REACTIVEUISLATE_API FRuiElementTypeId ButtonType();
 	REACTIVEUISLATE_API FRuiElementTypeId OverlayType();
+	REACTIVEUISLATE_API FRuiElementTypeId CanvasType();
 
 	REACTIVEUISLATE_API FRuiNode VerticalBox(FRuiVerticalBoxProps Props = FRuiVerticalBoxProps(),
 											 TArray<FRuiNode> Children = TArray<FRuiNode>(), FRuiKey Key = FRuiKey());
@@ -338,6 +352,8 @@ namespace RUI::Slate
 										TArray<FRuiNode> Children = TArray<FRuiNode>(), FRuiKey Key = FRuiKey());
 	REACTIVEUISLATE_API FRuiNode Overlay(FRuiOverlayProps Props = FRuiOverlayProps(),
 										 TArray<FRuiNode> Children = TArray<FRuiNode>(), FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode Canvas(FRuiCanvasPanelProps Props = FRuiCanvasPanelProps(),
+										TArray<FRuiNode> Children = TArray<FRuiNode>(), FRuiKey Key = FRuiKey());
 
 	REACTIVEUISLATE_API FRuiNode Border(FRuiBorderProps Props = FRuiBorderProps(),
 										TArray<FRuiNode> Children = TArray<FRuiNode>(), FRuiKey Key = FRuiKey());

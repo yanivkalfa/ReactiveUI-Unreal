@@ -42,6 +42,14 @@
 				"OnClicked": "event"
 			}
 		},
+		"Canvas":
+		{
+			"factory": "RUI::Slate::Canvas",
+			"children": true,
+			"attrs":
+			{
+			}
+		},
 		"CheckBox":
 		{
 			"factory": "RUI::Slate::CheckBox",
@@ -97,7 +105,8 @@
 			"attrs":
 			{
 				"ColorAndOpacity": "color",
-				"DesiredSizeOverride": "vector2"
+				"DesiredSizeOverride": "vector2",
+				"Image": "expr"
 			}
 		},
 		"MultiLineEditableTextBox":
@@ -170,8 +179,10 @@
 			"children": true,
 			"attrs":
 			{
+				"HAlign": "name",
 				"Stretch": "name",
-				"StretchDirection": "name"
+				"StretchDirection": "name",
+				"VAlign": "name"
 			}
 		},
 		"ScrollBox":
@@ -313,6 +324,7 @@
 	},
 	"styleKeys": [
 		"AutoWrapText",
+		"Clipping",
 		"ColorAndOpacity",
 		"Enabled",
 		"FillColorAndOpacity",
@@ -331,7 +343,9 @@
 		"Slot.HAlign",
 		"Slot.VAlign",
 		"Slot.Fill",
-		"Slot.ZOrder"
+		"Slot.ZOrder",
+		"Slot.Position",
+		"Slot.Size"
 	],
 	"hooks": [
 		"UseState",
@@ -346,6 +360,8 @@
 		"UseDeferredValue",
 		"UseTransition",
 		"UseStableCallback",
+		"UseStableFunc",
+		"UseStableAction",
 		"UseImperativeHandle",
 		"UseSafeArea",
 		"UseSignal",

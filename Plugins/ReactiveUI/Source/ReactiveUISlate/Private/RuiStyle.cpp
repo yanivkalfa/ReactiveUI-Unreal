@@ -113,6 +113,25 @@ namespace
 			W.SetRenderTransformPivot(Value != nullptr ? Value->Vector2Value : FVector2D::ZeroVector);
 			return true;
 		}
+		if (Key == FName(TEXT("Clipping")))
+		{
+			// D-33 loyal: EWidgetClipping member names, lowerCamel. Slate does NOT clip children
+			// to bounds by default — absolute-placed content (Canvas framebuffers) needs this.
+			EWidgetClipping Clipping = EWidgetClipping::Inherit; // reset = the SWidget default
+			if (Value != nullptr)
+			{
+				const FName Name =
+					Value->Kind == FRuiValue::EKind::Name ? Value->NameValue : FName(*Value->StringValue);
+				Clipping = Name == FName(TEXT("clipToBounds")) ? EWidgetClipping::ClipToBounds
+						   : Name == FName(TEXT("clipToBoundsWithoutIntersecting"))
+							   ? EWidgetClipping::ClipToBoundsWithoutIntersecting
+						   : Name == FName(TEXT("clipToBoundsAlways")) ? EWidgetClipping::ClipToBoundsAlways
+						   : Name == FName(TEXT("onDemand"))		   ? EWidgetClipping::OnDemand
+																	   : EWidgetClipping::Inherit;
+			}
+			W.SetClipping(Clipping);
+			return true;
+		}
 		return false; // transform keys handled together; everything else is adapter/unknown
 	}
 

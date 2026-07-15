@@ -294,6 +294,15 @@ public:
 		const FRuiScaleBoxProps* O = static_cast<const FRuiScaleBoxProps*>(Old);
 		RUI_ROW(Stretch, W.SetStretch(StretchOf(N.Stretch)))
 		RUI_ROW(StretchDirection, W.SetStretchDirection(StretchDirOf(N.StretchDirection)))
+		// Scaled-content placement inside the box (SScaleBox live setters; default center|center).
+		RUI_ROW(HAlign, W.SetHAlign(N.HAlign == FName(TEXT("left"))	   ? HAlign_Left
+									: N.HAlign == FName(TEXT("right")) ? HAlign_Right
+									: N.HAlign == FName(TEXT("fill"))  ? HAlign_Fill
+																	   : HAlign_Center))
+		RUI_ROW(VAlign, W.SetVAlign(N.VAlign == FName(TEXT("top"))		? VAlign_Top
+									: N.VAlign == FName(TEXT("bottom")) ? VAlign_Bottom
+									: N.VAlign == FName(TEXT("fill"))	? VAlign_Fill
+																		: VAlign_Center))
 	}
 
 	virtual void SetContent(SWidget& Parent, const TSharedPtr<SWidget>& Child) override
@@ -595,6 +604,20 @@ public:
 		const FRuiSeparatorProps& N = static_cast<const FRuiSeparatorProps&>(New);
 		const FRuiSeparatorProps* O = static_cast<const FRuiSeparatorProps*>(Old);
 		RUI_ROW(ColorAndOpacity, W.SetColorAndOpacity(N.ColorAndOpacity))
+	}
+
+	// Markup routes ColorAndOpacity through the STYLE dict (D-13 widget-specific key, like
+	// TextBlock's) — the typed row above only serves the C++ authoring API. null = reset to
+	// the SCompoundWidget default (opaque white).
+	virtual bool ApplyStyleKey(SWidget& Widget, FName Key, const FRuiValue* Value) override
+	{
+		if (Key == FName(TEXT("ColorAndOpacity")))
+		{
+			static_cast<SSeparator&>(Widget).SetColorAndOpacity(Value != nullptr ? Value->ColorValue
+																				 : FLinearColor::White);
+			return true;
+		}
+		return false;
 	}
 };
 

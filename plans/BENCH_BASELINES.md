@@ -68,3 +68,16 @@ wrap variant was not measured: the two strategies don't disagree badly enough to
 | 2026-07-10 | M7 | M1 | Dev editor, real Slate widgets | 1 moved end→front | clear+rebuild | 59 | 60 |
 | 2026-07-10 | M7 | M1 | Dev editor, real Slate widgets | full reverse | minimal-move | 89 | 91 |
 | 2026-07-10 | M7 | M1 | Dev editor, real Slate widgets | full reverse | clear+rebuild | 60 | 61 |
+
+## Bench.Doom — the Doom-demo workload (feat/doom-demo; real Slate host, E1M1 walking scene)
+The family's marquee stress test: every quad is a keyed widget. `doom_reconcile_frame` is the
+headline — one WHOLE game frame (sim tick + geometry build + reconcile + Slate apply of the
+full framebuffer, ~168 quads churning). Context M1 (see above) · UE 5.6.1 · Dev editor,
+`-nullrhi` · run `Automation RunTests ReactiveUI.Bench`.
+
+| date | sha | machine | config | workload | min µs | med µs | max µs | notes |
+|---|---|---|---|---|---|---|---|---|
+| 2026-07-15 | 24e2a77+bench | M1 | Dev editor, real Slate | doom_newgame_e1m1 | 600 | 683 | 845 | level build + spawn + first cast (n=5) |
+| 2026-07-15 | 24e2a77+bench | M1 | Dev editor, real Slate | doom_sim_tick | 18 | 19 | 141 | Tick incl. CastFrame, walking+turning (n=300) |
+| 2026-07-15 | 24e2a77+bench | M1 | Dev editor, real Slate | doom_build_geometry | 34 | 34 | 110 | ~168 quads, warm brush pool (n=100) |
+| 2026-07-15 | 24e2a77+bench | M1 | Dev editor, real Slate | doom_reconcile_frame | 189 | 197 | 340 | THE FRAME: tick+geometry+reconcile+Slate apply (n=120) ≈ 5,000 fps CPU headroom |

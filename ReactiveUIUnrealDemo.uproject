@@ -1,36 +1,36 @@
 {
-    "FileVersion":  3,
-    "EngineAssociation":  "{1F39F208-466A-F24E-3D33-289D1F53B524}",
-    "Category":  "",
-    "Description":  "ReactiveUI for Unreal — demo host project (gallery, automation tests, per-engine example project source).",
-    "Modules":  [
-                    {
-                        "Name":  "RuiDemo",
-                        "Type":  "Runtime",
-                        "LoadingPhase":  "Default"
-                    },
-                    {
-                        "Name":  "RuiHostTests",
-                        "Type":  "Editor",
-                        "LoadingPhase":  "Default"
-                    }
-                ],
-    "Plugins":  [
-                    {
-                        "Name":  "ReactiveUI",
-                        "Enabled":  true
-                    },
-                    {
-                        "Name":  "AndroidFileServer",
-                        "Enabled":  false
-                    },
-                    {
-                        "Name":  "CommonUI",
-                        "Enabled":  true
-                    },
-                    {
-                        "Name":  "ModelViewViewModel",
-                        "Enabled":  true
-                    }
-                ]
+	"FileVersion": 3,
+	"EngineAssociation": "5.6",
+	"Category": "",
+	"Description": "ReactiveUI for Unreal — demo host project (gallery, automation tests, per-engine example project source).",
+	"Modules": [
+		{
+			"Name": "RuiDemo",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "RuiHostTests",
+			"Type": "Editor",
+			"LoadingPhase": "Default"
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "ReactiveUI",
+			"Enabled": true
+		},
+		{
+			"Name": "AndroidFileServer",
+			"Enabled": false
+		},
+		{
+			"Name": "CommonUI",
+			"Enabled": true
+		},
+		{
+			"Name": "ModelViewViewModel",
+			"Enabled": true
+		}
+	]
 }

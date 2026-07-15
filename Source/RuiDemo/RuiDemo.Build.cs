@@ -20,6 +20,7 @@ public class RuiDemo : ModuleRules
 			"Core",
 			"CoreUObject",
 			"Engine",
+			"InputCore", // Doom demo: EKeys polling in the game-loop hook
 			"ReactiveUICore",
 			"ReactiveUISlate",
 			"ReactiveUIUMG",	  // interop demos: UseField + URuiSignalViewModel (MVVM/FieldNotify)

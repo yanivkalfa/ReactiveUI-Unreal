@@ -29,6 +29,7 @@ to wrap) · `SPECIAL` (covered by a dedicated mechanism, not a plain adapter).
 | SVerticalBox | `VerticalBox` | Slot.* props (SBoxPanel child) |
 | SHorizontalBox | `HorizontalBox` | slot.* props (SBoxPanel child) |
 | SOverlay | `Overlay` | also the SRuiRoot panel; slot.zorder |
+| SCanvas | `Canvas` | absolute placement: slot.position/slot.size (LIVE in-place slot mutation — the per-frame-movement hot path); paint order = child order; the Doom-demo framebuffer container (feat/doom-demo, 2026-07-15) |
 | SScrollBox | `ScrollBox` | runtime Orientation (audit fix) |
 | SSpacer | `Spacer` | |
 | SImage | `Image` | v1 tint+size; brush content = D-17 asset work |

@@ -58,6 +58,7 @@ namespace
 			M.Add(TEXT("VerticalBox"), {TEXT("RUI::Slate::VerticalBox"), TEXT("FRuiVerticalBoxProps"), true, {}});
 			M.Add(TEXT("HorizontalBox"), {TEXT("RUI::Slate::HorizontalBox"), TEXT("FRuiHorizontalBoxProps"), true, {}});
 			M.Add(TEXT("Overlay"), {TEXT("RUI::Slate::Overlay"), TEXT("FRuiOverlayProps"), true, {}});
+			M.Add(TEXT("Canvas"), {TEXT("RUI::Slate::Canvas"), TEXT("FRuiCanvasPanelProps"), true, {}});
 			{
 				FTagDef T{TEXT("RUI::Slate::Border"), TEXT("FRuiBorderProps"), true, {}};
 				T.Attrs.Add(TEXT("Padding"), EAttrType::Margin);
@@ -82,6 +83,7 @@ namespace
 				FTagDef T{TEXT("RUI::Slate::Image"), TEXT("FRuiImageProps"), false, {}};
 				T.Attrs.Add(TEXT("ColorAndOpacity"), EAttrType::Color);
 				T.Attrs.Add(TEXT("DesiredSizeOverride"), EAttrType::Vector2);
+				T.Attrs.Add(TEXT("Image"), EAttrType::Expr); // asset brush (TSharedPtr<FSlateBrush> expr — D-17)
 				M.Add(TEXT("Image"), MoveTemp(T));
 			}
 			{
@@ -140,6 +142,8 @@ namespace
 				FTagDef T{TEXT("RUI::Slate::ScaleBox"), TEXT("FRuiScaleBoxProps"), true, {}};
 				T.Attrs.Add(TEXT("Stretch"), EAttrType::Name);
 				T.Attrs.Add(TEXT("StretchDirection"), EAttrType::Name);
+				T.Attrs.Add(TEXT("HAlign"), EAttrType::Name);
+				T.Attrs.Add(TEXT("VAlign"), EAttrType::Name);
 				M.Add(TEXT("ScaleBox"), MoveTemp(T));
 			}
 			{
@@ -232,11 +236,19 @@ namespace
 
 	const TSet<FString>& StyleKeys()
 	{
-		static const TSet<FString> Keys = {
-			TEXT("RenderOpacity"),		  TEXT("Visibility"),	   TEXT("Enabled"),
-			TEXT("RenderTranslation"),	  TEXT("RenderScale"),	   TEXT("RenderTransformAngle"),
-			TEXT("RenderTransformPivot"), TEXT("ColorAndOpacity"), TEXT("Font.Size"),
-			TEXT("Justification"),		  TEXT("AutoWrapText"),	   TEXT("FillColorAndOpacity")};
+		static const TSet<FString> Keys = {TEXT("RenderOpacity"),
+										   TEXT("Visibility"),
+										   TEXT("Enabled"),
+										   TEXT("RenderTranslation"),
+										   TEXT("RenderScale"),
+										   TEXT("RenderTransformAngle"),
+										   TEXT("RenderTransformPivot"),
+										   TEXT("ColorAndOpacity"),
+										   TEXT("Font.Size"),
+										   TEXT("Justification"),
+										   TEXT("AutoWrapText"),
+										   TEXT("FillColorAndOpacity"),
+										   TEXT("Clipping")};
 		return Keys;
 	}
 
@@ -1483,8 +1495,8 @@ FString FUetkxCodegen::ExportSchemaJson()
 	// Slot.* is an OPEN prefix (any name routes to the slot dict); these are the D-33 canon.
 	Root->SetStringField(TEXT("slotPrefix"), TEXT("Slot."));
 	TArray<TSharedPtr<FJsonValue>> SlotArray;
-	for (const TCHAR* Key :
-		 {TEXT("Slot.Padding"), TEXT("Slot.HAlign"), TEXT("Slot.VAlign"), TEXT("Slot.Fill"), TEXT("Slot.ZOrder")})
+	for (const TCHAR* Key : {TEXT("Slot.Padding"), TEXT("Slot.HAlign"), TEXT("Slot.VAlign"), TEXT("Slot.Fill"),
+							 TEXT("Slot.ZOrder"), TEXT("Slot.Position"), TEXT("Slot.Size")})
 	{
 		SlotArray.Add(MakeShared<FJsonValueString>(Key));
 	}

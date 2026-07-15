@@ -49,6 +49,38 @@ resync with `cp CHANGELOG.md Plugins/ReactiveUI/CHANGELOG.md` (CI byte-compares 
 - **Generated per-hook reference docs** — every hook now has its own reference page (23 core +
   17 router), generated from a header-authored catalog the docs-drift gate compares against
   the code registries — the docs can never claim hooks the code doesn't have.
+- **`Canvas` widget** — absolute placement over `SCanvas`: children position/size themselves
+  via `Slot.Position`/`Slot.Size` (expr or "x,y" literals); paint order = child order; a
+  slot-prop update mutates the LIVE slot in place, so per-frame quad movement costs no slot
+  churn. Built as the Doom demo's framebuffer container. Suite: `ReactiveUI.Widgets.Canvas`.
+- **`<Image Image={ Brush } />`** — the asset-brush prop is now a markup attribute (and the
+  props field is renamed `Brush` → `Image`, the loyal Unreal name — D-33; pre-1.0 rename).
+- **`Clipping` style key** (universal) — `SWidget::SetClipping` with the loyal
+  `EWidgetClipping` names (`clipToBounds` etc.; removal resets to `inherit`). Slate never
+  clips children to bounds by default — absolute-placed content (Canvas framebuffers)
+  needs this. 13 style keys total.
+- **`ScaleBox` `HAlign`/`VAlign`** — place the scaled content inside the box (live
+  `SScaleBox` setters; default center|center). Lets fixed-resolution content pin to an
+  edge while scaling to fit.
+- **The Doom demo** — the family's marquee stress showcase, ported third: a fully playable
+  software-raycast FPS whose ENTIRE framebuffer is the widget tree — every wall strip, floor/
+  ceiling band, sprite, and tracer is a real keyed `<Image>` diffed per tick (~7k LOC; six
+  levels; 100% procedural textures, zero assets). Gallery: 18 screens. Determinism suite
+  `ReactiveUI.Doom` (182 checks, ported from the family); `ReactiveUI.Bench.Doom` measures
+  the WHOLE frame — sim + geometry + reconcile + Slate apply — at **~197 µs median**.
+
+### Fixed
+
+- `UseStableFunc`/`UseStableAction` were missing from the markup compiler's built-in hook
+  table — calling them from `.uetkx` emitted uncompilable code. Added in both
+  implementations (C++ scanner + TS language-server mirror); schema re-exported (22 hooks).
+- The `ColorAndOpacity` style key was silently dropped on `Image` and `Separator` — markup
+  routes it through the style dict (like TextBlock's), but only the C++ typed-props path had
+  a handler, so markup tints never reached the widget (the Doom viewport rendered as a solid
+  white sheet: its alpha-0 full-screen flash quads painted opaque). Both adapters now handle
+  the style key, with removal-reset to opaque white. Suites: `ReactiveUI.Style.WidgetColorKeys`
+  (apply/update/reset on both widgets) + `ReactiveUI.Doom.MountedFrame` (the mounted game
+  screen's flash quads are asserted transparent).
 
 ## [0.3.0] — 2026-07-14
 

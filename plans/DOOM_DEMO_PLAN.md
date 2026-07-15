@@ -1,7 +1,17 @@
 # Doom demo — the Unreal port (owner-decided 2026-07-15)
 
-> **Status:** PLANNED (research complete — this file). **Branch (when it runs):** `feat/doom-demo`
-> → `dev`, one PR, own campaign.
+> **Status: BUILT 2026-07-15** (`feat/doom-demo`) — phases 0–6 complete in one campaign:
+> Canvas widget + spike verdict, the full C++ port (~7k LOC: Types/Textures/Maps/Raycast/
+> GameLogic/ScreenGeometry, every module verified against the originals), all six .uetkx
+> screens, the UseDoomGame loop hook with mouse capture, the 182-check `ReactiveUI.Doom`
+> determinism suite (10/10 green, ZERO sim-port bugs found), and `Bench.Doom`
+> (**~197 µs median per whole game frame** — committed in BENCH_BASELINES.md).
+> Battery 124/124. **PLAYTESTED 2026-07-16** — three owner PIE rounds surfaced and fixed
+> three library gaps (ColorAndOpacity style key dropped on Image/Separator; no Clipping
+> surface at all — the universal style key was born here; ScaleBox alignment) plus the
+> raw-mouse input feel (GetInputMouseDelta massages by 0.07 — poll GetRawKeyValue) and a
+> Ctrl+R FPS readout; owner verdict "nice, works". Remaining: Phase 7 (optional BSP)
+> stays deferred; the demo video → showcase copy is the owner's.
 > **What it is:** the family's marquee stress showcase, ported third: a fully playable,
 > software-rendered, sector/portal raycast Doom-style FPS whose **entire framebuffer is the
 > ReactiveUI element tree**. Not a 3D scene with a HUD on top, and no custom-draw escape hatch:
@@ -47,14 +57,46 @@ faithful port that then added two Godot-only perf systems. Anatomy (both):
 - **Assets**: none. 100% procedural pixels — no third-party notices needed (D-32d clean).
   "DOOM"/level names are homage text only.
 
-## 1. Unreal mapping — the decisions
+## 1. How Slate layering ACTUALLY works (verified against 5.6 source, 2026-07-15)
+
+Slate has **no global z-index**. Paint order is hierarchical: every panel paints its children
+in **arrangement order** — a later sibling paints on a higher layer ID, full stop. The three
+exceptions/levers, verified in engine headers:
+
+- **`SOverlay`** — the one panel with per-slot z: an `int32 ZOrder` per slot; "slots with
+  larger ZOrder draw above; slots with the SAME ZOrder draw in the order they were added"
+  (`SOverlay.h:65`). Slots are kept z-sorted at insertion (`AddSlot(ZOrder)`), and 5.6 has a
+  `FOverlaySlot::SetZOrder` setter. **Our markup already exposes this** — `Slot.ZOrder` is in
+  the shipped slot vocabulary and the Overlay adapter consumes it. Caveat: our adapter's
+  slot-prop UPDATE path currently does RemoveSlot+AddSlot; if the demo ever mutates ZOrder
+  per frame, switch that path to `SetZOrder` first (recorded as a Phase-0 adapter task).
+- **`SCanvas`** — absolute placement: per-slot `Position` + `Size` attributes (+ alignment
+  anchoring; FILL unsupported). **No per-slot z** — paints purely in child order. Not wrapped
+  by us yet (note: our `RuiCanvas` tag is the CUSTOM-DRAW canvas — DrawFn/RedrawKey, no
+  children — a completely different thing).
+- **`SConstraintCanvas`** — UMG's canvas: per-slot Offset/Anchors + a `float ZOrder`,
+  z-sorted at paint. Heavier than we need.
+- Style keys `RenderTranslation`/`RenderScale`/`RenderTransformAngle`/`RenderTransformPivot`
+  move/transform PIXELS (render transforms), not layout or paint order.
+- The viewport-level `ZOrder` on `MountNamed`/`AddViewportWidgetContent` orders whole mounted
+  ROOTS against other viewport content — orthogonal to intra-tree layering.
+
+**The consequence for the demo:** the Godot port's per-quad `z_index` model has no cheap
+Slate equivalent (per-frame ZOrder mutation on hundreds of Overlay slots would churn slots).
+The **Unity model maps exactly**: one absolute-position panel, quads emitted in painter's
+order (sky → ceiling bands → floor bands → rims → segs → walls → sprites → tracers →
+weapon/flash), **stable build order within each pass**, and occlusion decided in the geometry
+builders (only visible spans are emitted — how the sector engine already works). That also
+preserves the Godot port's real perf lesson — never re-sort the emitted list.
+
+## 1b. Unreal mapping — the decisions
 
 | Sibling concept | Unreal/Slate answer |
 |---|---|
 | Host quad (TextureRect/VisualElement) | `Image` (SImage) with a brush; the shared-white-texture trick → one `FSlateBrush` reused so all bands are the same widget type |
-| Viewport container + absolute placement | `RuiCanvas` (our absolute-position canvas tag) — `Slot.Position`/`Slot.Size` per quad |
-| Painter's order | Slate paints children in SLOT ORDER — use the Unity model (ordered `@for` passes: sky → ceilings → floors → rims → segs → walls → sprites → tracers), NOT the Godot z_index model (Slate has no per-child z). Build order stays stable per frame |
-| Wall strip vertical texture tiling | pooled per-key `FSlateBrush` with `Tiling=Vertical` + `UVRegion` per column (Phase 0 SPIKE — the one genuinely open rendering question; fallback: taller pre-tiled procedural textures) |
+| Viewport container + absolute placement | **a new `Canvas` widget wrapping `SCanvas`** (tag `Canvas`, slots `Slot.Position`/`Slot.Size` — one component-pipeline run, Phase 0). Paint = child order = the stable build order the plan needs. Fallback that works TODAY with zero new widgets: `Overlay` + `Slot.ZOrder` per PASS (fixed constants, never mutated) + `Slot.Padding` as position + fixed child sizes |
+| Painter's order | the Unity model (ordered emission passes, stable within pass — §1); occlusion in the geometry builders, never via z mutation |
+| Wall strip vertical texture tiling | **SPIKE ANSWERED 2026-07-15 (from `ElementBatcher.cpp:735-800`)**: brush `Tiling` derives its repeat count from `LocalSize/TexturePixels` (screen-px, NOT world units) — wrong for distance-scaled strips, so tiling flags are out for walls. **The verdict: pre-tiled wall textures (64×256 = 4 vertical world-repeats, walls are height-capped below that) + a per-strip `UVRegion` window** (`(u0,v0)-(u1,v1)` selects the column slice AND the fractional repeat range — all inside [0,1], clamp addressing, no materials, exact scaling). UVRegion cleanly overrides the proxy UV (`:743-748`) with U fixed while V spans the pre-tiled range. Brushes pool per quad KEY; note: SImage reads the brush at paint time, and every strip's position/size invalidates per frame anyway — if a frame ever changes ONLY UV, double-buffer the key's brush pair. `DoomTextures` grows a pre-tiled `WallTiled(int32)` (64×256) beside the 64×64 originals |
 | Rotated tracer rects | style keys `RenderTransformAngle` + `RenderTransformPivot` (already shipped) |
 | Procedural textures (SetPixels32/Apply) | `UTexture2D::CreateTransient` + mip write + `UpdateResource`, wrapped by `RUI::Umg::MakeAssetBrush` (GC-rooted — D-17 machinery already ships) |
 | 16 ms scheduler / process_frame hook | a `UseDoomGame` hook: `UseEffect` registers an `FTSTicker` (dt-clamped); tick = consume input → `GameLogic::Tick(State, dt, Cmd)` → bump a version `UseState` (our coalescing then renders once/frame, the Godot lesson) |
@@ -65,10 +107,17 @@ faithful port that then added two Godot-only perf systems. Anatomy (both):
 
 ## 2. Phases (each lands with tests; order by risk)
 
-0. **SPIKE — the column renderer** *(the only open technical question)*: 160 `Image` strips on
-   a `RuiCanvas`, pooled per-key UV-region brushes, procedural test texture; measure
-   render+diff ms at 800×500. Exit: ≥60 fps headroom on the owner machine OR a chosen fallback
-   (pre-tiled texture variants) — recorded here before Phase 1 starts.
+0. **SPIKE — the column renderer + the Canvas widget** *(the open technical questions, settled
+   before any port work)*:
+   - wrap `SCanvas` as the `Canvas` tag (component-pipeline run: adapter + `Slot.Position`/
+     `Slot.Size` slot keys + schema + docs page) — the framebuffer container;
+   - 160 `Image` strips on it, testing the three texture-tiling candidates from §1b (UVRegion
+     × Tiling composition test first; pre-split column textures as the guaranteed fallback;
+     MID-brush pool as the Godot-parity option);
+   - measure render+diff ms at 800×500 with per-frame position/size churn; if the Overlay
+     fallback is ever preferred, first switch the Overlay adapter's slot-prop update path
+     from RemoveSlot+AddSlot to `FOverlaySlot::SetZOrder`/in-place mutation.
+   Exit: a chosen renderer + ≥60 fps headroom on the owner machine, recorded here.
 1. **Data + textures**: `DoomTypes` (enums/structs/tunables/pools), `DoomMaps` (MapBuilder DSL
    + E1M1–E1M6), `DoomTextures` (procedural gen). Verify: `ReactiveUI.Doom.Types/Maps/Textures`
    unit suites (pool rewind semantics, map integrity, texture dimensions/determinism).
