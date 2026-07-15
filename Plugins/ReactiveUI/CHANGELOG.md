@@ -55,6 +55,13 @@ resync with `cp CHANGELOG.md Plugins/ReactiveUI/CHANGELOG.md` (CI byte-compares 
   churn. Built as the Doom demo's framebuffer container. Suite: `ReactiveUI.Widgets.Canvas`.
 - **`<Image Image={ Brush } />`** — the asset-brush prop is now a markup attribute (and the
   props field is renamed `Brush` → `Image`, the loyal Unreal name — D-33; pre-1.0 rename).
+- **`Clipping` style key** (universal) — `SWidget::SetClipping` with the loyal
+  `EWidgetClipping` names (`clipToBounds` etc.; removal resets to `inherit`). Slate never
+  clips children to bounds by default — absolute-placed content (Canvas framebuffers)
+  needs this. 13 style keys total.
+- **`ScaleBox` `HAlign`/`VAlign`** — place the scaled content inside the box (live
+  `SScaleBox` setters; default center|center). Lets fixed-resolution content pin to an
+  edge while scaling to fit.
 - **The Doom demo** — the family's marquee stress showcase, ported third: a fully playable
   software-raycast FPS whose ENTIRE framebuffer is the widget tree — every wall strip, floor/
   ceiling band, sprite, and tracer is a real keyed `<Image>` diffed per tick (~7k LOC; six
