@@ -24,6 +24,15 @@
 // exact value. Where C# used a null array for "none", the TArray is simply empty.
 // ═════════════════════════════════════════════════════════════════════════════════════════════
 
+// AudioMixerCore's AudioDefines.h (reachable via the Engine shared PCH) leaks a bare
+// `#define MAX_PITCH 2.0f` that would macro-expand our identically named tunable — and every
+// `C::MAX_PITCH` call site after it. The family naming contract keeps the original tunable
+// names, so drop the engine macro here for good: the demo module never touches audio-mixer
+// pitch clamps. (push/pop_macro can't work — call sites appear AFTER this header.)
+#ifdef MAX_PITCH
+#undef MAX_PITCH
+#endif
+
 namespace RuiDoom
 {
 	// Optional Phase-7 BSP renderer hook (Godot-only upgrade, ported later if at all).
@@ -284,11 +293,11 @@ namespace RuiDoom
 		// rendered and monsters/geometry behind them leaked through ("see-through" until you
 		// walked close). Must cover MAX_RAY at the map's sector density.
 		inline constexpr int32 MAX_RAY_HOPS = 64;
-		inline constexpr float STEP_HEIGHT = 0.4f;		 // max floor step the player can walk up
-		inline constexpr float PLAYER_HEIGHT = 0.9f;	 // feet→head
+		inline constexpr float STEP_HEIGHT = 0.4f;		  // max floor step the player can walk up
+		inline constexpr float PLAYER_HEIGHT = 0.9f;	  // feet→head
 		inline constexpr float PLAYER_VIEW_HEIGHT = 0.6f; // feet→eye
-		inline constexpr float GRAVITY = 9.f;			 // units/s² for jump/fall
-		inline constexpr float JUMP_VELOCITY = 7.0f;	 // initial Z velocity on Jump
+		inline constexpr float GRAVITY = 9.f;			  // units/s² for jump/fall
+		inline constexpr float JUMP_VELOCITY = 7.0f;	  // initial Z velocity on Jump
 		inline constexpr float CROUCH_HEIGHT = 0.45f;
 		inline constexpr float DOOR_OPEN_SPEED = 2.0f;		// units/sec ceiling lerp
 		inline constexpr float DOOR_AUTO_CLOSE_DELAY = 4.f; // seconds
@@ -381,8 +390,8 @@ namespace RuiDoom
 		int32 Armor = 0;
 		uint8 ArmorClass = 0; // 0=none 1=green 2=blue
 		EWeaponType Weapon = EWeaponType::Fist;
-		TArray<int32> Ammo;			 // indexed by EAmmoType (Bullets..Cells)
-		TArray<bool> OwnedWeapons;	 // indexed by EWeaponType
+		TArray<int32> Ammo;		   // indexed by EAmmoType (Bullets..Cells)
+		TArray<bool> OwnedWeapons; // indexed by EWeaponType
 		EKeyCard Keys = EKeyCard::None;
 		float ShootCooldown = 0.f;
 		float MuzzleFlash = 0.f;
@@ -396,10 +405,10 @@ namespace RuiDoom
 		float MessageTimer = 0.f;
 		FString MessageText;
 		// ── Phase 1 (Sector-engine) additions. Ignored by pre-sector renderers. ──
-		float Z = 0.f;			 // feet height (0 = ground)
-		float ZVel = 0.f;		 // for jump/gravity (Phase 7)
-		float ViewHeight = 0.f;	 // eye offset from feet (NewGame sets 0.6)
-		int32 SectorId = -1;	 // current sector (-1 = unknown / fallback to grid)
+		float Z = 0.f;			// feet height (0 = ground)
+		float ZVel = 0.f;		// for jump/gravity (Phase 7)
+		float ViewHeight = 0.f; // eye offset from feet (NewGame sets 0.6)
+		int32 SectorId = -1;	// current sector (-1 = unknown / fallback to grid)
 		// Phase 7: pixel offset added to the horizon line (sky/floor/wall) so jump/crouch
 		// animation stays in sync across all renderers. Computed by CastFrame from Z + ViewHeight.
 		float ViewShiftPx = 0.f;
@@ -460,11 +469,11 @@ namespace RuiDoom
 
 	struct FFloorBand
 	{
-		float TopPx = 0.f;	 // far edge of this floor slab on screen
-		float BotPx = 0.f;	 // near edge (toward bottom of screen)
-		float FloorZ = 0.f;	 // world Z (for color)
-		uint8 Light = 0;	 // sector light, attenuated by distance
-		uint8 FloorTex = 0;	 // sector floor texture index
+		float TopPx = 0.f;	// far edge of this floor slab on screen
+		float BotPx = 0.f;	// near edge (toward bottom of screen)
+		float FloorZ = 0.f; // world Z (for color)
+		uint8 Light = 0;	// sector light, attenuated by distance
+		uint8 FloorTex = 0; // sector floor texture index
 		// FloorZ of the slab IMMEDIATELY behind this one in the same ray (NaN if none).
 		float BehindFloorZ = std::numeric_limits<float>::quiet_NaN();
 		bool RimAtFar = false; // true if the far edge of this band is a visible step-down rim
@@ -482,9 +491,9 @@ namespace RuiDoom
 	// overlap in Y.
 	struct FCeilingBand
 	{
-		float TopPx = 0.f;	   // upper edge in screen px (smaller = higher)
-		float BotPx = 0.f;	   // lower edge in screen px (= projected ceiling line)
-		float CeilingZ = 0.f;  // world Z (for shading)
+		float TopPx = 0.f;	  // upper edge in screen px (smaller = higher)
+		float BotPx = 0.f;	  // lower edge in screen px (= projected ceiling line)
+		float CeilingZ = 0.f; // world Z (for shading)
 		uint8 Light = 0;
 		uint8 CeilingTex = 0;
 		// GODOT ADDITION (inherited): perpendicular ray distance — lets bands join the one
@@ -538,6 +547,15 @@ namespace RuiDoom
 
 	struct RUIDEMO_API FFrameData
 	{
+		// Move-only: the pool slots below are uniquely owned, and neither sibling ever copies a
+		// FrameData (C# shares the arrays by reference, Godot the RefCounted object). This makes
+		// FGameState move-only too — pass game state by reference/pointer, as the siblings do.
+		FFrameData() = default;
+		FFrameData(const FFrameData&) = delete;
+		FFrameData& operator=(const FFrameData&) = delete;
+		FFrameData(FFrameData&&) = default;
+		FFrameData& operator=(FFrameData&&) = default;
+
 		TArray<FColumnInfo> Columns; // sized VIEW_W by NewGame; reused every cast frame
 		TArray<float> DepthBuffer;	 // sized VIEW_W by NewGame
 
@@ -599,8 +617,8 @@ namespace RuiDoom
 		uint8 CeilingTex = 0;
 		ESectorSpecial Special = ESectorSpecial::None;
 		uint8 Tag = 0;
-		bool IsSky = false;			   // ceiling renders as sky if true
-		TArray<int32> LineIds;		   // linedefs that touch this sector
+		bool IsSky = false;				 // ceiling renders as sky if true
+		TArray<int32> LineIds;			 // linedefs that touch this sector
 		TArray<FExtraFloor> ExtraFloors; // empty if no 3D floors (C# null)
 		// Door/lift animation state (Phase 5)
 		float TargetCeilingZ = 0.f;
