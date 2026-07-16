@@ -75,7 +75,7 @@ to wrap) · `SPECIAL` (covered by a dedicated mechanism, not a plain adapter).
 
 | Widget | Notes |
 |---|---|
-| SCanvas / SConstraintCanvas | absolute-position panels (slot.offset/anchors) |
+| SConstraintCanvas | anchor-based absolute panel (slot.offset/anchors) — SCanvas itself SHIPPED 2026-07-15 as `Canvas` (see the shipped table) |
 | SSplitter | resizable panes (slot.fraction) |
 | SEditableText / SEditableLabel / SInlineEditableTextBlock | raw/label text-edit variants |
 | SHyperlink / SRichTextHyperlink | link widgets |
