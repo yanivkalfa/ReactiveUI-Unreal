@@ -55,6 +55,14 @@ struct REACTIVEUISLATE_API FRuiCanvasPanelProps final : public FRuiPropsBase
 	RUI_PROPS_BODY(FRuiCanvasPanelProps, )
 };
 
+/** SConstraintCanvas (MultiSlot) - anchor-based absolute panel (P5a): children place via
+ *  `Slot.Anchors` ("min" | "x,y" | "minX,minY,maxX,maxY"), `Slot.Offset` (FMargin forms),
+ *  `Slot.Alignment` (Vector2), `Slot.AutoSize` (bool), `Slot.ZOrder` (float) - all live. */
+struct REACTIVEUISLATE_API FRuiConstraintCanvasProps final : public FRuiPropsBase
+{
+	RUI_PROPS_BODY(FRuiConstraintCanvasProps, )
+};
+
 /** SBorder (SingleContent). Alignment values: fill|left|center|right / fill|top|center|bottom.
  *  BorderImage takes an FCoreStyle brush NAME (v1 — e.g. "WhiteBrush" for a solid fill
  *  tinted by BorderBackgroundColor; the engine default is a thin frame-type brush). Asset
@@ -709,6 +717,9 @@ namespace RUI::Slate
 											  TArray<FRuiNode> Children = TArray<FRuiNode>(), FRuiKey Key = FRuiKey());
 	REACTIVEUISLATE_API FRuiNode RadialBox(FRuiRadialBoxProps Props = FRuiRadialBoxProps(),
 										   TArray<FRuiNode> Children = TArray<FRuiNode>(), FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode ConstraintCanvas(FRuiConstraintCanvasProps Props = FRuiConstraintCanvasProps(),
+												  TArray<FRuiNode> Children = TArray<FRuiNode>(),
+												  FRuiKey Key = FRuiKey());
 	REACTIVEUISLATE_API FRuiNode ColorWheel(FRuiColorWheelProps Props = FRuiColorWheelProps(), FRuiKey Key = FRuiKey());
 	REACTIVEUISLATE_API FRuiNode ColorSpectrum(FRuiColorSpectrumProps Props = FRuiColorSpectrumProps(),
 											   FRuiKey Key = FRuiKey());

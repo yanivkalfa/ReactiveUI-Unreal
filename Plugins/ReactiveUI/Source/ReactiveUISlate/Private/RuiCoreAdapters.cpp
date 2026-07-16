@@ -739,6 +739,7 @@ namespace RUI::Slate
 		void RegisterSuggestionTextBoxAdapter(); // RuiSuggestionTextBox.cpp (TD-012 tail; autocomplete)
 		void RegisterBatch3WidgetAdapters();	 // RuiWidgetAdaptersB3.cpp (WIDGET_COMPLETION_PLAN wave 1)
 		void RegisterExpandableButtonAdapter();	 // RuiExpandableButton.cpp (wave 2; three role slots)
+		void RegisterBatch3Wave3Adapters();	 // RuiWidgetAdaptersB4.cpp (wave 3 protocol widgets)
 	} // namespace Detail
 
 	void RegisterBuiltinAdapters()
@@ -760,5 +761,6 @@ namespace RUI::Slate
 		Detail::RegisterSuggestionTextBoxAdapter();
 		Detail::RegisterBatch3WidgetAdapters();
 		Detail::RegisterExpandableButtonAdapter();
+		Detail::RegisterBatch3Wave3Adapters();
 	}
 } // namespace RUI::Slate

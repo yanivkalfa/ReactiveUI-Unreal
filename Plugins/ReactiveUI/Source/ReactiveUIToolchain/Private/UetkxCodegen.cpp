@@ -60,6 +60,8 @@ namespace
 			M.Add(TEXT("HorizontalBox"), {TEXT("RUI::Slate::HorizontalBox"), TEXT("FRuiHorizontalBoxProps"), true, {}});
 			M.Add(TEXT("Overlay"), {TEXT("RUI::Slate::Overlay"), TEXT("FRuiOverlayProps"), true, {}});
 			M.Add(TEXT("Canvas"), {TEXT("RUI::Slate::Canvas"), TEXT("FRuiCanvasPanelProps"), true, {}});
+			M.Add(TEXT("ConstraintCanvas"),
+				  {TEXT("RUI::Slate::ConstraintCanvas"), TEXT("FRuiConstraintCanvasProps"), true, {}});
 			{
 				FTagDef T{TEXT("RUI::Slate::ColorBlock"), TEXT("FRuiColorBlockProps"), false, {}};
 				T.Attrs.Add(TEXT("Color"), EAttrType::Color);
@@ -1671,7 +1673,8 @@ FString FUetkxCodegen::ExportSchemaJson()
 	Root->SetStringField(TEXT("slotPrefix"), TEXT("Slot."));
 	TArray<TSharedPtr<FJsonValue>> SlotArray;
 	for (const TCHAR* Key : {TEXT("Slot.Padding"), TEXT("Slot.HAlign"), TEXT("Slot.VAlign"), TEXT("Slot.Fill"),
-							 TEXT("Slot.ZOrder"), TEXT("Slot.Position"), TEXT("Slot.Size")})
+							 TEXT("Slot.ZOrder"), TEXT("Slot.Position"), TEXT("Slot.Size"), TEXT("Slot.Offset"),
+							 TEXT("Slot.Anchors"), TEXT("Slot.Alignment"), TEXT("Slot.AutoSize"), TEXT("Slot.Role")})
 	{
 		SlotArray.Add(MakeShared<FJsonValueString>(Key));
 	}
