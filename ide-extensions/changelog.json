@@ -1,6 +1,16 @@
 {
   "entries": [
     {
+      "date": "2026-07-16",
+      "versions": {
+        "vscode": "0.3.0",
+        "vs2022": "0.3.0"
+      },
+      "shared": [
+        "Schema catch-up to plugin 0.9.0: the bundled `.uetkx` vocabulary grows 38 → 63 tags (the widget-completion campaign — ConstraintCanvas, Splitter, MenuAnchor, NotificationList, TreeView-era inputs, color pickers, and 20+ more), 16 style keys, 16 slot keys, and the first engine-gated tag (`SearchableComboBox`, annotated `sinceUE: 5.7`). Grammar wave G lands in the language server: early component-level markup returns are accepted (multi-return collector, byte-identical to the C++ compiler per the grammar contract), the final return must be top-level (new UETKX3007), and short-circuit `&&`/`||` markup is no longer a diagnostic (UETKX3002 retired). Scanner corpus +4 cases."
+      ]
+    },
+    {
       "date": "2026-07-15",
       "versions": {
         "vscode": "0.2.0",
