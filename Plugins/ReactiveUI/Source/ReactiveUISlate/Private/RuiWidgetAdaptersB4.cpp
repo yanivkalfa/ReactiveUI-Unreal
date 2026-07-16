@@ -134,12 +134,14 @@ public:
 							 const FRuiStyleDict* SlotProps) override
 	{
 		SConstraintCanvas& W = static_cast<SConstraintCanvas&>(Parent);
-		SConstraintCanvas::FScopedWidgetSlotArguments Slot = W.AddSlot();
-		Slot.AttachWidget(Child);
-		if (SConstraintCanvas::FSlot* Live = Slot.GetSlot())
 		{
-			ApplyConstraintSlot(*Live, SlotProps);
-		}
+			SConstraintCanvas::FScopedWidgetSlotArguments Slot = W.AddSlot();
+			Slot.AttachWidget(Child);
+		} // the scoped args must COMMIT before SetZOrder is legal on the slot
+		FChildren* Children = W.GetChildren();
+		ApplyConstraintSlot(const_cast<SConstraintCanvas::FSlot&>(
+								static_cast<const SConstraintCanvas::FSlot&>(Children->GetSlotAt(Children->Num() - 1))),
+							SlotProps);
 	}
 
 	virtual void RemoveChild(SWidget& Parent, const TSharedRef<SWidget>& Child) override
@@ -157,12 +159,14 @@ public:
 		}
 		for (const TSharedRef<SWidget>& Child : Ordered)
 		{
-			SConstraintCanvas::FScopedWidgetSlotArguments Slot = W.AddSlot();
-			Slot.AttachWidget(Child);
-			if (SConstraintCanvas::FSlot* Live = Slot.GetSlot())
 			{
-				ApplyConstraintSlot(*Live, SlotPropsOf(Child));
+				SConstraintCanvas::FScopedWidgetSlotArguments Slot = W.AddSlot();
+				Slot.AttachWidget(Child);
 			}
+			FChildren* Children = W.GetChildren();
+			ApplyConstraintSlot(const_cast<SConstraintCanvas::FSlot&>(static_cast<const SConstraintCanvas::FSlot&>(
+									Children->GetSlotAt(Children->Num() - 1))),
+								SlotPropsOf(Child));
 		}
 	}
 

@@ -400,6 +400,21 @@
 				"Text": "text"
 			}
 		},
+		"RotatorInputBox":
+		{
+			"factory": "RUI::Slate::RotatorInputBox",
+			"children": false,
+			"attrs":
+			{
+				"bColorAxisLabels": "bool",
+				"OnPitchChanged": "event",
+				"OnRollChanged": "event",
+				"OnYawChanged": "event",
+				"Pitch": "float",
+				"Roll": "float",
+				"Yaw": "float"
+			}
+		},
 		"RuiCanvas":
 		{
 			"factory": "RUI::Slate::RuiCanvas",
@@ -606,6 +621,21 @@
 				"SlotPadding": "float"
 			}
 		},
+		"VectorInputBox":
+		{
+			"factory": "RUI::Slate::VectorInputBox",
+			"children": false,
+			"attrs":
+			{
+				"bColorAxisLabels": "bool",
+				"OnXChanged": "event",
+				"OnYChanged": "event",
+				"OnZChanged": "event",
+				"X": "float",
+				"Y": "float",
+				"Z": "float"
+			}
+		},
 		"VerticalBox":
 		{
 			"factory": "RUI::Slate::VerticalBox",
@@ -759,8 +789,14 @@
 		"OnIsSelectingKeyChanged": "void",
 		"OnKeySelected": "void",
 		"OnMenuOpenChanged": "void",
+		"OnPitchChanged": "void",
+		"OnRollChanged": "void",
+		"OnYawChanged": "void",
 		"OnSelectionChanged": "void",
 		"OnSplitterFinishedResizing": "void",
+		"OnXChanged": "void",
+		"OnYChanged": "void",
+		"OnZChanged": "void",
 		"OnMuteChanged": "void",
 		"OnVolumeChanged": "void",
 		"RequestToggleFullscreen": "void"
