@@ -35,6 +35,7 @@ namespace
 		FString PropsType; // e.g. "FRuiButtonProps"
 		bool bChildren = true;
 		TMap<FName, EAttrType> Attrs;
+		FString SinceUE; // engine-version gate ("5.7" = absent from earlier engines); empty = all
 	};
 
 	const TMap<FName, FTagDef>& HostTags()
@@ -103,6 +104,14 @@ namespace
 			}
 			M.Add(TEXT("NotificationList"),
 				  {TEXT("RUI::Slate::NotificationList"), TEXT("FRuiNotificationListProps"), false, {}});
+			{
+				FTagDef T{TEXT("RUI::Slate::SearchableComboBox"), TEXT("FRuiSearchableComboBoxProps"), false, {}};
+				T.SinceUE = TEXT("5.7"); // SSearchableComboBox does not exist in 5.6
+				T.Attrs.Add(TEXT("Options"), EAttrType::Expr);
+				T.Attrs.Add(TEXT("SelectedItem"), EAttrType::Text);
+				T.Attrs.Add(TEXT("OnSelectionChanged"), EAttrType::Event);
+				M.Add(TEXT("SearchableComboBox"), MoveTemp(T));
+			}
 			{
 				FTagDef T{TEXT("RUI::Slate::ColorBlock"), TEXT("FRuiColorBlockProps"), false, {}};
 				T.Attrs.Add(TEXT("Color"), EAttrType::Color);
@@ -1688,6 +1697,10 @@ FString FUetkxCodegen::ExportSchemaJson()
 		TSharedRef<FJsonObject> El = MakeShared<FJsonObject>();
 		El->SetStringField(TEXT("factory"), Tag.Factory);
 		El->SetBoolField(TEXT("children"), Tag.bChildren);
+		if (!Tag.SinceUE.IsEmpty())
+		{
+			El->SetStringField(TEXT("sinceUE"), Tag.SinceUE);
+		}
 		TSharedRef<FJsonObject> Attrs = MakeShared<FJsonObject>();
 		TArray<FName> AttrNames;
 		Tag.Attrs.GetKeys(AttrNames);

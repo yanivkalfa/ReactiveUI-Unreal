@@ -13,6 +13,11 @@
 #include "Widgets/Input/SMenuAnchor.h"
 #include "Widgets/Input/SNumericDropDown.h"
 #include "Widgets/Navigation/SBreadcrumbTrail.h"
+#include "Misc/EngineVersionComparison.h"
+#if !UE_VERSION_OLDER_THAN(5, 7, 0)
+#include "SSearchableComboBox.h"
+#include "Widgets/Text/STextBlock.h"
+#endif
 #include "RuiSlateHost.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "Widgets/Layout/SSplitter.h"
@@ -670,6 +675,135 @@ namespace RUI::Slate
 	}
 } // namespace RUI::Slate
 
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// SSearchableComboBox — sinceUE 5.7 (absent from 5.6): the adapter compiles out on older
+// engines; the tag/props/factory stay (mounting on 5.6 warns unknown-adapter).
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+#if !UE_VERSION_OLDER_THAN(5, 7, 0)
+/** Owns the TSharedPtr<FString> options storage SSearchableComboBox borrows a pointer to. */
+class SRuiSearchableComboBox final : public SCompoundWidget
+{
+public:
+	SLATE_BEGIN_ARGS(SRuiSearchableComboBox) {}
+	SLATE_ARGUMENT(TArray<FString>, Options)
+	SLATE_ARGUMENT(FString, InitiallySelected)
+	SLATE_EVENT(SSearchableComboBox::FOnSelectionChanged, OnSelectionChanged)
+	SLATE_END_ARGS()
+
+	void Construct(const FArguments& InArgs)
+	{
+		for (const FString& Option : InArgs._Options)
+		{
+			Options.Add(MakeShared<FString>(Option));
+		}
+		// clang-format off
+		ChildSlot
+		[
+			SAssignNew(Inner, SSearchableComboBox)
+			.OptionsSource(&Options)
+			.OnSelectionChanged(InArgs._OnSelectionChanged)
+			.OnGenerateWidget(SSearchableComboBox::FOnGenerateWidget::CreateLambda(
+				[](TSharedPtr<FString> Item)
+				{ return SNew(STextBlock).Text(FText::FromString(Item.IsValid() ? *Item : FString())); }))
+			.Content()
+			[
+				SNew(STextBlock)
+					.Text_Lambda([this]()
+					{
+						const TSharedPtr<FString> Sel =
+							Inner.IsValid() ? StaticCastSharedPtr<FString>(Inner->GetSelectedItem()) : nullptr;
+						return FText::FromString(Sel.IsValid() ? *Sel : FString());
+					})
+			]
+		];
+		// clang-format on
+		SetSelected(InArgs._InitiallySelected);
+	}
+
+	void SetOptions(const TArray<FString>& InOptions)
+	{
+		Options.Reset();
+		for (const FString& Option : InOptions)
+		{
+			Options.Add(MakeShared<FString>(Option));
+		}
+		Inner->RefreshOptions();
+	}
+
+	void SetSelected(const FString& Value)
+	{
+		for (const TSharedPtr<FString>& Option : Options)
+		{
+			if (*Option == Value)
+			{
+				Inner->SetSelectedItem(Option);
+				return;
+			}
+		}
+		Inner->ClearSelection();
+	}
+
+	FString GetSelected() const
+	{
+		const TSharedPtr<FString> Sel = StaticCastSharedPtr<FString>(Inner->GetSelectedItem());
+		return Sel.IsValid() ? *Sel : FString();
+	}
+
+private:
+	TArray<TSharedPtr<FString>> Options;
+	TSharedPtr<SSearchableComboBox> Inner;
+};
+
+class FRuiSearchableComboBoxAdapter final : public IRuiElementAdapter
+{
+public:
+	virtual ERuiChildKind GetChildKind() const override { return ERuiChildKind::Leaf; }
+	virtual bool HasEvents() const override { return true; }
+
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase& Props,
+											 const TSharedPtr<FRuiEventProxy>& Proxy) override
+	{
+		const FRuiSearchableComboBoxProps& P = static_cast<const FRuiSearchableComboBoxProps&>(Props);
+		TWeakPtr<FRuiEventProxy> WeakProxy = Proxy;
+		return SNew(SRuiSearchableComboBox)
+			.Options(P.Options)
+			.InitiallySelected(P.SelectedItem.ToString())
+			.OnSelectionChanged(SSearchableComboBox::FOnSelectionChanged::CreateLambda(
+				[WeakProxy](TSharedPtr<FString> Item, ESelectInfo::Type)
+				{
+					if (TSharedPtr<FRuiEventProxy> Pinned = WeakProxy.Pin())
+					{
+						Pinned->HandleText(FText::FromString(Item.IsValid() ? *Item : FString()),
+										   static_cast<int32>(FRuiSearchableComboBoxProps::OnSelectionChanged_Bit));
+					}
+				}));
+	}
+
+	virtual void SyncEventHandlers(FRuiEventProxy& Proxy, const FRuiPropsBase& New) override
+	{
+		const FRuiSearchableComboBoxProps& N = static_cast<const FRuiSearchableComboBoxProps&>(New);
+		Proxy.SetHandler(static_cast<int32>(FRuiSearchableComboBoxProps::OnSelectionChanged_Bit), N.OnSelectionChanged);
+	}
+
+	virtual void ApplyDiff(SWidget& Widget, const FRuiPropsBase* Old, const FRuiPropsBase& New) override
+	{
+		SRuiSearchableComboBox& W = static_cast<SRuiSearchableComboBox&>(Widget);
+		const FRuiSearchableComboBoxProps& N = static_cast<const FRuiSearchableComboBoxProps&>(New);
+		const FRuiSearchableComboBoxProps* O = static_cast<const FRuiSearchableComboBoxProps*>(Old);
+		if (N.HasOptions() && (O == nullptr || !O->HasOptions() || !(N.Options == O->Options)))
+		{
+			W.SetOptions(N.Options);
+		}
+		// Controlled selection (D-16): skip when the widget already agrees.
+		if (N.HasSelectedItem() && W.GetSelected() != N.SelectedItem.ToString())
+		{
+			W.SetSelected(N.SelectedItem.ToString());
+		}
+	}
+};
+#endif // !UE_VERSION_OLDER_THAN(5, 7, 0)
+
 namespace RUI::Slate
 {
 	namespace
@@ -701,6 +835,10 @@ namespace RUI::Slate
 		FRuiElementTypeId NotificationListType()
 		{
 			return RUI::InternElementType(FName(TEXT("NotificationList")));
+		}
+		FRuiElementTypeId SearchableComboBoxType()
+		{
+			return RUI::InternElementType(FName(TEXT("SearchableComboBox")));
 		}
 	} // namespace
 
@@ -781,6 +919,17 @@ namespace RUI::Slate
 		return Node;
 	}
 
+	FRuiNode SearchableComboBox(FRuiSearchableComboBoxProps Props, FRuiKey Key)
+	{
+		FRuiNode Node;
+		Node.Kind = ERuiNodeKind::Host;
+		Node.ElementType = SearchableComboBoxType();
+		Node.Props = MakeShared<FRuiSearchableComboBoxProps>(MoveTemp(Props));
+		Node.Children = RUI::MakeChildren(TArray<FRuiNode>());
+		Node.Key = Key;
+		return Node;
+	}
+
 	namespace Detail
 	{
 		void RegisterBatch3Wave3Adapters()
@@ -792,6 +941,9 @@ namespace RUI::Slate
 			RegisterAdapter(NumericDropDownType(), MakeUnique<FRuiNumericDropDownAdapter>());
 			RegisterAdapter(BreadcrumbTrailType(), MakeUnique<FRuiBreadcrumbTrailAdapter>());
 			RegisterAdapter(NotificationListType(), MakeUnique<FRuiNotificationListAdapter>());
+#if !UE_VERSION_OLDER_THAN(5, 7, 0)
+			RegisterAdapter(SearchableComboBoxType(), MakeUnique<FRuiSearchableComboBoxAdapter>());
+#endif
 		}
 	} // namespace Detail
 } // namespace RUI::Slate

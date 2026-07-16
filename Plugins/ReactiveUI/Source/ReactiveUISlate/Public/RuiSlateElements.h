@@ -139,6 +139,24 @@ struct REACTIVEUISLATE_API FRuiNotificationListProps final : public FRuiPropsBas
 	RUI_PROPS_BODY(FRuiNotificationListProps, )
 };
 
+/** SSearchableComboBox (Leaf) - sinceUE 5.7 (the widget does not exist in 5.6; mounting on
+ *  5.6 warns unknown-adapter). Options are strings; SelectedItem is controlled; picks report
+ *  via OnSelectionChanged (text payload). */
+struct REACTIVEUISLATE_API FRuiSearchableComboBoxProps final : public FRuiPropsBase
+{
+	RUI_PROP(TArray<FString>, Options, 0)
+	RUI_PROP(FText, SelectedItem, 1)
+	RUI_PROP_EVENT(OnSelectionChanged, 2)
+
+	virtual bool Equals(const FRuiPropsBase& OtherBase) const override
+	{
+		const FRuiSearchableComboBoxProps& Other = static_cast<const FRuiSearchableComboBoxProps&>(OtherBase);
+		auto TextEq = [](const FText& A, const FText& B) { return A.IdenticalTo(B) || A.ToString() == B.ToString(); };
+		return BaseFieldsEqual(Other) && Options == Other.Options && TextEq(SelectedItem, Other.SelectedItem) &&
+			   OnSelectionChanged == Other.OnSelectionChanged;
+	}
+};
+
 /** SBorder (SingleContent). Alignment values: fill|left|center|right / fill|top|center|bottom.
  *  BorderImage takes an FCoreStyle brush NAME (v1 — e.g. "WhiteBrush" for a solid fill
  *  tinted by BorderBackgroundColor; the engine default is a thin frame-type brush). Asset
@@ -809,6 +827,8 @@ namespace RUI::Slate
 												 FRuiKey Key = FRuiKey());
 	REACTIVEUISLATE_API FRuiNode NotificationList(FRuiNotificationListProps Props = FRuiNotificationListProps(),
 												  FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode SearchableComboBox(FRuiSearchableComboBoxProps Props = FRuiSearchableComboBoxProps(),
+													FRuiKey Key = FRuiKey()); // sinceUE 5.7
 
 	/** P4 command: push a toast onto a Ref-captured <NotificationList> (no-op on a dead/wrong
 	 *  handle). The full FNotificationInfo surface stays reachable via WidgetFromHandle. */
