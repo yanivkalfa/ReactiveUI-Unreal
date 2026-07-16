@@ -535,6 +535,86 @@ struct REACTIVEUISLATE_API FRuiInputKeySelectorProps final : public FRuiPropsBas
 	}
 };
 
+/** SEditableText (Leaf): the RAW single-line text edit (no box chrome) — full live setters;
+ *  Text follows the D-16 controlled rule (skip-when-equal against the widget). */
+struct REACTIVEUISLATE_API FRuiEditableTextProps final : public FRuiPropsBase
+{
+	RUI_PROP(FText, Text, 0)
+	RUI_PROP(FText, HintText, 1)
+	RUI_PROP(bool, bIsReadOnly, 2)
+	RUI_PROP(bool, bIsPassword, 3)
+	RUI_PROP(float, MinDesiredWidth, 4)
+	RUI_PROP_EVENT(OnTextChanged, 5)
+	RUI_PROP_EVENT(OnTextCommitted, 6)
+
+	virtual bool Equals(const FRuiPropsBase& OtherBase) const override
+	{
+		const FRuiEditableTextProps& Other = static_cast<const FRuiEditableTextProps&>(OtherBase);
+		auto TextEq = [](const FText& A, const FText& B) { return A.IdenticalTo(B) || A.ToString() == B.ToString(); };
+		return BaseFieldsEqual(Other) && TextEq(Text, Other.Text) && TextEq(HintText, Other.HintText) &&
+			   bIsReadOnly == Other.bIsReadOnly && bIsPassword == Other.bIsPassword &&
+			   MinDesiredWidth == Other.MinDesiredWidth && OnTextChanged == Other.OnTextChanged &&
+			   OnTextCommitted == Other.OnTextCommitted;
+	}
+};
+
+/** SInlineEditableTextBlock (Leaf): text that turns into an editor on slow-click/F2.
+ *  bMultiLine is construct-only (masked); Enter/ExitEditingMode ride P2. */
+struct REACTIVEUISLATE_API FRuiInlineEditableTextBlockProps final : public FRuiPropsBase
+{
+	RUI_PROP(FText, Text, 0)
+	RUI_PROP(FText, HintText, 1)
+	RUI_PROP(bool, bIsReadOnly, 2)
+	RUI_PROP(float, WrapTextAt, 3)
+	RUI_PROP(bool, bMultiLine, 4)
+	RUI_PROP_EVENT(OnTextCommitted, 5)
+
+	virtual bool Equals(const FRuiPropsBase& OtherBase) const override
+	{
+		const FRuiInlineEditableTextBlockProps& Other = static_cast<const FRuiInlineEditableTextBlockProps&>(OtherBase);
+		auto TextEq = [](const FText& A, const FText& B) { return A.IdenticalTo(B) || A.ToString() == B.ToString(); };
+		return BaseFieldsEqual(Other) && TextEq(Text, Other.Text) && TextEq(HintText, Other.HintText) &&
+			   bIsReadOnly == Other.bIsReadOnly && WrapTextAt == Other.WrapTextAt && bMultiLine == Other.bMultiLine &&
+			   OnTextCommitted == Other.OnTextCommitted;
+	}
+};
+
+/** SVirtualKeyboardEntry (Leaf): the mobile OS-keyboard text field. Text is live (D-16);
+ *  HintText/bIsReadOnly/KeyboardType are construct-only (masked). Ticks. */
+struct REACTIVEUISLATE_API FRuiVirtualKeyboardEntryProps final : public FRuiPropsBase
+{
+	RUI_PROP(FText, Text, 0)
+	RUI_PROP(FText, HintText, 1)
+	RUI_PROP(bool, bIsReadOnly, 2)
+	RUI_PROP(FName, KeyboardType, 3)
+	RUI_PROP_EVENT(OnTextChanged, 4)
+	RUI_PROP_EVENT(OnTextCommitted, 5)
+
+	virtual bool Equals(const FRuiPropsBase& OtherBase) const override
+	{
+		const FRuiVirtualKeyboardEntryProps& Other = static_cast<const FRuiVirtualKeyboardEntryProps&>(OtherBase);
+		auto TextEq = [](const FText& A, const FText& B) { return A.IdenticalTo(B) || A.ToString() == B.ToString(); };
+		return BaseFieldsEqual(Other) && TextEq(Text, Other.Text) && TextEq(HintText, Other.HintText) &&
+			   bIsReadOnly == Other.bIsReadOnly && KeyboardType == Other.KeyboardType &&
+			   OnTextChanged == Other.OnTextChanged && OnTextCommitted == Other.OnTextCommitted;
+	}
+};
+
+/** SColorGradingWheel (Leaf; the AdvancedWidgets module — live one; the Slate-module twin is
+ *  deprecated 5.5): all attrs have live attribute setters. SelectedColor is HSV-space. */
+struct REACTIVEUISLATE_API FRuiColorGradingWheelProps final : public FRuiPropsBase
+{
+	RUI_PROP(FLinearColor, SelectedColor, 0)
+	RUI_PROP(int32, DesiredWheelSize, 1)
+	RUI_PROP(float, ExponentDisplacement, 2)
+	RUI_PROP_EVENT(OnValueChanged, 3)
+	RUI_PROP_EVENT(OnMouseCaptureBegin, 4)
+	RUI_PROP_EVENT(OnMouseCaptureEnd, 5)
+	RUI_PROPS_BODY(FRuiColorGradingWheelProps,
+				   RUI_EQ(SelectedColor) RUI_EQ(DesiredWheelSize) RUI_EQ(ExponentDisplacement) RUI_EQ(OnValueChanged)
+					   RUI_EQ(OnMouseCaptureBegin) RUI_EQ(OnMouseCaptureEnd))
+};
+
 namespace RUI::Slate
 {
 	REACTIVEUISLATE_API FRuiElementTypeId VerticalBoxType();
@@ -626,6 +706,14 @@ namespace RUI::Slate
 											  FRuiKey Key = FRuiKey());
 	REACTIVEUISLATE_API FRuiNode InputKeySelector(FRuiInputKeySelectorProps Props = FRuiInputKeySelectorProps(),
 												  FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode EditableText(FRuiEditableTextProps Props = FRuiEditableTextProps(),
+											  FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode InlineEditableTextBlock(
+		FRuiInlineEditableTextBlockProps Props = FRuiInlineEditableTextBlockProps(), FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode VirtualKeyboardEntry(
+		FRuiVirtualKeyboardEntryProps Props = FRuiVirtualKeyboardEntryProps(), FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode ColorGradingWheel(FRuiColorGradingWheelProps Props = FRuiColorGradingWheelProps(),
+												   FRuiKey Key = FRuiKey());
 	REACTIVEUISLATE_API FRuiNode UniformGridPanel(FRuiUniformGridPanelProps Props = FRuiUniformGridPanelProps(),
 												  TArray<FRuiNode> Children = TArray<FRuiNode>(),
 												  FRuiKey Key = FRuiKey());

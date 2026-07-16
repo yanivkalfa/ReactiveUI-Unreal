@@ -27,6 +27,7 @@ public class ReactiveUISlate : ModuleRules
 		{
 			"CoreUObject",     // Engine types below pull it in
 			"ApplicationCore", // FDisplayMetrics (UseSafeArea)
+			"AdvancedWidgets", // UE::ColorGrading::SColorGradingWheel (WIDGET_COMPLETION_PLAN wave 2)
 			"Engine",          // the game-viewport mount surface (UGameViewportClient)
 		});
 	}

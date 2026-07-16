@@ -21,6 +21,7 @@
 #include "Widgets/Images/SLayeredImage.h"
 #include "Widgets/Input/SHyperlink.h"
 #include "Widgets/Input/SInputKeySelector.h"
+#include "Widgets/Input/SVirtualKeyboardEntry.h"
 #include "Widgets/Input/SVolumeControl.h"
 #include "Widgets/Layout/SBackgroundBlur.h"
 #include "Widgets/Layout/SBox.h" // SEnableBox is an SBox — content goes through SBox::SetContent
@@ -29,6 +30,9 @@
 #include "Widgets/Layout/SScissorRectBox.h"
 #include "Widgets/SInvalidationPanel.h"
 #include "Widgets/SNullWidget.h"
+#include "Widgets/ColorGrading/SColorGradingWheel.h"
+#include "Widgets/Input/SEditableText.h"
+#include "Widgets/Text/SInlineEditableTextBlock.h"
 #include "Widgets/Text/STextScroller.h"
 
 namespace
@@ -693,6 +697,251 @@ public:
 };
 
 // ─────────────────────────────────────────────────────────────────────────────────────────
+// SEditableText (wave 2) — the raw single-line edit; full live setters; D-16 caret rule.
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+class FRuiEditableTextAdapter final : public IRuiElementAdapter
+{
+public:
+	virtual ERuiChildKind GetChildKind() const override { return ERuiChildKind::Leaf; }
+	virtual bool HasEvents() const override { return true; }
+	// Stateful (caret/selection): IsPoolable() already excludes event-bearing leaves.
+
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase&, const TSharedPtr<FRuiEventProxy>& Proxy) override
+	{
+		return SNew(SEditableText)
+			.OnTextChanged(FOnTextChanged::CreateSP(Proxy.ToSharedRef(), &FRuiEventProxy::HandleText,
+													static_cast<int32>(FRuiEditableTextProps::OnTextChanged_Bit)))
+			.OnTextCommitted(
+				FOnTextCommitted::CreateSP(Proxy.ToSharedRef(), &FRuiEventProxy::HandleTextCommit,
+										   static_cast<int32>(FRuiEditableTextProps::OnTextCommitted_Bit)));
+	}
+
+	virtual void SyncEventHandlers(FRuiEventProxy& Proxy, const FRuiPropsBase& New) override
+	{
+		const FRuiEditableTextProps& N = static_cast<const FRuiEditableTextProps&>(New);
+		Proxy.SetHandler(static_cast<int32>(FRuiEditableTextProps::OnTextChanged_Bit), N.OnTextChanged);
+		Proxy.SetHandler(static_cast<int32>(FRuiEditableTextProps::OnTextCommitted_Bit), N.OnTextCommitted);
+	}
+
+	virtual void ApplyDiff(SWidget& Widget, const FRuiPropsBase* Old, const FRuiPropsBase& New) override
+	{
+		SEditableText& W = static_cast<SEditableText&>(Widget);
+		const FRuiEditableTextProps& N = static_cast<const FRuiEditableTextProps&>(New);
+		const FRuiEditableTextProps* O = static_cast<const FRuiEditableTextProps*>(Old);
+		// D-16: skip-when-equal against the WIDGET so the caret survives the typing round-trip.
+		if (N.HasText() && W.GetText().ToString() != N.Text.ToString())
+		{
+			W.SetText(N.Text);
+		}
+		if (N.HasHintText() &&
+			(O == nullptr || !O->HasHintText() ||
+			 !(N.HintText.IdenticalTo(O->HintText) || N.HintText.ToString() == O->HintText.ToString())))
+		{
+			W.SetHintText(N.HintText);
+		}
+		RUI_ROW(bIsReadOnly, W.SetIsReadOnly(N.bIsReadOnly))
+		RUI_ROW(bIsPassword, W.SetIsPassword(N.bIsPassword))
+		RUI_ROW(MinDesiredWidth, W.SetMinDesiredWidth(N.MinDesiredWidth))
+	}
+};
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// SInlineEditableTextBlock (wave 2) — click-to-edit label; bMultiLine construct-only.
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+class FRuiInlineEditableTextBlockAdapter final : public IRuiElementAdapter
+{
+public:
+	virtual ERuiChildKind GetChildKind() const override { return ERuiChildKind::Leaf; }
+	virtual bool HasEvents() const override { return true; }
+
+	virtual uint64 GetReconstructMask() const override
+	{
+		return 1ull << FRuiInlineEditableTextBlockProps::bMultiLine_Bit;
+	}
+
+	virtual bool ConstructOnlyChanged(const FRuiPropsBase& Old, const FRuiPropsBase& New) const override
+	{
+		const FRuiInlineEditableTextBlockProps& O = static_cast<const FRuiInlineEditableTextBlockProps&>(Old);
+		const FRuiInlineEditableTextBlockProps& N = static_cast<const FRuiInlineEditableTextBlockProps&>(New);
+		return RUI_CTOR_CHANGED(bMultiLine);
+	}
+
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase& Props,
+											 const TSharedPtr<FRuiEventProxy>& Proxy) override
+	{
+		const FRuiInlineEditableTextBlockProps& P = static_cast<const FRuiInlineEditableTextBlockProps&>(Props);
+		return SNew(SInlineEditableTextBlock)
+			.MultiLine(P.HasbMultiLine() && P.bMultiLine)
+			.OnTextCommitted(
+				FOnTextCommitted::CreateSP(Proxy.ToSharedRef(), &FRuiEventProxy::HandleTextCommit,
+										   static_cast<int32>(FRuiInlineEditableTextBlockProps::OnTextCommitted_Bit)));
+	}
+
+	virtual void SyncEventHandlers(FRuiEventProxy& Proxy, const FRuiPropsBase& New) override
+	{
+		const FRuiInlineEditableTextBlockProps& N = static_cast<const FRuiInlineEditableTextBlockProps&>(New);
+		Proxy.SetHandler(static_cast<int32>(FRuiInlineEditableTextBlockProps::OnTextCommitted_Bit), N.OnTextCommitted);
+	}
+
+	virtual void ApplyDiff(SWidget& Widget, const FRuiPropsBase* Old, const FRuiPropsBase& New) override
+	{
+		SInlineEditableTextBlock& W = static_cast<SInlineEditableTextBlock&>(Widget);
+		const FRuiInlineEditableTextBlockProps& N = static_cast<const FRuiInlineEditableTextBlockProps&>(New);
+		const FRuiInlineEditableTextBlockProps* O = static_cast<const FRuiInlineEditableTextBlockProps*>(Old);
+		// No widget-side text getter — diff against the previous PROPS (commit-to-commit).
+		if (N.HasText() && (O == nullptr || !O->HasText() ||
+							!(N.Text.IdenticalTo(O->Text) || N.Text.ToString() == O->Text.ToString())))
+		{
+			W.SetText(N.Text);
+		}
+		if (N.HasHintText() &&
+			(O == nullptr || !O->HasHintText() ||
+			 !(N.HintText.IdenticalTo(O->HintText) || N.HintText.ToString() == O->HintText.ToString())))
+		{
+			W.SetHintText(N.HintText);
+		}
+		RUI_ROW(bIsReadOnly, W.SetReadOnly(N.bIsReadOnly))
+		RUI_ROW(WrapTextAt, W.SetWrapTextAt(N.WrapTextAt))
+	}
+};
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// SVirtualKeyboardEntry (wave 2) — mobile OS-keyboard field; Text live, the rest masked.
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+class FRuiVirtualKeyboardEntryAdapter final : public IRuiElementAdapter
+{
+public:
+	virtual ERuiChildKind GetChildKind() const override { return ERuiChildKind::Leaf; }
+	virtual bool HasEvents() const override { return true; }
+
+	virtual uint64 GetReconstructMask() const override
+	{
+		return (1ull << FRuiVirtualKeyboardEntryProps::HintText_Bit) |
+			   (1ull << FRuiVirtualKeyboardEntryProps::bIsReadOnly_Bit) |
+			   (1ull << FRuiVirtualKeyboardEntryProps::KeyboardType_Bit);
+	}
+
+	virtual bool ConstructOnlyChanged(const FRuiPropsBase& Old, const FRuiPropsBase& New) const override
+	{
+		const FRuiVirtualKeyboardEntryProps& O = static_cast<const FRuiVirtualKeyboardEntryProps&>(Old);
+		const FRuiVirtualKeyboardEntryProps& N = static_cast<const FRuiVirtualKeyboardEntryProps&>(New);
+		const bool bHint = N.HasHintText() && (!O.HasHintText() || !(N.HintText.IdenticalTo(O.HintText) ||
+																	 N.HintText.ToString() == O.HintText.ToString()));
+		return bHint || RUI_CTOR_CHANGED(bIsReadOnly) || RUI_CTOR_CHANGED(KeyboardType);
+	}
+
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase& Props,
+											 const TSharedPtr<FRuiEventProxy>& Proxy) override
+	{
+		const FRuiVirtualKeyboardEntryProps& P = static_cast<const FRuiVirtualKeyboardEntryProps&>(Props);
+		const EKeyboardType Keyboard = P.KeyboardType == FName(TEXT("number"))	   ? Keyboard_Number
+									   : P.KeyboardType == FName(TEXT("web"))	   ? Keyboard_Web
+									   : P.KeyboardType == FName(TEXT("email"))	   ? Keyboard_Email
+									   : P.KeyboardType == FName(TEXT("password")) ? Keyboard_Password
+																				   : Keyboard_Default;
+		return SNew(SVirtualKeyboardEntry)
+			.Text(P.Text)
+			.HintText(P.HintText)
+			.IsReadOnly(P.HasbIsReadOnly() && P.bIsReadOnly)
+			.KeyboardType(Keyboard)
+			.OnTextChanged(
+				FOnTextChanged::CreateSP(Proxy.ToSharedRef(), &FRuiEventProxy::HandleText,
+										 static_cast<int32>(FRuiVirtualKeyboardEntryProps::OnTextChanged_Bit)))
+			.OnTextCommitted(
+				FOnTextCommitted::CreateSP(Proxy.ToSharedRef(), &FRuiEventProxy::HandleTextCommit,
+										   static_cast<int32>(FRuiVirtualKeyboardEntryProps::OnTextCommitted_Bit)));
+	}
+
+	virtual void SyncEventHandlers(FRuiEventProxy& Proxy, const FRuiPropsBase& New) override
+	{
+		const FRuiVirtualKeyboardEntryProps& N = static_cast<const FRuiVirtualKeyboardEntryProps&>(New);
+		Proxy.SetHandler(static_cast<int32>(FRuiVirtualKeyboardEntryProps::OnTextChanged_Bit), N.OnTextChanged);
+		Proxy.SetHandler(static_cast<int32>(FRuiVirtualKeyboardEntryProps::OnTextCommitted_Bit), N.OnTextCommitted);
+	}
+
+	virtual void ApplyDiff(SWidget& Widget, const FRuiPropsBase* Old, const FRuiPropsBase& New) override
+	{
+		SVirtualKeyboardEntry& W = static_cast<SVirtualKeyboardEntry&>(Widget);
+		const FRuiVirtualKeyboardEntryProps& N = static_cast<const FRuiVirtualKeyboardEntryProps&>(New);
+		if (N.HasText() && W.GetText().ToString() != N.Text.ToString()) // D-16
+		{
+			W.SetText(N.Text);
+		}
+	}
+};
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// SColorGradingWheel (wave 2; AdvancedWidgets module) — live attribute setters throughout.
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+class FRuiColorGradingWheelAdapter final : public IRuiElementAdapter
+{
+	using SWheel = UE::ColorGrading::SColorGradingWheel;
+
+public:
+	virtual ERuiChildKind GetChildKind() const override { return ERuiChildKind::Leaf; }
+	virtual bool HasEvents() const override { return true; }
+
+	// The attribute setters are PROTECTED in the engine class - construct-only from outside.
+	virtual uint64 GetReconstructMask() const override
+	{
+		return (1ull << FRuiColorGradingWheelProps::SelectedColor_Bit) |
+			   (1ull << FRuiColorGradingWheelProps::DesiredWheelSize_Bit) |
+			   (1ull << FRuiColorGradingWheelProps::ExponentDisplacement_Bit);
+	}
+
+	virtual bool ConstructOnlyChanged(const FRuiPropsBase& Old, const FRuiPropsBase& New) const override
+	{
+		const FRuiColorGradingWheelProps& O = static_cast<const FRuiColorGradingWheelProps&>(Old);
+		const FRuiColorGradingWheelProps& N = static_cast<const FRuiColorGradingWheelProps&>(New);
+		return RUI_CTOR_CHANGED(SelectedColor) || RUI_CTOR_CHANGED(DesiredWheelSize) ||
+			   RUI_CTOR_CHANGED(ExponentDisplacement);
+	}
+
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase& Props,
+											 const TSharedPtr<FRuiEventProxy>& Proxy) override
+	{
+		const FRuiColorGradingWheelProps& P = static_cast<const FRuiColorGradingWheelProps&>(Props);
+		SWheel::FArguments Args;
+		Args.SelectedColor(P.HasSelectedColor() ? P.SelectedColor : FLinearColor::White)
+			.OnValueChanged(SWheel::FOnColorGradingWheelValueChanged::CreateSP(
+				Proxy.ToSharedRef(), &FRuiEventProxy::HandleColorRef,
+				static_cast<int32>(FRuiColorGradingWheelProps::OnValueChanged_Bit)))
+			.OnMouseCaptureBegin(SWheel::FOnColorGradingWheelMouseCapture::CreateSP(
+				Proxy.ToSharedRef(), &FRuiEventProxy::HandleColorRef,
+				static_cast<int32>(FRuiColorGradingWheelProps::OnMouseCaptureBegin_Bit)))
+			.OnMouseCaptureEnd(SWheel::FOnColorGradingWheelMouseCapture::CreateSP(
+				Proxy.ToSharedRef(), &FRuiEventProxy::HandleColorRef,
+				static_cast<int32>(FRuiColorGradingWheelProps::OnMouseCaptureEnd_Bit)));
+		if (P.HasDesiredWheelSize())
+		{
+			Args.DesiredWheelSize(P.DesiredWheelSize);
+		}
+		if (P.HasExponentDisplacement())
+		{
+			Args.ExponentDisplacement(P.ExponentDisplacement);
+		}
+		TSharedRef<SWheel> W = SNew(SWheel);
+		W->Construct(Args);
+		return W;
+	}
+
+	virtual void SyncEventHandlers(FRuiEventProxy& Proxy, const FRuiPropsBase& New) override
+	{
+		const FRuiColorGradingWheelProps& N = static_cast<const FRuiColorGradingWheelProps&>(New);
+		Proxy.SetHandler(static_cast<int32>(FRuiColorGradingWheelProps::OnValueChanged_Bit), N.OnValueChanged);
+		Proxy.SetHandler(static_cast<int32>(FRuiColorGradingWheelProps::OnMouseCaptureBegin_Bit),
+						 N.OnMouseCaptureBegin);
+		Proxy.SetHandler(static_cast<int32>(FRuiColorGradingWheelProps::OnMouseCaptureEnd_Bit), N.OnMouseCaptureEnd);
+	}
+
+	virtual void ApplyDiff(SWidget&, const FRuiPropsBase*, const FRuiPropsBase&) override {} // all masked
+};
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
 // Type ids + factories + registration
 // ─────────────────────────────────────────────────────────────────────────────────────────
 
@@ -772,6 +1021,22 @@ namespace RUI::Slate
 		{
 			return RUI::InternElementType(FName(TEXT("InputKeySelector")));
 		}
+		FRuiElementTypeId EditableTextType()
+		{
+			return RUI::InternElementType(FName(TEXT("EditableText")));
+		}
+		FRuiElementTypeId InlineEditableTextBlockType()
+		{
+			return RUI::InternElementType(FName(TEXT("InlineEditableTextBlock")));
+		}
+		FRuiElementTypeId VirtualKeyboardEntryType()
+		{
+			return RUI::InternElementType(FName(TEXT("VirtualKeyboardEntry")));
+		}
+		FRuiElementTypeId ColorGradingWheelType()
+		{
+			return RUI::InternElementType(FName(TEXT("ColorGradingWheel")));
+		}
 	} // namespace
 
 	FRuiNode ColorBlock(FRuiColorBlockProps Props, FRuiKey Key)
@@ -834,6 +1099,22 @@ namespace RUI::Slate
 	{
 		return MakeHostNodeB3(InputKeySelectorType(), MoveTemp(Props), TArray<FRuiNode>(), Key);
 	}
+	FRuiNode EditableText(FRuiEditableTextProps Props, FRuiKey Key)
+	{
+		return MakeHostNodeB3(EditableTextType(), MoveTemp(Props), TArray<FRuiNode>(), Key);
+	}
+	FRuiNode InlineEditableTextBlock(FRuiInlineEditableTextBlockProps Props, FRuiKey Key)
+	{
+		return MakeHostNodeB3(InlineEditableTextBlockType(), MoveTemp(Props), TArray<FRuiNode>(), Key);
+	}
+	FRuiNode VirtualKeyboardEntry(FRuiVirtualKeyboardEntryProps Props, FRuiKey Key)
+	{
+		return MakeHostNodeB3(VirtualKeyboardEntryType(), MoveTemp(Props), TArray<FRuiNode>(), Key);
+	}
+	FRuiNode ColorGradingWheel(FRuiColorGradingWheelProps Props, FRuiKey Key)
+	{
+		return MakeHostNodeB3(ColorGradingWheelType(), MoveTemp(Props), TArray<FRuiNode>(), Key);
+	}
 
 	namespace Detail
 	{
@@ -854,6 +1135,10 @@ namespace RUI::Slate
 			RegisterAdapter(ColorSpectrumType(), MakeUnique<FRuiColorSpectrumAdapter>());
 			RegisterAdapter(LayeredImageType(), MakeUnique<FRuiLayeredImageAdapter>());
 			RegisterAdapter(InputKeySelectorType(), MakeUnique<FRuiInputKeySelectorAdapter>());
+			RegisterAdapter(EditableTextType(), MakeUnique<FRuiEditableTextAdapter>());
+			RegisterAdapter(InlineEditableTextBlockType(), MakeUnique<FRuiInlineEditableTextBlockAdapter>());
+			RegisterAdapter(VirtualKeyboardEntryType(), MakeUnique<FRuiVirtualKeyboardEntryAdapter>());
+			RegisterAdapter(ColorGradingWheelType(), MakeUnique<FRuiColorGradingWheelAdapter>());
 		}
 	} // namespace Detail
 } // namespace RUI::Slate

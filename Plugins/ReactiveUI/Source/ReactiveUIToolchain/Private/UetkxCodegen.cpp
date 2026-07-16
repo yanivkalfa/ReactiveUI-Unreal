@@ -172,6 +172,48 @@ namespace
 				M.Add(TEXT("InputKeySelector"), MoveTemp(T));
 			}
 			{
+				FTagDef T{TEXT("RUI::Slate::EditableText"), TEXT("FRuiEditableTextProps"), false, {}};
+				T.Attrs.Add(TEXT("Text"), EAttrType::Text);
+				T.Attrs.Add(TEXT("HintText"), EAttrType::Text);
+				T.Attrs.Add(TEXT("bIsReadOnly"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("bIsPassword"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("MinDesiredWidth"), EAttrType::Float);
+				T.Attrs.Add(TEXT("OnTextChanged"), EAttrType::Event);
+				T.Attrs.Add(TEXT("OnTextCommitted"), EAttrType::Event);
+				M.Add(TEXT("EditableText"), MoveTemp(T));
+			}
+			{
+				FTagDef T{
+					TEXT("RUI::Slate::InlineEditableTextBlock"), TEXT("FRuiInlineEditableTextBlockProps"), false, {}};
+				T.Attrs.Add(TEXT("Text"), EAttrType::Text);
+				T.Attrs.Add(TEXT("HintText"), EAttrType::Text);
+				T.Attrs.Add(TEXT("bIsReadOnly"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("WrapTextAt"), EAttrType::Float);
+				T.Attrs.Add(TEXT("bMultiLine"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("OnTextCommitted"), EAttrType::Event);
+				M.Add(TEXT("InlineEditableTextBlock"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::VirtualKeyboardEntry"), TEXT("FRuiVirtualKeyboardEntryProps"), false, {}};
+				T.Attrs.Add(TEXT("Text"), EAttrType::Text);
+				T.Attrs.Add(TEXT("HintText"), EAttrType::Text);
+				T.Attrs.Add(TEXT("bIsReadOnly"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("KeyboardType"), EAttrType::Name);
+				T.Attrs.Add(TEXT("OnTextChanged"), EAttrType::Event);
+				T.Attrs.Add(TEXT("OnTextCommitted"), EAttrType::Event);
+				M.Add(TEXT("VirtualKeyboardEntry"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::ColorGradingWheel"), TEXT("FRuiColorGradingWheelProps"), false, {}};
+				T.Attrs.Add(TEXT("SelectedColor"), EAttrType::Color);
+				T.Attrs.Add(TEXT("DesiredWheelSize"), EAttrType::Int);
+				T.Attrs.Add(TEXT("ExponentDisplacement"), EAttrType::Float);
+				T.Attrs.Add(TEXT("OnValueChanged"), EAttrType::Event);
+				T.Attrs.Add(TEXT("OnMouseCaptureBegin"), EAttrType::Event);
+				T.Attrs.Add(TEXT("OnMouseCaptureEnd"), EAttrType::Event);
+				M.Add(TEXT("ColorGradingWheel"), MoveTemp(T));
+			}
+			{
 				FTagDef T{TEXT("RUI::Slate::Border"), TEXT("FRuiBorderProps"), true, {}};
 				T.Attrs.Add(TEXT("Padding"), EAttrType::Margin);
 				T.Attrs.Add(TEXT("BorderBackgroundColor"), EAttrType::Color);
