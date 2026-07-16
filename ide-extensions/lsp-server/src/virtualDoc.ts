@@ -29,8 +29,12 @@ export interface VirtualDoc {
  *  header added to the aggregator prelude should be added here too. */
 const PRELUDE = [
   "// GENERATED virtual C++ for .uetkx embedded-code intelligence (TD-020). Do not edit.",
+  '#include "CoreMinimal.h"',
   '#include "RuiContext.h"',
   '#include "RuiCoreElements.h"',
+  '#include "RuiSignal.h"',
+  '#include "RuiSlateElements.h"',
+  '#include "RuiStyle.h"',
   '#include "RuiRouter.h"',
   '#include "RuiAssetBrush.h"',
   '#include "RuiFieldHooks.h"',
