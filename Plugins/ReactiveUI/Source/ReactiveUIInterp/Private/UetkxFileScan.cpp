@@ -165,6 +165,32 @@ namespace
 		return Out;
 	}
 
+	/** The quoted or angle-bracket header path inside a `#include "X.h"` / `#include <X.h>` line,
+	 *  or empty if malformed (UETKX2317 redundancy hint, INCLUDE_RETIREMENT_PLAN.md §B). */
+	FString ExtractIncludeHeader(const FString& Line)
+	{
+		int32 Open = INDEX_NONE;
+		TCHAR CloseChar = TEXT('"');
+		if (Line.FindChar(TEXT('"'), Open))
+		{
+			CloseChar = TEXT('"');
+		}
+		else if (Line.FindChar(TEXT('<'), Open))
+		{
+			CloseChar = TEXT('>');
+		}
+		else
+		{
+			return FString();
+		}
+		int32 Close = INDEX_NONE;
+		if (!Line.Mid(Open + 1).FindChar(CloseChar, Close))
+		{
+			return FString();
+		}
+		return Line.Mid(Open + 1, Close);
+	}
+
 	/** Advance past the rest of the current line (error resync for a malformed preamble import). */
 	int32 AdvancePastLine(const TArray<int32>& Src, int32 i)
 	{
@@ -176,10 +202,13 @@ namespace
 		return i < N ? i + 1 : i;
 	}
 
-	/** Parse a preamble `import { A, B } from "spec"` at `Start` (the `import` keyword). Records the
-	 *  FUetkxImportDecl + duplicate-import diagnostics (UETKX2303) into Out; ImportedFrom tracks
-	 *  name -> first specifier across the whole file. Returns the index just past the import (or the
-	 *  resync point on a malformed import). Named exports only — no `*`, no default (A1). */
+	/** Parse a preamble import at `Start` (the `import` keyword) — either the NAMED form
+	 *  `import { A, B } from "spec"` (named exports only — no `*`, no default, A1) or the HOST
+	 *  INCLUDE form `import "@Header.h"` (INCLUDE_RETIREMENT_PLAN.md §B — no braces, no `from`,
+	 *  no names). Records the FUetkxImportDecl + duplicate-import diagnostics (UETKX2303) into
+	 *  Out; ImportedFrom tracks name -> first specifier for named imports and payload -> payload
+	 *  for host includes (the keyspaces cannot collide). Returns the index just past the import
+	 *  (or the resync point on a malformed one). */
 	int32 ParseImport(const TArray<int32>& Src, int32 Start, FUetkxFileScanResult& Out,
 					  TMap<FString, FString>& ImportedFrom)
 	{
@@ -187,9 +216,57 @@ namespace
 		FUetkxImportDecl Imp;
 		Imp.At = Start;
 		int32 k = SkipWsOnly(Src, Start + 6); // past "import"
+
+		// INCLUDE_RETIREMENT_PLAN.md §B: `import "@Header.h"` — a nameless HOST INCLUDE. The named
+		// form always starts `{`; a leading quote routes here instead (no `from` clause).
+		if (k < N && (Src[k] == C_QUOTE || Src[k] == C_APOS))
+		{
+			const int32 Quote = Src[k];
+			const int32 QuoteAt = k;
+			int32 q = k + 1;
+			while (q < N && Src[q] != Quote && Src[q] != C_NL)
+			{
+				++q;
+			}
+			if (q >= N || Src[q] != Quote)
+			{
+				AddDiag(Out.Diags, TEXT("UETKX0300"), 0, TEXT("unterminated import specifier string"), QuoteAt);
+				return AdvancePastLine(Src, QuoteAt);
+			}
+			const FString Payload = FUetkxLexer::FromCodePoints(Src, QuoteAt + 1, q - (QuoteAt + 1));
+			const int32 End = q + 1;
+			if (!Payload.StartsWith(TEXT("@")))
+			{
+				AddDiag(Out.Diags, TEXT("UETKX0303"), 0,
+						TEXT("import expects `{ Name, ... } from \"...\"` or a `\"@Header.h\"` host include"), QuoteAt);
+				return AdvancePastLine(Src, End);
+			}
+			FUetkxImportDecl HostImp;
+			HostImp.At = Start;
+			HostImp.bHostInclude = true;
+			HostImp.SpecifierAt = QuoteAt;
+			HostImp.Specifier = Payload.Mid(1); // strip the leading '@'
+			// Duplicate-payload check (2303 rule, applied to host includes): ImportedFrom is keyed by
+			// NAME for named imports and by PAYLOAD here — the keyspaces never collide (names are bare
+			// identifiers; header payloads always contain `/` or `.`).
+			if (ImportedFrom.Contains(HostImp.Specifier))
+			{
+				AddDiag(Out.Diags, TEXT("UETKX2303"), 0,
+						FString::Printf(TEXT("duplicate host include `%s`"), *HostImp.Specifier), QuoteAt,
+						Payload.Len());
+			}
+			else
+			{
+				ImportedFrom.Add(HostImp.Specifier, HostImp.Specifier);
+			}
+			Out.Imports.Add(MoveTemp(HostImp));
+			return End;
+		}
+
 		if (k >= N || Src[k] != C_LBRACE)
 		{
-			AddDiag(Out.Diags, TEXT("UETKX0303"), 0, TEXT("import expects `{ Name, ... }` after `import`"),
+			AddDiag(Out.Diags, TEXT("UETKX0303"), 0,
+					TEXT("import expects `{ Name, ... }` or a `\"@Header.h\"` host include after `import`"),
 					FMath::Min(k, N - 1));
 			return AdvancePastLine(Src, k);
 		}
@@ -586,6 +663,33 @@ const TArray<FString>& FUetkxFileScan::HookNames()
 	return Names;
 }
 
+const TArray<FString>& FUetkxFileScan::AutoIncludedHeaders()
+{
+	// INCLUDE_RETIREMENT_PLAN.md §A — MUST match UetkxDriver.cpp's aggregator prelude and
+	// virtualDoc.ts's PRELUDE exactly (comments there point back here).
+	static const TArray<FString> Headers = {
+		TEXT("CoreMinimal.h"),
+		TEXT("RuiContext.h"),
+		TEXT("RuiCoreElements.h"),
+		TEXT("RuiSignal.h"),
+		TEXT("RuiSlateElements.h"),
+		TEXT("RuiStyle.h"),
+		TEXT("RuiRouter.h"),
+		TEXT("RuiAssetBrush.h"),
+		TEXT("RuiFieldHooks.h"),
+		TEXT("RuiUmgElement.h"),
+		TEXT("RuiSignalViewModel.h"),
+		TEXT("RuiHostWidget.h"),
+		TEXT("RuiWorldSubsystem.h"),
+		TEXT("RuiActivation.h"),
+		TEXT("RuiActivatableScreen.h"),
+		TEXT("RuiMvvmViewModel.h"),
+		TEXT("UObject/StrongObjectPtr.h"),
+		TEXT("Engine/World.h"),
+	};
+	return Headers;
+}
+
 uint32 FUetkxFileScan::HookSignature(const TArray<FString>& HookCalls)
 {
 	uint32 Hash = 2166136261u;
@@ -785,6 +889,7 @@ FUetkxFileScanResult FUetkxFileScan::Scan(const FString& Source, const FString& 
 				if (Line.StartsWith(TEXT("#include")))
 				{
 					Out.PreambleIncludes.Add(Line);
+					Out.PreambleIncludeAts.Add(i);
 				}
 			}
 			i = j;
@@ -801,6 +906,34 @@ FUetkxFileScanResult FUetkxFileScan::Scan(const FString& Source, const FString& 
 			break;
 		}
 		++i;
+	}
+
+	// ── UETKX2317 (hint): a #include or `import "@X.h"` naming a header the generated prelude
+	// already provides (INCLUDE_RETIREMENT_PLAN.md §B — the family's redundant-using hint,
+	// ported per-leg). Severity 2, so it never contributes to HasError().
+	{
+		const TArray<FString>& AutoHeaders = AutoIncludedHeaders();
+		for (int32 n = 0; n < Out.PreambleIncludes.Num(); ++n)
+		{
+			const FString Header = ExtractIncludeHeader(Out.PreambleIncludes[n]);
+			if (!Header.IsEmpty() && AutoHeaders.Contains(Header))
+			{
+				AddDiag(Out.Diags, TEXT("UETKX2317"), 2,
+						FString::Printf(TEXT("`%s` is auto-included by the generated prelude — this line is redundant"),
+										*Header),
+						Out.PreambleIncludeAts[n], Out.PreambleIncludes[n].Len());
+			}
+		}
+		for (const FUetkxImportDecl& Imp : Out.Imports)
+		{
+			if (Imp.bHostInclude && AutoHeaders.Contains(Imp.Specifier))
+			{
+				AddDiag(Out.Diags, TEXT("UETKX2317"), 2,
+						FString::Printf(TEXT("`%s` is auto-included by the generated prelude — this line is redundant"),
+										*Imp.Specifier),
+						Imp.SpecifierAt, Imp.Specifier.Len() + 3); // +3: '@' + the two quotes
+			}
+		}
 	}
 
 	// ── Declarations: a SEQUENCE of components/hooks/modules in any order (FULL MIXED-DECL v1).

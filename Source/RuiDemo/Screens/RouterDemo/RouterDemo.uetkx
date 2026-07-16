@@ -1,5 +1,3 @@
-#include "RuiRouter.h"
-
 import { RouterHome } from "./components/RouterHome/RouterHome"
 import { RouterUser } from "./components/RouterUser/RouterUser"
 

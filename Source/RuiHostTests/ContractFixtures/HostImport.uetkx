@@ -1,0 +1,12 @@
+import "@Doom/DoomTypes.h"
+import { StatusChip } from "./StatusChip"
+
+export component HostImport {
+	const FString Label = TEXT("host-import");
+	return (
+		<VerticalBox>
+			<TextBlock Text={ FString(Label) } />
+			<StatusChip />
+		</VerticalBox>
+	);
+}

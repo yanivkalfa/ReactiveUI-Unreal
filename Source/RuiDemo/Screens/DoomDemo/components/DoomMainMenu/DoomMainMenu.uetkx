@@ -1,4 +1,4 @@
-#include "Doom/DoomMaps.h"
+import "@Doom/DoomMaps.h"
 
 // DoomMainMenu.uetkx — fully controlled/presentational main menu. Faithful port of the
 // Unity sample's `DoomMainMenu.uitkx` (cross-checked against the Godot

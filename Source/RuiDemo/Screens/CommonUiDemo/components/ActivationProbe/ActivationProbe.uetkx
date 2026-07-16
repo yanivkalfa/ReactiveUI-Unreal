@@ -1,5 +1,3 @@
-#include "RuiActivation.h"
-
 // Reads the activation context its parent screen provides — a real URuiActivatableScreen provides the
 // same state when it (de)activates on a CommonUI stack. Must be a descendant of the provider.
 export component ActivationProbe {

@@ -44,14 +44,23 @@ enum class EUetkxDeclKind : uint8
 /** `import { A, B } from "specifier"` — a PREAMBLE-ONLY static import (A1): named bindings only
  *  (no default, no `*`), string-literal specifier (extensionless; `./` `../` `~/` forms resolved
  *  by the import resolver, M4). Names/NameAts are 1:1; SpecifierAt/At are code-point offsets into
- *  the original source (D-18). */
+ *  the original source (D-18).
+ *
+ *  INCLUDE_RETIREMENT_PLAN.md §B: `import "@Header.h"` is a second, braces/`from`-less shape —
+ *  a nameless HOST INCLUDE (the family's `import "@Namespace"` shape, ported from Unity; our
+ *  payload is a header path instead of a namespace). bHostInclude=true means Names/NameAts are
+ *  EMPTY BY DESIGN (the C++ compiler resolves symbols from the header, so there is nothing for
+ *  the toolchain to name-check); Specifier holds the payload WITHOUT the leading `@`. Every
+ *  consumer that iterates Imports for name resolution (UetkxResolve, the aggregator's import-
+ *  to-file resolution) must skip entries with bHostInclude set — they resolve to no file. */
 struct REACTIVEUIINTERP_API FUetkxImportDecl
 {
 	TArray<FString> Names;
 	TArray<int32> NameAts;
 	FString Specifier;
-	int32 SpecifierAt = -1; // offset of the opening quote
-	int32 At = -1;			// offset of the `import` keyword
+	int32 SpecifierAt = -1;	   // offset of the opening quote
+	int32 At = -1;			   // offset of the `import` keyword
+	bool bHostInclude = false; // `import "@Header.h"` — see the class comment
 };
 
 /** One markup `return ( ... )` span inside a component body (wave G early returns — the
@@ -122,6 +131,8 @@ struct REACTIVEUIINTERP_API FUetkxModuleDecl
 struct REACTIVEUIINTERP_API FUetkxFileScanResult
 {
 	TArray<FString> PreambleIncludes; // verbatim `#include ...` lines from the preamble
+	TArray<int32> PreambleIncludeAts; // 1:1 with PreambleIncludes — each line's start offset
+									  // (UETKX2317 redundancy hint, INCLUDE_RETIREMENT_PLAN.md §B)
 	TArray<FUetkxImportDecl> Imports; // preamble `import { … } from "…"` declarations (A1)
 	// FULL MIXED-DECL v1 (A1): a file is a SEQUENCE of any number of components + hooks + modules
 	// in any order. Each array holds its own kind; `Order` records the source order across all
@@ -187,6 +198,13 @@ class REACTIVEUIINTERP_API FUetkxFileScan
 public:
 	/** The 20 hook names (auto-prefix + signature scanning). */
 	static const TArray<FString>& HookNames();
+
+	/** Headers the aggregator's generated prelude ALREADY provides
+	 *  (INCLUDE_RETIREMENT_PLAN.md §A) — an explicit `#include` or `import "@X.h"` naming one
+	 *  of these is redundant (UETKX2317 hint). Kept in ONE place: `UetkxDriver.cpp`'s aggregator
+	 *  prelude and the LSP's `virtualDoc.ts` PRELUDE must list the SAME headers — a comment in
+	 *  each points back here. */
+	static const TArray<FString>& AutoIncludedHeaders();
 
 	/** FNV-1a (2166136261/16777619, 32-bit) over the ordered hook-kind sequence. */
 	static uint32 HookSignature(const TArray<FString>& HookCalls);

@@ -377,6 +377,13 @@ void FUetkxResolve::Apply(const FUetkxFileScanResult& Scan, const TMap<FString, 
 	TSet<FString> ImportedNames;
 	for (const FUetkxImportDecl& Imp : Scan.Imports)
 	{
+		// Host includes (`import "@Header.h"`, INCLUDE_RETIREMENT_PLAN.md §B) resolve to no
+		// .uetkx file — Specifier is a header path, not a peer-file specifier. Skip entirely;
+		// their empty Names array already no-ops every OTHER pass in this file.
+		if (Imp.bHostInclude)
+		{
+			continue;
+		}
 		const FString Key = Resolver.Resolve(Imp.Specifier, ImporterPath);
 		if (Key.IsEmpty())
 		{

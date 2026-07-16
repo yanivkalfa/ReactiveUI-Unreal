@@ -261,6 +261,11 @@ namespace
 				const FString ProjRel = ProjectRelPathFor(Path);
 				for (const FUetkxImportDecl& Imp : FUetkxFileScan::ScanPreamble(Source).Imports)
 				{
+					// Host includes (INCLUDE_RETIREMENT_PLAN.md §B) resolve to no file -- skip explicitly
+					if (Imp.bHostInclude)
+					{
+						continue;
+					}
 					const FString Target = Resolver.Resolve(Imp.Specifier, ProjRel);
 					if (Target.IsEmpty())
 					{
@@ -553,7 +558,28 @@ TMap<FString, FString> FUetkxDriver::BuildAggregators(const TArray<FString>& Uet
 		Contents += TEXT("#include \"RuiCoreElements.h\"\n");
 		Contents += TEXT("#include \"RuiSignal.h\"\n");
 		Contents += TEXT("#include \"RuiSlateElements.h\"\n");
-		Contents += TEXT("#include \"RuiStyle.h\"\n\n");
+		Contents += TEXT("#include \"RuiStyle.h\"\n");
+		Contents += TEXT("#include \"RuiRouter.h\"\n"); // ReactiveUICore/Public — hard dep, always available
+		// INCLUDE_RETIREMENT_PLAN.md §A: the rest are optional-module or engine headers, guarded
+		// so a consuming module that depends only on ReactiveUICore+ReactiveUISlate (no UMG/
+		// CommonUI/MVVM interop, no CoreUObject) still compiles. A header added here must ALSO be
+		// added to virtualDoc.ts's PRELUDE and the docs' auto-included table (§D).
+		Contents +=
+			TEXT("#if __has_include(\"RuiAssetBrush.h\")\n#include \"RuiAssetBrush.h\"\n#endif\n"); // ReactiveUIUMG
+		Contents += TEXT("#if __has_include(\"RuiFieldHooks.h\")\n#include \"RuiFieldHooks.h\"\n#endif\n");
+		Contents += TEXT("#if __has_include(\"RuiUmgElement.h\")\n#include \"RuiUmgElement.h\"\n#endif\n");
+		Contents += TEXT("#if __has_include(\"RuiSignalViewModel.h\")\n#include \"RuiSignalViewModel.h\"\n#endif\n");
+		Contents += TEXT("#if __has_include(\"RuiHostWidget.h\")\n#include \"RuiHostWidget.h\"\n#endif\n");
+		Contents += TEXT("#if __has_include(\"RuiWorldSubsystem.h\")\n#include \"RuiWorldSubsystem.h\"\n#endif\n");
+		Contents += TEXT(
+			"#if __has_include(\"RuiActivation.h\")\n#include \"RuiActivation.h\"\n#endif\n"); // ReactiveUICommonUI
+		Contents +=
+			TEXT("#if __has_include(\"RuiActivatableScreen.h\")\n#include \"RuiActivatableScreen.h\"\n#endif\n");
+		Contents += TEXT(
+			"#if __has_include(\"RuiMvvmViewModel.h\")\n#include \"RuiMvvmViewModel.h\"\n#endif\n"); // ReactiveUIMVVMBridge
+		Contents += TEXT("#if __has_include(\"UObject/StrongObjectPtr.h\")\n#include "
+						 "\"UObject/StrongObjectPtr.h\"\n#endif\n"); // CoreUObject
+		Contents += TEXT("#if __has_include(\"Engine/World.h\")\n#include \"Engine/World.h\"\n#endif\n\n"); // Engine
 		// TWO-PHASE include (M6): every .inl is `#include`d once in the DECL phase (complete props
 		// structs + defaulted wrapper decls + hook fwd-decls + module bodies) and once in the BODY
 		// phase. Because the decl pass forward-declares EVERY wrapper before any body, cross-file
@@ -588,6 +614,11 @@ TMap<FString, FString> FUetkxDriver::BuildAggregators(const TArray<FString>& Uet
 				const FString ProjRel = ProjectRelPathFor(Uetkx);
 				for (const FUetkxImportDecl& Imp : FUetkxFileScan::ScanPreamble(Source).Imports)
 				{
+					// Host includes (INCLUDE_RETIREMENT_PLAN.md §B) resolve to no file -- skip explicitly
+					if (Imp.bHostInclude)
+					{
+						continue;
+					}
 					const FString Target = Resolver.Resolve(Imp.Specifier, ProjRel);
 					if (const FString* Dep = Target.IsEmpty() ? nullptr : NormToPath.Find(NormFull(Target)))
 					{
@@ -650,6 +681,11 @@ TMap<FString, FString> FUetkxDriver::BuildAggregators(const TArray<FString>& Uet
 						const FString ProjRel = ProjectRelPathFor(Uetkx);
 						for (const FUetkxImportDecl& Imp : FUetkxFileScan::ScanPreamble(Source).Imports)
 						{
+							// Host includes (INCLUDE_RETIREMENT_PLAN.md §B) resolve to no file — skip explicitly
+							if (Imp.bHostInclude)
+							{
+								continue;
+							}
 							const FString Target = Resolver.Resolve(Imp.Specifier, ProjRel);
 							const FString* Dep = Target.IsEmpty() ? nullptr : NormToPath.Find(NormFull(Target));
 							if (Dep == nullptr || *Dep == Uetkx || Emitted.Contains(*Dep))

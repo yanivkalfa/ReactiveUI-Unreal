@@ -207,6 +207,11 @@ export function resolveDiagnostics(scan: UetkxFileScanResult, importerFsPath: st
   const diags: ResolveDiag[] = [];
   const importerModule = moduleRootFor(importerFsPath);
   for (const imp of scan.imports) {
+    // Host includes (`import "@Header.h"`, INCLUDE_RETIREMENT_PLAN.md §B) resolve to no .uetkx
+    // file — imp.specifier is a header path, not a peer-file specifier. Skip; without this a
+    // valid `@` import would live-diagnose as UETKX2300 "unknown import specifier" on every
+    // keystroke (the C++ resolver skips the same way, UetkxResolve.cpp).
+    if (imp.hostInclude) continue;
     const key = resolveSpecifier(importerFsPath, imp.specifier);
     if (!key) {
       diags.push({
@@ -265,7 +270,8 @@ export function workspaceRelLabel(importerFsPath: string, targetFsPath: string):
 
 export type ImportCursor =
   | { kind: "import-name"; specifier: string | null; partial: string }
-  | { kind: "import-specifier"; partial: string };
+  | { kind: "import-specifier"; partial: string }
+  | { kind: "import-keyword" };
 
 /** Classify a cursor sitting inside a preamble `import { … } from "…"` STATEMENT, which may span
  *  several physical lines (a multi-line `{ … }` name list). Operates on UTF-16 string offsets (import
@@ -292,6 +298,12 @@ export function importCursorAt(text: string, off: number): ImportCursor | null {
   }
   if (start < 0) return null;
   const before = text.slice(start, off);
+  // Cursor right after `import` (only whitespace so far, nothing typed yet) — before either the
+  // `{` name-list or the `"..."` specifier form. Offers a discoverable `import "@Header.h"`
+  // snippet (INCLUDE_RETIREMENT_PLAN.md §B, mirrors Unity's `import "@Namespace"` discoverability).
+  if (/^\s*import\s*$/.test(before)) {
+    return { kind: "import-keyword" };
+  }
   // inside the `from "…"` string? (unterminated quote before the cursor)
   if (/\bfrom\s*"[^"]*$/.test(before)) {
     const q = before.lastIndexOf('"');

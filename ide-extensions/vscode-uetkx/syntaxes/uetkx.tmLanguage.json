@@ -8,6 +8,7 @@
     { "include": "#markup-comment" },
     { "include": "#preprocessor" },
     { "include": "#import-decl" },
+    { "include": "#import-host-include" },
     { "include": "#export-keyword" },
     { "include": "#component-decl" },
     { "include": "#hook-decl" },
@@ -35,6 +36,14 @@
         "1": { "name": "keyword.control.import.uetkx" },
         "3": { "name": "keyword.control.import.uetkx" },
         "4": { "name": "string.quoted.double.uetkx" }
+      }
+    },
+    "import-host-include": {
+      "comment": "`import \"@Header.h\"` (INCLUDE_RETIREMENT_PLAN.md §B) — a nameless host include; same scopes as import-decl so it colors identically to a file import.",
+      "match": "\\b(import)\\b\\s*(\"@[^\"]*\")",
+      "captures": {
+        "1": { "name": "keyword.control.import.uetkx" },
+        "2": { "name": "string.quoted.double.uetkx" }
       }
     },
     "export-keyword": {

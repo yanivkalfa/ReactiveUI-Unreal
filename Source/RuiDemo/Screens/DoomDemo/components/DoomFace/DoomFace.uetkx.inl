@@ -2,7 +2,6 @@
 // Copyright (c) 2026 Yaniv Kalfa. All Rights Reserved.
 
 #include "Doom/DoomTextures.h"
-#include "RuiAssetBrush.h"
 
 #if defined(RUI_UETKX_DECL_PHASE)
 struct FDoomFaceUetkxProps final : public FRuiPropsBase
@@ -23,7 +22,7 @@ inline FRuiNode DoomFace(FDoomFaceUetkxProps InProps = FDoomFaceUetkxProps(), TA
 static FRuiNodeArray DoomFace_UetkxImpl(FRuiContext& Ctx, const FDoomFaceUetkxProps& Props, const TArray<FRuiNode>& children)
 {
 	const auto& Frame = Props.Frame;
-#line 8 "Source/RuiDemo/Screens/DoomDemo/components/DoomFace/DoomFace.uetkx"
+#line 7 "Source/RuiDemo/Screens/DoomDemo/components/DoomFace/DoomFace.uetkx"
 	const int32 Idx = FMath::Clamp(Frame, 0, 7);
 		const FLinearColor PanelBg(0.20f, 0.16f, 0.10f, 1.0f);
 		const FLinearColor BorderClr(0.85f, 0.55f, 0.20f, 1.0f);
@@ -39,7 +38,7 @@ static FRuiNodeArray DoomFace_UetkxImpl(FRuiContext& Ctx, const FDoomFaceUetkxPr
 		// The mug is 48px (not the siblings' 64): the bar's inner height is HUD_HEIGHT 90 minus
 		// top border + bar/panel padding = ~65px, and label(13) + 48 is what actually FITS —
 		// Slate neither shrinks nor clips overflow, so 64 spilled below the bar (playtest #2).
-#line 43 "DoomFace.uetkx.inl"
+#line 42 "DoomFace.uetkx.inl"
 	return { [&]() -> FRuiNode {
 		FRuiBoxProps P;
 		P.SetWidthOverride((68.0f));

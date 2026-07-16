@@ -1,4 +1,4 @@
-#include "RuiDemoSupport.h"
+import "@RuiDemoSupport.h"
 
 export component SignalPanel {
 	const int32 Count = RUI::UseSignalKey<int32>(Ctx, RuiDemo::GDemoCounterSignal, 0);

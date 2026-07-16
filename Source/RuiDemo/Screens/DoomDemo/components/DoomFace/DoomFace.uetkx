@@ -1,5 +1,4 @@
-#include "Doom/DoomTextures.h"
-#include "RuiAssetBrush.h"
+import "@Doom/DoomTextures.h"
 
 // DoomFace.uetkx — the Doomguy mug widget. Faithful port of the Unity sample's
 // `DoomFace.uitkx` (cross-checked against the Godot `doom_face.guitkx`).
