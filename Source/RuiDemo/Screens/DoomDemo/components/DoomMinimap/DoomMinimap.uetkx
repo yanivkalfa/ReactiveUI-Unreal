@@ -1,4 +1,4 @@
-#include "Doom/DoomTypes.h"
+import "@Doom/DoomTypes.h"
 
 // DoomMinimap.uetkx — the top-right automap. Faithful port of the Unity sample's
 // `DoomMinimap.uitkx` (cross-checked against the Godot `doom_minimap.guitkx`): wall/door/

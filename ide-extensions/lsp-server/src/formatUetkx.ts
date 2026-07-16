@@ -100,7 +100,13 @@ export function formatUetkx(source: string, opts?: Partial<UetkxFormatOptions>):
     if (scan.preambleIncludes.length > 0) block += scan.preambleIncludes.join("\n") + "\n";
     if (scan.imports.length > 0) {
       if (block) block += "\n";
-      for (const imp of scan.imports) block += `import { ${imp.names.join(", ")} } from "${imp.specifier}"\n`;
+      // `import "@Header.h"` (INCLUDE_RETIREMENT_PLAN.md §B) — a nameless host include, spelled
+      // with its own shape rather than the named `{ ... } from` block.
+      for (const imp of scan.imports) {
+        block += imp.hostInclude
+          ? `import "@${imp.specifier}"\n`
+          : `import { ${imp.names.join(", ")} } from "${imp.specifier}"\n`;
+      }
     }
     if (block) out += block + "\n";
   }

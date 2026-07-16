@@ -1,4 +1,4 @@
-#include "Doom/DoomTypes.h"
+import "@Doom/DoomTypes.h"
 
 import { DoomFace } from "../DoomFace/DoomFace"
 

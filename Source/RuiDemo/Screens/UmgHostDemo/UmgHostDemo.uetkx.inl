@@ -3,9 +3,6 @@
 
 #include "RuiDemoSupport.h"
 #include "DemoInteropWidgets.h"
-#include "RuiFieldHooks.h"
-#include "RuiUmgElement.h"
-#include "Engine/World.h"
 
 #if defined(RUI_UETKX_DECL_PHASE)
 struct FUmgHostDemoUetkxProps final : public FRuiPropsBase
@@ -23,11 +20,11 @@ inline FRuiNode UmgHostDemo(FUmgHostDemoUetkxProps InProps = FUmgHostDemoUetkxPr
 #else
 static FRuiNodeArray UmgHostDemo_UetkxImpl(FRuiContext& Ctx, const FUmgHostDemoUetkxProps& Props, const TArray<FRuiNode>& children)
 {
-#line 13 "Source/RuiDemo/Screens/UmgHostDemo/UmgHostDemo.uetkx"
+#line 10 "Source/RuiDemo/Screens/UmgHostDemo/UmgHostDemo.uetkx"
 	UWorld* World = RuiDemo::GetDemoWorld();
 		URuiSignalViewModel* Vm = RuiDemo::GetSharedVm();
 		const int32 N = RUI::Umg::UseField<int32>(Ctx, Vm, FName(TEXT("Int")), 0);
-#line 31 "UmgHostDemo.uetkx.inl"
+#line 28 "UmgHostDemo.uetkx.inl"
 	return { [&]() -> FRuiNode {
 		FRuiBorderProps P;
 		P.SetPadding(FMargin(12));

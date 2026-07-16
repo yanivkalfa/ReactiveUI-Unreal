@@ -16,6 +16,9 @@ Editor support for **`.uetkx`**, the JSX-like markup of [ReactiveUI for Unreal](
 
 ## Changelog
 
+### [0.4.0] - 2026-07-16
+- `.uetkx` preambles are imports-only now: an `import "@Header.h"` host-include form (family shape, ported from Unity's `import "@Namespace"`; our payload is a header path) compiles to `#include "Header.h"` — nameless by design, since the C++ compiler resolves the header's symbols. A raw `#include` line still works too, but naming a header the generated file already auto-includes now gets a redundancy hint (`UETKX2317`). Syntax highlighting, live diagnostics, and a discoverable `import "@"` completion snippet ship for the new form.
+
 ### [0.3.1] - 2026-07-16
 - Marketplace listing overhaul: distinguishable display names — `UETKX (Unreal - VS Code)` / `UETKX (Unreal - VS2022)` — and a structured page body (Title / Description / Features / Requirements / Changelog) on both marketplaces.
 - The VS Code marketplace page now has a body at all — README.md is generated from the centralized changelog (it was missing entirely).

@@ -1,4 +1,4 @@
-#include "RuiDemoSupport.h"
+import "@RuiDemoSupport.h"
 
 export component StressTest {
 	auto [CountText, SetCountText] = UseState<FString>(FString(TEXT("300")));

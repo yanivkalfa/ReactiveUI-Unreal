@@ -16,4 +16,8 @@ around.
      bump): both bullets went straight into Lane B (changelog.json 0.3.1 — listing overhaul
      shared bullet + vscode README bullet) via plans/EXTENSION_LISTING_PLAN.md's execution;
      no Lane A/C entries apply (listing-only change, not a Discord-worthy release). -->
+<!-- Drained 2026-07-16 for the include-retirement release (plugin 0.10.0, extensions 0.4.0):
+     the single bullet went straight into Lane A ([0.10.0]), Lane B (changelog.json 0.4.0 —
+     shared entry), and Lane C (DISCORD_CHANGELOG [0.10.0]) as it was authored — nothing was
+     staged here mid-campaign, so there was nothing to drain from THIS file, only to verify. -->
 (empty — drained 2026-07-16)

@@ -1,4 +1,4 @@
-#include "RuiDemoSupport.h"
+import "@RuiDemoSupport.h"
 
 export component DemoContextPanel(Label: FString = FString(TEXT("Primary Panel"))) {
 	const FLinearColor Theme = UseContext(RuiDemo::GDemoThemeCtx);

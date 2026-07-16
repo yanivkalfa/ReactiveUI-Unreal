@@ -2,7 +2,7 @@
   "name": "uetkx",
   "displayName": "UETKX (Unreal - VS Code)",
   "description": "Syntax highlighting + language intelligence for .uetkx markup (ReactiveUI for Unreal). Markup completion/hover/formatting from the compiler-exported schema; compiler diagnostics via sidecars — fully offline, no running Unreal editor required.",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "publisher": "ReactiveUITK",
   "license": "MIT",
   "icon": "icon.png",

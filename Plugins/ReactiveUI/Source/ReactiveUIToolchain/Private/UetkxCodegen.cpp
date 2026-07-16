@@ -1583,6 +1583,15 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 	{
 		Inl += Include + TEXT("\n");
 	}
+	// `import "@Header.h"` host includes (INCLUDE_RETIREMENT_PLAN.md §B) — same emission point,
+	// verbatim `#include`, so raw-#include-only fixtures stay byte-identical.
+	for (const FUetkxImportDecl& Imp : Scan.Imports)
+	{
+		if (Imp.bHostInclude)
+		{
+			Inl += FString::Printf(TEXT("#include \"%s\"\n"), *Imp.Specifier);
+		}
+	}
 	Inl += TEXT("\n");
 
 	// Same-file PRIVATE decls (A5e) get a detail-namespace prefix so their same-file references

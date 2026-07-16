@@ -2,7 +2,7 @@ import type { FC } from 'react'
 import { Alert, Box, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from '@mui/material'
 import { CodeBlock } from '../../components/CodeBlock/CodeBlock'
 
-const PREAMBLE = `#include "MyTypes.h"                      // raw C++ the generated file needs
+const PREAMBLE = `import "@MyTypes.h"                        // your own C++ header — library headers are auto-included
 import { StatusChip } from "./StatusChip"  // cross-file declarations
 
 export component Screen(Title: FText, Count: int32 = 0) {
@@ -59,9 +59,12 @@ export const LanguageReferencePage: FC = () => (
       Preamble &amp; declarations
     </Typography>
     <Typography variant="body1" paragraph>
-      The preamble holds <code>#include</code> lines (raw C++ the output needs) and{' '}
-      <code>import</code> statements, before the first declaration. A component takes typed
-      parameters with optional defaults and returns exactly one root element.
+      The preamble holds <code>import</code> statements only, before the first declaration — file
+      imports (<code>./</code>, <code>~/</code>) are name-checked, and{' '}
+      <code>import &quot;@Header.h&quot;</code> is a nameless host include for your own C++ headers
+      (library headers are auto-included; see <strong>Imports &amp; exports</strong>). A raw{' '}
+      <code>#include</code> line still works too. A component takes typed parameters with optional
+      defaults and returns exactly one root element.
     </Typography>
     <CodeBlock code={PREAMBLE} language="uetkx" />
 

@@ -1,7 +1,3 @@
-#include "RuiSignalViewModel.h"
-#include "RuiFieldHooks.h"
-#include "UObject/StrongObjectPtr.h"
-
 // MVVM / FieldNotify — their data feeds us, authored in .uetkx.
 export component MvvmDemo {
 	// A viewmodel we own: created once (UseMemo, empty deps), GC-rooted by the strong ptr, released on unmount.

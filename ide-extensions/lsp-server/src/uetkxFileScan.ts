@@ -37,13 +37,19 @@ export interface UetkxParam {
 /** The three declaration kinds a .uetkx file may hold, in any number/order (mixed-decl v1). */
 export type UetkxDeclKind = "component" | "hook" | "module";
 
-/** `import { A, B } from "specifier"` — a preamble-only static import (named bindings only). */
+/** `import { A, B } from "specifier"` — a preamble-only static import (named bindings only).
+ *
+ *  INCLUDE_RETIREMENT_PLAN.md §B: `import "@Header.h"` is a second, braces/`from`-less shape —
+ *  a nameless HOST INCLUDE (family shape, ported from Unity's `import "@Namespace"`; our
+ *  payload is a header path). hostInclude=true means names/nameAts are EMPTY BY DESIGN;
+ *  specifier holds the payload WITHOUT the leading `@`. C++-identical (FUetkxImportDecl). */
 export interface UetkxImportDecl {
   names: string[];
   nameAts: number[];
   specifier: string;
   specifierAt: number; // offset of the opening quote
   at: number; // offset of the `import` keyword
+  hostInclude: boolean; // `import "@Header.h"` — see the interface comment
 }
 
 /** One markup `return ( ... )` span inside a component body (wave G early returns).
@@ -102,6 +108,7 @@ export interface UetkxModuleDecl {
 
 export interface UetkxFileScanResult {
   preambleIncludes: string[];
+  preambleIncludeAts: number[]; // 1:1 with preambleIncludes — each line's start offset
   imports: UetkxImportDecl[];
   components: UetkxComponentDecl[];
   hooks: UetkxHookDecl[];
@@ -138,6 +145,46 @@ export const HOOK_NAMES = [
   "UseTweenValue",
   "UseSfx",
 ];
+
+/** Headers the aggregator's generated prelude ALREADY provides (INCLUDE_RETIREMENT_PLAN.md
+ *  §A) — an explicit `#include` or `import "@X.h"` naming one of these is redundant (UETKX2317
+ *  hint). MUST match UetkxDriver.cpp's aggregator prelude and virtualDoc.ts's PRELUDE exactly.
+ *  C++-identical (FUetkxFileScan::AutoIncludedHeaders). */
+export const AUTO_INCLUDED_HEADERS = [
+  "CoreMinimal.h",
+  "RuiContext.h",
+  "RuiCoreElements.h",
+  "RuiSignal.h",
+  "RuiSlateElements.h",
+  "RuiStyle.h",
+  "RuiRouter.h",
+  "RuiAssetBrush.h",
+  "RuiFieldHooks.h",
+  "RuiUmgElement.h",
+  "RuiSignalViewModel.h",
+  "RuiHostWidget.h",
+  "RuiWorldSubsystem.h",
+  "RuiActivation.h",
+  "RuiActivatableScreen.h",
+  "RuiMvvmViewModel.h",
+  "UObject/StrongObjectPtr.h",
+  "Engine/World.h",
+];
+
+/** The quoted or angle-bracket header path inside a `#include "X.h"` / `#include <X.h>` line,
+ *  or "" if malformed (UETKX2317 hint). C++-identical (ExtractIncludeHeader). */
+function extractIncludeHeader(line: string): string {
+  let open = line.indexOf('"');
+  let closeChar = '"';
+  if (open === -1) {
+    open = line.indexOf("<");
+    closeChar = ">";
+    if (open === -1) return "";
+  }
+  const close = line.indexOf(closeChar, open + 1);
+  if (close === -1) return "";
+  return line.slice(open + 1, close);
+}
 
 /** FNV-1a over the ordered hook-kind sequence with ';' separators (C++-identical). */
 export function hookSignature(hookCalls: readonly string[]): number {
@@ -381,15 +428,56 @@ function advancePastLine(src: number[], i: number): number {
   return i < n ? i + 1 : i;
 }
 
-/** Parse a preamble `import { A, B } from "spec"` at `start`. Records the decl + duplicate-import
- *  diagnostics (UETKX2303); importedFrom tracks name -> first specifier across the file. Named
- *  exports only — no `*`, no default (A1). Returns the index past the import (or resync point). */
+/** Parse a preamble import at `start` — either the NAMED form `import { A, B } from "spec"`
+ *  (named exports only — no `*`, no default, A1) or the HOST INCLUDE form `import "@Header.h"`
+ *  (INCLUDE_RETIREMENT_PLAN.md §B — no braces, no `from`, no names). Records the decl +
+ *  duplicate-import diagnostics (UETKX2303); importedFrom tracks name -> first specifier for
+ *  named imports and payload -> payload for host includes (keyspaces cannot collide). Returns
+ *  the index past the import (or resync point). C++-identical (ParseImport). */
 function parseImport(src: number[], start: number, out: UetkxFileScanResult, importedFrom: Map<string, string>): number {
   const n = src.length;
-  const imp: UetkxImportDecl = { names: [], nameAts: [], specifier: "", specifierAt: -1, at: start };
   let k = skipWsOnly(src, start + 6); // past "import"
+
+  // INCLUDE_RETIREMENT_PLAN.md §B: `import "@Header.h"` — a nameless HOST INCLUDE. The named
+  // form always starts `{`; a leading quote routes here instead (no `from` clause).
+  if (k < n && (src[k] === C_QUOTE || src[k] === C_APOS)) {
+    const quote = src[k];
+    const quoteAt = k;
+    let q = k + 1;
+    while (q < n && src[q] !== quote && src[q] !== C_NL) q++;
+    if (q >= n || src[q] !== quote) {
+      pushDiag(out, "UETKX0300", 0, "unterminated import specifier string", quoteAt);
+      return advancePastLine(src, quoteAt);
+    }
+    const payload = fromCodePoints(src, quoteAt + 1, q - (quoteAt + 1));
+    const end = q + 1;
+    if (!payload.startsWith("@")) {
+      pushDiag(out, "UETKX0303", 0, 'import expects `{ Name, ... } from "..."` or a `"@Header.h"` host include', quoteAt);
+      return advancePastLine(src, end);
+    }
+    const hostImp: UetkxImportDecl = {
+      names: [],
+      nameAts: [],
+      specifier: payload.slice(1), // strip the leading '@'
+      specifierAt: quoteAt,
+      at: start,
+      hostInclude: true,
+    };
+    // Duplicate-payload check (2303 rule, applied to host includes): importedFrom is keyed by
+    // NAME for named imports and by PAYLOAD here — the keyspaces never collide (names are bare
+    // identifiers; header payloads always contain `/` or `.`).
+    if (importedFrom.has(hostImp.specifier)) {
+      pushDiag(out, "UETKX2303", 0, `duplicate host include \`${hostImp.specifier}\``, quoteAt, payload.length);
+    } else {
+      importedFrom.set(hostImp.specifier, hostImp.specifier);
+    }
+    out.imports.push(hostImp);
+    return end;
+  }
+
+  const imp: UetkxImportDecl = { names: [], nameAts: [], specifier: "", specifierAt: -1, at: start, hostInclude: false };
   if (k >= n || src[k] !== C_LBRACE) {
-    pushDiag(out, "UETKX0303", 0, "import expects `{ Name, ... }` after `import`", Math.min(k, n - 1));
+    pushDiag(out, "UETKX0303", 0, 'import expects `{ Name, ... }` or a `"@Header.h"` host include after `import`', Math.min(k, n - 1));
     return advancePastLine(src, k);
   }
   const bclose = findMatching(src, k);
@@ -641,7 +729,16 @@ function resyncToNextDecl(src: number[], from: number): number {
  *  declarations after a malformed body instead of aborting — mirroring the C++ ScanPreamble, which only
  *  reads decl signatures and so never truncates the exported-decl list on a body error (bughunt LSP-1). */
 export function scanFile(source: string, basename: string, resyncOnBodyError = false): UetkxFileScanResult {
-  const out: UetkxFileScanResult = { preambleIncludes: [], imports: [], components: [], hooks: [], modules: [], order: [], diags: [] };
+  const out: UetkxFileScanResult = {
+    preambleIncludes: [],
+    preambleIncludeAts: [],
+    imports: [],
+    components: [],
+    hooks: [],
+    modules: [],
+    order: [],
+    diags: [],
+  };
   const src: number[] = [];
   for (const ch of source) src.push(ch.codePointAt(0)!);
   const n = src.length;
@@ -654,7 +751,10 @@ export function scanFile(source: string, basename: string, resyncOnBodyError = f
     if (j !== i) {
       if (src[i] === C_HASH) {
         const line = fromCodePoints(src, i, j - i).trim();
-        if (line.startsWith("#include")) out.preambleIncludes.push(line);
+        if (line.startsWith("#include")) {
+          out.preambleIncludes.push(line);
+          out.preambleIncludeAts.push(i);
+        }
       }
       i = j;
       continue;
@@ -665,6 +765,35 @@ export function scanFile(source: string, basename: string, resyncOnBodyError = f
     }
     if (keywordAt(src, i, "export") || keywordAt(src, i, "component") || keywordAt(src, i, "hook") || keywordAt(src, i, "module")) break;
     i++;
+  }
+
+  // UETKX2317 (hint): a #include or `import "@X.h"` naming a header the generated prelude
+  // already provides (INCLUDE_RETIREMENT_PLAN.md §B — the family's redundant-using hint,
+  // ported per-leg). Severity 2, so it never contributes to hasError(). C++-identical.
+  for (let idx = 0; idx < out.preambleIncludes.length; idx++) {
+    const header = extractIncludeHeader(out.preambleIncludes[idx]);
+    if (header && AUTO_INCLUDED_HEADERS.includes(header)) {
+      pushDiag(
+        out,
+        "UETKX2317",
+        2,
+        `\`${header}\` is auto-included by the generated prelude — this line is redundant`,
+        out.preambleIncludeAts[idx],
+        out.preambleIncludes[idx].length,
+      );
+    }
+  }
+  for (const imp of out.imports) {
+    if (imp.hostInclude && AUTO_INCLUDED_HEADERS.includes(imp.specifier)) {
+      pushDiag(
+        out,
+        "UETKX2317",
+        2,
+        `\`${imp.specifier}\` is auto-included by the generated prelude — this line is redundant`,
+        imp.specifierAt,
+        imp.specifier.length + 3, // +3: '@' + the two quotes
+      );
+    }
   }
 
   // declarations: a SEQUENCE of components/hooks/modules in any order (FULL MIXED-DECL v1)
