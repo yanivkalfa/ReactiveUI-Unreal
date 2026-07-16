@@ -46,6 +46,22 @@ node ide-extensions/scripts/changelog.mjs extract --ide vs2022 --out ide-extensi
 node ide-extensions/scripts/changelog.mjs verify
 ```
 
+### Marketplace listing surfaces (what extension users SEE — know before touching)
+
+Every marketplace-visible string has exactly one source; edit the source, never the output:
+
+| Surface | VS Code | VS2022 |
+|---|---|---|
+| List/page title | `vscode-uetkx/package.json` → `displayName` | `UetkxVsix/source.extension.vsixmanifest` → `<DisplayName>` |
+| Short description | package.json `description` | vsixmanifest `<Description>` |
+| Page body | `vscode-uetkx/README.md` — **GENERATED** from `readme-template.md` + changelog.json via `changelog.mjs extract-overview --ide vscode` (committed; `verify` gates drift) | `UetkxVsix/overview.md` — generated at publish time from `overview-template.md` (publish.yml step) |
+| Changelog tab/section | `vscode-uetkx/CHANGELOG.md` (Lane B) + a `## Changelog` section appended into the body | appended into overview.md by extract-overview |
+
+- Naming scheme (family-wide, 2026-07-16): display name = `UETKX (Unreal - VS Code)` /
+  `UETKX (Unreal - VS2022)`; body H1 = `Reactive UI - Unreal Engine - <IDE> (UETKX)`.
+- A LISTING-ONLY change still bumps both extensions (patch) + Lane B entry — shipped bytes change.
+- Edit the TEMPLATE, re-run extract-overview, commit template + output together.
+
 ### Discord (community note)
 
 Entry at the top of `plans/DISCORD_CHANGELOG.md` matching the format pinned in that file.
