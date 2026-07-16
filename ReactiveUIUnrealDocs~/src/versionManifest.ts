@@ -9,6 +9,8 @@
  * Features at or below the floor have no entry here (they are always available).
  */
 
+import { HOST_ELEMENTS } from './hostSchema'
+
 // ---------------------------------------------------------------------------
 // Version registry
 // ---------------------------------------------------------------------------
@@ -49,14 +51,16 @@ export interface FeatureVersion {
 }
 
 /**
- * Host elements introduced after the floor version.
- * If an element is NOT listed here, it is assumed to be available since floor.
+ * Host elements introduced after the floor version — DERIVED from the compiler-exported
+ * schema's `sinceUE` annotations (the codegen tag defs are the source of truth; e.g.
+ * SearchableComboBox: 5.7), so this map can never drift from the tooling. An element with
+ * no entry is available since floor.
  */
-export const ELEMENT_VERSIONS: Record<string, FeatureVersion> = {
-  // All host elements are available since the floor (UE 5.6).
-  // When a new host element requires a newer engine version, add it here:
-  // NewWidget: { sinceUE: '5.8' },
-}
+export const ELEMENT_VERSIONS: Record<string, FeatureVersion> = Object.fromEntries(
+  Object.entries(HOST_ELEMENTS)
+    .filter(([, el]) => el.sinceUE)
+    .map(([tag, el]) => [tag, { sinceUE: el.sinceUE as string }]),
+)
 
 /**
  * Style keys introduced after the floor version.

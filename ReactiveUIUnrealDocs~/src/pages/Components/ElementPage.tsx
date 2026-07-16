@@ -31,6 +31,8 @@ export const ElementPage: FC<{ tag: string }> = ({ tag }) => {
         minus its <code>S</code>; every prop and event below is the exact Unreal name). Factory:{' '}
         <code>{el.factory ?? `RUI::Slate::${tag}`}</code>.{' '}
         {el.children ? 'Accepts children.' : 'A leaf widget — children are a compile error.'}
+        {el.sinceUE &&
+          ` Requires Unreal Engine ${el.sinceUE} or newer — the Slate widget does not exist in earlier engines (mounting there logs an unknown-adapter warning; the plugin still compiles).`}
       </Typography>
       <CodeBlock code={sample} language="uetkx" />
 

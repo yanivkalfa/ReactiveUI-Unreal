@@ -37,7 +37,7 @@ function readPluginVersion(): string {
 // never drift from the tooling — the docs and the editor read one source of truth.
 type UetkxSchema = {
   v?: number
-  elements?: Record<string, { factory?: string; children?: boolean; attrs?: Record<string, string> }>
+  elements?: Record<string, { factory?: string; children?: boolean; attrs?: Record<string, string>; sinceUE?: string }>
   styleKeys?: string[]
   slotKeys?: string[]
   hooks?: string[]

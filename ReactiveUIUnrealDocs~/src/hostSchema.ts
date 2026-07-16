@@ -12,6 +12,8 @@ export interface HostElement {
   factory?: string
   children?: boolean
   attrs?: Record<string, string>
+  /** Minimum engine version the widget exists in (e.g. "5.7"); absent = all supported engines. */
+  sinceUE?: string
 }
 
 export const HOST_ELEMENTS: Record<string, HostElement> = __HOST_ELEMENTS__
