@@ -109,6 +109,13 @@ namespace RUI
 		{
 			return Set(FName(TEXT("FillColorAndOpacity")), FRuiValue(V));
 		}
+		FRuiStyleBuilder& Clipping(FName V) { return Set(FName(TEXT("Clipping")), FRuiValue(V)); }
+		FRuiStyleBuilder& ToolTipText(const FText& V) { return Set(FName(TEXT("ToolTipText")), FRuiValue(V)); }
+		FRuiStyleBuilder& LineHeightPercentage(float V)
+		{
+			return Set(FName(TEXT("LineHeightPercentage")), FRuiValue(V));
+		}
+		FRuiStyleBuilder& OverflowPolicy(FName V) { return Set(FName(TEXT("OverflowPolicy")), FRuiValue(V)); }
 
 		FRuiStyleBuilder& Set(FName Key, FRuiValue V)
 		{
@@ -144,6 +151,25 @@ namespace RUI
 			return Set(FName(TEXT("slot.valign")), FRuiValue(VAlignName(V)));
 		}
 		FRuiSlotBuilder& Fill(float Coefficient) { return Set(FName(TEXT("slot.fill")), FRuiValue(Coefficient)); }
+		FRuiSlotBuilder& ZOrder(int32 Z) { return Set(FName(TEXT("Slot.ZOrder")), FRuiValue(static_cast<int64>(Z))); }
+		FRuiSlotBuilder& Position(const FVector2D& V) { return Set(FName(TEXT("Slot.Position")), FRuiValue(V)); }
+		FRuiSlotBuilder& Size(const FVector2D& V) { return Set(FName(TEXT("Slot.Size")), FRuiValue(V)); }
+		FRuiSlotBuilder& Offset(const FMargin& M)
+		{
+			return Set(FName(TEXT("Slot.Offset")),
+					   FRuiValue(FString::Printf(TEXT("%g,%g,%g,%g"), M.Left, M.Top, M.Right, M.Bottom)));
+		}
+		FRuiSlotBuilder& Anchors(const FVector2D& MinMax)
+		{
+			return Set(FName(TEXT("Slot.Anchors")), FRuiValue(MinMax));
+		}
+		FRuiSlotBuilder& Alignment(const FVector2D& V) { return Set(FName(TEXT("Slot.Alignment")), FRuiValue(V)); }
+		FRuiSlotBuilder& AutoSize(bool V) { return Set(FName(TEXT("Slot.AutoSize")), FRuiValue(V)); }
+		FRuiSlotBuilder& Role(FName V) { return Set(FName(TEXT("Slot.Role")), FRuiValue(V)); }
+		FRuiSlotBuilder& SizeRule(FName V) { return Set(FName(TEXT("Slot.SizeRule")), FRuiValue(V)); }
+		FRuiSlotBuilder& SizeValue(float V) { return Set(FName(TEXT("Slot.SizeValue")), FRuiValue(V)); }
+		FRuiSlotBuilder& MinSize(float V) { return Set(FName(TEXT("Slot.MinSize")), FRuiValue(V)); }
+		FRuiSlotBuilder& Resizable(bool V) { return Set(FName(TEXT("Slot.Resizable")), FRuiValue(V)); }
 
 		FRuiSlotBuilder& Set(FName Key, FRuiValue V)
 		{

@@ -1,0 +1,20 @@
+export component MultiReturn(Mode: int32 = 0) {
+	auto [Count, SetCount] = UseState(Mode);
+	if (Count < 0) {
+		return ( <TextBlock Text="negative" /> );
+	}
+	if (Count > 10) {
+		return (
+			<VerticalBox>
+				<TextBlock Text="overflow" />
+				<Spacer />
+			</VerticalBox>
+		);
+	}
+	const int32 Doubled = Count * 2;
+	return (
+		<VerticalBox>
+			<TextBlock Text={ FText::AsNumber(Doubled) } />
+		</VerticalBox>
+	);
+}

@@ -12,6 +12,93 @@ first announcement post lives at the BOTTOM of this file.
 
 **Hard limit: ≤ 2000 characters per entry** (Discord message cap).
 
+## [0.9.0] - 2026-07-16
+
+### Wave G — early returns + short-circuit rendering; the completion plan is DONE
+
+**The `.uetkx` grammar catches up with the family.** Guard clauses now work at component
+level — `if (x) { return ( <A/> ); }` anywhere in the body, your C++ branches, every markup
+return lowers in place (the Unity verbatim-emit model). And short-circuit rendering lands:
+`{ cond && <X/> }` renders only when true, `{ cond || <X/> }` only when false — the
+`UETKX3002` diagnostic is retired. Existing files compile byte-identically.
+
+Pinned by new contract goldens + corpus cases in BOTH the C++ compiler and the TS language
+server, plus a compiled proof component mounted by a new automation suite.
+
+Update to **ReactiveUI for Unreal 0.9.0** (GitHub release). Battery `127/127`.
+
+---
+
+## [0.8.0] - 2026-07-16
+
+### Wave 4 — TreeView lands; the widget-completion plan is DONE
+
+**63 markup tags, 65+ wrapped widgets — every widget in the completion plan is now
+implemented.** `TreeView` closes the last item-model gap (TD-022): a virtualized
+hierarchical tree with per-row reconciler sub-roots, a `GetChildren` accessor, controlled
+expansion (`ExpandedItems` in, `OnExpansionChanged` out), and `HeaderRow` columns built
+from a declarative `Columns` list. C++-first like `ListView`. Plus `VectorInputBox` /
+`RotatorInputBox` for controlled XYZ / Roll-Pitch-Yaw editing, and `Splitter2x2` — four
+resizable quadrants routed by `Slot.Role`.
+
+Also fixed: `ConstraintCanvas` slot ZOrder tripped an engine ensure when applied before
+the slot committed — attach-then-apply now.
+
+Update to **ReactiveUI for Unreal 0.8.0** (GitHub release). Battery `126/126`.
+
+---
+
+## [0.7.0] - 2026-07-16
+
+### Wave 3 — popups, toasts, anchors, splitters
+
+**60 markup tags.** `MenuAnchor` brings the popup primitive (anchor + `Slot.Role="menu"`
+content, controlled open state); `NotificationList` + `PushNotification` bring toasts;
+`ConstraintCanvas` brings UMG-style anchors to markup; `Splitter` brings resizable panes.
+Plus `NumericDropDown`, `BreadcrumbTrail`, `LinkedBox`, `WindowTitleBarArea`,
+`VirtualJoystick`, and `SearchableComboBox` — the first engine-gated widget (5.7+, schema-
+annotated). 16 slot keys.
+
+Update to **ReactiveUI for Unreal 0.7.0** (GitHub release). Battery `125/125`.
+
+---
+
+## [0.6.0] - 2026-07-16
+
+### Wave 2 — 12 interactive composites + imperative handles
+
+**50 markup tags.** New: `EditableText`, `InlineEditableTextBlock`, `VirtualKeyboardEntry`,
+`ColorWheel`, `ColorSpectrum`, `ColorGradingWheel`, `InputKeySelector`, `VolumeControl`,
+`RadialBox`, `TextScroller`, `LayeredImage`, `ExpandableButton` (role slots). Plus the
+family's `UseImperativeHandle` ref-publishing form and `WidgetFromHandle<T>()` — call
+`ScrollToEnd()`-class widget APIs through any captured `Ref`. Slider/ScrollBox/TextBlock
+gained their remaining runtime setters (16 style keys).
+
+Update to **ReactiveUI for Unreal 0.6.0** (GitHub release). Battery `125/125`.
+
+---
+
+## [0.5.0] - 2026-07-16
+
+### Widget-completion wave 1 — 8 new widgets on the road to "1.0 wraps everything"
+
+**The coverage campaign begins: 1.0 will ship with EVERY official runtime Slate widget
+wrapped, and this is the first wave.** New tags: `ColorBlock`, `SimpleGradient`,
+`ComplexGradient`, `Hyperlink`, `EnableBox`, `ScissorRectBox`, `BackgroundBlur`,
+`InvalidationPanel` — 38 markup tags total.
+
+**Tooltips, everywhere.** `ToolTipText` is a universal style key — put it on ANY element,
+markup or C++, same as the Unity/Godot siblings' universal tooltip prop.
+
+Also: `Button` gets `bIsFocusable`, `ProgressBar` gets `BarFillType`, the `RUI::Style()`/
+`RUI::Slot()` C++ builders caught up with every markup key (and a new CI gate keeps it that
+way), and a registry-wide contract test now enforces the widget-replacement rules every new
+adapter must follow — the rails for the ~30 widgets still coming in waves 2-4.
+
+Update to **ReactiveUI for Unreal 0.5.0** (GitHub release). Battery `125/125` · LSP `33/33`.
+
+---
+
 ## [0.4.0] - 2026-07-16
 
 ### DOOM in the widget tree — plus localization closes the last v1 gap

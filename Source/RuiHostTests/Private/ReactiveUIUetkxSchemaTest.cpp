@@ -44,10 +44,10 @@ bool FRuiUetkxSchemaTest::RunTest(const FString&)
 		TestEqual(TEXT("schema v1"), (int32)Schema->GetNumberField(TEXT("v")), 1);
 
 		const TSharedPtr<FJsonObject> Elements = Schema->GetObjectField(TEXT("elements"));
-		// 15 Phase-2 + 14 Batch-2 (Phase 7) + Canvas (Doom Phase 0): WidgetSwitcher, ScaleBox, Throbber, WrapBox,
-		// MultiLineEditableTextBox, SearchBox, SafeZone, DPIScaler, Separator, SpinBox,
-		// UniformWrapPanel, RichTextBlock, GridPanel, UniformGridPanel.
-		TestEqual(TEXT("30 host tags"), Elements->Values.Num(), 30);
+		// 15 Phase-2 + 14 Batch-2 (Phase 7) + Canvas (Doom Phase 0) + 8 Batch-3 wave 1
+		// (WIDGET_COMPLETION_PLAN: ColorBlock, SimpleGradient, ComplexGradient, Hyperlink,
+		// EnableBox, ScissorRectBox, BackgroundBlur, InvalidationPanel).
+		TestEqual(TEXT("63 host tags"), Elements->Values.Num(), 63);
 		const TSharedPtr<FJsonObject> Switcher = Elements->GetObjectField(TEXT("WidgetSwitcher"));
 		TestEqual(TEXT("WidgetSwitcher factory"), Switcher->GetStringField(TEXT("factory")),
 				  FString(TEXT("RUI::Slate::WidgetSwitcher")));
@@ -70,13 +70,14 @@ bool FRuiUetkxSchemaTest::RunTest(const FString&)
 				  Elements->GetObjectField(TEXT("Spacer"))->GetBoolField(TEXT("children")));
 
 		const TArray<TSharedPtr<FJsonValue>>& StyleKeys = Schema->GetArrayField(TEXT("styleKeys"));
-		TestEqual(TEXT("13 style keys"), StyleKeys.Num(), 13);
+		TestEqual(TEXT("16 style keys"), StyleKeys.Num(), 16);
 		TestTrue(TEXT("Clipping styled"), HasString(StyleKeys, TEXT("Clipping")));
+		TestTrue(TEXT("ToolTipText styled (P1 universal)"), HasString(StyleKeys, TEXT("ToolTipText")));
 		TestTrue(TEXT("RenderOpacity styled"), HasString(StyleKeys, TEXT("RenderOpacity")));
 		TestTrue(TEXT("Font.Size styled"), HasString(StyleKeys, TEXT("Font.Size")));
 
 		TestEqual(TEXT("slot prefix"), Schema->GetStringField(TEXT("slotPrefix")), FString(TEXT("Slot.")));
-		TestEqual(TEXT("7 canonical slot keys"), Schema->GetArrayField(TEXT("slotKeys")).Num(), 7);
+		TestEqual(TEXT("16 canonical slot keys"), Schema->GetArrayField(TEXT("slotKeys")).Num(), 16);
 
 		const TArray<TSharedPtr<FJsonValue>>& Hooks = Schema->GetArrayField(TEXT("hooks"));
 		TestEqual(TEXT("all hooks exported"), Hooks.Num(), FUetkxFileScan::HookNames().Num());

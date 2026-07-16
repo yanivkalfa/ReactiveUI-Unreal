@@ -117,4 +117,8 @@ namespace RUI::Slate
 	REACTIVEUISLATE_API FRuiElementTypeId RegisterAdapter(FName TagName, TUniquePtr<IRuiElementAdapter> Adapter);
 
 	REACTIVEUISLATE_API IRuiElementAdapter* FindAdapter(FRuiElementTypeId Type);
+
+	/** Visit every registered adapter (TD-011 meta-gates; diagnostics). Holds the registry
+	 *  lock for the duration — visitors must not register/find adapters. */
+	REACTIVEUISLATE_API void ForEachAdapter(const TFunctionRef<void(FRuiElementTypeId, IRuiElementAdapter&)> Visit);
 } // namespace RUI::Slate

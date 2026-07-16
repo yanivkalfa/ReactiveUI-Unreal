@@ -42,6 +42,15 @@ namespace RUI::Slate
 		const TUniquePtr<IRuiElementAdapter>* Found = GAdapters.Find(Type);
 		return Found ? Found->Get() : nullptr;
 	}
+
+	void ForEachAdapter(const TFunctionRef<void(FRuiElementTypeId, IRuiElementAdapter&)> Visit)
+	{
+		FScopeLock Lock(&GAdapterLock);
+		for (const TPair<FRuiElementTypeId, TUniquePtr<IRuiElementAdapter>>& Pair : GAdapters)
+		{
+			Visit(Pair.Key, *Pair.Value);
+		}
+	}
 } // namespace RUI::Slate
 
 // ─────────────────────────────────────────────────────────────────────────────────────────

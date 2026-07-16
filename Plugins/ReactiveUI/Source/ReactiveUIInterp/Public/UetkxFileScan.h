@@ -54,6 +54,19 @@ struct REACTIVEUIINTERP_API FUetkxImportDecl
 	int32 At = -1;			// offset of the `import` keyword
 };
 
+/** One markup `return ( ... )` span inside a component body (wave G early returns — the
+ *  Unity verbatim-emit model: the body splices verbatim, every markup return lowers in
+ *  place). Offsets are into the BODY code points. */
+struct REACTIVEUIINTERP_API FUetkxReturnSpan
+{
+	int32 ReturnAt = -1; // offset of `return`
+	int32 MStart = -1;	 // first char inside `(`
+	int32 MEnd = -1;	 // index OF the closing `)`
+	int32 AfterParen = -1;
+	bool bTopLevel = false;		 // at brace+paren depth 0 (a statement of the body itself)
+	TSharedPtr<FUetkxNode> Root; // the span's single render root (filled by the component scan)
+};
+
 struct REACTIVEUIINTERP_API FUetkxComponentDecl
 {
 	FString Name;
@@ -62,12 +75,16 @@ struct REACTIVEUIINTERP_API FUetkxComponentDecl
 	int32 ExportAt = -1;	// the `export` keyword offset when bExported, else -1 (the decl's true start)
 	int32 NameAt = -1;
 	TArray<FUetkxParam> Params;
-	FString Setup; // body text before the chosen markup return (verbatim C++)
+	FString Setup; // body text before the FINAL (top-level) markup return (verbatim C++)
 	int32 SetupAt = -1;
 	FString Body; // entire body text (formatter/diagnostics)
 	int32 BodyAt = -1;
-	TSharedPtr<FUetkxNode> Root; // the single render root
+	TSharedPtr<FUetkxNode> Root; // the FINAL render root (the last, top-level markup return)
 	TArray<TSharedPtr<FUetkxNode>> WindowNodes;
+	/** ALL markup returns in source order (wave G): the last one is the top-level anchor
+	 *  (== Root); earlier ones are early returns the emitter splices in place. Single-return
+	 *  bodies have exactly one entry — the emitter's legacy path (byte-stable goldens). */
+	TArray<FUetkxReturnSpan> Returns;
 	TArray<FString> HookCalls; // ordered hook kinds in setup ("UseState", "UseEffect", ...)
 	int32 Next = -1;		   // just past the closing brace
 };
@@ -188,4 +205,12 @@ public:
 	 *  comments) — the component scan's rule; without it any parenthesized return counts — the
 	 *  directive-body rule (EmitBody/formatter). */
 	static FUetkxSplitReturn SplitMarkupReturn(const TArray<int32>& Body, bool bRequireMarkupPeek);
+
+	/** ALL markup returns in a component body, source order (wave G early returns). Paren/
+	 *  bracket nesting hides a `return` (call arguments); brace nesting does NOT (if/else
+	 *  blocks — the early-return shape). The window must peek like markup: `<`/`@` anywhere,
+	 *  `{` (expression window) only at top level — a brace-init `return ({...})` inside a
+	 *  lambda must stay verbatim C++. Roots are NOT filled here (the component scan parses
+	 *  each window). */
+	static TArray<FUetkxReturnSpan> CollectMarkupReturns(const TArray<int32>& Body);
 };

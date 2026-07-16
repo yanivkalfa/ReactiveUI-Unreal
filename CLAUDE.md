@@ -51,6 +51,7 @@ node scripts/verify-mirror.mjs                        # root CHANGELOG.md == plu
 node scripts/check-headers.mjs                        # copyright header lint (CI gate)
 node scripts/lint-skills.mjs                          # skills frontmatter + scar-tissue lint (CI gate)
 node scripts/docs-drift.mjs                           # claimed counts vs registries (CI gate)
+node scripts/check-style-builders.mjs                 # schema style/slot keys have builder methods (CI gate)
 node scripts/bump.mjs <artifact> <version>            # version bump + lockstep partners + changelog scaffold
 scripts/engine-api-diff.ps1 -From 5.6 -To 5.7 ...     # new-UE-version Slate/UMG header diff (engine-catchup skill)
 ```

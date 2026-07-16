@@ -143,6 +143,26 @@ public:
 		return UseMemo<FRuiCallback>([&Fn]() { return FRuiCallback::Create(MoveTemp(Fn)); }, MoveTemp(Deps));
 	}
 
+	/** Family useImperativeHandle (P2, WIDGET_COMPLETION_PLAN): a child publishes a
+	 *  custom handle object into a parent-owned ref box (the parent passes the box down as
+	 *  a prop), rebuilt when Deps change and CLEARED on unmount. THandle must be
+	 *  default-constructible (the cleared state). Both siblings ship this hook; Unity's
+	 *  media controllers (Play/Pause/Seek) are the canonical use. */
+	template <typename THandle>
+	void UseImperativeHandle(const TSharedRef<TRuiRef<THandle>>& TargetRef, TFunction<THandle()> Factory, FRuiDeps Deps)
+	{
+		const THandle& Handle = UseMemo<THandle>(MoveTemp(Factory), Deps); // copy of Deps — Effect owns the move
+		THandle Copy = Handle;
+		TSharedRef<TRuiRef<THandle>> Target = TargetRef;
+		UseEffect(
+			[Target, Copy]() -> FRuiEffectCleanup
+			{
+				Target->Current = Copy;
+				return [Target]() { Target->Current = THandle(); };
+			},
+			MoveTemp(Deps));
+	}
+
 	/** = UseMemo (family alias). */
 	template <typename T> const T& UseImperativeHandle(TFunction<T()> Factory, FRuiDeps Deps)
 	{

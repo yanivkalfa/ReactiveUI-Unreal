@@ -19,6 +19,9 @@
 - ~~**TD-020 tail — embedded-C++ COMPLETION via clangd**~~ — ✅ SHIPPED 2026-07-15 (extensions
   0.2.0): completion forwards over the virtual doc with range translation; hover/definition/
   completion all clangd-backed inside setup/hook/module bodies. TD-020 RESOLVED.
+- ~~**Widget completion (owner re-decision 2026-07-16)**~~ — ✅ **COMPLETE 2026-07-16**
+  (waves 0–4 + G, 0.5.0 → 0.9.0); see §5 and
+  [WIDGET_COMPLETION_PLAN.md](WIDGET_COMPLETION_PLAN.md).
 - **Phase 9 — release & publishing (owner-gated).** Per-engine zips (packaging stamps
   `EngineVersion` — release-process skill), Fab listing + upload (identity verification has
   lead time), the demo video (AI storyboards, owner records), Discord announcement, and the
@@ -65,13 +68,15 @@
 - **Remaining demo decisions** (audit §9-Q5): which of todo / 5k-virtualized-inventory /
   world-space are v1-blocking vs v1.x gallery additions.
 
-## 5. Widget & markup surface (v1.x production lines)
+## 5. Widget & markup surface — **NOW v1-BLOCKING (owner re-decision 2026-07-16)**
 
-- **Batch-3 widgets**: `SSearchableComboBox` (new in the 5.6→5.8 diff) is the seeded candidate;
-  WIDGET_INVENTORY.md governs — "a widget with no row is a sweep bug". The UE 5.7/5.8 additive
-  FArguments surface recorded there is the same line's feedstock.
-- **TD-012 remainder**: runtime setters found by the header sweep and deferred by decision —
-  WIDGET_INVENTORY tracks per-widget.
+- ~~**Full widget coverage + the TD-012 setter remainder moved INTO the v1 gate**~~ —
+  ✅ **PLAN COMPLETE 2026-07-16**: waves 0–4 + G all shipped (0.5.0 → 0.9.0) — 63 markup
+  tags / 65+ wrapped widgets, protocols P1–P5, TD-011/TD-013 gates in CI, TD-012 drained,
+  TD-022 closed (TreeView/HeaderRow), wave G grammar (early returns + short-circuit;
+  UETKX3002 retired). The 1.0 gate's widget-completion clauses are MET; see
+  [WIDGET_COMPLETION_PLAN.md](WIDGET_COMPLETION_PLAN.md) + WIDGET_INVENTORY.md Shipped tables.
+  Follow-on process item: outbound corpus-sync PRs to the Godot/Unity repos (TD-009/TD-018).
 - ~~**Markup `Ref` attribute gap**~~ — ✅ SHIPPED 2026-07-15 (owner decision): `Ref={ expr }`
   is a universal reserved attribute (codegen assigns `Props.Ref`; expr-only, string form
   diagnosed); LSP completion/hover, contract fixture `RefCapture`, AcceptanceLab §9 live

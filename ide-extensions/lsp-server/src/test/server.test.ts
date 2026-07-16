@@ -40,8 +40,8 @@ test("cursor classification", () => {
 test("shipped schema is the committed compiler export", () => {
   const schema = shippedSchema();
   assert.strictEqual(schema.v, 1);
-  // 15 Phase-2 widgets + 14 Batch-2 (Phase 7, TD-012) + Canvas (Doom Phase 0).
-  assert.strictEqual(Object.keys(schema.elements).length, 30);
+  // 15 Phase-2 + 14 Batch-2 (Phase 7, TD-012) + Canvas (Doom) + 8 Batch-3 wave 1 (WIDGET_COMPLETION_PLAN).
+  assert.strictEqual(Object.keys(schema.elements).length, 63);
   assert.strictEqual(schema.elements.Button.attrs.OnClicked, "event");
   assert.strictEqual(schema.elements.WidgetSwitcher.attrs.WidgetIndex, "int");
   assert.strictEqual(schema.hooks.length, 22); // + UseStableFunc/UseStableAction (Doom fix: they were missing from the built-in table)

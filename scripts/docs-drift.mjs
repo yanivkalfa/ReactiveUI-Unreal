@@ -119,12 +119,12 @@ const CHECKS = [
     source: () => countCoreHooks() - 2,
   },
   {
-    // README: "35+ wrapped Slate widgets" — a floor claim; the registry must be >= it.
+    // README: "65+ wrapped Slate widgets" — a floor claim; the registry must be >= it.
     file: 'README.md',
     pattern: /(\d+)\+ wrapped Slate widgets/,
     source: () => {
       const actual = countWidgetFactories();
-      return actual >= 35 ? 35 : actual; // a shrink below the floor surfaces the real number
+      return actual >= 65 ? 65 : actual; // a shrink below the floor surfaces the real number
     },
   },
   {

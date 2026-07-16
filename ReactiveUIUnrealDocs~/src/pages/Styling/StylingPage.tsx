@@ -35,6 +35,7 @@ const STYLE_KEYS: Array<[string, string]> = [
   ['Enabled', 'bool'],
   ['RenderTranslation / RenderScale / RenderTransformAngle / RenderTransformPivot', 'render-transform channels (FVector2D / float)'],
   ['Clipping', 'inherit | clipToBounds | clipToBoundsWithoutIntersecting | clipToBoundsAlways | onDemand — Slate never clips to bounds by default'],
+  ['ToolTipText', 'FText — a tooltip on any element (removal clears it)'],
   ['ColorAndOpacity', 'FSlateColor / FLinearColor (TextBlock, Image, Separator)'],
   ['Font.Size', 'text size (TextBlock and friends)'],
   ['Justification / AutoWrapText', 'text layout'],

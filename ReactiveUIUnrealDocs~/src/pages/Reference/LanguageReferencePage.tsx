@@ -24,6 +24,19 @@ const FLOW = `<VerticalBox>
 	}
 </VerticalBox>`
 
+const EARLY_RETURNS = `export component Status(Count: int32 = 0) {
+	if (Count < 0) {
+		return ( <TextBlock Text="invalid" /> );   // guard clause — plain C++ if
+	}
+	return (
+		<VerticalBox>
+			<TextBlock Text={ FText::AsNumber(Count) } />
+			{ Count > 10 && <TextBlock Text="high" /> }   // renders only when true
+			{ Count > 10 || <Spacer /> }                  // renders only when false
+		</VerticalBox>
+	);
+}`
+
 const DIRECTIVES: Array<[string, string]> = [
   ['@if / @elif / @else', 'Conditional markup.'],
   ['@for', 'Loop — the header is verbatim C++ (classic or ranged for); give children a key.'],
@@ -56,9 +69,10 @@ export const LanguageReferencePage: FC = () => (
       Expressions &amp; fragments
     </Typography>
     <Typography variant="body1" paragraph>
-      An attribute value is a plain string or a <code>{'{ expr }'}</code> C++ expression; a{' '}
-      <code>{'{ ...Props }'}</code> spread forwards an attribute set. A <code>{'{ expr }'}</code>{' '}
-      child inlines a value or element, and <code>{'{ children }'}</code> splices the children a
+      An attribute value is a plain string or a <code>{'{ expr }'}</code> C++ expression (a{' '}
+      <code>{'{ ...Props }'}</code> spread parses but is post-v1 — UETKX3003). A{' '}
+      <code>{'{ expr }'}</code> child inlines a value or element, and{' '}
+      <code>{'{ children }'}</code> splices the children a
       caller passed into your component. Use a fragment <code>&lt;&gt;...&lt;/&gt;</code> to return
       several children without an extra wrapper widget — leaf widgets (e.g.{' '}
       <code>TextBlock</code>) reject children with a compile error. Comments: <code>//</code>,{' '}
@@ -95,6 +109,19 @@ export const LanguageReferencePage: FC = () => (
         </TableBody>
       </Table>
     </TableContainer>
+
+    <Typography variant="h5" component="h2" gutterBottom sx={{ mt: 3 }}>
+      Early returns &amp; short-circuit rendering
+    </Typography>
+    <Typography variant="body1" paragraph>
+      A component body is verbatim C++ — its own control flow branches. Guard clauses exit early
+      with a markup <code>return ( ... );</code> anywhere in the body; the <em>final</em> markup
+      return must sit at the top level of the body (UETKX3007). Inside a{' '}
+      <code>{'{ expr }'}</code> hole, <code>{'cond && <X/>'}</code> renders the element only when
+      the condition holds, and <code>{'cond || <X/>'}</code> renders it only when it does not —
+      sugar for the equivalent ternary.
+    </Typography>
+    <CodeBlock code={EARLY_RETURNS} language="uetkx" />
 
     <Typography variant="h5" component="h2" gutterBottom sx={{ mt: 3 }}>
       Structural attributes

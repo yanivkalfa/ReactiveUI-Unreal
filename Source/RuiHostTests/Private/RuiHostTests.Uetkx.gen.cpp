@@ -12,10 +12,12 @@
 #define RUI_UETKX_DECL_PHASE
 #include "../ChildrenProof/ChildHost.uetkx.inl"
 #include "../ChildrenProof/ChildParent.uetkx.inl"
+#include "../GrammarProof/MultiReturnProof.uetkx.inl"
 #include "../CycleProof/CycleA.uetkx.inl"
 #include "../CycleProof/CycleB.uetkx.inl"
 #undef RUI_UETKX_DECL_PHASE
 #include "../ChildrenProof/ChildHost.uetkx.inl"
 #include "../ChildrenProof/ChildParent.uetkx.inl"
+#include "../GrammarProof/MultiReturnProof.uetkx.inl"
 #include "../CycleProof/CycleA.uetkx.inl"
 #include "../CycleProof/CycleB.uetkx.inl"

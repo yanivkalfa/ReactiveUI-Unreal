@@ -35,6 +35,7 @@ namespace
 		FString PropsType; // e.g. "FRuiButtonProps"
 		bool bChildren = true;
 		TMap<FName, EAttrType> Attrs;
+		FString SinceUE; // engine-version gate ("5.7" = absent from earlier engines); empty = all
 	};
 
 	const TMap<FName, FTagDef>& HostTags()
@@ -53,12 +54,260 @@ namespace
 				T.Attrs.Add(TEXT("OnClicked"), EAttrType::Event);
 				T.Attrs.Add(TEXT("bEnabled"), EAttrType::Bool);
 				T.Attrs.Add(TEXT("ContentPadding"), EAttrType::Margin);
+				T.Attrs.Add(TEXT("bIsFocusable"), EAttrType::Bool);
 				M.Add(TEXT("Button"), MoveTemp(T));
 			}
 			M.Add(TEXT("VerticalBox"), {TEXT("RUI::Slate::VerticalBox"), TEXT("FRuiVerticalBoxProps"), true, {}});
 			M.Add(TEXT("HorizontalBox"), {TEXT("RUI::Slate::HorizontalBox"), TEXT("FRuiHorizontalBoxProps"), true, {}});
 			M.Add(TEXT("Overlay"), {TEXT("RUI::Slate::Overlay"), TEXT("FRuiOverlayProps"), true, {}});
 			M.Add(TEXT("Canvas"), {TEXT("RUI::Slate::Canvas"), TEXT("FRuiCanvasPanelProps"), true, {}});
+			M.Add(TEXT("ConstraintCanvas"),
+				  {TEXT("RUI::Slate::ConstraintCanvas"), TEXT("FRuiConstraintCanvasProps"), true, {}});
+			{
+				FTagDef T{TEXT("RUI::Slate::Splitter"), TEXT("FRuiSplitterProps"), true, {}};
+				T.Attrs.Add(TEXT("Orientation"), EAttrType::Name);
+				T.Attrs.Add(TEXT("PhysicalSplitterHandleSize"), EAttrType::Float);
+				T.Attrs.Add(TEXT("OnSplitterFinishedResizing"), EAttrType::Event);
+				M.Add(TEXT("Splitter"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::Splitter2x2"), TEXT("FRuiSplitter2x2Props"), true, {}};
+				T.Attrs.Add(TEXT("Percentages"), EAttrType::Expr);
+				M.Add(TEXT("Splitter2x2"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::MenuAnchor"), TEXT("FRuiMenuAnchorProps"), true, {}};
+				T.Attrs.Add(TEXT("bIsOpen"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("Placement"), EAttrType::Name);
+				T.Attrs.Add(TEXT("bFitInWindow"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("OnMenuOpenChanged"), EAttrType::Event);
+				M.Add(TEXT("MenuAnchor"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::WindowTitleBarArea"), TEXT("FRuiWindowTitleBarAreaProps"), true, {}};
+				T.Attrs.Add(TEXT("HAlign"), EAttrType::Name);
+				T.Attrs.Add(TEXT("VAlign"), EAttrType::Name);
+				T.Attrs.Add(TEXT("Padding"), EAttrType::Margin);
+				T.Attrs.Add(TEXT("RequestToggleFullscreen"), EAttrType::Event);
+				M.Add(TEXT("WindowTitleBarArea"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::NumericDropDown"), TEXT("FRuiNumericDropDownProps"), false, {}};
+				T.Attrs.Add(TEXT("Values"), EAttrType::Expr);
+				T.Attrs.Add(TEXT("Labels"), EAttrType::Expr);
+				T.Attrs.Add(TEXT("Value"), EAttrType::Float);
+				T.Attrs.Add(TEXT("bShowNamedValue"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("OnValueChanged"), EAttrType::Event);
+				M.Add(TEXT("NumericDropDown"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::BreadcrumbTrail"), TEXT("FRuiBreadcrumbTrailProps"), false, {}};
+				T.Attrs.Add(TEXT("Crumbs"), EAttrType::Expr);
+				T.Attrs.Add(TEXT("bShowLeadingDelimiter"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("OnCrumbClicked"), EAttrType::Event);
+				M.Add(TEXT("BreadcrumbTrail"), MoveTemp(T));
+			}
+			M.Add(TEXT("NotificationList"),
+				  {TEXT("RUI::Slate::NotificationList"), TEXT("FRuiNotificationListProps"), false, {}});
+			{
+				FTagDef T{TEXT("RUI::Slate::SearchableComboBox"), TEXT("FRuiSearchableComboBoxProps"), false, {}};
+				T.SinceUE = TEXT("5.7"); // SSearchableComboBox does not exist in 5.6
+				T.Attrs.Add(TEXT("Options"), EAttrType::Expr);
+				T.Attrs.Add(TEXT("SelectedItem"), EAttrType::Text);
+				T.Attrs.Add(TEXT("OnSelectionChanged"), EAttrType::Event);
+				M.Add(TEXT("SearchableComboBox"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::LinkedBox"), TEXT("FRuiLinkedBoxProps"), true, {}};
+				T.Attrs.Add(TEXT("GroupKey"), EAttrType::Name);
+				M.Add(TEXT("LinkedBox"), MoveTemp(T));
+			}
+			M.Add(TEXT("VirtualJoystick"),
+				  {TEXT("RUI::Slate::VirtualJoystick"), TEXT("FRuiVirtualJoystickProps"), false, {}});
+			{
+				FTagDef T{TEXT("RUI::Slate::VectorInputBox"), TEXT("FRuiVectorInputBoxProps"), false, {}};
+				T.Attrs.Add(TEXT("X"), EAttrType::Float);
+				T.Attrs.Add(TEXT("Y"), EAttrType::Float);
+				T.Attrs.Add(TEXT("Z"), EAttrType::Float);
+				T.Attrs.Add(TEXT("bColorAxisLabels"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("OnXChanged"), EAttrType::Event);
+				T.Attrs.Add(TEXT("OnYChanged"), EAttrType::Event);
+				T.Attrs.Add(TEXT("OnZChanged"), EAttrType::Event);
+				M.Add(TEXT("VectorInputBox"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::RotatorInputBox"), TEXT("FRuiRotatorInputBoxProps"), false, {}};
+				T.Attrs.Add(TEXT("Roll"), EAttrType::Float);
+				T.Attrs.Add(TEXT("Pitch"), EAttrType::Float);
+				T.Attrs.Add(TEXT("Yaw"), EAttrType::Float);
+				T.Attrs.Add(TEXT("bColorAxisLabels"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("OnRollChanged"), EAttrType::Event);
+				T.Attrs.Add(TEXT("OnPitchChanged"), EAttrType::Event);
+				T.Attrs.Add(TEXT("OnYawChanged"), EAttrType::Event);
+				M.Add(TEXT("RotatorInputBox"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::ColorBlock"), TEXT("FRuiColorBlockProps"), false, {}};
+				T.Attrs.Add(TEXT("Color"), EAttrType::Color);
+				T.Attrs.Add(TEXT("Size"), EAttrType::Vector2);
+				T.Attrs.Add(TEXT("bUseSRGB"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("bShowBackgroundForAlpha"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("bColorIsHSV"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("AlphaDisplayMode"), EAttrType::Name);
+				M.Add(TEXT("ColorBlock"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::SimpleGradient"), TEXT("FRuiSimpleGradientProps"), false, {}};
+				T.Attrs.Add(TEXT("StartColor"), EAttrType::Color);
+				T.Attrs.Add(TEXT("EndColor"), EAttrType::Color);
+				T.Attrs.Add(TEXT("Orientation"), EAttrType::Name);
+				T.Attrs.Add(TEXT("bHasAlphaBackground"), EAttrType::Bool);
+				M.Add(TEXT("SimpleGradient"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::ComplexGradient"), TEXT("FRuiComplexGradientProps"), false, {}};
+				T.Attrs.Add(TEXT("GradientColors"), EAttrType::Expr);
+				T.Attrs.Add(TEXT("Orientation"), EAttrType::Name);
+				T.Attrs.Add(TEXT("bHasAlphaBackground"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("DesiredSizeOverride"), EAttrType::Vector2);
+				M.Add(TEXT("ComplexGradient"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::Hyperlink"), TEXT("FRuiHyperlinkProps"), false, {}};
+				T.Attrs.Add(TEXT("Text"), EAttrType::Text);
+				T.Attrs.Add(TEXT("Padding"), EAttrType::Margin);
+				T.Attrs.Add(TEXT("OnNavigate"), EAttrType::Event);
+				M.Add(TEXT("Hyperlink"), MoveTemp(T));
+			}
+			M.Add(TEXT("EnableBox"), {TEXT("RUI::Slate::EnableBox"), TEXT("FRuiEnableBoxProps"), true, {}});
+			M.Add(TEXT("ScissorRectBox"),
+				  {TEXT("RUI::Slate::ScissorRectBox"), TEXT("FRuiScissorRectBoxProps"), true, {}});
+			{
+				FTagDef T{TEXT("RUI::Slate::BackgroundBlur"), TEXT("FRuiBackgroundBlurProps"), true, {}};
+				T.Attrs.Add(TEXT("BlurStrength"), EAttrType::Float);
+				T.Attrs.Add(TEXT("BlurRadius"), EAttrType::Int);
+				T.Attrs.Add(TEXT("bApplyAlphaToBlur"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("Padding"), EAttrType::Margin);
+				M.Add(TEXT("BackgroundBlur"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::InvalidationPanel"), TEXT("FRuiInvalidationPanelProps"), true, {}};
+				T.Attrs.Add(TEXT("bCanCache"), EAttrType::Bool);
+				M.Add(TEXT("InvalidationPanel"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::VolumeControl"), TEXT("FRuiVolumeControlProps"), false, {}};
+				T.Attrs.Add(TEXT("Volume"), EAttrType::Float);
+				T.Attrs.Add(TEXT("bMuted"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("OnVolumeChanged"), EAttrType::Event);
+				T.Attrs.Add(TEXT("OnMuteChanged"), EAttrType::Event);
+				M.Add(TEXT("VolumeControl"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::TextScroller"), TEXT("FRuiTextScrollerProps"), true, {}};
+				T.Attrs.Add(TEXT("Speed"), EAttrType::Float);
+				T.Attrs.Add(TEXT("StartDelay"), EAttrType::Float);
+				T.Attrs.Add(TEXT("EndDelay"), EAttrType::Float);
+				T.Attrs.Add(TEXT("ScrollOrientation"), EAttrType::Name);
+				M.Add(TEXT("TextScroller"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::RadialBox"), TEXT("FRuiRadialBoxProps"), true, {}};
+				T.Attrs.Add(TEXT("PreferredWidth"), EAttrType::Float);
+				T.Attrs.Add(TEXT("bUseAllottedWidth"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("StartingAngle"), EAttrType::Float);
+				T.Attrs.Add(TEXT("bDistributeItemsEvenly"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("AngleBetweenItems"), EAttrType::Float);
+				T.Attrs.Add(TEXT("SectorCentralAngle"), EAttrType::Float);
+				M.Add(TEXT("RadialBox"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::ColorWheel"), TEXT("FRuiColorWheelProps"), false, {}};
+				T.Attrs.Add(TEXT("SelectedColor"), EAttrType::Color);
+				T.Attrs.Add(TEXT("OnValueChanged"), EAttrType::Event);
+				T.Attrs.Add(TEXT("OnMouseCaptureBegin"), EAttrType::Event);
+				T.Attrs.Add(TEXT("OnMouseCaptureEnd"), EAttrType::Event);
+				M.Add(TEXT("ColorWheel"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::ColorSpectrum"), TEXT("FRuiColorSpectrumProps"), false, {}};
+				T.Attrs.Add(TEXT("SelectedColor"), EAttrType::Color);
+				T.Attrs.Add(TEXT("OnValueChanged"), EAttrType::Event);
+				T.Attrs.Add(TEXT("OnMouseCaptureBegin"), EAttrType::Event);
+				T.Attrs.Add(TEXT("OnMouseCaptureEnd"), EAttrType::Event);
+				M.Add(TEXT("ColorSpectrum"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::LayeredImage"), TEXT("FRuiLayeredImageProps"), false, {}};
+				T.Attrs.Add(TEXT("ColorAndOpacity"), EAttrType::Color);
+				T.Attrs.Add(TEXT("DesiredSizeOverride"), EAttrType::Vector2);
+				T.Attrs.Add(TEXT("Image"), EAttrType::Expr);
+				T.Attrs.Add(TEXT("Layers"), EAttrType::Expr);
+				M.Add(TEXT("LayeredImage"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::InputKeySelector"), TEXT("FRuiInputKeySelectorProps"), false, {}};
+				T.Attrs.Add(TEXT("SelectedKey"), EAttrType::Name);
+				T.Attrs.Add(TEXT("KeySelectionText"), EAttrType::Text);
+				T.Attrs.Add(TEXT("NoKeySpecifiedText"), EAttrType::Text);
+				T.Attrs.Add(TEXT("bAllowModifierKeys"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("bAllowGamepadKeys"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("bEscapeCancelsSelection"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("OnKeySelected"), EAttrType::Event);
+				T.Attrs.Add(TEXT("OnIsSelectingKeyChanged"), EAttrType::Event);
+				M.Add(TEXT("InputKeySelector"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::EditableText"), TEXT("FRuiEditableTextProps"), false, {}};
+				T.Attrs.Add(TEXT("Text"), EAttrType::Text);
+				T.Attrs.Add(TEXT("HintText"), EAttrType::Text);
+				T.Attrs.Add(TEXT("bIsReadOnly"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("bIsPassword"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("MinDesiredWidth"), EAttrType::Float);
+				T.Attrs.Add(TEXT("OnTextChanged"), EAttrType::Event);
+				T.Attrs.Add(TEXT("OnTextCommitted"), EAttrType::Event);
+				M.Add(TEXT("EditableText"), MoveTemp(T));
+			}
+			{
+				FTagDef T{
+					TEXT("RUI::Slate::InlineEditableTextBlock"), TEXT("FRuiInlineEditableTextBlockProps"), false, {}};
+				T.Attrs.Add(TEXT("Text"), EAttrType::Text);
+				T.Attrs.Add(TEXT("HintText"), EAttrType::Text);
+				T.Attrs.Add(TEXT("bIsReadOnly"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("WrapTextAt"), EAttrType::Float);
+				T.Attrs.Add(TEXT("bMultiLine"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("OnTextCommitted"), EAttrType::Event);
+				M.Add(TEXT("InlineEditableTextBlock"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::VirtualKeyboardEntry"), TEXT("FRuiVirtualKeyboardEntryProps"), false, {}};
+				T.Attrs.Add(TEXT("Text"), EAttrType::Text);
+				T.Attrs.Add(TEXT("HintText"), EAttrType::Text);
+				T.Attrs.Add(TEXT("bIsReadOnly"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("KeyboardType"), EAttrType::Name);
+				T.Attrs.Add(TEXT("OnTextChanged"), EAttrType::Event);
+				T.Attrs.Add(TEXT("OnTextCommitted"), EAttrType::Event);
+				M.Add(TEXT("VirtualKeyboardEntry"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::ColorGradingWheel"), TEXT("FRuiColorGradingWheelProps"), false, {}};
+				T.Attrs.Add(TEXT("SelectedColor"), EAttrType::Color);
+				T.Attrs.Add(TEXT("DesiredWheelSize"), EAttrType::Int);
+				T.Attrs.Add(TEXT("ExponentDisplacement"), EAttrType::Float);
+				T.Attrs.Add(TEXT("OnValueChanged"), EAttrType::Event);
+				T.Attrs.Add(TEXT("OnMouseCaptureBegin"), EAttrType::Event);
+				T.Attrs.Add(TEXT("OnMouseCaptureEnd"), EAttrType::Event);
+				M.Add(TEXT("ColorGradingWheel"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::ExpandableButton"), TEXT("FRuiExpandableButtonProps"), true, {}};
+				T.Attrs.Add(TEXT("CollapsedText"), EAttrType::Text);
+				T.Attrs.Add(TEXT("ExpandedText"), EAttrType::Text);
+				T.Attrs.Add(TEXT("bIsExpanded"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("OnExpansionClicked"), EAttrType::Event);
+				T.Attrs.Add(TEXT("OnCloseClicked"), EAttrType::Event);
+				M.Add(TEXT("ExpandableButton"), MoveTemp(T));
+			}
 			{
 				FTagDef T{TEXT("RUI::Slate::Border"), TEXT("FRuiBorderProps"), true, {}};
 				T.Attrs.Add(TEXT("Padding"), EAttrType::Margin);
@@ -89,6 +338,9 @@ namespace
 			{
 				FTagDef T{TEXT("RUI::Slate::ScrollBox"), TEXT("FRuiScrollBoxProps"), true, {}};
 				T.Attrs.Add(TEXT("Orientation"), EAttrType::Name);
+				T.Attrs.Add(TEXT("bAllowOverscroll"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("bAnimateWheelScrolling"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("WheelScrollMultiplier"), EAttrType::Float);
 				M.Add(TEXT("ScrollBox"), MoveTemp(T));
 			}
 			{
@@ -118,11 +370,17 @@ namespace
 					T.Attrs.Add(P, EAttrType::Float);
 				}
 				T.Attrs.Add(TEXT("OnValueChanged"), EAttrType::Event);
+				T.Attrs.Add(TEXT("Orientation"), EAttrType::Name);
+				T.Attrs.Add(TEXT("bLocked"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("bIndentHandle"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("SliderBarColor"), EAttrType::Color);
+				T.Attrs.Add(TEXT("SliderHandleColor"), EAttrType::Color);
 				M.Add(TEXT("Slider"), MoveTemp(T));
 			}
 			{
 				FTagDef T{TEXT("RUI::Slate::ProgressBar"), TEXT("FRuiProgressBarProps"), false, {}};
 				T.Attrs.Add(TEXT("Percent"), EAttrType::Float);
+				T.Attrs.Add(TEXT("BarFillType"), EAttrType::Name);
 				M.Add(TEXT("ProgressBar"), MoveTemp(T));
 			}
 			{
@@ -248,7 +506,10 @@ namespace
 										   TEXT("Justification"),
 										   TEXT("AutoWrapText"),
 										   TEXT("FillColorAndOpacity"),
-										   TEXT("Clipping")};
+										   TEXT("Clipping"),
+										   TEXT("ToolTipText"),
+										   TEXT("LineHeightPercentage"),
+										   TEXT("OverflowPolicy")};
 		return Keys;
 	}
 
@@ -627,15 +888,14 @@ namespace
 					Fail(TEXT("UETKX2508"), TEXT("unbalanced markup inside expression"), AbsAt);
 					return Expr;
 				}
-				if (!Range.Op.IsEmpty())
-				{
-					Fail(TEXT("UETKX3002"),
-						 TEXT("short-circuit markup (`&&`/`||`) is post-v1 in .uetkx — use a ternary `cond ? "
-							  "<X/> : <>...</>`"),
-						 AbsAt);
-					return Expr;
-				}
-				Out += PrefixHooks(FUetkxLexer::FromCodePoints(Src, Cursor, Range.Start - Cursor));
+				// Short-circuit markup desugars in place (wave G — the Unity Phase 1.5 port;
+				// UETKX3002 retired): `cond && <X/>` -> `cond ? <X/> : FRuiNode()` and
+				// `cond || <X/>` -> `cond ? FRuiNode() : <X/>` (a default FRuiNode is an empty
+				// fragment — renders nothing). `&&`/`||` bind tighter than `?:`, so the bare
+				// condition text is safe on the left of the emitted ternary.
+				const bool bShortCircuit = !Range.Op.IsEmpty();
+				Out += PrefixHooks(
+					FUetkxLexer::FromCodePoints(Src, Cursor, (bShortCircuit ? Range.OpPos : Range.Start) - Cursor));
 				FUetkxMarkup Parser;
 				FUetkxParseResult Pr = Parser.Parse(Src, Range.Start, Range.End);
 				if (!Pr.IsOk() || Pr.Nodes.Num() != 1)
@@ -643,7 +903,16 @@ namespace
 					Fail(TEXT("UETKX2508"), TEXT("invalid markup inside expression"), AbsAt);
 					return Expr;
 				}
-				Out += EmitNodeExpr(*Pr.Nodes[0], AbsAt);
+				const FString Node = EmitNodeExpr(*Pr.Nodes[0], AbsAt);
+				if (bShortCircuit)
+				{
+					Out += Range.Op == TEXT("&&") ? FString::Printf(TEXT(" ? %s : FRuiNode()"), *Node)
+												  : FString::Printf(TEXT(" ? FRuiNode() : %s"), *Node);
+				}
+				else
+				{
+					Out += Node;
+				}
 				Cursor = Range.End;
 			}
 			Out += PrefixHooks(FUetkxLexer::FromCodePoints(Src, Cursor, Src.Num() - Cursor));
@@ -1196,13 +1465,55 @@ namespace
 		{
 			Impl += FString::Printf(TEXT("\tconst auto& %s = Props.%s;\n"), *Param.Name, *Param.Name);
 		}
-		const FString Setup = Decl.Setup.TrimStartAndEnd();
-		if (!Setup.IsEmpty())
+		if (Decl.Returns.Num() <= 1)
 		{
-			Impl += WithLine(TEXT("\t") + IndentRegion(PrefixHooks(Setup)) + TEXT("\n"),
-							 SrcLineOfRegion(Decl.Setup, Decl.SetupAt, Line), Line);
+			// Single markup return — the legacy shape (byte-stable goldens).
+			const FString Setup = Decl.Setup.TrimStartAndEnd();
+			if (!Setup.IsEmpty())
+			{
+				Impl += WithLine(TEXT("\t") + IndentRegion(PrefixHooks(Setup)) + TEXT("\n"),
+								 SrcLineOfRegion(Decl.Setup, Decl.SetupAt, Line), Line);
+			}
+			Impl += FString::Printf(TEXT("\treturn { %s };\n}\n"), *EmitNodeExpr(*Decl.Root, Decl.BodyAt));
 		}
-		Impl += FString::Printf(TEXT("\treturn { %s };\n}\n"), *EmitNodeExpr(*Decl.Root, Decl.BodyAt));
+		else
+		{
+			// Wave G early returns — the family's verbatim-emit model (Unity SpliceSetupCodeMarkup):
+			// the body's C++ splices VERBATIM (its own control flow branches); every markup
+			// `return ( <X/> )` span lowers to `return { <element expr> };` in place.
+			const TArray<int32> Body = FUetkxLexer::ToCodePoints(Decl.Body);
+			int32 Cursor = 0;
+			for (const FUetkxReturnSpan& Span : Decl.Returns)
+			{
+				const FString Raw = FUetkxLexer::FromCodePoints(Body, Cursor, Span.ReturnAt - Cursor);
+				const FString Segment = Raw.TrimStartAndEnd();
+				if (!Segment.IsEmpty())
+				{
+					Impl += WithLine(TEXT("\t") + IndentRegion(PrefixHooks(Segment)) + TEXT("\n"),
+									 SrcLineOfRegion(Raw, Decl.BodyAt + Cursor, Line), Line);
+				}
+				Impl += FString::Printf(TEXT("\treturn { %s };\n"), *EmitNodeExpr(*Span.Root, Decl.BodyAt));
+				// step past the authored `;` (we emit our own)
+				Cursor = Span.AfterParen;
+				while (Cursor < Body.Num() &&
+					   (Body[Cursor] == ' ' || Body[Cursor] == '\t' || Body[Cursor] == '\n' || Body[Cursor] == '\r'))
+				{
+					++Cursor;
+				}
+				if (Cursor < Body.Num() && Body[Cursor] == ';')
+				{
+					++Cursor;
+				}
+			}
+			const FString RawTail = FUetkxLexer::FromCodePoints(Body, Cursor, Body.Num() - Cursor);
+			const FString Tail = RawTail.TrimStartAndEnd();
+			if (!Tail.IsEmpty())
+			{
+				Impl += WithLine(TEXT("\t") + IndentRegion(PrefixHooks(Tail)) + TEXT("\n"),
+								 SrcLineOfRegion(RawTail, Decl.BodyAt + Cursor, Line), Line);
+			}
+			Impl += TEXT("}\n");
+		}
 		Impl += FString::Printf(TEXT("static const FName G%sUetkxId = RUI::RegisterComponentId((void*)&%s_UetkxImpl, "
 									 "FName(TEXT(\"%s\")));\n"),
 								*Decl.Name, *Decl.Name, *Decl.Name);
@@ -1470,6 +1781,10 @@ FString FUetkxCodegen::ExportSchemaJson()
 		TSharedRef<FJsonObject> El = MakeShared<FJsonObject>();
 		El->SetStringField(TEXT("factory"), Tag.Factory);
 		El->SetBoolField(TEXT("children"), Tag.bChildren);
+		if (!Tag.SinceUE.IsEmpty())
+		{
+			El->SetStringField(TEXT("sinceUE"), Tag.SinceUE);
+		}
 		TSharedRef<FJsonObject> Attrs = MakeShared<FJsonObject>();
 		TArray<FName> AttrNames;
 		Tag.Attrs.GetKeys(AttrNames);
@@ -1495,8 +1810,11 @@ FString FUetkxCodegen::ExportSchemaJson()
 	// Slot.* is an OPEN prefix (any name routes to the slot dict); these are the D-33 canon.
 	Root->SetStringField(TEXT("slotPrefix"), TEXT("Slot."));
 	TArray<TSharedPtr<FJsonValue>> SlotArray;
-	for (const TCHAR* Key : {TEXT("Slot.Padding"), TEXT("Slot.HAlign"), TEXT("Slot.VAlign"), TEXT("Slot.Fill"),
-							 TEXT("Slot.ZOrder"), TEXT("Slot.Position"), TEXT("Slot.Size")})
+	for (const TCHAR* Key :
+		 {TEXT("Slot.Padding"), TEXT("Slot.HAlign"), TEXT("Slot.VAlign"), TEXT("Slot.Fill"), TEXT("Slot.ZOrder"),
+		  TEXT("Slot.Position"), TEXT("Slot.Size"), TEXT("Slot.Offset"), TEXT("Slot.Anchors"), TEXT("Slot.Alignment"),
+		  TEXT("Slot.AutoSize"), TEXT("Slot.Role"), TEXT("Slot.SizeRule"), TEXT("Slot.SizeValue"), TEXT("Slot.MinSize"),
+		  TEXT("Slot.Resizable")})
 	{
 		SlotArray.Add(MakeShared<FJsonValueString>(Key));
 	}

@@ -41,7 +41,10 @@ namespace ReplaceTest
 		virtual uint64 GetReconstructMask() const override { return (1ull << FTestReconProps::Flavor_Bit); }
 		virtual bool ConstructOnlyChanged(const FRuiPropsBase& Old, const FRuiPropsBase& New) const override
 		{
-			return static_cast<const FTestReconProps&>(Old).Flavor != static_cast<const FTestReconProps&>(New).Flavor;
+			// Has-gated like production adapters (SEP-REBUILD-1; enforced by Contract.AdapterMasks).
+			const FTestReconProps& O = static_cast<const FTestReconProps&>(Old);
+			const FTestReconProps& N = static_cast<const FTestReconProps&>(New);
+			return N.HasFlavor() && (!O.HasFlavor() || O.Flavor != N.Flavor);
 		}
 		virtual bool HasEvents() const override { return true; }
 		virtual void SyncEventHandlers(FRuiEventProxy&, const FRuiPropsBase&) override {}

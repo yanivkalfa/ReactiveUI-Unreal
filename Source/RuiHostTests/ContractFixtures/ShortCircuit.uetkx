@@ -1,0 +1,10 @@
+export component ShortCircuit(bShow: bool = false) {
+	auto [Count, SetCount] = UseState(0);
+	return (
+		<VerticalBox>
+			{ bShow && <TextBlock Text="visible" /> }
+			{ Count > 2 && <Spacer /> }
+			{ bShow || <TextBlock Text="fallback" /> }
+		</VerticalBox>
+	);
+}

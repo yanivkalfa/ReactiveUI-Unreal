@@ -1,5 +1,16 @@
 # ReactiveUI-Unreal — Overview & Roadmap
 
+> **STATUS UPDATE — 2026-07-16 (`plan/widget-completion`).** The widget-completion campaign
+> is COMPLETE: waves 0–4 + G all shipped as additive minors 0.5.0 → 0.9.0. 63 markup tags /
+> 65+ wrapped Slate widgets (every official runtime widget: Shipped, SKIP-annotated, or
+> reclassified per D-W2/D-W3); protocols P1–P5 (universal tooltips, imperative handles,
+> popups, toasts, anchor/fraction/column slot models); TD-011 + TD-013 anti-drift gates in
+> CI; TD-012 setter sweep drained; TD-022 closed (TreeView + HeaderRow); first
+> `sinceUE: 5.7` widget; grammar wave G (early returns + short-circuit `&&`/`||`,
+> UETKX3002 retired, UETKX3007 added) with corpus in both impls. Battery 127/127 on UE 5.6.
+> The v1 gate's widget-completion clauses are MET — see
+> `plans/WIDGET_COMPLETION_PLAN.md` + `plans/WIDGET_INVENTORY.md`.
+>
 > **STATUS UPDATE — 2026-07-15 (`feat/v1-gate-closeout`).** Localization SHIPPED (the last
 > Phase-7 production gap): verified gather pipeline for markup text + culture-change → root
 > re-render (`RuiCultureSync`), suite `ReactiveUI.Loc`; plugin 0.4.0. TD-020 (embedded-C++
