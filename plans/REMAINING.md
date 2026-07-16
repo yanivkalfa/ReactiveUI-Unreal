@@ -19,6 +19,9 @@
 - ~~**TD-020 tail — embedded-C++ COMPLETION via clangd**~~ — ✅ SHIPPED 2026-07-15 (extensions
   0.2.0): completion forwards over the virtual doc with range translation; hover/definition/
   completion all clangd-backed inside setup/hook/module bodies. TD-020 RESOLVED.
+- **Widget completion (owner re-decision 2026-07-16)** — full official-widget coverage +
+  TD-012 remainder now block the 1.0 tag; see §5 and
+  [WIDGET_COMPLETION_PLAN.md](WIDGET_COMPLETION_PLAN.md).
 - **Phase 9 — release & publishing (owner-gated).** Per-engine zips (packaging stamps
   `EngineVersion` — release-process skill), Fab listing + upload (identity verification has
   lead time), the demo video (AI storyboards, owner records), Discord announcement, and the
@@ -65,13 +68,13 @@
 - **Remaining demo decisions** (audit §9-Q5): which of todo / 5k-virtualized-inventory /
   world-space are v1-blocking vs v1.x gallery additions.
 
-## 5. Widget & markup surface (v1.x production lines)
+## 5. Widget & markup surface — **NOW v1-BLOCKING (owner re-decision 2026-07-16)**
 
-- **Batch-3 widgets**: `SSearchableComboBox` (new in the 5.6→5.8 diff) is the seeded candidate;
-  WIDGET_INVENTORY.md governs — "a widget with no row is a sweep bug". The UE 5.7/5.8 additive
-  FArguments surface recorded there is the same line's feedstock.
-- **TD-012 remainder**: runtime setters found by the header sweep and deferred by decision —
-  WIDGET_INVENTORY tracks per-widget.
+- **Full widget coverage + the TD-012 setter remainder moved INTO the v1 gate** — the 1.0 tag
+  (and the Fab day-one listing) ship with everything. Execution plan with waves, protocols,
+  and versioning: [WIDGET_COMPLETION_PLAN.md](WIDGET_COMPLETION_PLAN.md) (researched
+  2026-07-16). WIDGET_INVENTORY.md stays the authoritative per-widget tracker; waves ship as
+  0.5.0+ additive minors on GitHub.
 - ~~**Markup `Ref` attribute gap**~~ — ✅ SHIPPED 2026-07-15 (owner decision): `Ref={ expr }`
   is a universal reserved attribute (codegen assigns `Props.Ref`; expr-only, string form
   diagnosed); LSP completion/hover, contract fixture `RefCapture`, AcceptanceLab §9 live
