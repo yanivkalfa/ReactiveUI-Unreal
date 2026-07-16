@@ -173,6 +173,37 @@ struct REACTIVEUISLATE_API FRuiVirtualJoystickProps final : public FRuiPropsBase
 	RUI_PROPS_BODY(FRuiVirtualJoystickProps, )
 };
 
+/** SVectorInputBox (= SNumericVectorInputBox<float,3>, Leaf): X/Y/Z numeric row. The whole
+ *  surface is attribute/construct-only -> masked; per-axis edits report via OnXChanged etc.
+ *  (float payloads). */
+struct REACTIVEUISLATE_API FRuiVectorInputBoxProps final : public FRuiPropsBase
+{
+	RUI_PROP(float, X, 0)
+	RUI_PROP(float, Y, 1)
+	RUI_PROP(float, Z, 2)
+	RUI_PROP(bool, bColorAxisLabels, 3)
+	RUI_PROP_EVENT(OnXChanged, 4)
+	RUI_PROP_EVENT(OnYChanged, 5)
+	RUI_PROP_EVENT(OnZChanged, 6)
+	RUI_PROPS_BODY(FRuiVectorInputBoxProps, RUI_EQ(X) RUI_EQ(Y) RUI_EQ(Z) RUI_EQ(bColorAxisLabels) RUI_EQ(OnXChanged)
+												RUI_EQ(OnYChanged) RUI_EQ(OnZChanged))
+};
+
+/** SRotatorInputBox (= SNumericRotatorInputBox<float>, Leaf): Roll/Pitch/Yaw row - same
+ *  masked-controlled contract as VectorInputBox. */
+struct REACTIVEUISLATE_API FRuiRotatorInputBoxProps final : public FRuiPropsBase
+{
+	RUI_PROP(float, Roll, 0)
+	RUI_PROP(float, Pitch, 1)
+	RUI_PROP(float, Yaw, 2)
+	RUI_PROP(bool, bColorAxisLabels, 3)
+	RUI_PROP_EVENT(OnRollChanged, 4)
+	RUI_PROP_EVENT(OnPitchChanged, 5)
+	RUI_PROP_EVENT(OnYawChanged, 6)
+	RUI_PROPS_BODY(FRuiRotatorInputBoxProps, RUI_EQ(Roll) RUI_EQ(Pitch) RUI_EQ(Yaw) RUI_EQ(bColorAxisLabels)
+												 RUI_EQ(OnRollChanged) RUI_EQ(OnPitchChanged) RUI_EQ(OnYawChanged))
+};
+
 /** SBorder (SingleContent). Alignment values: fill|left|center|right / fill|top|center|bottom.
  *  BorderImage takes an FCoreStyle brush NAME (v1 — e.g. "WhiteBrush" for a solid fill
  *  tinted by BorderBackgroundColor; the engine default is a thin frame-type brush). Asset
@@ -848,6 +879,10 @@ namespace RUI::Slate
 	REACTIVEUISLATE_API FRuiNode LinkedBox(FRuiLinkedBoxProps Props = FRuiLinkedBoxProps(),
 										   TArray<FRuiNode> Children = TArray<FRuiNode>(), FRuiKey Key = FRuiKey());
 	REACTIVEUISLATE_API FRuiNode VirtualJoystick(FRuiVirtualJoystickProps Props = FRuiVirtualJoystickProps(),
+												 FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode VectorInputBox(FRuiVectorInputBoxProps Props = FRuiVectorInputBoxProps(),
+												FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode RotatorInputBox(FRuiRotatorInputBoxProps Props = FRuiRotatorInputBoxProps(),
 												 FRuiKey Key = FRuiKey());
 
 	/** P4 command: push a toast onto a Ref-captured <NotificationList> (no-op on a dead/wrong

@@ -120,6 +120,28 @@ namespace
 			M.Add(TEXT("VirtualJoystick"),
 				  {TEXT("RUI::Slate::VirtualJoystick"), TEXT("FRuiVirtualJoystickProps"), false, {}});
 			{
+				FTagDef T{TEXT("RUI::Slate::VectorInputBox"), TEXT("FRuiVectorInputBoxProps"), false, {}};
+				T.Attrs.Add(TEXT("X"), EAttrType::Float);
+				T.Attrs.Add(TEXT("Y"), EAttrType::Float);
+				T.Attrs.Add(TEXT("Z"), EAttrType::Float);
+				T.Attrs.Add(TEXT("bColorAxisLabels"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("OnXChanged"), EAttrType::Event);
+				T.Attrs.Add(TEXT("OnYChanged"), EAttrType::Event);
+				T.Attrs.Add(TEXT("OnZChanged"), EAttrType::Event);
+				M.Add(TEXT("VectorInputBox"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::RotatorInputBox"), TEXT("FRuiRotatorInputBoxProps"), false, {}};
+				T.Attrs.Add(TEXT("Roll"), EAttrType::Float);
+				T.Attrs.Add(TEXT("Pitch"), EAttrType::Float);
+				T.Attrs.Add(TEXT("Yaw"), EAttrType::Float);
+				T.Attrs.Add(TEXT("bColorAxisLabels"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("OnRollChanged"), EAttrType::Event);
+				T.Attrs.Add(TEXT("OnPitchChanged"), EAttrType::Event);
+				T.Attrs.Add(TEXT("OnYawChanged"), EAttrType::Event);
+				M.Add(TEXT("RotatorInputBox"), MoveTemp(T));
+			}
+			{
 				FTagDef T{TEXT("RUI::Slate::ColorBlock"), TEXT("FRuiColorBlockProps"), false, {}};
 				T.Attrs.Add(TEXT("Color"), EAttrType::Color);
 				T.Attrs.Add(TEXT("Size"), EAttrType::Vector2);

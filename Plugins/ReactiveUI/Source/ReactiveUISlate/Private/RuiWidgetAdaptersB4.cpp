@@ -20,6 +20,8 @@
 #endif
 #include "RuiSlateHost.h"
 #include "Widgets/Notifications/SNotificationList.h"
+#include "Widgets/Input/SRotatorInputBox.h"
+#include "Widgets/Input/SVectorInputBox.h"
 #include "Widgets/Input/SVirtualJoystick.h"
 #include "Widgets/Layout/SLinkedBox.h"
 #include "Widgets/Layout/SSplitter.h"
@@ -876,6 +878,118 @@ public:
 	virtual void ApplyDiff(SWidget&, const FRuiPropsBase*, const FRuiPropsBase&) override {}
 };
 
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// SVectorInputBox / SRotatorInputBox (wave 4) — templated float rows; fully masked.
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+class FRuiVectorInputBoxAdapter final : public IRuiElementAdapter
+{
+public:
+	virtual ERuiChildKind GetChildKind() const override { return ERuiChildKind::Leaf; }
+	virtual bool HasEvents() const override { return true; }
+
+	virtual uint64 GetReconstructMask() const override
+	{
+		return (1ull << FRuiVectorInputBoxProps::X_Bit) | (1ull << FRuiVectorInputBoxProps::Y_Bit) |
+			   (1ull << FRuiVectorInputBoxProps::Z_Bit) | (1ull << FRuiVectorInputBoxProps::bColorAxisLabels_Bit);
+	}
+
+	virtual bool ConstructOnlyChanged(const FRuiPropsBase& Old, const FRuiPropsBase& New) const override
+	{
+		const FRuiVectorInputBoxProps& O = static_cast<const FRuiVectorInputBoxProps&>(Old);
+		const FRuiVectorInputBoxProps& N = static_cast<const FRuiVectorInputBoxProps&>(New);
+		auto Changed = [](bool bNewHas, bool bOldHas, const auto& OldV, const auto& NewV)
+		{ return bNewHas && (!bOldHas || !(OldV == NewV)); };
+		return Changed(N.HasX(), O.HasX(), O.X, N.X) || Changed(N.HasY(), O.HasY(), O.Y, N.Y) ||
+			   Changed(N.HasZ(), O.HasZ(), O.Z, N.Z) ||
+			   Changed(N.HasbColorAxisLabels(), O.HasbColorAxisLabels(), O.bColorAxisLabels, N.bColorAxisLabels);
+	}
+
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase& Props,
+											 const TSharedPtr<FRuiEventProxy>& Proxy) override
+	{
+		const FRuiVectorInputBoxProps& P = static_cast<const FRuiVectorInputBoxProps&>(Props);
+		return SNew(SVectorInputBox)
+			.X(P.HasX() ? TOptional<float>(P.X) : TOptional<float>())
+			.Y(P.HasY() ? TOptional<float>(P.Y) : TOptional<float>())
+			.Z(P.HasZ() ? TOptional<float>(P.Z) : TOptional<float>())
+			.bColorAxisLabels(P.HasbColorAxisLabels() && P.bColorAxisLabels)
+			.OnXChanged(SVectorInputBox::FOnNumericValueChanged::CreateSP(
+				Proxy.ToSharedRef(), &FRuiEventProxy::HandleFloat,
+				static_cast<int32>(FRuiVectorInputBoxProps::OnXChanged_Bit)))
+			.OnYChanged(SVectorInputBox::FOnNumericValueChanged::CreateSP(
+				Proxy.ToSharedRef(), &FRuiEventProxy::HandleFloat,
+				static_cast<int32>(FRuiVectorInputBoxProps::OnYChanged_Bit)))
+			.OnZChanged(SVectorInputBox::FOnNumericValueChanged::CreateSP(
+				Proxy.ToSharedRef(), &FRuiEventProxy::HandleFloat,
+				static_cast<int32>(FRuiVectorInputBoxProps::OnZChanged_Bit)));
+	}
+
+	virtual void SyncEventHandlers(FRuiEventProxy& Proxy, const FRuiPropsBase& New) override
+	{
+		const FRuiVectorInputBoxProps& N = static_cast<const FRuiVectorInputBoxProps&>(New);
+		Proxy.SetHandler(static_cast<int32>(FRuiVectorInputBoxProps::OnXChanged_Bit), N.OnXChanged);
+		Proxy.SetHandler(static_cast<int32>(FRuiVectorInputBoxProps::OnYChanged_Bit), N.OnYChanged);
+		Proxy.SetHandler(static_cast<int32>(FRuiVectorInputBoxProps::OnZChanged_Bit), N.OnZChanged);
+	}
+
+	virtual void ApplyDiff(SWidget&, const FRuiPropsBase*, const FRuiPropsBase&) override {} // all masked
+};
+
+class FRuiRotatorInputBoxAdapter final : public IRuiElementAdapter
+{
+public:
+	virtual ERuiChildKind GetChildKind() const override { return ERuiChildKind::Leaf; }
+	virtual bool HasEvents() const override { return true; }
+
+	virtual uint64 GetReconstructMask() const override
+	{
+		return (1ull << FRuiRotatorInputBoxProps::Roll_Bit) | (1ull << FRuiRotatorInputBoxProps::Pitch_Bit) |
+			   (1ull << FRuiRotatorInputBoxProps::Yaw_Bit) | (1ull << FRuiRotatorInputBoxProps::bColorAxisLabels_Bit);
+	}
+
+	virtual bool ConstructOnlyChanged(const FRuiPropsBase& Old, const FRuiPropsBase& New) const override
+	{
+		const FRuiRotatorInputBoxProps& O = static_cast<const FRuiRotatorInputBoxProps&>(Old);
+		const FRuiRotatorInputBoxProps& N = static_cast<const FRuiRotatorInputBoxProps&>(New);
+		auto Changed = [](bool bNewHas, bool bOldHas, const auto& OldV, const auto& NewV)
+		{ return bNewHas && (!bOldHas || !(OldV == NewV)); };
+		return Changed(N.HasRoll(), O.HasRoll(), O.Roll, N.Roll) ||
+			   Changed(N.HasPitch(), O.HasPitch(), O.Pitch, N.Pitch) || Changed(N.HasYaw(), O.HasYaw(), O.Yaw, N.Yaw) ||
+			   Changed(N.HasbColorAxisLabels(), O.HasbColorAxisLabels(), O.bColorAxisLabels, N.bColorAxisLabels);
+	}
+
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase& Props,
+											 const TSharedPtr<FRuiEventProxy>& Proxy) override
+	{
+		const FRuiRotatorInputBoxProps& P = static_cast<const FRuiRotatorInputBoxProps&>(Props);
+		return SNew(SRotatorInputBox)
+			.Roll(P.HasRoll() ? TOptional<float>(P.Roll) : TOptional<float>())
+			.Pitch(P.HasPitch() ? TOptional<float>(P.Pitch) : TOptional<float>())
+			.Yaw(P.HasYaw() ? TOptional<float>(P.Yaw) : TOptional<float>())
+			.bColorAxisLabels(P.HasbColorAxisLabels() && P.bColorAxisLabels)
+			.OnRollChanged(SRotatorInputBox::FOnNumericValueChanged::CreateSP(
+				Proxy.ToSharedRef(), &FRuiEventProxy::HandleFloat,
+				static_cast<int32>(FRuiRotatorInputBoxProps::OnRollChanged_Bit)))
+			.OnPitchChanged(SRotatorInputBox::FOnNumericValueChanged::CreateSP(
+				Proxy.ToSharedRef(), &FRuiEventProxy::HandleFloat,
+				static_cast<int32>(FRuiRotatorInputBoxProps::OnPitchChanged_Bit)))
+			.OnYawChanged(SRotatorInputBox::FOnNumericValueChanged::CreateSP(
+				Proxy.ToSharedRef(), &FRuiEventProxy::HandleFloat,
+				static_cast<int32>(FRuiRotatorInputBoxProps::OnYawChanged_Bit)));
+	}
+
+	virtual void SyncEventHandlers(FRuiEventProxy& Proxy, const FRuiPropsBase& New) override
+	{
+		const FRuiRotatorInputBoxProps& N = static_cast<const FRuiRotatorInputBoxProps&>(New);
+		Proxy.SetHandler(static_cast<int32>(FRuiRotatorInputBoxProps::OnRollChanged_Bit), N.OnRollChanged);
+		Proxy.SetHandler(static_cast<int32>(FRuiRotatorInputBoxProps::OnPitchChanged_Bit), N.OnPitchChanged);
+		Proxy.SetHandler(static_cast<int32>(FRuiRotatorInputBoxProps::OnYawChanged_Bit), N.OnYawChanged);
+	}
+
+	virtual void ApplyDiff(SWidget&, const FRuiPropsBase*, const FRuiPropsBase&) override {} // all masked
+};
+
 namespace RUI::Slate
 {
 	namespace
@@ -919,6 +1033,14 @@ namespace RUI::Slate
 		FRuiElementTypeId VirtualJoystickType()
 		{
 			return RUI::InternElementType(FName(TEXT("VirtualJoystick")));
+		}
+		FRuiElementTypeId VectorInputBoxType()
+		{
+			return RUI::InternElementType(FName(TEXT("VectorInputBox")));
+		}
+		FRuiElementTypeId RotatorInputBoxType()
+		{
+			return RUI::InternElementType(FName(TEXT("RotatorInputBox")));
 		}
 	} // namespace
 
@@ -1032,6 +1154,28 @@ namespace RUI::Slate
 		return Node;
 	}
 
+	FRuiNode VectorInputBox(FRuiVectorInputBoxProps Props, FRuiKey Key)
+	{
+		FRuiNode Node;
+		Node.Kind = ERuiNodeKind::Host;
+		Node.ElementType = VectorInputBoxType();
+		Node.Props = MakeShared<FRuiVectorInputBoxProps>(MoveTemp(Props));
+		Node.Children = RUI::MakeChildren(TArray<FRuiNode>());
+		Node.Key = Key;
+		return Node;
+	}
+
+	FRuiNode RotatorInputBox(FRuiRotatorInputBoxProps Props, FRuiKey Key)
+	{
+		FRuiNode Node;
+		Node.Kind = ERuiNodeKind::Host;
+		Node.ElementType = RotatorInputBoxType();
+		Node.Props = MakeShared<FRuiRotatorInputBoxProps>(MoveTemp(Props));
+		Node.Children = RUI::MakeChildren(TArray<FRuiNode>());
+		Node.Key = Key;
+		return Node;
+	}
+
 	namespace Detail
 	{
 		void RegisterBatch3Wave3Adapters()
@@ -1048,6 +1192,8 @@ namespace RUI::Slate
 #endif
 			RegisterAdapter(LinkedBoxType(), MakeUnique<FRuiLinkedBoxAdapter>());
 			RegisterAdapter(VirtualJoystickType(), MakeUnique<FRuiVirtualJoystickAdapter>());
+			RegisterAdapter(VectorInputBoxType(), MakeUnique<FRuiVectorInputBoxAdapter>());
+			RegisterAdapter(RotatorInputBoxType(), MakeUnique<FRuiRotatorInputBoxAdapter>());
 		}
 	} // namespace Detail
 } // namespace RUI::Slate
