@@ -700,7 +700,7 @@ public:
 // SEditableText (wave 2) — the raw single-line edit; full live setters; D-16 caret rule.
 // ─────────────────────────────────────────────────────────────────────────────────────────
 
-class FRuiEditableTextAdapter final : public IRuiElementAdapter
+class FRuiRawEditableTextAdapter final : public IRuiElementAdapter
 {
 public:
 	virtual ERuiChildKind GetChildKind() const override { return ERuiChildKind::Leaf; }
@@ -1135,7 +1135,7 @@ namespace RUI::Slate
 			RegisterAdapter(ColorSpectrumType(), MakeUnique<FRuiColorSpectrumAdapter>());
 			RegisterAdapter(LayeredImageType(), MakeUnique<FRuiLayeredImageAdapter>());
 			RegisterAdapter(InputKeySelectorType(), MakeUnique<FRuiInputKeySelectorAdapter>());
-			RegisterAdapter(EditableTextType(), MakeUnique<FRuiEditableTextAdapter>());
+			RegisterAdapter(EditableTextType(), MakeUnique<FRuiRawEditableTextAdapter>());
 			RegisterAdapter(InlineEditableTextBlockType(), MakeUnique<FRuiInlineEditableTextBlockAdapter>());
 			RegisterAdapter(VirtualKeyboardEntryType(), MakeUnique<FRuiVirtualKeyboardEntryAdapter>());
 			RegisterAdapter(ColorGradingWheelType(), MakeUnique<FRuiColorGradingWheelAdapter>());

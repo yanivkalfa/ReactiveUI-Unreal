@@ -214,6 +214,15 @@ namespace
 				M.Add(TEXT("ColorGradingWheel"), MoveTemp(T));
 			}
 			{
+				FTagDef T{TEXT("RUI::Slate::ExpandableButton"), TEXT("FRuiExpandableButtonProps"), true, {}};
+				T.Attrs.Add(TEXT("CollapsedText"), EAttrType::Text);
+				T.Attrs.Add(TEXT("ExpandedText"), EAttrType::Text);
+				T.Attrs.Add(TEXT("bIsExpanded"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("OnExpansionClicked"), EAttrType::Event);
+				T.Attrs.Add(TEXT("OnCloseClicked"), EAttrType::Event);
+				M.Add(TEXT("ExpandableButton"), MoveTemp(T));
+			}
+			{
 				FTagDef T{TEXT("RUI::Slate::Border"), TEXT("FRuiBorderProps"), true, {}};
 				T.Attrs.Add(TEXT("Padding"), EAttrType::Margin);
 				T.Attrs.Add(TEXT("BorderBackgroundColor"), EAttrType::Color);

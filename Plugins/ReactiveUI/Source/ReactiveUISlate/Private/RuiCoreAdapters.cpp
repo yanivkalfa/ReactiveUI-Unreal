@@ -717,6 +717,7 @@ namespace RUI::Slate
 		void RegisterComboBoxAdapter();			 // RuiComboBox.cpp (TD-012 tail; dropdown selector)
 		void RegisterSuggestionTextBoxAdapter(); // RuiSuggestionTextBox.cpp (TD-012 tail; autocomplete)
 		void RegisterBatch3WidgetAdapters();	 // RuiWidgetAdaptersB3.cpp (WIDGET_COMPLETION_PLAN wave 1)
+		void RegisterExpandableButtonAdapter();	 // RuiExpandableButton.cpp (wave 2; three role slots)
 	} // namespace Detail
 
 	void RegisterBuiltinAdapters()
@@ -737,5 +738,6 @@ namespace RUI::Slate
 		Detail::RegisterComboBoxAdapter();
 		Detail::RegisterSuggestionTextBoxAdapter();
 		Detail::RegisterBatch3WidgetAdapters();
+		Detail::RegisterExpandableButtonAdapter();
 	}
 } // namespace RUI::Slate
