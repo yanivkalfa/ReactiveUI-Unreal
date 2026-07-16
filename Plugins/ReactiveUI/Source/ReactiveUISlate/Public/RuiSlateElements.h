@@ -77,6 +77,21 @@ struct REACTIVEUISLATE_API FRuiSplitterProps final : public FRuiPropsBase
 				   RUI_EQ(Orientation) RUI_EQ(PhysicalSplitterHandleSize) RUI_EQ(OnSplitterFinishedResizing))
 };
 
+/** SMenuAnchor (MultiSlot, P3 - THE popup primitive): the default child is the anchor;
+ *  the child with `Slot.Role="menu"` is the popup content. bIsOpen is CONTROLLED
+ *  (skip-when-equal vs IsOpen, D-16); OnMenuOpenChanged reports user dismissals (Value =
+ *  bool). Placement = menuPlacementBelowAnchor (default) | comboBox | belowRightAnchor |
+ *  aboveAnchor | menuRight | center ... (loyal EMenuPlacement names, lowerCamel). */
+struct REACTIVEUISLATE_API FRuiMenuAnchorProps final : public FRuiPropsBase
+{
+	RUI_PROP(bool, bIsOpen, 0)
+	RUI_PROP(FName, Placement, 1)
+	RUI_PROP(bool, bFitInWindow, 2)
+	RUI_PROP_EVENT(OnMenuOpenChanged, 3)
+	RUI_PROPS_BODY(FRuiMenuAnchorProps,
+				   RUI_EQ(bIsOpen) RUI_EQ(Placement) RUI_EQ(bFitInWindow) RUI_EQ(OnMenuOpenChanged))
+};
+
 /** SBorder (SingleContent). Alignment values: fill|left|center|right / fill|top|center|bottom.
  *  BorderImage takes an FCoreStyle brush NAME (v1 — e.g. "WhiteBrush" for a solid fill
  *  tinted by BorderBackgroundColor; the engine default is a thin frame-type brush). Asset
@@ -736,6 +751,8 @@ namespace RUI::Slate
 												  FRuiKey Key = FRuiKey());
 	REACTIVEUISLATE_API FRuiNode Splitter(FRuiSplitterProps Props = FRuiSplitterProps(),
 										  TArray<FRuiNode> Children = TArray<FRuiNode>(), FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode MenuAnchor(FRuiMenuAnchorProps Props = FRuiMenuAnchorProps(),
+											TArray<FRuiNode> Children = TArray<FRuiNode>(), FRuiKey Key = FRuiKey());
 	REACTIVEUISLATE_API FRuiNode ColorWheel(FRuiColorWheelProps Props = FRuiColorWheelProps(), FRuiKey Key = FRuiKey());
 	REACTIVEUISLATE_API FRuiNode ColorSpectrum(FRuiColorSpectrumProps Props = FRuiColorSpectrumProps(),
 											   FRuiKey Key = FRuiKey());

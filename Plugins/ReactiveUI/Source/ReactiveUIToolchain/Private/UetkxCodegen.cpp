@@ -70,6 +70,14 @@ namespace
 				M.Add(TEXT("Splitter"), MoveTemp(T));
 			}
 			{
+				FTagDef T{TEXT("RUI::Slate::MenuAnchor"), TEXT("FRuiMenuAnchorProps"), true, {}};
+				T.Attrs.Add(TEXT("bIsOpen"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("Placement"), EAttrType::Name);
+				T.Attrs.Add(TEXT("bFitInWindow"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("OnMenuOpenChanged"), EAttrType::Event);
+				M.Add(TEXT("MenuAnchor"), MoveTemp(T));
+			}
+			{
 				FTagDef T{TEXT("RUI::Slate::ColorBlock"), TEXT("FRuiColorBlockProps"), false, {}};
 				T.Attrs.Add(TEXT("Color"), EAttrType::Color);
 				T.Attrs.Add(TEXT("Size"), EAttrType::Vector2);

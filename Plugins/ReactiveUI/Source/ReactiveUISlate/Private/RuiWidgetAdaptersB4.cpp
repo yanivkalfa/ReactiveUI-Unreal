@@ -10,6 +10,7 @@
 #include "RuiSlotValue.h"
 
 #include "Widgets/Layout/SConstraintCanvas.h"
+#include "Widgets/Input/SMenuAnchor.h"
 #include "Widgets/Layout/SSplitter.h"
 #include "Widgets/SNullWidget.h"
 
@@ -309,6 +310,132 @@ public:
 	}
 };
 
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// SMenuAnchor (P3) — THE popup primitive: anchor child + slot.role="menu" popup content;
+// controlled bIsOpen (D-16 skip vs IsOpen()); user dismissals report via OnMenuOpenChanged.
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+namespace
+{
+	const FName SlotRoleKeyB4(TEXT("slot.role"));
+
+	bool IsMenuRole(const FRuiStyleDict* SlotProps)
+	{
+		if (SlotProps != nullptr)
+		{
+			if (const FRuiValue* V = SlotProps->Find(SlotRoleKeyB4))
+			{
+				return (V->Kind == FRuiValue::EKind::Name ? V->NameValue : FName(*V->StringValue)) ==
+					   FName(TEXT("menu"));
+			}
+		}
+		return false;
+	}
+
+	EMenuPlacement PlacementOf(FName V)
+	{
+		return V == FName(TEXT("comboBox"))				 ? MenuPlacement_ComboBox
+			   : V == FName(TEXT("belowRightAnchor"))	 ? MenuPlacement_BelowRightAnchor
+			   : V == FName(TEXT("aboveAnchor"))		 ? MenuPlacement_AboveAnchor
+			   : V == FName(TEXT("centeredAboveAnchor")) ? MenuPlacement_CenteredAboveAnchor
+			   : V == FName(TEXT("menuRight"))			 ? MenuPlacement_MenuRight
+			   : V == FName(TEXT("menuLeft"))			 ? MenuPlacement_MenuLeft
+			   : V == FName(TEXT("center"))				 ? MenuPlacement_Center
+			   : V == FName(TEXT("centeredBelowAnchor")) ? MenuPlacement_CenteredBelowAnchor
+														 : MenuPlacement_BelowAnchor;
+	}
+} // namespace
+
+class FRuiMenuAnchorAdapter final : public IRuiElementAdapter
+{
+public:
+	virtual ERuiChildKind GetChildKind() const override { return ERuiChildKind::MultiSlot; }
+	virtual bool HasEvents() const override { return true; }
+
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase& Props,
+											 const TSharedPtr<FRuiEventProxy>& Proxy) override
+	{
+		const FRuiMenuAnchorProps& P = static_cast<const FRuiMenuAnchorProps&>(Props);
+		return SNew(SMenuAnchor)
+			.Placement(P.HasPlacement() ? PlacementOf(P.Placement) : MenuPlacement_BelowAnchor)
+			.FitInWindow(!P.HasbFitInWindow() || P.bFitInWindow)
+			.OnMenuOpenChanged(
+				FOnIsOpenChanged::CreateSP(Proxy.ToSharedRef(), &FRuiEventProxy::HandleBool,
+										   static_cast<int32>(FRuiMenuAnchorProps::OnMenuOpenChanged_Bit)));
+	}
+
+	virtual void SyncEventHandlers(FRuiEventProxy& Proxy, const FRuiPropsBase& New) override
+	{
+		const FRuiMenuAnchorProps& N = static_cast<const FRuiMenuAnchorProps&>(New);
+		Proxy.SetHandler(static_cast<int32>(FRuiMenuAnchorProps::OnMenuOpenChanged_Bit), N.OnMenuOpenChanged);
+	}
+
+	virtual void ApplyDiff(SWidget& Widget, const FRuiPropsBase* Old, const FRuiPropsBase& New) override
+	{
+		SMenuAnchor& W = static_cast<SMenuAnchor&>(Widget);
+		const FRuiMenuAnchorProps& N = static_cast<const FRuiMenuAnchorProps&>(New);
+		const FRuiMenuAnchorProps* O = static_cast<const FRuiMenuAnchorProps*>(Old);
+		if (N.HasPlacement() && (O == nullptr || !O->HasPlacement() || !(N.Placement == O->Placement)))
+		{
+			W.SetMenuPlacement(PlacementOf(N.Placement));
+		}
+		if (N.HasbFitInWindow() && (O == nullptr || !O->HasbFitInWindow() || O->bFitInWindow != N.bFitInWindow))
+		{
+			W.SetFitInWindow(N.bFitInWindow);
+		}
+		// Controlled open state (D-16): skip when the widget already agrees.
+		if (N.HasbIsOpen() && W.IsOpen() != N.bIsOpen)
+		{
+			W.SetIsOpen(N.bIsOpen, /*bFocusMenu*/ true);
+		}
+	}
+
+	virtual void InsertChild(SWidget& Parent, const TSharedRef<SWidget>& Child, int32,
+							 const FRuiStyleDict* SlotProps) override
+	{
+		SMenuAnchor& W = static_cast<SMenuAnchor&>(Parent);
+		if (IsMenuRole(SlotProps))
+		{
+			W.SetMenuContent(Child);
+		}
+		else
+		{
+			W.SetContent(Child);
+		}
+	}
+
+	virtual void RemoveChild(SWidget& Parent, const TSharedRef<SWidget>&) override
+	{
+		// Two logical holders; clearing either resets to null content (cheap — reassigned on
+		// the next InsertChild).
+		SMenuAnchor& W = static_cast<SMenuAnchor&>(Parent);
+		W.SetMenuContent(SNullWidget::NullWidget);
+	}
+
+	virtual void ReorderChildren(SWidget& Parent, const TArray<TSharedRef<SWidget>>& Ordered,
+								 TFunctionRef<const FRuiStyleDict*(const TSharedRef<SWidget>&)> SlotPropsOf) override
+	{
+		SMenuAnchor& W = static_cast<SMenuAnchor&>(Parent);
+		for (const TSharedRef<SWidget>& Child : Ordered)
+		{
+			if (IsMenuRole(SlotPropsOf(Child)))
+			{
+				W.SetMenuContent(Child);
+			}
+			else
+			{
+				W.SetContent(Child);
+			}
+		}
+	}
+
+	virtual void UpdateChildSlotProps(SWidget& Parent, const TSharedRef<SWidget>& Child,
+									  const FRuiStyleDict* SlotProps) override
+	{
+		InsertChild(Parent, Child, 0, SlotProps);
+	}
+};
+
 namespace RUI::Slate
 {
 	namespace
@@ -320,6 +447,10 @@ namespace RUI::Slate
 		FRuiElementTypeId SplitterType()
 		{
 			return RUI::InternElementType(FName(TEXT("Splitter")));
+		}
+		FRuiElementTypeId MenuAnchorType()
+		{
+			return RUI::InternElementType(FName(TEXT("MenuAnchor")));
 		}
 	} // namespace
 
@@ -345,12 +476,24 @@ namespace RUI::Slate
 		return Node;
 	}
 
+	FRuiNode MenuAnchor(FRuiMenuAnchorProps Props, TArray<FRuiNode> Children, FRuiKey Key)
+	{
+		FRuiNode Node;
+		Node.Kind = ERuiNodeKind::Host;
+		Node.ElementType = MenuAnchorType();
+		Node.Props = MakeShared<FRuiMenuAnchorProps>(MoveTemp(Props));
+		Node.Children = RUI::MakeChildren(MoveTemp(Children));
+		Node.Key = Key;
+		return Node;
+	}
+
 	namespace Detail
 	{
 		void RegisterBatch3Wave3Adapters()
 		{
 			RegisterAdapter(ConstraintCanvasType(), MakeUnique<FRuiConstraintCanvasAdapter>());
 			RegisterAdapter(SplitterType(), MakeUnique<FRuiSplitterAdapter>());
+			RegisterAdapter(MenuAnchorType(), MakeUnique<FRuiMenuAnchorAdapter>());
 		}
 	} // namespace Detail
 } // namespace RUI::Slate
