@@ -21,7 +21,7 @@
   completion all clangd-backed inside setup/hook/module bodies. TD-020 RESOLVED.
 - ~~**Widget completion (owner re-decision 2026-07-16)**~~ — ✅ **COMPLETE 2026-07-16**
   (waves 0–4 + G, 0.5.0 → 0.9.0); see §5 and
-  [WIDGET_COMPLETION_PLAN.md](WIDGET_COMPLETION_PLAN.md).
+  [WIDGET_COMPLETION_PLAN.md](archive/WIDGET_COMPLETION_PLAN.md).
 - **Phase 9 — release & publishing (owner-gated).** Per-engine zips (packaging stamps
   `EngineVersion` — release-process skill), Fab listing + upload (identity verification has
   lead time), the demo video (AI storyboards, owner records), Discord announcement, and the
@@ -75,7 +75,7 @@
   tags / 65+ wrapped widgets, protocols P1–P5, TD-011/TD-013 gates in CI, TD-012 drained,
   TD-022 closed (TreeView/HeaderRow), wave G grammar (early returns + short-circuit;
   UETKX3002 retired). The 1.0 gate's widget-completion clauses are MET; see
-  [WIDGET_COMPLETION_PLAN.md](WIDGET_COMPLETION_PLAN.md) + WIDGET_INVENTORY.md Shipped tables.
+  [WIDGET_COMPLETION_PLAN.md](archive/WIDGET_COMPLETION_PLAN.md) + WIDGET_INVENTORY.md Shipped tables.
   Follow-on process item: outbound corpus-sync PRs to the Godot/Unity repos (TD-009/TD-018).
 - ~~**Markup `Ref` attribute gap**~~ — ✅ SHIPPED 2026-07-15 (owner decision): `Ref={ expr }`
   is a universal reserved attribute (codegen assigns `Props.Ref`; expr-only, string form

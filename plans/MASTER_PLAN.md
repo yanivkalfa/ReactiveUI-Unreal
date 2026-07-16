@@ -5,7 +5,7 @@
 > **GATE RE-DECISION — 2026-07-16 (owner): full widget coverage moves INTO v1.** The ship
 > gate's widget line phased "Batch 3 (v1.x)" — the owner overrode it: **1.0 (and the Fab
 > day-one listing) ship with ALL official runtime widgets wrapped + the TD-012 setter
-> remainder drained.** Execution plan: `plans/WIDGET_COMPLETION_PLAN.md` (researched
+> remainder drained.** Execution plan: `plans/archive/WIDGET_COMPLETION_PLAN.md` (researched
 > 2026-07-16 — engine-header recon of all 38 remaining widgets + family prior-art recon;
 > waves 0-4 + grammar wave G; ships as 0.5.0+ additive minors; 1.0 tags when the Batch-3
 > table is empty). The gate line below is amended in place. Plugin 0.4.0 released meanwhile
@@ -625,7 +625,7 @@ hooks header) · 6 needs 2 · 7 needs 2+3 (the `loc()` form needs the compiler) 
 IN v1 (all must be green, verified by running):
 - [ ] Core reconciler + **all 23 hooks fully wired** (no stubs — the five late-wired hooks
       UseSafeArea/UseTween/UseTweenValue/UseAnimate/UseSfx included) passing the ported suites.
-- [ ] **All official runtime widgets** (owner directive 2026-07-10, matching the Godot port's full-Control coverage): 15 shipped (Phase 2) + Batch 2 (Phase 7 step 8) + **Batch 3 — IN v1 (owner re-decision 2026-07-16; was "v1.x"; plan: plans/WIDGET_COMPLETION_PLAN.md)** — plans/WIDGET_INVENTORY.md is the authoritative per-widget tracker
+- [ ] **All official runtime widgets** (owner directive 2026-07-10, matching the Godot port's full-Control coverage): 15 shipped (Phase 2) + Batch 2 (Phase 7 step 8) + **Batch 3 — IN v1 (owner re-decision 2026-07-16; was "v1.x"; plan: plans/archive/WIDGET_COMPLETION_PLAN.md)** — plans/WIDGET_INVENTORY.md is the authoritative per-widget tracker
       **plus** the virtualized `SListView` items adapter — each through the full component
       pipeline — **plus the TD-012 runtime-setter remainder drained (same re-decision)**.
 - [ ] Style v1: setter-based hot-path keys (style tweak never reconstructs), `classes` layer.
