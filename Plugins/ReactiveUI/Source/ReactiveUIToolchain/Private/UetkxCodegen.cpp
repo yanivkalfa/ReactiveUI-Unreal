@@ -113,6 +113,13 @@ namespace
 				M.Add(TEXT("SearchableComboBox"), MoveTemp(T));
 			}
 			{
+				FTagDef T{TEXT("RUI::Slate::LinkedBox"), TEXT("FRuiLinkedBoxProps"), true, {}};
+				T.Attrs.Add(TEXT("GroupKey"), EAttrType::Name);
+				M.Add(TEXT("LinkedBox"), MoveTemp(T));
+			}
+			M.Add(TEXT("VirtualJoystick"),
+				  {TEXT("RUI::Slate::VirtualJoystick"), TEXT("FRuiVirtualJoystickProps"), false, {}});
+			{
 				FTagDef T{TEXT("RUI::Slate::ColorBlock"), TEXT("FRuiColorBlockProps"), false, {}};
 				T.Attrs.Add(TEXT("Color"), EAttrType::Color);
 				T.Attrs.Add(TEXT("Size"), EAttrType::Vector2);

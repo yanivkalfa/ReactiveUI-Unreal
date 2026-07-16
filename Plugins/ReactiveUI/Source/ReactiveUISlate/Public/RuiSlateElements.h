@@ -157,6 +157,22 @@ struct REACTIVEUISLATE_API FRuiSearchableComboBoxProps final : public FRuiPropsB
 	}
 };
 
+/** SLinkedBox (SingleContent): siblings sharing a GroupKey size uniformly (one shared
+ *  FLinkedBoxManager per group, adapter-owned). GroupKey is construct-only (masked). */
+struct REACTIVEUISLATE_API FRuiLinkedBoxProps final : public FRuiPropsBase
+{
+	RUI_PROP(FName, GroupKey, 0)
+	RUI_PROPS_BODY(FRuiLinkedBoxProps, RUI_EQ(GroupKey))
+};
+
+/** SVirtualJoystick (Leaf): the touch joystick overlay. The engine config API is imperative
+ *  (FControlInfo structs with brushes) - capture with `Ref` and drive it via
+ *  `WidgetFromHandle<SVirtualJoystick>` (P2). Desktop no-op without touch. */
+struct REACTIVEUISLATE_API FRuiVirtualJoystickProps final : public FRuiPropsBase
+{
+	RUI_PROPS_BODY(FRuiVirtualJoystickProps, )
+};
+
 /** SBorder (SingleContent). Alignment values: fill|left|center|right / fill|top|center|bottom.
  *  BorderImage takes an FCoreStyle brush NAME (v1 — e.g. "WhiteBrush" for a solid fill
  *  tinted by BorderBackgroundColor; the engine default is a thin frame-type brush). Asset
@@ -829,6 +845,10 @@ namespace RUI::Slate
 												  FRuiKey Key = FRuiKey());
 	REACTIVEUISLATE_API FRuiNode SearchableComboBox(FRuiSearchableComboBoxProps Props = FRuiSearchableComboBoxProps(),
 													FRuiKey Key = FRuiKey()); // sinceUE 5.7
+	REACTIVEUISLATE_API FRuiNode LinkedBox(FRuiLinkedBoxProps Props = FRuiLinkedBoxProps(),
+										   TArray<FRuiNode> Children = TArray<FRuiNode>(), FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode VirtualJoystick(FRuiVirtualJoystickProps Props = FRuiVirtualJoystickProps(),
+												 FRuiKey Key = FRuiKey());
 
 	/** P4 command: push a toast onto a Ref-captured <NotificationList> (no-op on a dead/wrong
 	 *  handle). The full FNotificationInfo surface stays reachable via WidgetFromHandle. */

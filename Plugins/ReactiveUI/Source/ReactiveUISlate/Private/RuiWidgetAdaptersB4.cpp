@@ -20,6 +20,8 @@
 #endif
 #include "RuiSlateHost.h"
 #include "Widgets/Notifications/SNotificationList.h"
+#include "Widgets/Input/SVirtualJoystick.h"
+#include "Widgets/Layout/SLinkedBox.h"
 #include "Widgets/Layout/SSplitter.h"
 #include "Engine/Engine.h"
 #include "Engine/GameViewportClient.h"
@@ -804,6 +806,76 @@ public:
 };
 #endif // !UE_VERSION_OLDER_THAN(5, 7, 0)
 
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// SLinkedBox — uniform-size sibling groups via a shared, adapter-owned FLinkedBoxManager.
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+class FRuiLinkedBoxAdapter final : public IRuiElementAdapter
+{
+public:
+	virtual ERuiChildKind GetChildKind() const override { return ERuiChildKind::SingleContent; }
+
+	virtual uint64 GetReconstructMask() const override { return 1ull << FRuiLinkedBoxProps::GroupKey_Bit; }
+
+	virtual bool ConstructOnlyChanged(const FRuiPropsBase& Old, const FRuiPropsBase& New) const override
+	{
+		const FRuiLinkedBoxProps& O = static_cast<const FRuiLinkedBoxProps&>(Old);
+		const FRuiLinkedBoxProps& N = static_cast<const FRuiLinkedBoxProps&>(New);
+		return N.HasGroupKey() && (!O.HasGroupKey() || !(O.GroupKey == N.GroupKey));
+	}
+
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase& Props, const TSharedPtr<FRuiEventProxy>&) override
+	{
+		const FRuiLinkedBoxProps& P = static_cast<const FRuiLinkedBoxProps&>(Props);
+		const FName Group = P.HasGroupKey() ? P.GroupKey : NAME_None;
+		TSharedPtr<FLinkedBoxManager> Manager = Managers.FindRef(Group).Pin();
+		if (!Manager.IsValid())
+		{
+			Manager = MakeShared<FLinkedBoxManager>();
+			Managers.Add(Group, Manager);
+			// Opportunistic prune (groups are few; keeps dead weaks from accumulating).
+			for (auto It = Managers.CreateIterator(); It; ++It)
+			{
+				if (!It->Value.IsValid())
+				{
+					It.RemoveCurrent();
+				}
+			}
+		}
+		TSharedRef<SLinkedBox> W = SNew(SLinkedBox, Manager.ToSharedRef());
+		LiveManagers.Add(&W.Get(), Manager); // keep the manager alive as long as any member widget
+		return W;
+	}
+
+	virtual void ApplyDiff(SWidget&, const FRuiPropsBase*, const FRuiPropsBase&) override {}
+
+	virtual void SetContent(SWidget& Parent, const TSharedPtr<SWidget>& Child) override
+	{
+		static_cast<SBox&>(Parent).SetContent(Child.IsValid() ? Child.ToSharedRef() : SNullWidget::NullWidget);
+	}
+
+private:
+	TMap<FName, TWeakPtr<FLinkedBoxManager>> Managers;
+	TMap<const SWidget*, TSharedPtr<FLinkedBoxManager>> LiveManagers; // strong refs per live widget
+};
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// SVirtualJoystick — touch overlay mount; configured imperatively via P2 (FControlInfo).
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+class FRuiVirtualJoystickAdapter final : public IRuiElementAdapter
+{
+public:
+	virtual ERuiChildKind GetChildKind() const override { return ERuiChildKind::Leaf; }
+
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase&, const TSharedPtr<FRuiEventProxy>&) override
+	{
+		return SNew(SVirtualJoystick);
+	}
+
+	virtual void ApplyDiff(SWidget&, const FRuiPropsBase*, const FRuiPropsBase&) override {}
+};
+
 namespace RUI::Slate
 {
 	namespace
@@ -839,6 +911,14 @@ namespace RUI::Slate
 		FRuiElementTypeId SearchableComboBoxType()
 		{
 			return RUI::InternElementType(FName(TEXT("SearchableComboBox")));
+		}
+		FRuiElementTypeId LinkedBoxType()
+		{
+			return RUI::InternElementType(FName(TEXT("LinkedBox")));
+		}
+		FRuiElementTypeId VirtualJoystickType()
+		{
+			return RUI::InternElementType(FName(TEXT("VirtualJoystick")));
 		}
 	} // namespace
 
@@ -930,6 +1010,28 @@ namespace RUI::Slate
 		return Node;
 	}
 
+	FRuiNode LinkedBox(FRuiLinkedBoxProps Props, TArray<FRuiNode> Children, FRuiKey Key)
+	{
+		FRuiNode Node;
+		Node.Kind = ERuiNodeKind::Host;
+		Node.ElementType = LinkedBoxType();
+		Node.Props = MakeShared<FRuiLinkedBoxProps>(MoveTemp(Props));
+		Node.Children = RUI::MakeChildren(MoveTemp(Children));
+		Node.Key = Key;
+		return Node;
+	}
+
+	FRuiNode VirtualJoystick(FRuiVirtualJoystickProps Props, FRuiKey Key)
+	{
+		FRuiNode Node;
+		Node.Kind = ERuiNodeKind::Host;
+		Node.ElementType = VirtualJoystickType();
+		Node.Props = MakeShared<FRuiVirtualJoystickProps>(MoveTemp(Props));
+		Node.Children = RUI::MakeChildren(TArray<FRuiNode>());
+		Node.Key = Key;
+		return Node;
+	}
+
 	namespace Detail
 	{
 		void RegisterBatch3Wave3Adapters()
@@ -944,6 +1046,8 @@ namespace RUI::Slate
 #if !UE_VERSION_OLDER_THAN(5, 7, 0)
 			RegisterAdapter(SearchableComboBoxType(), MakeUnique<FRuiSearchableComboBoxAdapter>());
 #endif
+			RegisterAdapter(LinkedBoxType(), MakeUnique<FRuiLinkedBoxAdapter>());
+			RegisterAdapter(VirtualJoystickType(), MakeUnique<FRuiVirtualJoystickAdapter>());
 		}
 	} // namespace Detail
 } // namespace RUI::Slate
