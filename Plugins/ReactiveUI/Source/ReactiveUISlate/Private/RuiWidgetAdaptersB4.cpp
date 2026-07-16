@@ -13,6 +13,8 @@
 #include "Widgets/Input/SMenuAnchor.h"
 #include "Widgets/Input/SNumericDropDown.h"
 #include "Widgets/Navigation/SBreadcrumbTrail.h"
+#include "RuiSlateHost.h"
+#include "Widgets/Notifications/SNotificationList.h"
 #include "Widgets/Layout/SSplitter.h"
 #include "Engine/Engine.h"
 #include "Engine/GameViewportClient.h"
@@ -635,6 +637,39 @@ private:
 	}
 };
 
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// SNotificationList (P4) — toast mount point; pushes ride the P2 command path.
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+class FRuiNotificationListAdapter final : public IRuiElementAdapter
+{
+public:
+	virtual ERuiChildKind GetChildKind() const override { return ERuiChildKind::Leaf; }
+
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase&, const TSharedPtr<FRuiEventProxy>&) override
+	{
+		return SNew(SNotificationList);
+	}
+
+	virtual void ApplyDiff(SWidget&, const FRuiPropsBase*, const FRuiPropsBase&) override {}
+};
+
+namespace RUI::Slate
+{
+	void PushNotification(const FRuiHostHandle& Handle, const FText& Text, float ExpireDuration)
+	{
+		if (TSharedPtr<SNotificationList> List = WidgetFromHandle<SNotificationList>(Handle))
+		{
+			if (List->GetType() == FName(TEXT("SNotificationList"))) // guard the cast (P2 rule)
+			{
+				FNotificationInfo Info(Text);
+				Info.ExpireDuration = ExpireDuration;
+				List->AddNotification(Info);
+			}
+		}
+	}
+} // namespace RUI::Slate
+
 namespace RUI::Slate
 {
 	namespace
@@ -662,6 +697,10 @@ namespace RUI::Slate
 		FRuiElementTypeId BreadcrumbTrailType()
 		{
 			return RUI::InternElementType(FName(TEXT("BreadcrumbTrail")));
+		}
+		FRuiElementTypeId NotificationListType()
+		{
+			return RUI::InternElementType(FName(TEXT("NotificationList")));
 		}
 	} // namespace
 
@@ -731,6 +770,17 @@ namespace RUI::Slate
 		return Node;
 	}
 
+	FRuiNode NotificationList(FRuiNotificationListProps Props, FRuiKey Key)
+	{
+		FRuiNode Node;
+		Node.Kind = ERuiNodeKind::Host;
+		Node.ElementType = NotificationListType();
+		Node.Props = MakeShared<FRuiNotificationListProps>(MoveTemp(Props));
+		Node.Children = RUI::MakeChildren(TArray<FRuiNode>());
+		Node.Key = Key;
+		return Node;
+	}
+
 	namespace Detail
 	{
 		void RegisterBatch3Wave3Adapters()
@@ -741,6 +791,7 @@ namespace RUI::Slate
 			RegisterAdapter(WindowTitleBarAreaType(), MakeUnique<FRuiWindowTitleBarAreaAdapter>());
 			RegisterAdapter(NumericDropDownType(), MakeUnique<FRuiNumericDropDownAdapter>());
 			RegisterAdapter(BreadcrumbTrailType(), MakeUnique<FRuiBreadcrumbTrailAdapter>());
+			RegisterAdapter(NotificationListType(), MakeUnique<FRuiNotificationListAdapter>());
 		}
 	} // namespace Detail
 } // namespace RUI::Slate

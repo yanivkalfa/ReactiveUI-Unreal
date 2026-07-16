@@ -101,6 +101,8 @@ namespace
 				T.Attrs.Add(TEXT("OnCrumbClicked"), EAttrType::Event);
 				M.Add(TEXT("BreadcrumbTrail"), MoveTemp(T));
 			}
+			M.Add(TEXT("NotificationList"),
+				  {TEXT("RUI::Slate::NotificationList"), TEXT("FRuiNotificationListProps"), false, {}});
 			{
 				FTagDef T{TEXT("RUI::Slate::ColorBlock"), TEXT("FRuiColorBlockProps"), false, {}};
 				T.Attrs.Add(TEXT("Color"), EAttrType::Color);

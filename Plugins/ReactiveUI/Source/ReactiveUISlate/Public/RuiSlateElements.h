@@ -130,6 +130,15 @@ struct REACTIVEUISLATE_API FRuiBreadcrumbTrailProps final : public FRuiPropsBase
 	RUI_PROPS_BODY(FRuiBreadcrumbTrailProps, RUI_EQ(Crumbs) RUI_EQ(bShowLeadingDelimiter) RUI_EQ(OnCrumbClicked))
 };
 
+/** SNotificationList (Leaf, P4): a toast mount point. The engine API is imperative-only, so
+ *  pushes go through the P2 command path - capture the list with `Ref` and call
+ *  `RUI::Slate::PushNotification(Handle, Text, Duration)` (or WidgetFromHandle for the full
+ *  FNotificationInfo surface). */
+struct REACTIVEUISLATE_API FRuiNotificationListProps final : public FRuiPropsBase
+{
+	RUI_PROPS_BODY(FRuiNotificationListProps, )
+};
+
 /** SBorder (SingleContent). Alignment values: fill|left|center|right / fill|top|center|bottom.
  *  BorderImage takes an FCoreStyle brush NAME (v1 — e.g. "WhiteBrush" for a solid fill
  *  tinted by BorderBackgroundColor; the engine default is a thin frame-type brush). Asset
@@ -798,6 +807,13 @@ namespace RUI::Slate
 												 FRuiKey Key = FRuiKey());
 	REACTIVEUISLATE_API FRuiNode BreadcrumbTrail(FRuiBreadcrumbTrailProps Props = FRuiBreadcrumbTrailProps(),
 												 FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode NotificationList(FRuiNotificationListProps Props = FRuiNotificationListProps(),
+												  FRuiKey Key = FRuiKey());
+
+	/** P4 command: push a toast onto a Ref-captured <NotificationList> (no-op on a dead/wrong
+	 *  handle). The full FNotificationInfo surface stays reachable via WidgetFromHandle. */
+	REACTIVEUISLATE_API void PushNotification(const FRuiHostHandle& Handle, const FText& Text,
+											  float ExpireDuration = 4.0f);
 	REACTIVEUISLATE_API FRuiNode ColorWheel(FRuiColorWheelProps Props = FRuiColorWheelProps(), FRuiKey Key = FRuiKey());
 	REACTIVEUISLATE_API FRuiNode ColorSpectrum(FRuiColorSpectrumProps Props = FRuiColorSpectrumProps(),
 											   FRuiKey Key = FRuiKey());
