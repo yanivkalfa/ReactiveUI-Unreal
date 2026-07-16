@@ -432,6 +432,31 @@ struct REACTIVEUISLATE_API FRuiInvalidationPanelProps final : public FRuiPropsBa
 	RUI_PROPS_BODY(FRuiInvalidationPanelProps, RUI_EQ(bCanCache))
 };
 
+// ── Batch 3 wave 2 (WIDGET_COMPLETION_PLAN) ────────────────────────────────────────────────
+
+/** SVolumeControl (Leaf): slider + mute composite. Volume/Muted are engine ATTRIBUTES with no
+ *  setters — controlled via the reconstruct mask (D-16 semantics ride the rebuild); the two
+ *  events report user edits back. */
+struct REACTIVEUISLATE_API FRuiVolumeControlProps final : public FRuiPropsBase
+{
+	RUI_PROP(float, Volume, 0)
+	RUI_PROP(bool, bMuted, 1)
+	RUI_PROP_EVENT(OnVolumeChanged, 2)
+	RUI_PROP_EVENT(OnMuteChanged, 3)
+	RUI_PROPS_BODY(FRuiVolumeControlProps, RUI_EQ(Volume) RUI_EQ(bMuted) RUI_EQ(OnVolumeChanged) RUI_EQ(OnMuteChanged))
+};
+
+/** STextScroller (SingleContent): marquee auto-scroll around single-line text. Options are
+ *  construct-only (masked); Start/Suspend/Reset ride P2 (`WidgetFromHandle<STextScroller>`). */
+struct REACTIVEUISLATE_API FRuiTextScrollerProps final : public FRuiPropsBase
+{
+	RUI_PROP(float, Speed, 0)
+	RUI_PROP(float, StartDelay, 1)
+	RUI_PROP(float, EndDelay, 2)
+	RUI_PROP(FName, ScrollOrientation, 3)
+	RUI_PROPS_BODY(FRuiTextScrollerProps, RUI_EQ(Speed) RUI_EQ(StartDelay) RUI_EQ(EndDelay) RUI_EQ(ScrollOrientation))
+};
+
 namespace RUI::Slate
 {
 	REACTIVEUISLATE_API FRuiElementTypeId VerticalBoxType();
@@ -510,6 +535,10 @@ namespace RUI::Slate
 	REACTIVEUISLATE_API FRuiNode InvalidationPanel(FRuiInvalidationPanelProps Props = FRuiInvalidationPanelProps(),
 												   TArray<FRuiNode> Children = TArray<FRuiNode>(),
 												   FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode VolumeControl(FRuiVolumeControlProps Props = FRuiVolumeControlProps(),
+											   FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode TextScroller(FRuiTextScrollerProps Props = FRuiTextScrollerProps(),
+											  TArray<FRuiNode> Children = TArray<FRuiNode>(), FRuiKey Key = FRuiKey());
 	REACTIVEUISLATE_API FRuiNode UniformGridPanel(FRuiUniformGridPanelProps Props = FRuiUniformGridPanelProps(),
 												  TArray<FRuiNode> Children = TArray<FRuiNode>(),
 												  FRuiKey Key = FRuiKey());

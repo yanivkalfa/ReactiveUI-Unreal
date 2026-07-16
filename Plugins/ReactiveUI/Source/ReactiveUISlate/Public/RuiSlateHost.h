@@ -44,6 +44,19 @@ struct REACTIVEUISLATE_API FRuiSlateNode
 	bool bWarnedCapacity = false;
 };
 
+namespace RUI::Slate
+{
+	/** Resolve a captured `Ref` handle to its live widget, typed (P2: the ScrollToEnd-class
+	 *  imperative escape hatch — `WidgetFromHandle<SScrollBox>(H)->ScrollToEnd()`). The CALLER
+	 *  names the type; guard with `Widget->GetType()` when the ref could point elsewhere. */
+	template <typename TWidget> TSharedPtr<TWidget> WidgetFromHandle(const FRuiHostHandle& Handle)
+	{
+		const FRuiSlateNode* Node = static_cast<const FRuiSlateNode*>(Handle.Get());
+		return (Node != nullptr && Node->Widget.IsValid()) ? StaticCastSharedPtr<TWidget>(Node->Widget)
+														   : TSharedPtr<TWidget>();
+	}
+} // namespace RUI::Slate
+
 class REACTIVEUISLATE_API FRuiSlateHost final : public IRuiHostConfig
 {
 public:

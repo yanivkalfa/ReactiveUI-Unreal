@@ -110,6 +110,22 @@ namespace
 				M.Add(TEXT("InvalidationPanel"), MoveTemp(T));
 			}
 			{
+				FTagDef T{TEXT("RUI::Slate::VolumeControl"), TEXT("FRuiVolumeControlProps"), false, {}};
+				T.Attrs.Add(TEXT("Volume"), EAttrType::Float);
+				T.Attrs.Add(TEXT("bMuted"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("OnVolumeChanged"), EAttrType::Event);
+				T.Attrs.Add(TEXT("OnMuteChanged"), EAttrType::Event);
+				M.Add(TEXT("VolumeControl"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::TextScroller"), TEXT("FRuiTextScrollerProps"), true, {}};
+				T.Attrs.Add(TEXT("Speed"), EAttrType::Float);
+				T.Attrs.Add(TEXT("StartDelay"), EAttrType::Float);
+				T.Attrs.Add(TEXT("EndDelay"), EAttrType::Float);
+				T.Attrs.Add(TEXT("ScrollOrientation"), EAttrType::Name);
+				M.Add(TEXT("TextScroller"), MoveTemp(T));
+			}
+			{
 				FTagDef T{TEXT("RUI::Slate::Border"), TEXT("FRuiBorderProps"), true, {}};
 				T.Attrs.Add(TEXT("Padding"), EAttrType::Margin);
 				T.Attrs.Add(TEXT("BorderBackgroundColor"), EAttrType::Color);

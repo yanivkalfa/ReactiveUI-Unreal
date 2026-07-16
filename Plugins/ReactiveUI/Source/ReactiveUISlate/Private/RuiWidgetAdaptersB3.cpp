@@ -16,12 +16,14 @@
 #include "Widgets/Colors/SComplexGradient.h"
 #include "Widgets/Colors/SSimpleGradient.h"
 #include "Widgets/Input/SHyperlink.h"
+#include "Widgets/Input/SVolumeControl.h"
 #include "Widgets/Layout/SBackgroundBlur.h"
 #include "Widgets/Layout/SBox.h" // SEnableBox is an SBox — content goes through SBox::SetContent
 #include "Widgets/Layout/SEnableBox.h"
 #include "Widgets/Layout/SScissorRectBox.h"
 #include "Widgets/SInvalidationPanel.h"
 #include "Widgets/SNullWidget.h"
+#include "Widgets/Text/STextScroller.h"
 
 namespace
 {
@@ -306,6 +308,113 @@ public:
 };
 
 // ─────────────────────────────────────────────────────────────────────────────────────────
+// SVolumeControl (wave 2) — Volume/Muted are attribute-only (no setters): controlled via the
+// reconstruct mask; the two user-edit events flow through the proxy.
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+class FRuiVolumeControlAdapter final : public IRuiElementAdapter
+{
+public:
+	virtual ERuiChildKind GetChildKind() const override { return ERuiChildKind::Leaf; }
+	virtual bool HasEvents() const override { return true; }
+
+	virtual uint64 GetReconstructMask() const override
+	{
+		return (1ull << FRuiVolumeControlProps::Volume_Bit) | (1ull << FRuiVolumeControlProps::bMuted_Bit);
+	}
+
+	virtual bool ConstructOnlyChanged(const FRuiPropsBase& Old, const FRuiPropsBase& New) const override
+	{
+		const FRuiVolumeControlProps& O = static_cast<const FRuiVolumeControlProps&>(Old);
+		const FRuiVolumeControlProps& N = static_cast<const FRuiVolumeControlProps&>(New);
+		return RUI_CTOR_CHANGED(Volume) || RUI_CTOR_CHANGED(bMuted);
+	}
+
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase& Props,
+											 const TSharedPtr<FRuiEventProxy>& Proxy) override
+	{
+		const FRuiVolumeControlProps& P = static_cast<const FRuiVolumeControlProps&>(Props);
+		return SNew(SVolumeControl)
+			.Volume(P.HasVolume() ? P.Volume : 1.0f)
+			.Muted(P.HasbMuted() && P.bMuted)
+			.OnVolumeChanged(
+				FOnFloatValueChanged::CreateSP(Proxy.ToSharedRef(), &FRuiEventProxy::HandleFloat,
+											   static_cast<int32>(FRuiVolumeControlProps::OnVolumeChanged_Bit)))
+			.OnMuteChanged(
+				SVolumeControl::FOnMuted::CreateSP(Proxy.ToSharedRef(), &FRuiEventProxy::HandleBool,
+												   static_cast<int32>(FRuiVolumeControlProps::OnMuteChanged_Bit)));
+	}
+
+	virtual void SyncEventHandlers(FRuiEventProxy& Proxy, const FRuiPropsBase& New) override
+	{
+		const FRuiVolumeControlProps& N = static_cast<const FRuiVolumeControlProps&>(New);
+		Proxy.SetHandler(static_cast<int32>(FRuiVolumeControlProps::OnVolumeChanged_Bit), N.OnVolumeChanged);
+		Proxy.SetHandler(static_cast<int32>(FRuiVolumeControlProps::OnMuteChanged_Bit), N.OnMuteChanged);
+	}
+
+	virtual void ApplyDiff(SWidget&, const FRuiPropsBase*, const FRuiPropsBase&) override {}
+};
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// STextScroller (wave 2) — construct-only options (masked); Start/Suspend/Reset via P2.
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+class FRuiTextScrollerAdapter final : public IRuiElementAdapter
+{
+public:
+	virtual ERuiChildKind GetChildKind() const override { return ERuiChildKind::SingleContent; }
+
+	virtual uint64 GetReconstructMask() const override
+	{
+		return (1ull << FRuiTextScrollerProps::Speed_Bit) | (1ull << FRuiTextScrollerProps::StartDelay_Bit) |
+			   (1ull << FRuiTextScrollerProps::EndDelay_Bit) | (1ull << FRuiTextScrollerProps::ScrollOrientation_Bit);
+	}
+
+	virtual bool ConstructOnlyChanged(const FRuiPropsBase& Old, const FRuiPropsBase& New) const override
+	{
+		const FRuiTextScrollerProps& O = static_cast<const FRuiTextScrollerProps&>(Old);
+		const FRuiTextScrollerProps& N = static_cast<const FRuiTextScrollerProps&>(New);
+		return RUI_CTOR_CHANGED(Speed) || RUI_CTOR_CHANGED(StartDelay) || RUI_CTOR_CHANGED(EndDelay) ||
+			   RUI_CTOR_CHANGED(ScrollOrientation);
+	}
+
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase& Props, const TSharedPtr<FRuiEventProxy>&) override
+	{
+		const FRuiTextScrollerProps& P = static_cast<const FRuiTextScrollerProps&>(Props);
+		FTextScrollerOptions Options;
+		if (P.HasSpeed())
+		{
+			Options.Speed = P.Speed;
+		}
+		if (P.HasStartDelay())
+		{
+			Options.StartDelay = P.StartDelay;
+		}
+		if (P.HasEndDelay())
+		{
+			Options.EndDelay = P.EndDelay;
+		}
+		return SNew(STextScroller)
+			.ScrollOptions(Options)
+			.ScrollOrientation(P.HasScrollOrientation() ? OrientOf(P.ScrollOrientation) : Orient_Horizontal);
+	}
+
+	virtual void ApplyDiff(SWidget&, const FRuiPropsBase*, const FRuiPropsBase&) override {}
+
+	virtual void SetContent(SWidget& Parent, const TSharedPtr<SWidget>& Child) override
+	{
+		// STextScroller exposes no content setter (SLATE_DEFAULT_SLOT only) — a data-free peek
+		// subclass re-exports the protected ChildSlot (layout-identical, so the cast is safe).
+		struct FScrollerPeek : STextScroller
+		{
+			using SCompoundWidget::ChildSlot;
+		};
+		static_cast<FScrollerPeek&>(static_cast<STextScroller&>(Parent))
+			.ChildSlot.AttachWidget(Child.IsValid() ? Child.ToSharedRef() : SNullWidget::NullWidget);
+	}
+};
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
 // Type ids + factories + registration
 // ─────────────────────────────────────────────────────────────────────────────────────────
 
@@ -357,6 +466,14 @@ namespace RUI::Slate
 		{
 			return RUI::InternElementType(FName(TEXT("InvalidationPanel")));
 		}
+		FRuiElementTypeId VolumeControlType()
+		{
+			return RUI::InternElementType(FName(TEXT("VolumeControl")));
+		}
+		FRuiElementTypeId TextScrollerType()
+		{
+			return RUI::InternElementType(FName(TEXT("TextScroller")));
+		}
 	} // namespace
 
 	FRuiNode ColorBlock(FRuiColorBlockProps Props, FRuiKey Key)
@@ -391,6 +508,14 @@ namespace RUI::Slate
 	{
 		return MakeHostNodeB3(InvalidationPanelType(), MoveTemp(Props), MoveTemp(Children), Key);
 	}
+	FRuiNode VolumeControl(FRuiVolumeControlProps Props, FRuiKey Key)
+	{
+		return MakeHostNodeB3(VolumeControlType(), MoveTemp(Props), TArray<FRuiNode>(), Key);
+	}
+	FRuiNode TextScroller(FRuiTextScrollerProps Props, TArray<FRuiNode> Children, FRuiKey Key)
+	{
+		return MakeHostNodeB3(TextScrollerType(), MoveTemp(Props), MoveTemp(Children), Key);
+	}
 
 	namespace Detail
 	{
@@ -404,6 +529,8 @@ namespace RUI::Slate
 			RegisterAdapter(ScissorRectBoxType(), MakeUnique<FRuiScissorRectBoxAdapter>());
 			RegisterAdapter(BackgroundBlurType(), MakeUnique<FRuiBackgroundBlurAdapter>());
 			RegisterAdapter(InvalidationPanelType(), MakeUnique<FRuiInvalidationPanelAdapter>());
+			RegisterAdapter(VolumeControlType(), MakeUnique<FRuiVolumeControlAdapter>());
+			RegisterAdapter(TextScrollerType(), MakeUnique<FRuiTextScrollerAdapter>());
 		}
 	} // namespace Detail
 } // namespace RUI::Slate

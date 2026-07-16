@@ -47,6 +47,7 @@ public:
 	void HandleTextCommit(const FText& Value, ETextCommit::Type, int32 Slot) { Fire(Slot, FRuiValue(Value)); }
 	void HandleChecked(ECheckBoxState Value, int32 Slot) { Fire(Slot, FRuiValue(Value == ECheckBoxState::Checked)); }
 	void HandleFloat(float Value, int32 Slot) { Fire(Slot, FRuiValue(Value)); }
+	void HandleBool(bool Value, int32 Slot) { Fire(Slot, FRuiValue(Value)); }
 
 private:
 	struct FSlot
