@@ -34,7 +34,7 @@ namespace
 	const FName SlotAnchorsKey(TEXT("slot.anchors"));
 	const FName SlotAlignmentKey(TEXT("slot.alignment"));
 	const FName SlotAutoSizeKey(TEXT("slot.autosize"));
-	const FName SlotZOrderKey(TEXT("slot.zorder"));
+	const FName SlotZOrderKeyB4(TEXT("slot.zorder"));
 
 	/** FMargin from Float (uniform) | Vector2 (h, v) | "l,t,r,b" string. */
 	FMargin MarginOf(const FRuiValue& V)
@@ -103,7 +103,7 @@ namespace
 		const FRuiValue* Anchors = SlotProps != nullptr ? SlotProps->Find(SlotAnchorsKey) : nullptr;
 		const FRuiValue* Alignment = SlotProps != nullptr ? SlotProps->Find(SlotAlignmentKey) : nullptr;
 		const FRuiValue* AutoSize = SlotProps != nullptr ? SlotProps->Find(SlotAutoSizeKey) : nullptr;
-		const FRuiValue* ZOrder = SlotProps != nullptr ? SlotProps->Find(SlotZOrderKey) : nullptr;
+		const FRuiValue* ZOrder = SlotProps != nullptr ? SlotProps->Find(SlotZOrderKeyB4) : nullptr;
 		Slot.SetOffset(Offset != nullptr ? MarginOf(*Offset) : FMargin(0.f, 0.f, 1.f, 1.f));
 		Slot.SetAnchors(Anchors != nullptr ? AnchorsOf(*Anchors) : FAnchors(0.f));
 		Slot.SetAlignment(Alignment != nullptr ? RUI::Slate::SlotValue::AsVector2(*Alignment) : FVector2D(0.5, 0.5));

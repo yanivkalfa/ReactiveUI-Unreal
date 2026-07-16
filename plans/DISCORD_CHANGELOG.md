@@ -12,6 +12,21 @@ first announcement post lives at the BOTTOM of this file.
 
 **Hard limit: ≤ 2000 characters per entry** (Discord message cap).
 
+## [0.7.0] - 2026-07-16
+
+### Wave 3 — popups, toasts, anchors, splitters
+
+**60 markup tags.** `MenuAnchor` brings the popup primitive (anchor + `Slot.Role="menu"`
+content, controlled open state); `NotificationList` + `PushNotification` bring toasts;
+`ConstraintCanvas` brings UMG-style anchors to markup; `Splitter` brings resizable panes.
+Plus `NumericDropDown`, `BreadcrumbTrail`, `LinkedBox`, `WindowTitleBarArea`,
+`VirtualJoystick`, and `SearchableComboBox` — the first engine-gated widget (5.7+, schema-
+annotated). 16 slot keys.
+
+Update to **ReactiveUI for Unreal 0.7.0** (GitHub release). Battery `125/125`.
+
+---
+
 ## [0.6.0] - 2026-07-16
 
 ### Wave 2 — 12 interactive composites + imperative handles

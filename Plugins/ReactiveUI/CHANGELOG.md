@@ -7,6 +7,25 @@ resync with `cp CHANGELOG.md Plugins/ReactiveUI/CHANGELOG.md` (CI byte-compares 
 `scripts/verify-mirror.mjs`). The IDE extensions are NOT covered here — they use
 `ide-extensions/changelog.json` (Lane B; see the release-process skill).
 
+## [0.7.0] — 2026-07-16
+
+Widget-completion wave 3: the protocol widgets — popups, toasts, anchors, splitters — and
+the first engine-version-gated widget.
+
+### Added
+
+- **10 new widgets** (60 markup tags total): `ConstraintCanvas` (P5a anchor slot model —
+  `Slot.Anchors/Offset/Alignment/AutoSize/ZOrder`, all live), `Splitter` (P5b fraction
+  slots — `Slot.SizeRule/SizeValue/MinSize/Resizable` + `OnSplitterFinishedResizing`),
+  `MenuAnchor` (P3, THE popup primitive: anchor child + `Slot.Role="menu"` popup content;
+  controlled `bIsOpen`), `NotificationList` (P4 toast mount +
+  `RUI::Slate::PushNotification` command), `NumericDropDown`, `BreadcrumbTrail`
+  (declarative crumbs), `LinkedBox` (uniform-size sibling groups by `GroupKey`),
+  `WindowTitleBarArea`, `VirtualJoystick`, and `SearchableComboBox` — **the first
+  `sinceUE: 5.7` widget** (compiled out on 5.6; the schema carries the annotation).
+- **16 slot keys** (anchor + splitter + role families) with `RUI::Slot()` builder parity
+  (gate-enforced).
+
 ## [0.6.0] — 2026-07-16
 
 Widget-completion wave 2: twelve interactive composites, the imperative-handle rails, and

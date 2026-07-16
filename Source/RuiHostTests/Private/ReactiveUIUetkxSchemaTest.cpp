@@ -47,7 +47,7 @@ bool FRuiUetkxSchemaTest::RunTest(const FString&)
 		// 15 Phase-2 + 14 Batch-2 (Phase 7) + Canvas (Doom Phase 0) + 8 Batch-3 wave 1
 		// (WIDGET_COMPLETION_PLAN: ColorBlock, SimpleGradient, ComplexGradient, Hyperlink,
 		// EnableBox, ScissorRectBox, BackgroundBlur, InvalidationPanel).
-		TestEqual(TEXT("50 host tags"), Elements->Values.Num(), 50);
+		TestEqual(TEXT("60 host tags"), Elements->Values.Num(), 60);
 		const TSharedPtr<FJsonObject> Switcher = Elements->GetObjectField(TEXT("WidgetSwitcher"));
 		TestEqual(TEXT("WidgetSwitcher factory"), Switcher->GetStringField(TEXT("factory")),
 				  FString(TEXT("RUI::Slate::WidgetSwitcher")));

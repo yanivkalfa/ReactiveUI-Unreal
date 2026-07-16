@@ -43,6 +43,17 @@
 				"WidthOverride": "float"
 			}
 		},
+		"BreadcrumbTrail":
+		{
+			"factory": "RUI::Slate::BreadcrumbTrail",
+			"children": false,
+			"attrs":
+			{
+				"bShowLeadingDelimiter": "bool",
+				"Crumbs": "expr",
+				"OnCrumbClicked": "event"
+			}
+		},
 		"Button":
 		{
 			"factory": "RUI::Slate::Button",
@@ -135,6 +146,14 @@
 				"DesiredSizeOverride": "vector2",
 				"GradientColors": "expr",
 				"Orientation": "name"
+			}
+		},
+		"ConstraintCanvas":
+		{
+			"factory": "RUI::Slate::ConstraintCanvas",
+			"children": true,
+			"attrs":
+			{
 			}
 		},
 		"DPIScaler":
@@ -284,6 +303,27 @@
 				"Layers": "expr"
 			}
 		},
+		"LinkedBox":
+		{
+			"factory": "RUI::Slate::LinkedBox",
+			"children": true,
+			"attrs":
+			{
+				"GroupKey": "name"
+			}
+		},
+		"MenuAnchor":
+		{
+			"factory": "RUI::Slate::MenuAnchor",
+			"children": true,
+			"attrs":
+			{
+				"bFitInWindow": "bool",
+				"bIsOpen": "bool",
+				"OnMenuOpenChanged": "event",
+				"Placement": "name"
+			}
+		},
 		"MultiLineEditableTextBox":
 		{
 			"factory": "RUI::Slate::MultiLineEditableTextBox",
@@ -295,6 +335,27 @@
 				"OnTextChanged": "event",
 				"OnTextCommitted": "event",
 				"Text": "text"
+			}
+		},
+		"NotificationList":
+		{
+			"factory": "RUI::Slate::NotificationList",
+			"children": false,
+			"attrs":
+			{
+			}
+		},
+		"NumericDropDown":
+		{
+			"factory": "RUI::Slate::NumericDropDown",
+			"children": false,
+			"attrs":
+			{
+				"bShowNamedValue": "bool",
+				"Labels": "expr",
+				"OnValueChanged": "event",
+				"Value": "float",
+				"Values": "expr"
 			}
 		},
 		"Overlay":
@@ -395,6 +456,18 @@
 				"WheelScrollMultiplier": "float"
 			}
 		},
+		"SearchableComboBox":
+		{
+			"factory": "RUI::Slate::SearchableComboBox",
+			"children": false,
+			"sinceUE": "5.7",
+			"attrs":
+			{
+				"OnSelectionChanged": "event",
+				"Options": "expr",
+				"SelectedItem": "text"
+			}
+		},
 		"SearchBox":
 		{
 			"factory": "RUI::Slate::SearchBox",
@@ -470,6 +543,17 @@
 				"Value": "float"
 			}
 		},
+		"Splitter":
+		{
+			"factory": "RUI::Slate::Splitter",
+			"children": true,
+			"attrs":
+			{
+				"OnSplitterFinishedResizing": "event",
+				"Orientation": "name",
+				"PhysicalSplitterHandleSize": "float"
+			}
+		},
 		"TextBlock":
 		{
 			"factory": "RUI::TextBlock",
@@ -530,6 +614,14 @@
 			{
 			}
 		},
+		"VirtualJoystick":
+		{
+			"factory": "RUI::Slate::VirtualJoystick",
+			"children": false,
+			"attrs":
+			{
+			}
+		},
 		"VirtualKeyboardEntry":
 		{
 			"factory": "RUI::Slate::VirtualKeyboardEntry",
@@ -563,6 +655,18 @@
 			"attrs":
 			{
 				"WidgetIndex": "int"
+			}
+		},
+		"WindowTitleBarArea":
+		{
+			"factory": "RUI::Slate::WindowTitleBarArea",
+			"children": true,
+			"attrs":
+			{
+				"HAlign": "name",
+				"Padding": "margin",
+				"RequestToggleFullscreen": "event",
+				"VAlign": "name"
 			}
 		},
 		"WrapBox":
@@ -604,7 +708,16 @@
 		"Slot.Fill",
 		"Slot.ZOrder",
 		"Slot.Position",
-		"Slot.Size"
+		"Slot.Size",
+		"Slot.Offset",
+		"Slot.Anchors",
+		"Slot.Alignment",
+		"Slot.AutoSize",
+		"Slot.Role",
+		"Slot.SizeRule",
+		"Slot.SizeValue",
+		"Slot.MinSize",
+		"Slot.Resizable"
 	],
 	"hooks": [
 		"UseState",
@@ -632,6 +745,7 @@
 	],
 	"eventPayloads":
 	{
+		"OnCrumbClicked": "void",
 		"OnClicked": "void",
 		"OnCheckStateChanged": "bool",
 		"OnMouseCaptureBegin": "void",
@@ -644,7 +758,11 @@
 		"OnNavigate": "void",
 		"OnIsSelectingKeyChanged": "void",
 		"OnKeySelected": "void",
+		"OnMenuOpenChanged": "void",
+		"OnSelectionChanged": "void",
+		"OnSplitterFinishedResizing": "void",
 		"OnMuteChanged": "void",
-		"OnVolumeChanged": "void"
+		"OnVolumeChanged": "void",
+		"RequestToggleFullscreen": "void"
 	}
 }
