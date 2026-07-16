@@ -740,7 +740,7 @@ namespace RUI::Slate
 		void RegisterBatch3WidgetAdapters();	 // RuiWidgetAdaptersB3.cpp (WIDGET_COMPLETION_PLAN wave 1)
 		void RegisterExpandableButtonAdapter();	 // RuiExpandableButton.cpp (wave 2; three role slots)
 		void RegisterBatch3Wave3Adapters();		 // RuiWidgetAdaptersB4.cpp (wave 3 protocol widgets)
-		void RegisterTreeViewAdapter(); // RuiTreeView.cpp (wave 4; TD-022 closure + P5c columns)
+		void RegisterTreeViewAdapter();			 // RuiTreeView.cpp (wave 4; TD-022 closure + P5c columns)
 	} // namespace Detail
 
 	void RegisterBuiltinAdapters()
