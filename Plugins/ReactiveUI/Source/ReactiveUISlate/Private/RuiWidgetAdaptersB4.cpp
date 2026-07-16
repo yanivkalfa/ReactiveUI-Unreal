@@ -12,6 +12,7 @@
 #include "Widgets/Layout/SConstraintCanvas.h"
 #include "Widgets/Input/SMenuAnchor.h"
 #include "Widgets/Input/SNumericDropDown.h"
+#include "Widgets/Navigation/SBreadcrumbTrail.h"
 #include "Widgets/Layout/SSplitter.h"
 #include "Engine/Engine.h"
 #include "Engine/GameViewportClient.h"
@@ -562,6 +563,78 @@ public:
 	virtual void ApplyDiff(SWidget&, const FRuiPropsBase*, const FRuiPropsBase&) override {} // all masked
 };
 
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// SBreadcrumbTrail<FString> — declarative Crumbs list converged onto the imperative stack.
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+class FRuiBreadcrumbTrailAdapter final : public IRuiElementAdapter
+{
+public:
+	virtual ERuiChildKind GetChildKind() const override { return ERuiChildKind::Leaf; }
+	virtual bool HasEvents() const override { return true; }
+
+	virtual uint64 GetReconstructMask() const override
+	{
+		return 1ull << FRuiBreadcrumbTrailProps::bShowLeadingDelimiter_Bit;
+	}
+
+	virtual bool ConstructOnlyChanged(const FRuiPropsBase& Old, const FRuiPropsBase& New) const override
+	{
+		const FRuiBreadcrumbTrailProps& O = static_cast<const FRuiBreadcrumbTrailProps&>(Old);
+		const FRuiBreadcrumbTrailProps& N = static_cast<const FRuiBreadcrumbTrailProps&>(New);
+		return N.HasbShowLeadingDelimiter() &&
+			   (!O.HasbShowLeadingDelimiter() || O.bShowLeadingDelimiter != N.bShowLeadingDelimiter);
+	}
+
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase& Props,
+											 const TSharedPtr<FRuiEventProxy>& Proxy) override
+	{
+		const FRuiBreadcrumbTrailProps& P = static_cast<const FRuiBreadcrumbTrailProps&>(Props);
+		TWeakPtr<FRuiEventProxy> WeakProxy = Proxy;
+		TSharedRef<SBreadcrumbTrail<FString>> W =
+			SNew(SBreadcrumbTrail<FString>)
+				.ShowLeadingDelimiter(P.HasbShowLeadingDelimiter() && P.bShowLeadingDelimiter)
+				.PersistentBreadcrumbs(true)
+				.OnCrumbClicked(SBreadcrumbTrail<FString>::FOnCrumbClicked::CreateLambda(
+					[WeakProxy](const FString& Crumb)
+					{
+						if (TSharedPtr<FRuiEventProxy> Pinned = WeakProxy.Pin())
+						{
+							Pinned->HandleText(FText::FromString(Crumb),
+											   static_cast<int32>(FRuiBreadcrumbTrailProps::OnCrumbClicked_Bit));
+						}
+					}));
+		SyncCrumbs(*W, P);
+		return W;
+	}
+
+	virtual void SyncEventHandlers(FRuiEventProxy& Proxy, const FRuiPropsBase& New) override
+	{
+		const FRuiBreadcrumbTrailProps& N = static_cast<const FRuiBreadcrumbTrailProps&>(New);
+		Proxy.SetHandler(static_cast<int32>(FRuiBreadcrumbTrailProps::OnCrumbClicked_Bit), N.OnCrumbClicked);
+	}
+
+	virtual void ApplyDiff(SWidget& Widget, const FRuiPropsBase* Old, const FRuiPropsBase& New) override
+	{
+		const FRuiBreadcrumbTrailProps& N = static_cast<const FRuiBreadcrumbTrailProps&>(New);
+		const FRuiBreadcrumbTrailProps* O = static_cast<const FRuiBreadcrumbTrailProps*>(Old);
+		if (N.HasCrumbs() && (O == nullptr || !O->HasCrumbs() || !(N.Crumbs == O->Crumbs)))
+		{
+			SyncCrumbs(static_cast<SBreadcrumbTrail<FString>&>(Widget), N);
+		}
+	}
+
+private:
+	static void SyncCrumbs(SBreadcrumbTrail<FString>& W, const FRuiBreadcrumbTrailProps& P)
+	{
+		W.ClearCrumbs();
+		for (const FString& Crumb : P.Crumbs)
+		{
+			W.PushCrumb(FText::FromString(Crumb), Crumb);
+		}
+	}
+};
+
 namespace RUI::Slate
 {
 	namespace
@@ -585,6 +658,10 @@ namespace RUI::Slate
 		FRuiElementTypeId NumericDropDownType()
 		{
 			return RUI::InternElementType(FName(TEXT("NumericDropDown")));
+		}
+		FRuiElementTypeId BreadcrumbTrailType()
+		{
+			return RUI::InternElementType(FName(TEXT("BreadcrumbTrail")));
 		}
 	} // namespace
 
@@ -643,6 +720,17 @@ namespace RUI::Slate
 		return Node;
 	}
 
+	FRuiNode BreadcrumbTrail(FRuiBreadcrumbTrailProps Props, FRuiKey Key)
+	{
+		FRuiNode Node;
+		Node.Kind = ERuiNodeKind::Host;
+		Node.ElementType = BreadcrumbTrailType();
+		Node.Props = MakeShared<FRuiBreadcrumbTrailProps>(MoveTemp(Props));
+		Node.Children = RUI::MakeChildren(TArray<FRuiNode>());
+		Node.Key = Key;
+		return Node;
+	}
+
 	namespace Detail
 	{
 		void RegisterBatch3Wave3Adapters()
@@ -652,6 +740,7 @@ namespace RUI::Slate
 			RegisterAdapter(MenuAnchorType(), MakeUnique<FRuiMenuAnchorAdapter>());
 			RegisterAdapter(WindowTitleBarAreaType(), MakeUnique<FRuiWindowTitleBarAreaAdapter>());
 			RegisterAdapter(NumericDropDownType(), MakeUnique<FRuiNumericDropDownAdapter>());
+			RegisterAdapter(BreadcrumbTrailType(), MakeUnique<FRuiBreadcrumbTrailAdapter>());
 		}
 	} // namespace Detail
 } // namespace RUI::Slate

@@ -95,6 +95,13 @@ namespace
 				M.Add(TEXT("NumericDropDown"), MoveTemp(T));
 			}
 			{
+				FTagDef T{TEXT("RUI::Slate::BreadcrumbTrail"), TEXT("FRuiBreadcrumbTrailProps"), false, {}};
+				T.Attrs.Add(TEXT("Crumbs"), EAttrType::Expr);
+				T.Attrs.Add(TEXT("bShowLeadingDelimiter"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("OnCrumbClicked"), EAttrType::Event);
+				M.Add(TEXT("BreadcrumbTrail"), MoveTemp(T));
+			}
+			{
 				FTagDef T{TEXT("RUI::Slate::ColorBlock"), TEXT("FRuiColorBlockProps"), false, {}};
 				T.Attrs.Add(TEXT("Color"), EAttrType::Color);
 				T.Attrs.Add(TEXT("Size"), EAttrType::Vector2);

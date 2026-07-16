@@ -119,6 +119,17 @@ struct REACTIVEUISLATE_API FRuiNumericDropDownProps final : public FRuiPropsBase
 				   RUI_EQ(Values) RUI_EQ(Labels) RUI_EQ(Value) RUI_EQ(bShowNamedValue) RUI_EQ(OnValueChanged))
 };
 
+/** SBreadcrumbTrail<FString> (Leaf): declarative crumbs over the engine's imperative stack -
+ *  a Crumbs list change converges via ClearCrumbs+PushCrumb (small lists). OnCrumbClicked
+ *  payload = the crumb string. Direct Push/Pop also reachable via P2. */
+struct REACTIVEUISLATE_API FRuiBreadcrumbTrailProps final : public FRuiPropsBase
+{
+	RUI_PROP(TArray<FString>, Crumbs, 0)
+	RUI_PROP(bool, bShowLeadingDelimiter, 1)
+	RUI_PROP_EVENT(OnCrumbClicked, 2)
+	RUI_PROPS_BODY(FRuiBreadcrumbTrailProps, RUI_EQ(Crumbs) RUI_EQ(bShowLeadingDelimiter) RUI_EQ(OnCrumbClicked))
+};
+
 /** SBorder (SingleContent). Alignment values: fill|left|center|right / fill|top|center|bottom.
  *  BorderImage takes an FCoreStyle brush NAME (v1 — e.g. "WhiteBrush" for a solid fill
  *  tinted by BorderBackgroundColor; the engine default is a thin frame-type brush). Asset
@@ -784,6 +795,8 @@ namespace RUI::Slate
 													TArray<FRuiNode> Children = TArray<FRuiNode>(),
 													FRuiKey Key = FRuiKey());
 	REACTIVEUISLATE_API FRuiNode NumericDropDown(FRuiNumericDropDownProps Props = FRuiNumericDropDownProps(),
+												 FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode BreadcrumbTrail(FRuiBreadcrumbTrailProps Props = FRuiBreadcrumbTrailProps(),
 												 FRuiKey Key = FRuiKey());
 	REACTIVEUISLATE_API FRuiNode ColorWheel(FRuiColorWheelProps Props = FRuiColorWheelProps(), FRuiKey Key = FRuiKey());
 	REACTIVEUISLATE_API FRuiNode ColorSpectrum(FRuiColorSpectrumProps Props = FRuiColorSpectrumProps(),
