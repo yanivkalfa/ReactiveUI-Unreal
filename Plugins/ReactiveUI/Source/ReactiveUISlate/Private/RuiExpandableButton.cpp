@@ -68,7 +68,7 @@ void SRuiExpandableButton::ClearContent(const TSharedRef<SWidget>& Content)
 
 namespace
 {
-	FName RoleOf(const FRuiStyleDict* SlotProps)
+	FName ButtonRoleOf(const FRuiStyleDict* SlotProps)
 	{
 		if (SlotProps != nullptr)
 		{
@@ -133,7 +133,7 @@ namespace
 		virtual void InsertChild(SWidget& Parent, const TSharedRef<SWidget>& Child, int32,
 								 const FRuiStyleDict* SlotProps) override
 		{
-			static_cast<SRuiExpandableButton&>(Parent).SetRoleContent(RoleOf(SlotProps), Child);
+			static_cast<SRuiExpandableButton&>(Parent).SetRoleContent(ButtonRoleOf(SlotProps), Child);
 		}
 
 		virtual void RemoveChild(SWidget& Parent, const TSharedRef<SWidget>& Child) override
@@ -148,14 +148,14 @@ namespace
 			SRuiExpandableButton& W = static_cast<SRuiExpandableButton&>(Parent);
 			for (const TSharedRef<SWidget>& Child : Ordered)
 			{
-				W.SetRoleContent(RoleOf(SlotPropsOf(Child)), Child);
+				W.SetRoleContent(ButtonRoleOf(SlotPropsOf(Child)), Child);
 			}
 		}
 
 		virtual void UpdateChildSlotProps(SWidget& Parent, const TSharedRef<SWidget>& Child,
 										  const FRuiStyleDict* SlotProps) override
 		{
-			static_cast<SRuiExpandableButton&>(Parent).SetRoleContent(RoleOf(SlotProps), Child);
+			static_cast<SRuiExpandableButton&>(Parent).SetRoleContent(ButtonRoleOf(SlotProps), Child);
 		}
 	};
 } // namespace

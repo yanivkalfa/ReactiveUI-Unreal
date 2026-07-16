@@ -111,6 +111,11 @@ namespace RUI
 		}
 		FRuiStyleBuilder& Clipping(FName V) { return Set(FName(TEXT("Clipping")), FRuiValue(V)); }
 		FRuiStyleBuilder& ToolTipText(const FText& V) { return Set(FName(TEXT("ToolTipText")), FRuiValue(V)); }
+		FRuiStyleBuilder& LineHeightPercentage(float V)
+		{
+			return Set(FName(TEXT("LineHeightPercentage")), FRuiValue(V));
+		}
+		FRuiStyleBuilder& OverflowPolicy(FName V) { return Set(FName(TEXT("OverflowPolicy")), FRuiValue(V)); }
 
 		FRuiStyleBuilder& Set(FName Key, FRuiValue V)
 		{

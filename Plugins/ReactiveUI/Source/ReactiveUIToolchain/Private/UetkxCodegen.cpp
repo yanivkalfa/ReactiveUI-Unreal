@@ -252,6 +252,9 @@ namespace
 			{
 				FTagDef T{TEXT("RUI::Slate::ScrollBox"), TEXT("FRuiScrollBoxProps"), true, {}};
 				T.Attrs.Add(TEXT("Orientation"), EAttrType::Name);
+				T.Attrs.Add(TEXT("bAllowOverscroll"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("bAnimateWheelScrolling"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("WheelScrollMultiplier"), EAttrType::Float);
 				M.Add(TEXT("ScrollBox"), MoveTemp(T));
 			}
 			{
@@ -281,6 +284,11 @@ namespace
 					T.Attrs.Add(P, EAttrType::Float);
 				}
 				T.Attrs.Add(TEXT("OnValueChanged"), EAttrType::Event);
+				T.Attrs.Add(TEXT("Orientation"), EAttrType::Name);
+				T.Attrs.Add(TEXT("bLocked"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("bIndentHandle"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("SliderBarColor"), EAttrType::Color);
+				T.Attrs.Add(TEXT("SliderHandleColor"), EAttrType::Color);
 				M.Add(TEXT("Slider"), MoveTemp(T));
 			}
 			{
@@ -413,7 +421,9 @@ namespace
 										   TEXT("AutoWrapText"),
 										   TEXT("FillColorAndOpacity"),
 										   TEXT("Clipping"),
-										   TEXT("ToolTipText")};
+										   TEXT("ToolTipText"),
+										   TEXT("LineHeightPercentage"),
+										   TEXT("OverflowPolicy")};
 		return Keys;
 	}
 

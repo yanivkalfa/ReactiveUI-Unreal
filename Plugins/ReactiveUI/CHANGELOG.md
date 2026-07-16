@@ -7,6 +7,28 @@ resync with `cp CHANGELOG.md Plugins/ReactiveUI/CHANGELOG.md` (CI byte-compares 
 `scripts/verify-mirror.mjs`). The IDE extensions are NOT covered here — they use
 `ide-extensions/changelog.json` (Lane B; see the release-process skill).
 
+## [0.6.0] — 2026-07-16
+
+Widget-completion wave 2: twelve interactive composites, the imperative-handle rails, and
+the TD-012 runtime-setter sweep.
+
+### Added
+
+- **12 new widgets** (50 markup tags total): `EditableText`, `InlineEditableTextBlock`,
+  `VirtualKeyboardEntry`, `ColorWheel`, `ColorSpectrum`, `ColorGradingWheel` (the LIVE
+  AdvancedWidgets one — new module dependency; the Slate twin is deprecated 5.5),
+  `InputKeySelector`, `VolumeControl`, `RadialBox`, `TextScroller`, `LayeredImage`,
+  `ExpandableButton` (three role slots via `slot.role`). Controlled-color and
+  attribute-only surfaces ride the reconstruct mask; text edits follow the D-16 caret rule.
+- **`UseImperativeHandle` ref-publishing overload** (P2): a child publishes a handle object
+  into a parent-owned ref box, rebuilt on deps change and CLEARED on unmount; plus
+  `RUI::Slate::WidgetFromHandle<T>()` — the typed escape hatch for ScrollToEnd-class
+  imperative calls on any captured `Ref`.
+- **TD-012 sweep**: Slider `Orientation/bLocked/bIndentHandle/SliderBarColor/
+  SliderHandleColor`; ScrollBox `bAllowOverscroll/bAnimateWheelScrolling/
+  WheelScrollMultiplier`; TextBlock style keys `LineHeightPercentage` + `OverflowPolicy`
+  (16 style keys total); proxy payload handlers for bool/color/name events.
+
 ## [0.5.0] — 2026-07-16
 
 Widget-completion wave 1 (the road to 1.0 = ALL official widgets —

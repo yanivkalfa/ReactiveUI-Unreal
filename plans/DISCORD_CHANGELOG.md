@@ -12,6 +12,21 @@ first announcement post lives at the BOTTOM of this file.
 
 **Hard limit: ≤ 2000 characters per entry** (Discord message cap).
 
+## [0.6.0] - 2026-07-16
+
+### Wave 2 — 12 interactive composites + imperative handles
+
+**50 markup tags.** New: `EditableText`, `InlineEditableTextBlock`, `VirtualKeyboardEntry`,
+`ColorWheel`, `ColorSpectrum`, `ColorGradingWheel`, `InputKeySelector`, `VolumeControl`,
+`RadialBox`, `TextScroller`, `LayeredImage`, `ExpandableButton` (role slots). Plus the
+family's `UseImperativeHandle` ref-publishing form and `WidgetFromHandle<T>()` — call
+`ScrollToEnd()`-class widget APIs through any captured `Ref`. Slider/ScrollBox/TextBlock
+gained their remaining runtime setters (16 style keys).
+
+Update to **ReactiveUI for Unreal 0.6.0** (GitHub release). Battery `125/125`.
+
+---
+
 ## [0.5.0] - 2026-07-16
 
 ### Widget-completion wave 1 — 8 new widgets on the road to "1.0 wraps everything"

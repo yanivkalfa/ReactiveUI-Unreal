@@ -44,7 +44,7 @@ export const ComponentsOverviewPage: FC = () => (
       Components Overview
     </Typography>
     <Typography variant="body1" paragraph>
-      Two vocabularies compose the tree. <strong>Markup tags</strong> (38 of them) map 1:1 to Slate
+      Two vocabularies compose the tree. <strong>Markup tags</strong> (50 of them) map 1:1 to Slate
       widgets — the tag is the Slate class minus its <code>S</code>, so <code>VerticalBox</code> is{' '}
       <code>SVerticalBox</code>. <strong>C++-level factories</strong> cover the widgets whose API
       is a render prop or a structural boundary — you reach them from C++ or inside a{' '}

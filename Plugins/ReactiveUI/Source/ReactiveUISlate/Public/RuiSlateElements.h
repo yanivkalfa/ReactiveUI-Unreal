@@ -104,8 +104,12 @@ struct REACTIVEUISLATE_API FRuiImageProps final : public FRuiPropsBase
 /** SScrollBox (MultiSlot). Orientation is runtime-settable (header-sweep verified). */
 struct REACTIVEUISLATE_API FRuiScrollBoxProps final : public FRuiPropsBase
 {
-	RUI_PROP(FName, Orientation, 0) // "vertical" (default) | "horizontal"
-	RUI_PROPS_BODY(FRuiScrollBoxProps, RUI_EQ(Orientation))
+	RUI_PROP(FName, Orientation, 0)			  // "vertical" (default) | "horizontal"
+	RUI_PROP(bool, bAllowOverscroll, 1)		  // TD-012 sweep: live SetAllowOverscroll
+	RUI_PROP(bool, bAnimateWheelScrolling, 2) // live SetAnimateWheelScrolling
+	RUI_PROP(float, WheelScrollMultiplier, 3) // live SetWheelScrollMultiplier
+	RUI_PROPS_BODY(FRuiScrollBoxProps, RUI_EQ(Orientation) RUI_EQ(bAllowOverscroll) RUI_EQ(bAnimateWheelScrolling)
+										   RUI_EQ(WheelScrollMultiplier))
 };
 
 /** SSpacer (Leaf). */
@@ -151,8 +155,14 @@ struct REACTIVEUISLATE_API FRuiSliderProps final : public FRuiPropsBase
 	RUI_PROP(float, MaxValue, 2)
 	RUI_PROP_EVENT(OnValueChanged, 3)
 	RUI_PROP(float, StepSize, 4)
-	RUI_PROPS_BODY(FRuiSliderProps,
-				   RUI_EQ(Value) RUI_EQ(MinValue) RUI_EQ(MaxValue) RUI_EQ(OnValueChanged) RUI_EQ(StepSize))
+	RUI_PROP(FName, Orientation, 5)				 // TD-012 sweep: live SetOrientation
+	RUI_PROP(bool, bLocked, 6)					 // live SetLocked
+	RUI_PROP(bool, bIndentHandle, 7)			 // live SetIndentHandle
+	RUI_PROP(FLinearColor, SliderBarColor, 8)	 // live SetSliderBarColor
+	RUI_PROP(FLinearColor, SliderHandleColor, 9) // live SetSliderHandleColor
+	RUI_PROPS_BODY(FRuiSliderProps, RUI_EQ(Value) RUI_EQ(MinValue) RUI_EQ(MaxValue) RUI_EQ(OnValueChanged)
+										RUI_EQ(StepSize) RUI_EQ(Orientation) RUI_EQ(bLocked) RUI_EQ(bIndentHandle)
+											RUI_EQ(SliderBarColor) RUI_EQ(SliderHandleColor))
 };
 
 /** SProgressBar (Leaf). */

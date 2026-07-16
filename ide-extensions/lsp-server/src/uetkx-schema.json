@@ -87,6 +87,44 @@
 				"Size": "vector2"
 			}
 		},
+		"ColorGradingWheel":
+		{
+			"factory": "RUI::Slate::ColorGradingWheel",
+			"children": false,
+			"attrs":
+			{
+				"DesiredWheelSize": "int",
+				"ExponentDisplacement": "float",
+				"OnMouseCaptureBegin": "event",
+				"OnMouseCaptureEnd": "event",
+				"OnValueChanged": "event",
+				"SelectedColor": "color"
+			}
+		},
+		"ColorSpectrum":
+		{
+			"factory": "RUI::Slate::ColorSpectrum",
+			"children": false,
+			"attrs":
+			{
+				"OnMouseCaptureBegin": "event",
+				"OnMouseCaptureEnd": "event",
+				"OnValueChanged": "event",
+				"SelectedColor": "color"
+			}
+		},
+		"ColorWheel":
+		{
+			"factory": "RUI::Slate::ColorWheel",
+			"children": false,
+			"attrs":
+			{
+				"OnMouseCaptureBegin": "event",
+				"OnMouseCaptureEnd": "event",
+				"OnValueChanged": "event",
+				"SelectedColor": "color"
+			}
+		},
 		"ComplexGradient":
 		{
 			"factory": "RUI::Slate::ComplexGradient",
@@ -108,6 +146,21 @@
 				"DPIScale": "float"
 			}
 		},
+		"EditableText":
+		{
+			"factory": "RUI::Slate::EditableText",
+			"children": false,
+			"attrs":
+			{
+				"bIsPassword": "bool",
+				"bIsReadOnly": "bool",
+				"HintText": "text",
+				"MinDesiredWidth": "float",
+				"OnTextChanged": "event",
+				"OnTextCommitted": "event",
+				"Text": "text"
+			}
+		},
 		"EditableTextBox":
 		{
 			"factory": "RUI::Slate::EditableTextBox",
@@ -127,6 +180,19 @@
 			"children": true,
 			"attrs":
 			{
+			}
+		},
+		"ExpandableButton":
+		{
+			"factory": "RUI::Slate::ExpandableButton",
+			"children": true,
+			"attrs":
+			{
+				"bIsExpanded": "bool",
+				"CollapsedText": "text",
+				"ExpandedText": "text",
+				"OnCloseClicked": "event",
+				"OnExpansionClicked": "event"
 			}
 		},
 		"GridPanel":
@@ -167,6 +233,36 @@
 				"Image": "expr"
 			}
 		},
+		"InlineEditableTextBlock":
+		{
+			"factory": "RUI::Slate::InlineEditableTextBlock",
+			"children": false,
+			"attrs":
+			{
+				"bIsReadOnly": "bool",
+				"bMultiLine": "bool",
+				"HintText": "text",
+				"OnTextCommitted": "event",
+				"Text": "text",
+				"WrapTextAt": "float"
+			}
+		},
+		"InputKeySelector":
+		{
+			"factory": "RUI::Slate::InputKeySelector",
+			"children": false,
+			"attrs":
+			{
+				"bAllowGamepadKeys": "bool",
+				"bAllowModifierKeys": "bool",
+				"bEscapeCancelsSelection": "bool",
+				"KeySelectionText": "text",
+				"NoKeySpecifiedText": "text",
+				"OnIsSelectingKeyChanged": "event",
+				"OnKeySelected": "event",
+				"SelectedKey": "name"
+			}
+		},
 		"InvalidationPanel":
 		{
 			"factory": "RUI::Slate::InvalidationPanel",
@@ -174,6 +270,18 @@
 			"attrs":
 			{
 				"bCanCache": "bool"
+			}
+		},
+		"LayeredImage":
+		{
+			"factory": "RUI::Slate::LayeredImage",
+			"children": false,
+			"attrs":
+			{
+				"ColorAndOpacity": "color",
+				"DesiredSizeOverride": "vector2",
+				"Image": "expr",
+				"Layers": "expr"
 			}
 		},
 		"MultiLineEditableTextBox":
@@ -205,6 +313,20 @@
 			{
 				"BarFillType": "name",
 				"Percent": "float"
+			}
+		},
+		"RadialBox":
+		{
+			"factory": "RUI::Slate::RadialBox",
+			"children": true,
+			"attrs":
+			{
+				"AngleBetweenItems": "float",
+				"bDistributeItemsEvenly": "bool",
+				"bUseAllottedWidth": "bool",
+				"PreferredWidth": "float",
+				"SectorCentralAngle": "float",
+				"StartingAngle": "float"
 			}
 		},
 		"RichTextBlock":
@@ -267,7 +389,10 @@
 			"children": true,
 			"attrs":
 			{
-				"Orientation": "name"
+				"bAllowOverscroll": "bool",
+				"bAnimateWheelScrolling": "bool",
+				"Orientation": "name",
+				"WheelScrollMultiplier": "float"
 			}
 		},
 		"SearchBox":
@@ -311,9 +436,14 @@
 			"children": false,
 			"attrs":
 			{
+				"bIndentHandle": "bool",
+				"bLocked": "bool",
 				"MaxValue": "float",
 				"MinValue": "float",
 				"OnValueChanged": "event",
+				"Orientation": "name",
+				"SliderBarColor": "color",
+				"SliderHandleColor": "color",
 				"StepSize": "float",
 				"Value": "float"
 			}
@@ -347,6 +477,18 @@
 			"attrs":
 			{
 				"Text": "text"
+			}
+		},
+		"TextScroller":
+		{
+			"factory": "RUI::Slate::TextScroller",
+			"children": true,
+			"attrs":
+			{
+				"EndDelay": "float",
+				"ScrollOrientation": "name",
+				"Speed": "float",
+				"StartDelay": "float"
 			}
 		},
 		"Throbber":
@@ -388,6 +530,32 @@
 			{
 			}
 		},
+		"VirtualKeyboardEntry":
+		{
+			"factory": "RUI::Slate::VirtualKeyboardEntry",
+			"children": false,
+			"attrs":
+			{
+				"bIsReadOnly": "bool",
+				"HintText": "text",
+				"KeyboardType": "name",
+				"OnTextChanged": "event",
+				"OnTextCommitted": "event",
+				"Text": "text"
+			}
+		},
+		"VolumeControl":
+		{
+			"factory": "RUI::Slate::VolumeControl",
+			"children": false,
+			"attrs":
+			{
+				"bMuted": "bool",
+				"OnMuteChanged": "event",
+				"OnVolumeChanged": "event",
+				"Volume": "float"
+			}
+		},
 		"WidgetSwitcher":
 		{
 			"factory": "RUI::Slate::WidgetSwitcher",
@@ -418,6 +586,8 @@
 		"FillColorAndOpacity",
 		"Font.Size",
 		"Justification",
+		"LineHeightPercentage",
+		"OverflowPolicy",
 		"RenderOpacity",
 		"RenderScale",
 		"RenderTransformAngle",
@@ -464,9 +634,17 @@
 	{
 		"OnClicked": "void",
 		"OnCheckStateChanged": "bool",
+		"OnMouseCaptureBegin": "void",
+		"OnMouseCaptureEnd": "void",
+		"OnValueChanged": "float",
 		"OnTextChanged": "text",
 		"OnTextCommitted": "text",
+		"OnCloseClicked": "void",
+		"OnExpansionClicked": "void",
 		"OnNavigate": "void",
-		"OnValueChanged": "float"
+		"OnIsSelectingKeyChanged": "void",
+		"OnKeySelected": "void",
+		"OnMuteChanged": "void",
+		"OnVolumeChanged": "void"
 	}
 }

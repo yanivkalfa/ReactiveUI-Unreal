@@ -245,6 +245,12 @@ public:
 		const FRuiScrollBoxProps* O = static_cast<const FRuiScrollBoxProps*>(Old);
 		RUI_ROW(Orientation,
 				W.SetOrientation(N.Orientation == FName(TEXT("horizontal")) ? Orient_Horizontal : Orient_Vertical))
+		// TD-012 sweep (WIDGET_COMPLETION_PLAN wave 2). ScrollToEnd-class imperatives ride P2
+		// (WidgetFromHandle<SScrollBox>).
+		RUI_ROW(bAllowOverscroll,
+				W.SetAllowOverscroll(N.bAllowOverscroll ? EAllowOverscroll::Yes : EAllowOverscroll::No))
+		RUI_ROW(bAnimateWheelScrolling, W.SetAnimateWheelScrolling(N.bAnimateWheelScrolling))
+		RUI_ROW(WheelScrollMultiplier, W.SetWheelScrollMultiplier(N.WheelScrollMultiplier))
 	}
 
 	virtual void InsertChild(SWidget& Parent, const TSharedRef<SWidget>& Child, int32,
@@ -455,6 +461,13 @@ public:
 			W.SetMinAndMaxValues(N.HasMinValue() ? N.MinValue : 0.0f, N.HasMaxValue() ? N.MaxValue : 1.0f);
 		}
 		RUI_ROW(StepSize, W.SetStepSize(N.StepSize))
+		// TD-012 sweep (WIDGET_COMPLETION_PLAN wave 2): the remaining live setters.
+		RUI_ROW(Orientation,
+				W.SetOrientation(N.Orientation == FName(TEXT("horizontal")) ? Orient_Horizontal : Orient_Vertical))
+		RUI_ROW(bLocked, W.SetLocked(N.bLocked))
+		RUI_ROW(bIndentHandle, W.SetIndentHandle(N.bIndentHandle))
+		RUI_ROW(SliderBarColor, W.SetSliderBarColor(FSlateColor(N.SliderBarColor)))
+		RUI_ROW(SliderHandleColor, W.SetSliderHandleColor(FSlateColor(N.SliderHandleColor)))
 		// Self-notifying skip (D-16): the drag round-trip lands on an equal value.
 		if (N.HasValue() && !FMath::IsNearlyEqual(W.GetValue(), N.Value))
 		{

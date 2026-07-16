@@ -209,6 +209,27 @@ public:
 			W.SetAutoWrapText(Value != nullptr && Value->BoolValue);
 			return true;
 		}
+		// TD-012 sweep (WIDGET_COMPLETION_PLAN wave 2): the remaining text-shaping setters.
+		if (Key == FName(TEXT("LineHeightPercentage")))
+		{
+			W.SetLineHeightPercentage(Value != nullptr ? (Value->Kind == FRuiValue::EKind::Int
+															  ? static_cast<float>(Value->IntValue)
+															  : static_cast<float>(Value->FloatValue))
+													   : 1.0f);
+			return true;
+		}
+		if (Key == FName(TEXT("OverflowPolicy")))
+		{
+			TOptional<ETextOverflowPolicy> Policy; // reset = unset (inherit the style)
+			if (Value != nullptr)
+			{
+				const FName Name =
+					Value->Kind == FRuiValue::EKind::Name ? Value->NameValue : FName(*Value->StringValue);
+				Policy = Name == FName(TEXT("ellipsis")) ? ETextOverflowPolicy::Ellipsis : ETextOverflowPolicy::Clip;
+			}
+			W.SetOverflowPolicy(Policy);
+			return true;
+		}
 		return false;
 	}
 };
