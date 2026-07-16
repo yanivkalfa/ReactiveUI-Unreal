@@ -92,6 +92,19 @@ struct REACTIVEUISLATE_API FRuiMenuAnchorProps final : public FRuiPropsBase
 				   RUI_EQ(bIsOpen) RUI_EQ(Placement) RUI_EQ(bFitInWindow) RUI_EQ(OnMenuOpenChanged))
 };
 
+/** SWindowTitleBarArea (SingleContent): a custom title-bar strip — drag zone + OS window
+ *  buttons on the GAME window (wired automatically from the game viewport when present).
+ *  RequestToggleFullscreen fires on title-bar double-click. */
+struct REACTIVEUISLATE_API FRuiWindowTitleBarAreaProps final : public FRuiPropsBase
+{
+	RUI_PROP(FName, HAlign, 0)
+	RUI_PROP(FName, VAlign, 1)
+	RUI_PROP(FMargin, Padding, 2)
+	RUI_PROP_EVENT(RequestToggleFullscreen, 3)
+	RUI_PROPS_BODY(FRuiWindowTitleBarAreaProps,
+				   RUI_EQ(HAlign) RUI_EQ(VAlign) RUI_EQ(Padding) RUI_EQ(RequestToggleFullscreen))
+};
+
 /** SBorder (SingleContent). Alignment values: fill|left|center|right / fill|top|center|bottom.
  *  BorderImage takes an FCoreStyle brush NAME (v1 — e.g. "WhiteBrush" for a solid fill
  *  tinted by BorderBackgroundColor; the engine default is a thin frame-type brush). Asset
@@ -753,6 +766,9 @@ namespace RUI::Slate
 										  TArray<FRuiNode> Children = TArray<FRuiNode>(), FRuiKey Key = FRuiKey());
 	REACTIVEUISLATE_API FRuiNode MenuAnchor(FRuiMenuAnchorProps Props = FRuiMenuAnchorProps(),
 											TArray<FRuiNode> Children = TArray<FRuiNode>(), FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode WindowTitleBarArea(FRuiWindowTitleBarAreaProps Props = FRuiWindowTitleBarAreaProps(),
+													TArray<FRuiNode> Children = TArray<FRuiNode>(),
+													FRuiKey Key = FRuiKey());
 	REACTIVEUISLATE_API FRuiNode ColorWheel(FRuiColorWheelProps Props = FRuiColorWheelProps(), FRuiKey Key = FRuiKey());
 	REACTIVEUISLATE_API FRuiNode ColorSpectrum(FRuiColorSpectrumProps Props = FRuiColorSpectrumProps(),
 											   FRuiKey Key = FRuiKey());

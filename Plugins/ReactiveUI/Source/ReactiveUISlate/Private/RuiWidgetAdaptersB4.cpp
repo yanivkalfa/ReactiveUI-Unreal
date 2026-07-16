@@ -12,6 +12,9 @@
 #include "Widgets/Layout/SConstraintCanvas.h"
 #include "Widgets/Input/SMenuAnchor.h"
 #include "Widgets/Layout/SSplitter.h"
+#include "Engine/Engine.h"
+#include "Engine/GameViewportClient.h"
+#include "Widgets/Layout/SWindowTitleBarArea.h"
 #include "Widgets/SNullWidget.h"
 
 namespace
@@ -436,6 +439,71 @@ public:
 	}
 };
 
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// SWindowTitleBarArea — custom title-bar strip; auto-wired to the game window when present.
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+class FRuiWindowTitleBarAreaAdapter final : public IRuiElementAdapter
+{
+public:
+	virtual ERuiChildKind GetChildKind() const override { return ERuiChildKind::SingleContent; }
+	virtual bool HasEvents() const override { return true; }
+
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase& Props,
+											 const TSharedPtr<FRuiEventProxy>& Proxy) override
+	{
+		const FRuiWindowTitleBarAreaProps& P = static_cast<const FRuiWindowTitleBarAreaProps&>(Props);
+		TSharedRef<SWindowTitleBarArea> W =
+			SNew(SWindowTitleBarArea)
+				.RequestToggleFullscreen(FSimpleDelegate::CreateSP(
+					Proxy.ToSharedRef(), &FRuiEventProxy::HandleVoid,
+					static_cast<int32>(FRuiWindowTitleBarAreaProps::RequestToggleFullscreen_Bit)));
+		if (GEngine != nullptr && GEngine->GameViewport != nullptr)
+		{
+			W->SetGameWindow(GEngine->GameViewport->GetWindow());
+		}
+		return W;
+	}
+
+	virtual void SyncEventHandlers(FRuiEventProxy& Proxy, const FRuiPropsBase& New) override
+	{
+		const FRuiWindowTitleBarAreaProps& N = static_cast<const FRuiWindowTitleBarAreaProps&>(New);
+		Proxy.SetHandler(static_cast<int32>(FRuiWindowTitleBarAreaProps::RequestToggleFullscreen_Bit),
+						 N.RequestToggleFullscreen);
+	}
+
+	virtual void ApplyDiff(SWidget& Widget, const FRuiPropsBase* Old, const FRuiPropsBase& New) override
+	{
+		SWindowTitleBarArea& W = static_cast<SWindowTitleBarArea&>(Widget);
+		const FRuiWindowTitleBarAreaProps& N = static_cast<const FRuiWindowTitleBarAreaProps&>(New);
+		const FRuiWindowTitleBarAreaProps* O = static_cast<const FRuiWindowTitleBarAreaProps*>(Old);
+		if (N.HasHAlign() && (O == nullptr || !O->HasHAlign() || !(N.HAlign == O->HAlign)))
+		{
+			W.SetHAlign(N.HAlign == FName(TEXT("left"))		? HAlign_Left
+						: N.HAlign == FName(TEXT("center")) ? HAlign_Center
+						: N.HAlign == FName(TEXT("right"))	? HAlign_Right
+															: HAlign_Fill);
+		}
+		if (N.HasVAlign() && (O == nullptr || !O->HasVAlign() || !(N.VAlign == O->VAlign)))
+		{
+			W.SetVAlign(N.VAlign == FName(TEXT("top"))		? VAlign_Top
+						: N.VAlign == FName(TEXT("center")) ? VAlign_Center
+						: N.VAlign == FName(TEXT("bottom")) ? VAlign_Bottom
+															: VAlign_Fill);
+		}
+		if (N.HasPadding() && (O == nullptr || !O->HasPadding() || !(N.Padding == O->Padding)))
+		{
+			W.SetPadding(N.Padding);
+		}
+	}
+
+	virtual void SetContent(SWidget& Parent, const TSharedPtr<SWidget>& Child) override
+	{
+		static_cast<SWindowTitleBarArea&>(Parent).SetContent(Child.IsValid() ? Child.ToSharedRef()
+																			 : SNullWidget::NullWidget);
+	}
+};
+
 namespace RUI::Slate
 {
 	namespace
@@ -451,6 +519,10 @@ namespace RUI::Slate
 		FRuiElementTypeId MenuAnchorType()
 		{
 			return RUI::InternElementType(FName(TEXT("MenuAnchor")));
+		}
+		FRuiElementTypeId WindowTitleBarAreaType()
+		{
+			return RUI::InternElementType(FName(TEXT("WindowTitleBarArea")));
 		}
 	} // namespace
 
@@ -487,6 +559,17 @@ namespace RUI::Slate
 		return Node;
 	}
 
+	FRuiNode WindowTitleBarArea(FRuiWindowTitleBarAreaProps Props, TArray<FRuiNode> Children, FRuiKey Key)
+	{
+		FRuiNode Node;
+		Node.Kind = ERuiNodeKind::Host;
+		Node.ElementType = WindowTitleBarAreaType();
+		Node.Props = MakeShared<FRuiWindowTitleBarAreaProps>(MoveTemp(Props));
+		Node.Children = RUI::MakeChildren(MoveTemp(Children));
+		Node.Key = Key;
+		return Node;
+	}
+
 	namespace Detail
 	{
 		void RegisterBatch3Wave3Adapters()
@@ -494,6 +577,7 @@ namespace RUI::Slate
 			RegisterAdapter(ConstraintCanvasType(), MakeUnique<FRuiConstraintCanvasAdapter>());
 			RegisterAdapter(SplitterType(), MakeUnique<FRuiSplitterAdapter>());
 			RegisterAdapter(MenuAnchorType(), MakeUnique<FRuiMenuAnchorAdapter>());
+			RegisterAdapter(WindowTitleBarAreaType(), MakeUnique<FRuiWindowTitleBarAreaAdapter>());
 		}
 	} // namespace Detail
 } // namespace RUI::Slate

@@ -78,6 +78,14 @@ namespace
 				M.Add(TEXT("MenuAnchor"), MoveTemp(T));
 			}
 			{
+				FTagDef T{TEXT("RUI::Slate::WindowTitleBarArea"), TEXT("FRuiWindowTitleBarAreaProps"), true, {}};
+				T.Attrs.Add(TEXT("HAlign"), EAttrType::Name);
+				T.Attrs.Add(TEXT("VAlign"), EAttrType::Name);
+				T.Attrs.Add(TEXT("Padding"), EAttrType::Margin);
+				T.Attrs.Add(TEXT("RequestToggleFullscreen"), EAttrType::Event);
+				M.Add(TEXT("WindowTitleBarArea"), MoveTemp(T));
+			}
+			{
 				FTagDef T{TEXT("RUI::Slate::ColorBlock"), TEXT("FRuiColorBlockProps"), false, {}};
 				T.Attrs.Add(TEXT("Color"), EAttrType::Color);
 				T.Attrs.Add(TEXT("Size"), EAttrType::Vector2);
