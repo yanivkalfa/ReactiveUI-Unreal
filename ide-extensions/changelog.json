@@ -3,6 +3,19 @@
     {
       "date": "2026-07-16",
       "versions": {
+        "vscode": "0.3.1",
+        "vs2022": "0.3.1"
+      },
+      "shared": [
+        "Marketplace listing overhaul: distinguishable display names — `UETKX (Unreal - VS Code)` / `UETKX (Unreal - VS2022)` — and a structured page body (Title / Description / Features / Requirements / Changelog) on both marketplaces."
+      ],
+      "vscode": [
+        "The VS Code marketplace page now has a body at all — README.md is generated from the centralized changelog (it was missing entirely)."
+      ]
+    },
+    {
+      "date": "2026-07-16",
+      "versions": {
         "vscode": "0.3.0",
         "vs2022": "0.3.0"
       },

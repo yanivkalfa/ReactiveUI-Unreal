@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.3.1] - 2026-07-16
+- Marketplace listing overhaul: distinguishable display names — `UETKX (Unreal - VS Code)` / `UETKX (Unreal - VS2022)` — and a structured page body (Title / Description / Features / Requirements / Changelog) on both marketplaces.
+- The VS Code marketplace page now has a body at all — README.md is generated from the centralized changelog (it was missing entirely).
+
 ## [0.3.0] - 2026-07-16
 - Schema catch-up to plugin 0.9.0: the bundled .uetkx vocabulary grows 38 → 63 tags (the widget-completion campaign — ConstraintCanvas, Splitter, MenuAnchor, NotificationList, color pickers, input boxes, and 20+ more), 16 style keys, 16 slot keys.
 - First engine-gated tag: SearchableComboBox carries sinceUE: 5.7 in the schema — completions/hover know it does not exist on UE 5.6.
