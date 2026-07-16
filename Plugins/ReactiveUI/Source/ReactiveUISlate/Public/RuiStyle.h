@@ -166,6 +166,10 @@ namespace RUI
 		FRuiSlotBuilder& Alignment(const FVector2D& V) { return Set(FName(TEXT("Slot.Alignment")), FRuiValue(V)); }
 		FRuiSlotBuilder& AutoSize(bool V) { return Set(FName(TEXT("Slot.AutoSize")), FRuiValue(V)); }
 		FRuiSlotBuilder& Role(FName V) { return Set(FName(TEXT("Slot.Role")), FRuiValue(V)); }
+		FRuiSlotBuilder& SizeRule(FName V) { return Set(FName(TEXT("Slot.SizeRule")), FRuiValue(V)); }
+		FRuiSlotBuilder& SizeValue(float V) { return Set(FName(TEXT("Slot.SizeValue")), FRuiValue(V)); }
+		FRuiSlotBuilder& MinSize(float V) { return Set(FName(TEXT("Slot.MinSize")), FRuiValue(V)); }
+		FRuiSlotBuilder& Resizable(bool V) { return Set(FName(TEXT("Slot.Resizable")), FRuiValue(V)); }
 
 		FRuiSlotBuilder& Set(FName Key, FRuiValue V)
 		{

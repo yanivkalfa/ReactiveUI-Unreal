@@ -77,7 +77,7 @@ bool FRuiUetkxSchemaTest::RunTest(const FString&)
 		TestTrue(TEXT("Font.Size styled"), HasString(StyleKeys, TEXT("Font.Size")));
 
 		TestEqual(TEXT("slot prefix"), Schema->GetStringField(TEXT("slotPrefix")), FString(TEXT("Slot.")));
-		TestEqual(TEXT("12 canonical slot keys"), Schema->GetArrayField(TEXT("slotKeys")).Num(), 12);
+		TestEqual(TEXT("16 canonical slot keys"), Schema->GetArrayField(TEXT("slotKeys")).Num(), 16);
 
 		const TArray<TSharedPtr<FJsonValue>>& Hooks = Schema->GetArrayField(TEXT("hooks"));
 		TestEqual(TEXT("all hooks exported"), Hooks.Num(), FUetkxFileScan::HookNames().Num());

@@ -10,6 +10,7 @@
 #include "RuiSlotValue.h"
 
 #include "Widgets/Layout/SConstraintCanvas.h"
+#include "Widgets/Layout/SSplitter.h"
 #include "Widgets/SNullWidget.h"
 
 namespace
@@ -167,6 +168,147 @@ public:
 	}
 };
 
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// SSplitter (P5b) — resizable panes; live per-slot fraction/rule/min/resizable setters.
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+namespace
+{
+	const FName SlotSizeRuleKey(TEXT("slot.sizerule"));
+	const FName SlotSizeValueKey(TEXT("slot.sizevalue"));
+	const FName SlotMinSizeKey(TEXT("slot.minsize"));
+	const FName SlotResizableKey(TEXT("slot.resizable"));
+
+	void ApplySplitterSlot(SSplitter::FSlot& Slot, const FRuiStyleDict* SlotProps)
+	{
+		const FRuiValue* Rule = SlotProps != nullptr ? SlotProps->Find(SlotSizeRuleKey) : nullptr;
+		const FRuiValue* Value = SlotProps != nullptr ? SlotProps->Find(SlotSizeValueKey) : nullptr;
+		const FRuiValue* MinSize = SlotProps != nullptr ? SlotProps->Find(SlotMinSizeKey) : nullptr;
+		const FRuiValue* Resizable = SlotProps != nullptr ? SlotProps->Find(SlotResizableKey) : nullptr;
+		const bool bSizeToContent =
+			Rule != nullptr && (Rule->Kind == FRuiValue::EKind::Name ? Rule->NameValue : FName(*Rule->StringValue)) ==
+								   FName(TEXT("sizeToContent"));
+		Slot.SetSizingRule(bSizeToContent ? SSplitter::SizeToContent : SSplitter::FractionOfParent);
+		Slot.SetSizeValue(Value != nullptr ? RUI::Slate::SlotValue::AsFloat(*Value) : 1.0f);
+		Slot.SetMinSize(MinSize != nullptr ? RUI::Slate::SlotValue::AsFloat(*MinSize) : 20.0f);
+		Slot.SetResizable(Resizable == nullptr || Resizable->BoolValue);
+	}
+} // namespace
+
+class FRuiSplitterAdapter final : public IRuiElementAdapter
+{
+public:
+	virtual ERuiChildKind GetChildKind() const override { return ERuiChildKind::MultiSlot; }
+	virtual bool HasEvents() const override { return true; }
+
+	virtual uint64 GetReconstructMask() const override
+	{
+		return 1ull << FRuiSplitterProps::PhysicalSplitterHandleSize_Bit;
+	}
+
+	virtual bool ConstructOnlyChanged(const FRuiPropsBase& Old, const FRuiPropsBase& New) const override
+	{
+		const FRuiSplitterProps& O = static_cast<const FRuiSplitterProps&>(Old);
+		const FRuiSplitterProps& N = static_cast<const FRuiSplitterProps&>(New);
+		return N.HasPhysicalSplitterHandleSize() &&
+			   (!O.HasPhysicalSplitterHandleSize() || !(O.PhysicalSplitterHandleSize == N.PhysicalSplitterHandleSize));
+	}
+
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase& Props,
+											 const TSharedPtr<FRuiEventProxy>& Proxy) override
+	{
+		const FRuiSplitterProps& P = static_cast<const FRuiSplitterProps&>(Props);
+		return SNew(SSplitter)
+			.Orientation(P.HasOrientation() && P.Orientation == FName(TEXT("vertical")) ? Orient_Vertical
+																						: Orient_Horizontal)
+			.PhysicalSplitterHandleSize(P.HasPhysicalSplitterHandleSize() ? P.PhysicalSplitterHandleSize : 5.0f)
+			.OnSplitterFinishedResizing(
+				FSimpleDelegate::CreateSP(Proxy.ToSharedRef(), &FRuiEventProxy::HandleVoid,
+										  static_cast<int32>(FRuiSplitterProps::OnSplitterFinishedResizing_Bit)));
+	}
+
+	virtual void SyncEventHandlers(FRuiEventProxy& Proxy, const FRuiPropsBase& New) override
+	{
+		const FRuiSplitterProps& N = static_cast<const FRuiSplitterProps&>(New);
+		Proxy.SetHandler(static_cast<int32>(FRuiSplitterProps::OnSplitterFinishedResizing_Bit),
+						 N.OnSplitterFinishedResizing);
+	}
+
+	virtual void ApplyDiff(SWidget& Widget, const FRuiPropsBase* Old, const FRuiPropsBase& New) override
+	{
+		SSplitter& W = static_cast<SSplitter&>(Widget);
+		const FRuiSplitterProps& N = static_cast<const FRuiSplitterProps&>(New);
+		const FRuiSplitterProps* O = static_cast<const FRuiSplitterProps*>(Old);
+		if (N.HasOrientation() && (O == nullptr || !O->HasOrientation() || !(N.Orientation == O->Orientation)))
+		{
+			W.SetOrientation(N.Orientation == FName(TEXT("vertical")) ? Orient_Vertical : Orient_Horizontal);
+		}
+	}
+
+	virtual void InsertChild(SWidget& Parent, const TSharedRef<SWidget>& Child, int32,
+							 const FRuiStyleDict* SlotProps) override
+	{
+		SSplitter& W = static_cast<SSplitter&>(Parent);
+		SSplitter::FScopedWidgetSlotArguments Slot = W.AddSlot();
+		Slot.AttachWidget(Child);
+		if (SSplitter::FSlot* Live = Slot.GetSlot())
+		{
+			ApplySplitterSlot(*Live, SlotProps);
+		}
+	}
+
+	virtual void RemoveChild(SWidget& Parent, const TSharedRef<SWidget>& Child) override
+	{
+		SSplitter& W = static_cast<SSplitter&>(Parent);
+		FChildren* Children = W.GetChildren();
+		for (int32 i = 0; i < Children->Num(); ++i)
+		{
+			if (&Children->GetChildAt(i).Get() == &Child.Get())
+			{
+				W.RemoveAt(i);
+				return;
+			}
+		}
+	}
+
+	virtual void ReorderChildren(SWidget& Parent, const TArray<TSharedRef<SWidget>>& Ordered,
+								 TFunctionRef<const FRuiStyleDict*(const TSharedRef<SWidget>&)> SlotPropsOf) override
+	{
+		SSplitter& W = static_cast<SSplitter&>(Parent);
+		while (W.GetChildren()->Num() > 0)
+		{
+			W.RemoveAt(0);
+		}
+		for (const TSharedRef<SWidget>& Child : Ordered)
+		{
+			SSplitter::FScopedWidgetSlotArguments Slot = W.AddSlot();
+			Slot.AttachWidget(Child);
+			if (SSplitter::FSlot* Live = Slot.GetSlot())
+			{
+				ApplySplitterSlot(*Live, SlotPropsOf(Child));
+			}
+		}
+	}
+
+	virtual void UpdateChildSlotProps(SWidget& Parent, const TSharedRef<SWidget>& Child,
+									  const FRuiStyleDict* SlotProps) override
+	{
+		SSplitter& W = static_cast<SSplitter&>(Parent);
+		FChildren* Children = W.GetChildren();
+		for (int32 i = 0; i < Children->Num(); ++i)
+		{
+			if (&Children->GetChildAt(i).Get() == &Child.Get())
+			{
+				ApplySplitterSlot(
+					const_cast<SSplitter::FSlot&>(static_cast<const SSplitter::FSlot&>(Children->GetSlotAt(i))),
+					SlotProps);
+				W.Invalidate(EInvalidateWidgetReason::Layout);
+				return;
+			}
+		}
+	}
+};
+
 namespace RUI::Slate
 {
 	namespace
@@ -174,6 +316,10 @@ namespace RUI::Slate
 		FRuiElementTypeId ConstraintCanvasType()
 		{
 			return RUI::InternElementType(FName(TEXT("ConstraintCanvas")));
+		}
+		FRuiElementTypeId SplitterType()
+		{
+			return RUI::InternElementType(FName(TEXT("Splitter")));
 		}
 	} // namespace
 
@@ -188,11 +334,23 @@ namespace RUI::Slate
 		return Node;
 	}
 
+	FRuiNode Splitter(FRuiSplitterProps Props, TArray<FRuiNode> Children, FRuiKey Key)
+	{
+		FRuiNode Node;
+		Node.Kind = ERuiNodeKind::Host;
+		Node.ElementType = SplitterType();
+		Node.Props = MakeShared<FRuiSplitterProps>(MoveTemp(Props));
+		Node.Children = RUI::MakeChildren(MoveTemp(Children));
+		Node.Key = Key;
+		return Node;
+	}
+
 	namespace Detail
 	{
 		void RegisterBatch3Wave3Adapters()
 		{
 			RegisterAdapter(ConstraintCanvasType(), MakeUnique<FRuiConstraintCanvasAdapter>());
+			RegisterAdapter(SplitterType(), MakeUnique<FRuiSplitterAdapter>());
 		}
 	} // namespace Detail
 } // namespace RUI::Slate

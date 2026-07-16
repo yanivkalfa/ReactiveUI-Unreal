@@ -63,6 +63,20 @@ struct REACTIVEUISLATE_API FRuiConstraintCanvasProps final : public FRuiPropsBas
 	RUI_PROPS_BODY(FRuiConstraintCanvasProps, )
 };
 
+/** SSplitter (MultiSlot) - resizable panes (P5b): children carry `Slot.SizeRule`
+ *  ("fractionOfParent" default | "sizeToContent"), `Slot.SizeValue` (fraction), `Slot.MinSize`,
+ *  `Slot.Resizable` - all live. The user's drag reports back via OnSplitterFinishedResizing
+ *  (payload: none - read fractions through a Ref if needed). PhysicalSplitterHandleSize is
+ *  construct-only (masked). */
+struct REACTIVEUISLATE_API FRuiSplitterProps final : public FRuiPropsBase
+{
+	RUI_PROP(FName, Orientation, 0)
+	RUI_PROP(float, PhysicalSplitterHandleSize, 1)
+	RUI_PROP_EVENT(OnSplitterFinishedResizing, 2)
+	RUI_PROPS_BODY(FRuiSplitterProps,
+				   RUI_EQ(Orientation) RUI_EQ(PhysicalSplitterHandleSize) RUI_EQ(OnSplitterFinishedResizing))
+};
+
 /** SBorder (SingleContent). Alignment values: fill|left|center|right / fill|top|center|bottom.
  *  BorderImage takes an FCoreStyle brush NAME (v1 — e.g. "WhiteBrush" for a solid fill
  *  tinted by BorderBackgroundColor; the engine default is a thin frame-type brush). Asset
@@ -720,6 +734,8 @@ namespace RUI::Slate
 	REACTIVEUISLATE_API FRuiNode ConstraintCanvas(FRuiConstraintCanvasProps Props = FRuiConstraintCanvasProps(),
 												  TArray<FRuiNode> Children = TArray<FRuiNode>(),
 												  FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode Splitter(FRuiSplitterProps Props = FRuiSplitterProps(),
+										  TArray<FRuiNode> Children = TArray<FRuiNode>(), FRuiKey Key = FRuiKey());
 	REACTIVEUISLATE_API FRuiNode ColorWheel(FRuiColorWheelProps Props = FRuiColorWheelProps(), FRuiKey Key = FRuiKey());
 	REACTIVEUISLATE_API FRuiNode ColorSpectrum(FRuiColorSpectrumProps Props = FRuiColorSpectrumProps(),
 											   FRuiKey Key = FRuiKey());
