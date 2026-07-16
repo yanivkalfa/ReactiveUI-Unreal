@@ -1,4 +1,4 @@
-#include "RuiDemoSupport.h"
+import "@RuiDemoSupport.h"
 
 export component CustomDraw {
 	auto [Sides, SetSides] = UseState<int32>(3);

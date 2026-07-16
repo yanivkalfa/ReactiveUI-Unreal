@@ -8,16 +8,52 @@
 #include "RuiSignal.h"
 #include "RuiSlateElements.h"
 #include "RuiStyle.h"
+#include "RuiRouter.h"
+#if __has_include("RuiAssetBrush.h")
+#include "RuiAssetBrush.h"
+#endif
+#if __has_include("RuiFieldHooks.h")
+#include "RuiFieldHooks.h"
+#endif
+#if __has_include("RuiUmgElement.h")
+#include "RuiUmgElement.h"
+#endif
+#if __has_include("RuiSignalViewModel.h")
+#include "RuiSignalViewModel.h"
+#endif
+#if __has_include("RuiHostWidget.h")
+#include "RuiHostWidget.h"
+#endif
+#if __has_include("RuiWorldSubsystem.h")
+#include "RuiWorldSubsystem.h"
+#endif
+#if __has_include("RuiActivation.h")
+#include "RuiActivation.h"
+#endif
+#if __has_include("RuiActivatableScreen.h")
+#include "RuiActivatableScreen.h"
+#endif
+#if __has_include("RuiMvvmViewModel.h")
+#include "RuiMvvmViewModel.h"
+#endif
+#if __has_include("UObject/StrongObjectPtr.h")
+#include "UObject/StrongObjectPtr.h"
+#endif
+#if __has_include("Engine/World.h")
+#include "Engine/World.h"
+#endif
 
 #define RUI_UETKX_DECL_PHASE
 #include "../ChildrenProof/ChildHost.uetkx.inl"
 #include "../ChildrenProof/ChildParent.uetkx.inl"
+#include "../GrammarProof/HostImportProof.uetkx.inl"
 #include "../GrammarProof/MultiReturnProof.uetkx.inl"
 #include "../CycleProof/CycleA.uetkx.inl"
 #include "../CycleProof/CycleB.uetkx.inl"
 #undef RUI_UETKX_DECL_PHASE
 #include "../ChildrenProof/ChildHost.uetkx.inl"
 #include "../ChildrenProof/ChildParent.uetkx.inl"
+#include "../GrammarProof/HostImportProof.uetkx.inl"
 #include "../GrammarProof/MultiReturnProof.uetkx.inl"
 #include "../CycleProof/CycleA.uetkx.inl"
 #include "../CycleProof/CycleB.uetkx.inl"

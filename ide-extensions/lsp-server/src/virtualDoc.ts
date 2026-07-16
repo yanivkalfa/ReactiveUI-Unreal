@@ -22,11 +22,27 @@ export interface VirtualDoc {
 }
 
 /** The scaffolding prelude: engine context comes from clangd's compile_commands flags; these are
- *  just the surface the embedded snippets reference so a standalone parse still shapes up. */
+ *  just the surface the embedded snippets reference so a standalone parse still shapes up.
+ *  Mirrors the aggregator's auto-included header list (INCLUDE_RETIREMENT_PLAN.md §A,
+ *  UetkxDriver.cpp) UNGUARDED — clangd simply fails to resolve a header missing from a
+ *  non-interop workspace's compile_commands, degrading exactly as it did before this plan. A
+ *  header added to the aggregator prelude should be added here too. */
 const PRELUDE = [
   "// GENERATED virtual C++ for .uetkx embedded-code intelligence (TD-020). Do not edit.",
   '#include "RuiContext.h"',
   '#include "RuiCoreElements.h"',
+  '#include "RuiRouter.h"',
+  '#include "RuiAssetBrush.h"',
+  '#include "RuiFieldHooks.h"',
+  '#include "RuiUmgElement.h"',
+  '#include "RuiSignalViewModel.h"',
+  '#include "RuiHostWidget.h"',
+  '#include "RuiWorldSubsystem.h"',
+  '#include "RuiActivation.h"',
+  '#include "RuiActivatableScreen.h"',
+  '#include "RuiMvvmViewModel.h"',
+  '#include "UObject/StrongObjectPtr.h"',
+  '#include "Engine/World.h"',
   "using namespace RUI;",
   "",
 ].join("\n");

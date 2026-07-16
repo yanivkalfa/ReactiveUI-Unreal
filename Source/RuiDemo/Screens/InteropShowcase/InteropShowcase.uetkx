@@ -1,11 +1,5 @@
-#include "RuiSignalViewModel.h"
-#include "RuiFieldHooks.h"
-#include "RuiActivation.h"
-#include "RuiUmgElement.h"
-#include "RuiDemoSupport.h"
-#include "DemoUmgWidget.h"
-#include "Engine/World.h"
-#include "UObject/StrongObjectPtr.h"
+import "@RuiDemoSupport.h"
+import "@DemoUmgWidget.h"
 
 import { ShowcaseProbe } from "./components/ShowcaseProbe/ShowcaseProbe"
 

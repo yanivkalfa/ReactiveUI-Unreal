@@ -1,5 +1,3 @@
-#include "RuiRouter.h"
-
 // The "/users/:id" route — reads its :id segment via UseParams, navigates back.
 export component RouterUser {
 	const TMap<FString, FString>& Params = UseParams();

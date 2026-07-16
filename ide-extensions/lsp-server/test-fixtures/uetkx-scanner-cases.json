@@ -317,6 +317,38 @@
         "diags": [],
         "noError": true
       }
+    },
+    {
+      "name": "include retirement: host include + file import mix parse together",
+      "input": "import \"@Doom/DoomTypes.h\"\nimport { StatusChip } from \"./StatusChip\"\ncomponent Foo {\n\treturn ( <Spacer /> );\n}\n",
+      "expect": {
+        "imports": [
+          { "names": [], "specifier": "Doom/DoomTypes.h" },
+          { "names": ["StatusChip"], "specifier": "./StatusChip" }
+        ],
+        "components": [{ "name": "Foo", "exported": false }],
+        "diags": [],
+        "noError": true
+      }
+    },
+    {
+      "name": "include retirement: import string without leading @ is UETKX0303",
+      "input": "import \"NotAt\"\ncomponent Foo {\n\treturn ( <Spacer /> );\n}\n",
+      "expect": { "diags": ["UETKX0303"] }
+    },
+    {
+      "name": "include retirement: duplicate host include payload is UETKX2303",
+      "input": "import \"@Doom/DoomTypes.h\"\nimport \"@Doom/DoomTypes.h\"\ncomponent Foo {\n\treturn ( <Spacer /> );\n}\n",
+      "expect": { "diags": ["UETKX2303"] }
+    },
+    {
+      "name": "include retirement: a prelude-covered host include is UETKX2317 (hint, not an error)",
+      "input": "import \"@RuiRouter.h\"\ncomponent Foo {\n\treturn ( <Spacer /> );\n}\n",
+      "expect": {
+        "components": [{ "name": "Foo", "exported": false }],
+        "diags": ["UETKX2317"],
+        "noError": true
+      }
     }
   ]
 }

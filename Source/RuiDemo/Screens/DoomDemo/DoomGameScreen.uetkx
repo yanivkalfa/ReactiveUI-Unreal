@@ -1,6 +1,6 @@
-#include "Doom/DoomGameHook.h"
-#include "Doom/DoomMaps.h"
-#include "Doom/DoomTypes.h"
+import "@Doom/DoomGameHook.h"
+import "@Doom/DoomMaps.h"
+import "@Doom/DoomTypes.h"
 
 import { DoomHUD } from "./components/DoomHUD/DoomHUD"
 import { DoomMinimap } from "./components/DoomMinimap/DoomMinimap"

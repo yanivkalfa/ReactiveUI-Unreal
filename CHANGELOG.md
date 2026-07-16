@@ -7,6 +7,42 @@ resync with `cp CHANGELOG.md Plugins/ReactiveUI/CHANGELOG.md` (CI byte-compares 
 `scripts/verify-mirror.mjs`). The IDE extensions are NOT covered here — they use
 `ide-extensions/changelog.json` (Lane B; see the release-process skill).
 
+## [0.10.0] — 2026-07-16
+
+Include retirement: `.uetkx` preambles are imports-only now (INCLUDE_RETIREMENT_PLAN.md) —
+family convergence with Unity's `import "@Namespace"` shape, ported with a per-leg payload.
+
+### Added
+
+- **Auto-included prelude**: every generated file now carries the library's own headers
+  automatically (`RuiContext.h`, `RuiCoreElements.h`, `RuiRouter.h`, the UMG/CommonUI/MVVM
+  interop headers when that plugin is linked, `UObject/StrongObjectPtr.h`, `Engine/World.h`,
+  and more — `FUetkxFileScan::AutoIncludedHeaders()`), `__has_include`-guarded so a module that
+  depends only on `ReactiveUICore`+`ReactiveUISlate` still compiles.
+- **`import "@Header.h"`** — a nameless host-include import form (family shape, ported from
+  Unity's `import "@Namespace"`; our payload is a header path): compiles to
+  `#include "Header.h"` verbatim. Nameless by design — the C++ compiler resolves the header's
+  symbols, so there is nothing for the toolchain to name-check.
+- **`UETKX2317`** (hint): a `#include` or `import "@X.h"` naming a header already on the
+  auto-included list is flagged as redundant (the family's redundant-using hint, per-leg
+  number). `UETKX2316` reserved (post-v1) — header-existence checking would need visibility
+  into UBT include paths this compiler doesn't have.
+- **`RUIMigrateImports -tidy`** (Unity's `--tidy` analogue): an idempotent, re-runnable codemod
+  pass that rewrites every preamble to imports-only — an auto-included header is deleted
+  outright, a surviving raw `#include` converts to `import "@Header.h"`. Surgical: only a
+  construct alone on its own physical line is touched, so a comment anywhere in the preamble is
+  never at risk.
+- Syntax highlighting + LSP support for the new form: completion offers a discoverable
+  `import "@"` snippet in the preamble; import intelligence (resolution, go-to-def) correctly
+  treats a host include as nameless.
+
+### Changed
+
+- The demo gallery's preambles are migrated imports-only via `-tidy` (e.g. `MvvmDemo.uetkx`
+  drops all three of its includes entirely; `DoomHUD.uetkx`'s user header becomes
+  `import "@Doom/DoomTypes.h"`). Raw `#include` lines still parse and compile — nothing is
+  removed, only superseded as the recommended spelling.
+
 ## [0.9.0] — 2026-07-16
 
 Widget-completion wave G: grammar alignment — early returns and short-circuit rendering land;

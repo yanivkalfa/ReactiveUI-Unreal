@@ -774,3 +774,23 @@ referenced from plans/PRs.
   (mechanism headless + screen end-to-end + clear-on-teardown). Docs: CommonUI guide "Gamepad
   focus — UseDesiredFocus". The real-gamepad PIE pass stays on the owner verification list
   (`plans/REMAINING.md` §3).
+
+## TD-030 — Family convergence: Unreal adopted `import "@…"`; Godot has not (INCLUDE_RETIREMENT_PLAN.md)
+- **Where:** the shared `.uetkx`/`.uitkx`/`.guitkx` import grammar (grammar-contract skill,
+  `fileScanLeg` corpus tier)
+- **What/why:** Unity shipped `import "@Namespace"` first (a quoted, brace-less, `@`-prefixed
+  side-effect specifier emitting a host-language `using`, plus a redundant-using hint and a
+  `--tidy` codemod). This repo ported the SHAPE 2026-07-16 (`feat/include-retirement`) with a
+  per-leg payload — a header PATH instead of a namespace — to retire raw `#include` lines from
+  `.uetkx` preambles: `import "@Header.h"` emits `#include "Header.h"`, paired with an
+  auto-included aggregator prelude (`FUetkxFileScan::AutoIncludedHeaders`) and the family's
+  redundant-import hint (UETKX2317; Unity's UITKX2317 analogue). Godot (`ReactiveUI-Godot`,
+  `.guitkx`) has NOT adopted the `@` form — GDScript resolves globally, so it never needed the
+  escape hatch `#include` served here, and no request for one has surfaced there yet.
+- **Production-grade resolution:** if the Godot repo ever needs an equivalent escape hatch (e.g.
+  a preload path or an autoload/class reference the analyzer can't infer), port the SAME shape —
+  `import "@<payload>"` — with a payload meaningful to GDScript, plus mirrored `fileScanLeg`
+  corpus cases so the three repos' import grammars stay structurally aligned even though this
+  particular form is leg-specific. Until then this is a one-way ledger entry, not a blocker.
+- **Status:** OPEN (informational — no cross-repo PR pending). Unreal + the family's origin
+  (Unity) both ship the `@` form; Godot tracked here for whenever the need arises.

@@ -1,4 +1,4 @@
-#include "RuiDemoSupport.h"
+import "@RuiDemoSupport.h"
 
 import { DemoContextPanel } from "./components/DemoContextPanel/DemoContextPanel"
 import { ContextDemoStyle } from "./ContextDemo.style"

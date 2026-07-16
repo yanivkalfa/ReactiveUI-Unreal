@@ -8,6 +8,13 @@
 // are reported (UETKX2308) and NOT written — they surface a real ownership decision. Finishes by
 // compiling the whole tree WITH resolution and requiring ZERO diagnostics (the strict-day-one
 // merge gate). Re-running is a no-op (already-exported decls + already-imported names are skipped).
+//
+// `-tidy` (INCLUDE_RETIREMENT_PLAN.md §C, Unity's `--tidy` analogue): an ADDITIONAL pass, run
+// before export/import migration, that rewrites each file's preamble so it holds ONLY import
+// lines — a raw `#include "X.h"` on the auto-included prelude list (FUetkxFileScan::
+// AutoIncludedHeaders) is DELETED; a surviving one converts to `import "@X.h"`. Idempotent; a
+// preamble with stray comments/content is left untouched (logged) rather than risk destroying
+// user text. Omitting `-tidy` runs exactly the pre-existing export/import migration.
 
 #pragma once
 

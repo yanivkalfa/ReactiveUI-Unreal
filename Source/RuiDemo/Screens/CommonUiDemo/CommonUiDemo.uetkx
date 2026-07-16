@@ -1,8 +1,5 @@
-#include "RuiActivation.h"
-#include "RuiDemoSupport.h"
-#include "DemoInteropWidgets.h"
-#include "RuiUmgElement.h"
-#include "Engine/World.h"
+import "@RuiDemoSupport.h"
+import "@DemoInteropWidgets.h"
 
 import { ActivationProbe } from "./components/ActivationProbe/ActivationProbe"
 

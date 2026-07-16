@@ -869,8 +869,11 @@ FUetkxFormatResult FUetkxFormatter::Format(const FString& Source, const FUetkxFo
 			}
 			for (const FUetkxImportDecl& Imp : Scan.Imports)
 			{
-				Block += FString::Printf(TEXT("import { %s } from \"%s\"\n"), *FString::Join(Imp.Names, TEXT(", ")),
-										 *Imp.Specifier);
+				// `import "@Header.h"` (INCLUDE_RETIREMENT_PLAN.md §B) — a nameless host include,
+				// spelled with its own shape rather than the named `{ ... } from` block.
+				Block += Imp.bHostInclude ? FString::Printf(TEXT("import \"@%s\"\n"), *Imp.Specifier)
+										  : FString::Printf(TEXT("import { %s } from \"%s\"\n"),
+															*FString::Join(Imp.Names, TEXT(", ")), *Imp.Specifier);
 			}
 		}
 		if (!Block.IsEmpty())

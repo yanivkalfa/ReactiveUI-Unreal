@@ -1,5 +1,3 @@
-#include "RuiRouter.h"
-
 // The "/" route. Router hooks are plain Use* calls — the compiler passes Ctx.
 export component RouterHome {
 	auto Navigate = UseNavigate();

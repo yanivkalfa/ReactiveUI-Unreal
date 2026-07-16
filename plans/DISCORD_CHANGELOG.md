@@ -12,6 +12,29 @@ first announcement post lives at the BOTTOM of this file.
 
 **Hard limit: ≤ 2000 characters per entry** (Discord message cap).
 
+## [0.10.0] - 2026-07-16
+
+### `.uetkx` preambles are imports-only now
+
+**Raw `#include` lines are retired.** Every generated file already carries the library's own
+headers automatically — `RuiContext.h`, `RuiRouter.h`, the UMG/CommonUI/MVVM interop headers
+when that plugin is linked, and more. For your own project headers, a new import form:
+`import "@MyTypes.h"` compiles to `#include "MyTypes.h"` — nameless by design, since the C++
+compiler resolves the header's own symbols. This mirrors the family: Unity shipped the same
+shape (`import "@Namespace"`) first.
+
+A raw `#include` still works — nothing breaks — but naming a header the generated file already
+auto-includes now gets a friendly redundancy hint. `-run=RUIMigrateImports -tidy` migrates an
+existing tree for you (idempotent, surgical — it never touches a line that also carries a
+comment). The demo gallery ships fully migrated: `MvvmDemo.uetkx` now opens with zero includes
+at all.
+
+Update to **ReactiveUI for Unreal 0.10.0** (GitHub release). **Tooling:** UETKX 0.4.0 (VS Code +
+VS 2022) — syntax highlighting, live diagnostics, and a discoverable `import "@"` completion
+snippet for the new form. Battery `128/128`.
+
+---
+
 ## [0.9.0] - 2026-07-16
 
 ### Wave G — early returns + short-circuit rendering; the completion plan is DONE

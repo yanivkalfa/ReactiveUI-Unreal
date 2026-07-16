@@ -1,8 +1,5 @@
-#include "RuiDemoSupport.h"
-#include "DemoInteropWidgets.h"
-#include "RuiFieldHooks.h"
-#include "RuiUmgElement.h"
-#include "Engine/World.h"
+import "@RuiDemoSupport.h"
+import "@DemoInteropWidgets.h"
 
 // The UMG door's SECOND direction + the REVERSE MVVM bridge, in one screen (audit G1 + G3):
 //   · ours-inside-theirs — a UMG UserWidget whose tree contains a URuiHostWidget mounting the

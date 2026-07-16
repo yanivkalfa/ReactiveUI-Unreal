@@ -12,6 +12,7 @@ import {
   TextDocuments,
   TextDocumentSyncKind,
   CompletionItemKind,
+  InsertTextFormat,
   DiagnosticSeverity,
   type CompletionItem,
   type CompletionList,
@@ -155,6 +156,20 @@ connection.onCompletion(async (params): Promise<CompletionItem[] | CompletionLis
   const imp = importCursorAt(text, doc.offsetAt(params.position));
   if (imp) {
     const fsPath = fsPathOf(doc);
+    if (imp.kind === "import-keyword") {
+      // Discoverability nudge for the host-include form (INCLUDE_RETIREMENT_PLAN.md §B,
+      // mirrors Unity's `import "@Namespace"` snippet) — snippet-expands to quotes with the
+      // cursor placed between them, ready for a header path.
+      return [
+        {
+          label: '"@Header.h"',
+          kind: CompletionItemKind.Snippet,
+          insertText: '"@$1"',
+          insertTextFormat: InsertTextFormat.Snippet,
+          detail: "host C++ #include — a nameless side-effect import",
+        },
+      ];
+    }
     if (imp.kind === "import-specifier") {
       const importerDir = path.dirname(fsPath);
       const items: CompletionItem[] = [];
@@ -234,6 +249,7 @@ connection.onCompletion(async (params): Promise<CompletionItem[] | CompletionLis
     };
     for (const c of scan.components) addComp(c.name, "component (this file)");
     for (const imp of scan.imports) {
+      if (imp.hostInclude) continue; // no names to offer as tags (INCLUDE_RETIREMENT_PLAN.md §B)
       const key = resolveSpecifier(fsPath, imp.specifier);
       const decls = key ? getDecls(key) : null;
       for (const nm of imp.names) {
@@ -418,6 +434,9 @@ function markupDefinition(doc: TextDocument, params: { position: { line: number;
 
   // 1. Cursor on an import: a NAME jumps to its export in the target; the SPECIFIER opens the file.
   for (const impDecl of scan.imports) {
+    // Host includes (`import "@Header.h"`, INCLUDE_RETIREMENT_PLAN.md §B) have no names and
+    // resolve to no .uetkx file — no go-to-def.
+    if (impDecl.hostInclude) continue;
     for (let n = 0; n < impDecl.names.length; n++) {
       const at = impDecl.nameAts[n];
       if (cpOff >= at && cpOff <= at + impDecl.names[n].length) {

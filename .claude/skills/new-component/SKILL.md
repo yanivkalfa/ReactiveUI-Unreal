@@ -21,13 +21,26 @@ C++ here.
   sibling files; shared custom hooks in `hook` companion files (`score_card.hooks.uetkx`
   convention); `module` declarations group shared hooks/components (the family's companion-file
   layout — D-03). A file MAY hold a free sequence of these declarations.
-- **Imports are strict, static, preamble-only** (before the first declaration): `import { A, B }
-  from "./x"` (relative) or `from "~/Screens/X"` (`~/` = the module root, or the config `root`),
-  extensionless, named-only (no `*`, no default). **`export`** a `component`/`hook`/`module` to
-  make it importable from other files; a non-exported declaration is file-private (tree-shaken).
-  Cross-file names MUST be imported — the compiler errors otherwise (UETKX2305). Migrating an
-  existing tree? `<Engine>\UnrealEditor-Cmd <proj>.uproject -run=RUIMigrateImports` adds every
-  `export` + the imports each file needs (idempotent), then `-run=RUICompile -check` must be clean.
+- **A preamble holds imports ONLY** (before the first declaration; INCLUDE_RETIREMENT_PLAN.md):
+  `import { A, B } from "./x"` (relative) or `from "~/Screens/X"` (`~/` = the module root, or the
+  config `root`), extensionless, named-only (no `*`, no default) — cross-file names MUST be
+  imported this way, the compiler errors otherwise (UETKX2305). **`export`** a
+  `component`/`hook`/`module` to make it importable from other files; a non-exported declaration
+  is file-private (tree-shaken).
+- **You almost never write an `#include`.** Every generated file already carries the library's
+  own headers (`RuiContext.h`, `RuiCoreElements.h`, `RuiRouter.h`, the UMG/CommonUI/MVVM interop
+  headers when that plugin is linked, `UObject/StrongObjectPtr.h`, `Engine/World.h`, …) via the
+  aggregator's auto-included prelude — see `FUetkxFileScan::AutoIncludedHeaders()`
+  (`UetkxFileScan.cpp`) for the exact list. For **your own** project header, use the host-include
+  import form: `import "@MyTypes.h"` compiles to `#include "MyTypes.h"`. It is nameless by
+  design — the C++ compiler resolves the header's symbols, so there is nothing for the toolchain
+  to name-check. A raw `#include "MyTypes.h"` line still works (legacy spelling, never removed),
+  but naming an auto-included header either way is redundant (UETKX2317 hint).
+- Migrating an existing tree? `<Engine>\UnrealEditor-Cmd <proj>.uproject -run=RUIMigrateImports`
+  adds every `export` + the imports each file needs (idempotent), then `-run=RUICompile -check`
+  must be clean. Add `-tidy` to ALSO rewrite every preamble to imports-only (drops auto-included
+  headers, converts surviving `#include` lines to `import "@…"` — surgical: it only ever touches a
+  construct alone on its own line, never a line carrying a comment too).
 
 ## Anatomy (family grammar, C++ embedded)
 

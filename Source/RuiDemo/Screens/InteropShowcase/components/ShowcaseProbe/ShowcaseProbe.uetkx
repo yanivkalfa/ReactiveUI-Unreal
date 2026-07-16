@@ -1,5 +1,3 @@
-#include "RuiActivation.h"
-
 // Reads the activation the showcase provides (a descendant of the provider).
 export component ShowcaseProbe {
 	const bool bActive = RUI::CommonUI::UseIsActive();

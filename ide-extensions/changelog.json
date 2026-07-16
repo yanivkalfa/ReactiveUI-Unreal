@@ -3,11 +3,21 @@
     {
       "date": "2026-07-16",
       "versions": {
-        "vscode": "0.3.2",
-        "vs2022": "0.3.2"
+        "vscode": "0.4.1",
+        "vs2022": "0.4.1"
       },
       "shared": [
         "The marketplace description now credits the family Discord (discord.gg/Knedqu4Wyv) and the GitHub repo, kept under 280 characters for both listings."
+      ]
+    },
+    {
+      "date": "2026-07-16",
+      "versions": {
+        "vscode": "0.4.0",
+        "vs2022": "0.4.0"
+      },
+      "shared": [
+        "`.uetkx` preambles are imports-only now: an `import \"@Header.h\"` host-include form (family shape, ported from Unity's `import \"@Namespace\"`; our payload is a header path) compiles to `#include \"Header.h\"` — nameless by design, since the C++ compiler resolves the header's symbols. A raw `#include` line still works too, but naming a header the generated file already auto-includes now gets a redundancy hint (`UETKX2317`). Syntax highlighting, live diagnostics, and a discoverable `import \"@\"` completion snippet ship for the new form."
       ]
     },
     {
