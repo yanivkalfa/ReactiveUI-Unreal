@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.3.2] - 2026-07-16
+- The marketplace description now credits the family Discord (discord.gg/Knedqu4Wyv) and the GitHub repo, kept under 280 characters for both listings.
+
 ## [0.3.1] - 2026-07-16
 - Marketplace listing overhaul: distinguishable display names — `UETKX (Unreal - VS Code)` / `UETKX (Unreal - VS2022)` — and a structured page body (Title / Description / Features / Requirements / Changelog) on both marketplaces.
 - The VS Code marketplace page now has a body at all — README.md is generated from the centralized changelog (it was missing entirely).

@@ -3,6 +3,16 @@
     {
       "date": "2026-07-16",
       "versions": {
+        "vscode": "0.3.2",
+        "vs2022": "0.3.2"
+      },
+      "shared": [
+        "The marketplace description now credits the family Discord (discord.gg/Knedqu4Wyv) and the GitHub repo, kept under 280 characters for both listings."
+      ]
+    },
+    {
+      "date": "2026-07-16",
+      "versions": {
         "vscode": "0.3.1",
         "vs2022": "0.3.1"
       },
