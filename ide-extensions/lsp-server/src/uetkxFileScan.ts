@@ -46,6 +46,17 @@ export interface UetkxImportDecl {
   at: number; // offset of the `import` keyword
 }
 
+/** One markup `return ( ... )` span inside a component body (wave G early returns).
+ *  Offsets are into the BODY code points; C++-identical (FUetkxReturnSpan). */
+export interface UetkxReturnSpan {
+  returnAt: number;
+  mStart: number;
+  mEnd: number;
+  afterParen: number;
+  topLevel: boolean; // at brace+paren depth 0 (a statement of the body itself)
+  root: UetkxNode | null; // the span's single render root (filled by the component scan)
+}
+
 export interface UetkxComponentDecl {
   name: string;
   exported: boolean; // `export component`
@@ -58,6 +69,9 @@ export interface UetkxComponentDecl {
   body: string;
   bodyAt: number;
   windowNodes: UetkxNode[];
+  /** ALL markup returns in source order (wave G): the last one is the top-level anchor;
+   *  earlier ones are early returns the C++ emitter splices in place. */
+  returns: UetkxReturnSpan[];
   hookCalls: string[];
   next: number;
 }
@@ -200,6 +214,73 @@ export function splitMarkupReturn(body: readonly number[], requireMarkupPeek: bo
           out.mStart = p + 1;
           out.mEnd = close;
           out.afterParen = close + 1;
+        }
+        i = close + 1;
+        continue;
+      }
+      i += 6;
+      continue;
+    }
+    i++;
+  }
+  return out;
+}
+
+/** ALL markup returns in a component body, source order (wave G early returns). Paren/
+ *  bracket nesting hides a `return` (call arguments); brace nesting does NOT (if/else
+ *  blocks — the early-return shape). The window must peek like markup: `<`/`@` anywhere,
+ *  `{` (expression window) only at top level. C++-identical (CollectMarkupReturns). */
+export function collectMarkupReturns(body: readonly number[]): UetkxReturnSpan[] {
+  const out: UetkxReturnSpan[] = [];
+  const n = body.length;
+  let parenDepth = 0; // parens + brackets hide returns (call args); braces do NOT (if/else)
+  let braceDepth = 0;
+  let i = 0;
+  while (i < n) {
+    const j = skipNoncode(body, i);
+    if (j !== i) {
+      i = j;
+      continue;
+    }
+    const c = body[i];
+    if (c === C_LPAREN || c === 91 /*[*/) {
+      parenDepth++;
+      i++;
+      continue;
+    }
+    if (c === 41 /*)*/ || c === 93 /*]*/) {
+      parenDepth--;
+      i++;
+      continue;
+    }
+    if (c === C_LBRACE) {
+      braceDepth++;
+      i++;
+      continue;
+    }
+    if (c === 125 /*}*/) {
+      braceDepth--;
+      i++;
+      continue;
+    }
+    if (parenDepth === 0 && c === 114 /*r*/ && keywordAt(body, i, "return")) {
+      const p = skipWsOnly(body, i + 6);
+      if (p < n && body[p] === C_LPAREN) {
+        let first = skipWsOnly(body, p + 1);
+        for (;;) {
+          const skipped = skipNoncodeMarkup(body, first);
+          if (skipped === first) break;
+          first = skipWsOnly(body, skipped);
+        }
+        const topLevel = braceDepth === 0;
+        const markup = first < n && (body[first] === C_LT || body[first] === C_AT || (body[first] === C_LBRACE && topLevel));
+        const close = markup ? findMatchingMarkup(body, p) : findMatching(body, p);
+        if (close === -1) {
+          i++;
+          continue;
+        }
+        if (markup) {
+          out.push({ returnAt: i, mStart: p + 1, mEnd: close, afterParen: close + 1, topLevel, root: null });
         }
         i = close + 1;
         continue;
@@ -412,21 +493,33 @@ function parseComponent(src: number[], ci: number, exported: boolean, out: Uetkx
   }
   const bodyAt = k + 1;
   const body = src.slice(bodyAt, bclose);
-  const split = splitMarkupReturn(body, true);
-  if (!split.ok) {
+  // Wave G: collect ALL markup returns (early returns); the FINAL span must be top-level —
+  // it anchors the window/setup split (T1.4 last-wins). C++-identical (ParseComponent).
+  const returns = collectMarkupReturns(body);
+  if (returns.length === 0) {
     pushDiag(out, "UETKX2101", 0, "component has no `return ( ... )` markup return", ci, 9);
     return -1;
   }
-  const setup = fromCodePoints(body, 0, split.returnAt);
-  const parsed = parseMarkup(body, split.mStart, split.mEnd);
-  if (parsed.errorCode) {
-    pushDiag(out, parsed.errorCode, 0, parsed.errorMsg, bodyAt + Math.max(0, parsed.errorAt));
+  const final = returns[returns.length - 1];
+  if (!final.topLevel) {
+    pushDiag(out, "UETKX3007", 0, "the component's final markup `return ( ... )` must be at the top level of the body", bodyAt + final.returnAt, 6);
     return -1;
   }
-  const renderRoots = parsed.nodes.filter((node) => node.type !== "comment");
-  if (renderRoots.length !== 1) {
-    pushDiag(out, "UETKX0108", 0, `a component must return exactly one root element (got ${renderRoots.length})`, bodyAt + split.mStart);
-    return -1;
+  const setup = fromCodePoints(body, 0, final.returnAt);
+  let windowNodes: UetkxNode[] = [];
+  for (const span of returns) {
+    const parsed = parseMarkup(body, span.mStart, span.mEnd);
+    if (parsed.errorCode) {
+      pushDiag(out, parsed.errorCode, 0, parsed.errorMsg, bodyAt + Math.max(0, parsed.errorAt));
+      return -1;
+    }
+    const renderRoots = parsed.nodes.filter((node) => node.type !== "comment");
+    if (renderRoots.length !== 1) {
+      pushDiag(out, "UETKX0108", 0, `a component must return exactly one root element (got ${renderRoots.length})`, bodyAt + span.mStart);
+      return -1;
+    }
+    span.root = renderRoots[0];
+    if (span === final) windowNodes = parsed.nodes; // the final window keeps the formatter contract
   }
   const idx = out.components.length;
   out.components.push({
@@ -440,8 +533,9 @@ function parseComponent(src: number[], ci: number, exported: boolean, out: Uetkx
     setupAt: bodyAt,
     body: fromCodePoints(body, 0, body.length),
     bodyAt,
-    windowNodes: parsed.nodes,
-    hookCalls: scanHookCalls(body.slice(0, split.returnAt)),
+    windowNodes,
+    returns,
+    hookCalls: scanHookCalls(body.slice(0, final.returnAt)),
     next: bclose + 1,
   });
   out.order.push({ kind: "component", index: idx });

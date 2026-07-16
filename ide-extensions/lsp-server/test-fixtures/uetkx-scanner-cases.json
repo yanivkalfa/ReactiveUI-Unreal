@@ -257,6 +257,20 @@
       "name": "empty import list is UETKX0303",
       "input": "import { } from \"./X\"\ncomponent Foo {\n\treturn ( <Spacer /> );\n}\n",
       "expect": { "diags": ["UETKX0303"] }
+    },
+    {
+      "name": "wave G: early returns — multiple markup returns accepted (last top-level anchors)",
+      "input": "component Multi {\n\tif (true) {\n\t\treturn ( <TextBlock Text=\"big\" /> );\n\t}\n\treturn ( <Spacer /> );\n}\n",
+      "expect": {
+        "components": [{ "name": "Multi", "exported": false }],
+        "diags": [],
+        "noError": true
+      }
+    },
+    {
+      "name": "wave G: every return window parses per-span — a bad EARLY window still diagnoses",
+      "input": "component MultiBad {\n\tif (true) {\n\t\treturn ( <TextBlock Text=\"a\" /> <Spacer /> );\n\t}\n\treturn ( <Spacer /> );\n}\n",
+      "expect": { "diags": ["UETKX0108"] }
     }
   ],
   "fileScanLeg": [
@@ -289,6 +303,20 @@
       "name": "hook before component keeps declaration order",
       "input": "hook UseBar() { }\ncomponent Foo {\n\treturn ( <Spacer /> );\n}\n",
       "expect": { "order": ["hook:UseBar", "component:Foo"], "diags": [] }
+    },
+    {
+      "name": "wave G: final markup return must be top-level (UETKX3007)",
+      "input": "component Nested {\n\tif (true) {\n\t\treturn ( <TextBlock Text=\"a\" /> );\n\t} else {\n\t\treturn ( <TextBlock Text=\"b\" /> );\n\t}\n}\n",
+      "expect": { "diags": ["UETKX3007"] }
+    },
+    {
+      "name": "wave G: lambda brace-init return stays verbatim C++ (not a markup window)",
+      "input": "component LambdaInit {\n\tauto F = [&]() { return ({ 1 }); };\n\treturn ( <Spacer /> );\n}\n",
+      "expect": {
+        "components": [{ "name": "LambdaInit", "exported": false }],
+        "diags": [],
+        "noError": true
+      }
     }
   ]
 }

@@ -363,41 +363,59 @@ namespace
 		Decl.Next = Bclose + 1;
 
 		const TArray<int32> Body = FUetkxLexer::ToCodePoints(Decl.Body);
-		const FUetkxSplitReturn Split = FUetkxFileScan::SplitMarkupReturn(Body, /*bRequireMarkupPeek*/ true);
-		if (!Split.bOk)
+		// Wave G: collect ALL markup returns (early returns splice verbatim, Unity model). The
+		// FINAL span must be top-level — it anchors the window/setup split (T1.4 last-wins) and
+		// guarantees the emitted impl always ends in a return statement.
+		Decl.Returns = FUetkxFileScan::CollectMarkupReturns(Body);
+		if (Decl.Returns.IsEmpty())
 		{
 			AddDiag(Out.Diags, TEXT("UETKX2101"), 0, TEXT("component has no `return ( ... )` markup return"), Ci, 9);
 			return -1;
 		}
-		Decl.Setup = FUetkxLexer::FromCodePoints(Body, 0, Split.ReturnAt);
+		if (!Decl.Returns.Last().bTopLevel)
+		{
+			AddDiag(Out.Diags, TEXT("UETKX3007"), 0,
+					TEXT("the component's final markup `return ( ... )` must be at the top level of the body"),
+					BodyAt + Decl.Returns.Last().ReturnAt, 6);
+			return -1;
+		}
+		const FUetkxReturnSpan& Final = Decl.Returns.Last();
+		Decl.Setup = FUetkxLexer::FromCodePoints(Body, 0, Final.ReturnAt);
 		Decl.SetupAt = BodyAt;
 		Decl.HookCalls = ScanHookCalls(FUetkxLexer::ToCodePoints(Decl.Setup));
 
-		FUetkxMarkup Parser;
-		FUetkxParseResult Pr = Parser.Parse(Body, Split.MStart, Split.MEnd);
-		if (!Pr.IsOk())
+		for (FUetkxReturnSpan& Span : Decl.Returns)
 		{
-			AddDiag(Out.Diags, *Pr.ErrorCode, 0, Pr.ErrorMsg, BodyAt + FMath::Max(0, Pr.ErrorAt));
-			return -1;
-		}
-		Decl.WindowNodes = Pr.Nodes;
-		TArray<TSharedPtr<FUetkxNode>> RenderRoots;
-		for (const TSharedPtr<FUetkxNode>& Node : Pr.Nodes)
-		{
-			if (Node.IsValid() && Node->Type != EUetkxNodeType::Comment)
+			FUetkxMarkup Parser;
+			FUetkxParseResult Pr = Parser.Parse(Body, Span.MStart, Span.MEnd);
+			if (!Pr.IsOk())
 			{
-				RenderRoots.Add(Node);
+				AddDiag(Out.Diags, *Pr.ErrorCode, 0, Pr.ErrorMsg, BodyAt + FMath::Max(0, Pr.ErrorAt));
+				return -1;
+			}
+			TArray<TSharedPtr<FUetkxNode>> RenderRoots;
+			for (const TSharedPtr<FUetkxNode>& Node : Pr.Nodes)
+			{
+				if (Node.IsValid() && Node->Type != EUetkxNodeType::Comment)
+				{
+					RenderRoots.Add(Node);
+				}
+			}
+			if (RenderRoots.Num() != 1)
+			{
+				AddDiag(Out.Diags, TEXT("UETKX0108"), 0,
+						FString::Printf(TEXT("a component must return exactly one root element (got %d)"),
+										RenderRoots.Num()),
+						BodyAt + Span.MStart);
+				return -1;
+			}
+			Span.Root = RenderRoots[0];
+			if (&Span == &Decl.Returns.Last())
+			{
+				Decl.WindowNodes = Pr.Nodes; // the final window keeps the formatter contract
 			}
 		}
-		if (RenderRoots.Num() != 1)
-		{
-			AddDiag(
-				Out.Diags, TEXT("UETKX0108"), 0,
-				FString::Printf(TEXT("a component must return exactly one root element (got %d)"), RenderRoots.Num()),
-				BodyAt + Split.MStart);
-			return -1;
-		}
-		Decl.Root = RenderRoots[0];
+		Decl.Root = Decl.Returns.Last().Root;
 
 		const int32 Idx = Out.Components.Num();
 		Out.Components.Add(MoveTemp(Decl));
@@ -646,6 +664,93 @@ FUetkxSplitReturn FUetkxFileScan::SplitMarkupReturn(const TArray<int32>& Body, b
 					Out.MStart = P + 1;
 					Out.MEnd = Close;
 					Out.AfterParen = Close + 1;
+				}
+				i = Close + 1;
+				continue;
+			}
+			i += 6;
+			continue;
+		}
+		++i;
+	}
+	return Out;
+}
+
+TArray<FUetkxReturnSpan> FUetkxFileScan::CollectMarkupReturns(const TArray<int32>& Body)
+{
+	TArray<FUetkxReturnSpan> Out;
+	const int32 N = Body.Num();
+	int32 ParenDepth = 0; // parens + brackets hide returns (call args); braces do NOT (if/else)
+	int32 BraceDepth = 0;
+	int32 i = 0;
+	while (i < N)
+	{
+		const int32 j = FUetkxLexer::SkipNoncode(Body, i);
+		if (j != i)
+		{
+			i = j;
+			continue;
+		}
+		const int32 C = Body[i];
+		if (C == C_LPAREN || C == C_LBRACKET)
+		{
+			++ParenDepth;
+			++i;
+			continue;
+		}
+		if (C == C_RPAREN || C == C_RBRACKET)
+		{
+			--ParenDepth;
+			++i;
+			continue;
+		}
+		if (C == C_LBRACE)
+		{
+			++BraceDepth;
+			++i;
+			continue;
+		}
+		if (C == C_RBRACE)
+		{
+			--BraceDepth;
+			++i;
+			continue;
+		}
+		if (ParenDepth == 0 && C == 'r' && FUetkxLexer::KeywordAt(Body, i, TEXT("return")))
+		{
+			const int32 P = SkipWsOnly(Body, i + 6);
+			if (P < N && Body[P] == C_LPAREN)
+			{
+				// peek first real char inside (past leading markup comments)
+				int32 First = SkipWsOnly(Body, P + 1);
+				while (First < N)
+				{
+					const int32 Skipped = FUetkxLexer::SkipNoncodeMarkup(Body, First);
+					if (Skipped == First)
+					{
+						break;
+					}
+					First = SkipWsOnly(Body, Skipped);
+				}
+				const bool bTopLevel = BraceDepth == 0;
+				const bool bMarkup =
+					First < N && (Body[First] == C_LT || Body[First] == C_AT || (Body[First] == C_LBRACE && bTopLevel));
+				const int32 Close =
+					bMarkup ? FUetkxLexer::FindMatchingMarkup(Body, P) : FUetkxLexer::FindMatching(Body, P);
+				if (Close == -1)
+				{
+					++i;
+					continue;
+				}
+				if (bMarkup)
+				{
+					FUetkxReturnSpan Span;
+					Span.ReturnAt = i;
+					Span.MStart = P + 1;
+					Span.MEnd = Close;
+					Span.AfterParen = Close + 1;
+					Span.bTopLevel = bTopLevel;
+					Out.Add(MoveTemp(Span));
 				}
 				i = Close + 1;
 				continue;

@@ -335,9 +335,20 @@ referenced from plans/PRs.
   component can wrap arbitrary children (the reason gallery cards were inlined per-screen). Pinned by
   the `ChildrenForward` contract golden AND proven end-to-end by `ReactiveUI.Uetkx.Children`
   (ChildParent wraps two rows in ChildHost → HOST-HEADER + FORWARDED-A/B + HOST-FOOTER all render).
-  REMAINING: (1) early component-level markup returns (family Phase-C splitter port), (3)
-  `classes={expr}` string-form conditional classes, (4) UETKX3002/3003 short-circuit + spread attrs
-  (post-v1 in the family too).
+  Gaps (1) and (4a) RESOLVED 2026-07-16 (WIDGET_COMPLETION_PLAN wave G, 0.9.0): (1) EARLY
+  RETURNS — `CollectMarkupReturns` gathers every markup `return ( ... )` (paren/bracket depth
+  hides call-arg returns; brace depth does NOT — the if/else guard shape); the emitter splices
+  the body VERBATIM (Unity's SpliceSetupCodeMarkup model) lowering each span to
+  `return { <element> };` in place; the FINAL return must be top-level (new UETKX3007). Single-
+  return bodies take the legacy path — all prior goldens byte-stable. (4a) SHORT-CIRCUIT —
+  `cond && <X/>` / `cond || <X/>` desugar to ternaries with an empty-fragment `FRuiNode()` arm
+  (the Unity Phase-1.5 port); **UETKX3002 retired**. Pinned by MultiReturn/ShortCircuit/
+  NestedFinalReturn contract goldens + 4 fileScan corpus cases (both impls) + the compiled
+  `GrammarProof/MultiReturnProof.uetkx` mounted by `ReactiveUI.Uetkx.WaveG`. **Cross-repo
+  outbound (grammar-contract):** the new fileScan corpus cases + refreshed family-core hash need
+  the mirrored PR against the Godot repo and a flag to the Unity repo — track until both merge.
+  REMAINING: (3) `classes={expr}` string-form conditional classes, (4b) spread attrs — kept
+  omitted per D-W1 (Unity-aligned; UETKX3003 stays).
 
 ## TD-016 — Event payload surface is the single magic `Value` (FRuiValue)
 - **Where:** `ReactiveUIToolchain` codegen (event attr lowering)

@@ -1,11 +1,13 @@
 # Widget-completion plan — v1 = ALL official widgets (owner re-decision 2026-07-16)
 
-> **Status: WAVES 0–4 SHIPPED 2026-07-16 (0.5.0 → 0.8.0) — every widget in this plan is
-> implemented.** 63 markup tags / 65+ wrapped widgets; all five protocols landed (P1
-> ToolTipText, P2 imperative handles, P3 popups, P4 toasts, P5a/b/c slot models); TD-011
-> meta-gate + TD-013 builder gate live in CI; TD-012 setter sweep done; TD-022 closed
-> (TreeView + HeaderRow); first `sinceUE: 5.7` widget (SearchableComboBox); D-W4 Splitter2x2
-> wrapped. Battery 126/126. REMAINING: wave G (grammar — early returns + short-circuit `&&`).
+> **Status: PLAN COMPLETE — waves 0–4 + G ALL SHIPPED 2026-07-16 (0.5.0 → 0.9.0).**
+> 63 markup tags / 65+ wrapped widgets; all five protocols landed (P1 ToolTipText, P2
+> imperative handles, P3 popups, P4 toasts, P5a/b/c slot models); TD-011 meta-gate + TD-013
+> builder gate live in CI; TD-012 setter sweep done; TD-022 closed (TreeView + HeaderRow);
+> first `sinceUE: 5.7` widget (SearchableComboBox); D-W4 Splitter2x2 wrapped. Wave G: early
+> returns (verbatim-emit + splice, UETKX3007) + short-circuit `&&`/`||` (UETKX3002 retired),
+> corpus in both impls. Battery 127/127. The 1.0 gate's widget-completion clauses are MET
+> (Batch-3 table: every row Shipped / SKIP / reclassified per D-W2/D-W3).
 > **The re-decision this plan implements:** the locked ship gate phased Batch 3 as "v1.x";
 > the owner overrode that 2026-07-16 — **full official-widget coverage (+ the TD-012 setter
 > remainder) moves INTO the v1 gate. The 1.0 tag — and the Fab day-one listing — ship with

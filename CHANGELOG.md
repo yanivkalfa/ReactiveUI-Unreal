@@ -7,6 +7,26 @@ resync with `cp CHANGELOG.md Plugins/ReactiveUI/CHANGELOG.md` (CI byte-compares 
 `scripts/verify-mirror.mjs`). The IDE extensions are NOT covered here — they use
 `ide-extensions/changelog.json` (Lane B; see the release-process skill).
 
+## [0.9.0] — 2026-07-16
+
+Widget-completion wave G: grammar alignment — early returns and short-circuit rendering land;
+**the widget-completion plan is fully DONE** (all waves 0–4 + G).
+
+### Added
+
+- **Early component-level returns** (family Phase-C parity, the Unity verbatim-emit model):
+  guard clauses `if (x) { return ( <A/> ); }` now work anywhere in a component body — the
+  body's C++ splices verbatim and every markup return lowers in place. The *final* markup
+  return must be top-level (new diagnostic `UETKX3007`). Single-return bodies compile
+  byte-identically to before.
+- **Short-circuit rendering** (the Unity Phase-1.5 port): `{ cond && <X/> }` renders the
+  element only when the condition holds; `{ cond || <X/> }` only when it does not —
+  desugared to ternaries with an empty-fragment arm. **`UETKX3002` retired.**
+- Contract corpus: `MultiReturn`/`ShortCircuit`/`NestedFinalReturn` goldens + 4 fileScan
+  corpus cases in BOTH implementations (C++ compiler and TS language server, byte-identical
+  collector port); a compiled `GrammarProof` markup file is mounted end-to-end by the new
+  `ReactiveUI.Uetkx.WaveG` suite (battery 127 tests).
+
 ## [0.8.0] — 2026-07-16
 
 Widget-completion wave 4: the hierarchical item-model view closes TD-022 — **every widget

@@ -12,6 +12,23 @@ first announcement post lives at the BOTTOM of this file.
 
 **Hard limit: ≤ 2000 characters per entry** (Discord message cap).
 
+## [0.9.0] - 2026-07-16
+
+### Wave G — early returns + short-circuit rendering; the completion plan is DONE
+
+**The `.uetkx` grammar catches up with the family.** Guard clauses now work at component
+level — `if (x) { return ( <A/> ); }` anywhere in the body, your C++ branches, every markup
+return lowers in place (the Unity verbatim-emit model). And short-circuit rendering lands:
+`{ cond && <X/> }` renders only when true, `{ cond || <X/> }` only when false — the
+`UETKX3002` diagnostic is retired. Existing files compile byte-identically.
+
+Pinned by new contract goldens + corpus cases in BOTH the C++ compiler and the TS language
+server, plus a compiled proof component mounted by a new automation suite.
+
+Update to **ReactiveUI for Unreal 0.9.0** (GitHub release). Battery `127/127`.
+
+---
+
 ## [0.8.0] - 2026-07-16
 
 ### Wave 4 — TreeView lands; the widget-completion plan is DONE

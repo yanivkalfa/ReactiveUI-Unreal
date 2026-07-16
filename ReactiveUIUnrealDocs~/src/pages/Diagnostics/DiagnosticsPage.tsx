@@ -8,7 +8,7 @@ const BANDS: Array<[string, string]> = [
   ['UETKX22xx', 'Hooks & modules — missing hook name (2200) / params (2201) / body (2202), Use* naming (2203), missing module name (2204) / body (2205).'],
   ['UETKX23xx', 'Imports & exports — resolution and privacy (2300–2309). See the Imports guide.'],
   ['UETKX25xx', 'Directives — malformed @if/@for/@match shape (2506–2508).'],
-  ['UETKX30xx', 'Codegen — compiler-stage errors, e.g. template hook declarations are unsupported (3006).'],
+  ['UETKX30xx', 'Codegen — compiler-stage errors, e.g. template hook declarations are unsupported (3006), the final markup return must be top-level (3007).'],
 ]
 
 const EXAMPLES: Array<[string, string, string]> = [
@@ -19,6 +19,7 @@ const EXAMPLES: Array<[string, string, string]> = [
   ['UETKX2101', 'err', 'no `component`, `hook`, or `module` declaration found'],
   ['UETKX2203', 'warn', 'hook name should start with `Use`'],
   ['UETKX3006', 'err', 'template `hook` declarations are not supported — use a C++ template in a `module`'],
+  ['UETKX3007', 'err', "the component's final markup `return ( ... )` must be at the top level of the body"],
 ]
 
 export const DiagnosticsPage: FC = () => (

@@ -1,0 +1,7 @@
+component NestedFinalReturn(bA: bool = false) {
+	if (bA) {
+		return ( <TextBlock Text="a" /> );
+	} else {
+		return ( <TextBlock Text="b" /> );
+	}
+}

@@ -19,8 +19,8 @@
 - ~~**TD-020 tail — embedded-C++ COMPLETION via clangd**~~ — ✅ SHIPPED 2026-07-15 (extensions
   0.2.0): completion forwards over the virtual doc with range translation; hover/definition/
   completion all clangd-backed inside setup/hook/module bodies. TD-020 RESOLVED.
-- **Widget completion (owner re-decision 2026-07-16)** — full official-widget coverage +
-  TD-012 remainder now block the 1.0 tag; see §5 and
+- ~~**Widget completion (owner re-decision 2026-07-16)**~~ — ✅ **COMPLETE 2026-07-16**
+  (waves 0–4 + G, 0.5.0 → 0.9.0); see §5 and
   [WIDGET_COMPLETION_PLAN.md](WIDGET_COMPLETION_PLAN.md).
 - **Phase 9 — release & publishing (owner-gated).** Per-engine zips (packaging stamps
   `EngineVersion` — release-process skill), Fab listing + upload (identity verification has
@@ -70,11 +70,13 @@
 
 ## 5. Widget & markup surface — **NOW v1-BLOCKING (owner re-decision 2026-07-16)**
 
-- **Full widget coverage + the TD-012 setter remainder moved INTO the v1 gate** — the 1.0 tag
-  (and the Fab day-one listing) ship with everything. Execution plan with waves, protocols,
-  and versioning: [WIDGET_COMPLETION_PLAN.md](WIDGET_COMPLETION_PLAN.md) (researched
-  2026-07-16). WIDGET_INVENTORY.md stays the authoritative per-widget tracker; waves ship as
-  0.5.0+ additive minors on GitHub.
+- ~~**Full widget coverage + the TD-012 setter remainder moved INTO the v1 gate**~~ —
+  ✅ **PLAN COMPLETE 2026-07-16**: waves 0–4 + G all shipped (0.5.0 → 0.9.0) — 63 markup
+  tags / 65+ wrapped widgets, protocols P1–P5, TD-011/TD-013 gates in CI, TD-012 drained,
+  TD-022 closed (TreeView/HeaderRow), wave G grammar (early returns + short-circuit;
+  UETKX3002 retired). The 1.0 gate's widget-completion clauses are MET; see
+  [WIDGET_COMPLETION_PLAN.md](WIDGET_COMPLETION_PLAN.md) + WIDGET_INVENTORY.md Shipped tables.
+  Follow-on process item: outbound corpus-sync PRs to the Godot/Unity repos (TD-009/TD-018).
 - ~~**Markup `Ref` attribute gap**~~ — ✅ SHIPPED 2026-07-15 (owner decision): `Ref={ expr }`
   is a universal reserved attribute (codegen assigns `Props.Ref`; expr-only, string form
   diagnosed); LSP completion/hover, contract fixture `RefCapture`, AcceptanceLab §9 live

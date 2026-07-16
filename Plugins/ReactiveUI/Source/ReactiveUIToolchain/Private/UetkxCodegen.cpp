@@ -888,15 +888,14 @@ namespace
 					Fail(TEXT("UETKX2508"), TEXT("unbalanced markup inside expression"), AbsAt);
 					return Expr;
 				}
-				if (!Range.Op.IsEmpty())
-				{
-					Fail(TEXT("UETKX3002"),
-						 TEXT("short-circuit markup (`&&`/`||`) is post-v1 in .uetkx — use a ternary `cond ? "
-							  "<X/> : <>...</>`"),
-						 AbsAt);
-					return Expr;
-				}
-				Out += PrefixHooks(FUetkxLexer::FromCodePoints(Src, Cursor, Range.Start - Cursor));
+				// Short-circuit markup desugars in place (wave G — the Unity Phase 1.5 port;
+				// UETKX3002 retired): `cond && <X/>` -> `cond ? <X/> : FRuiNode()` and
+				// `cond || <X/>` -> `cond ? FRuiNode() : <X/>` (a default FRuiNode is an empty
+				// fragment — renders nothing). `&&`/`||` bind tighter than `?:`, so the bare
+				// condition text is safe on the left of the emitted ternary.
+				const bool bShortCircuit = !Range.Op.IsEmpty();
+				Out += PrefixHooks(
+					FUetkxLexer::FromCodePoints(Src, Cursor, (bShortCircuit ? Range.OpPos : Range.Start) - Cursor));
 				FUetkxMarkup Parser;
 				FUetkxParseResult Pr = Parser.Parse(Src, Range.Start, Range.End);
 				if (!Pr.IsOk() || Pr.Nodes.Num() != 1)
@@ -904,7 +903,16 @@ namespace
 					Fail(TEXT("UETKX2508"), TEXT("invalid markup inside expression"), AbsAt);
 					return Expr;
 				}
-				Out += EmitNodeExpr(*Pr.Nodes[0], AbsAt);
+				const FString Node = EmitNodeExpr(*Pr.Nodes[0], AbsAt);
+				if (bShortCircuit)
+				{
+					Out += Range.Op == TEXT("&&") ? FString::Printf(TEXT(" ? %s : FRuiNode()"), *Node)
+												  : FString::Printf(TEXT(" ? FRuiNode() : %s"), *Node);
+				}
+				else
+				{
+					Out += Node;
+				}
 				Cursor = Range.End;
 			}
 			Out += PrefixHooks(FUetkxLexer::FromCodePoints(Src, Cursor, Src.Num() - Cursor));
@@ -1457,13 +1465,55 @@ namespace
 		{
 			Impl += FString::Printf(TEXT("\tconst auto& %s = Props.%s;\n"), *Param.Name, *Param.Name);
 		}
-		const FString Setup = Decl.Setup.TrimStartAndEnd();
-		if (!Setup.IsEmpty())
+		if (Decl.Returns.Num() <= 1)
 		{
-			Impl += WithLine(TEXT("\t") + IndentRegion(PrefixHooks(Setup)) + TEXT("\n"),
-							 SrcLineOfRegion(Decl.Setup, Decl.SetupAt, Line), Line);
+			// Single markup return — the legacy shape (byte-stable goldens).
+			const FString Setup = Decl.Setup.TrimStartAndEnd();
+			if (!Setup.IsEmpty())
+			{
+				Impl += WithLine(TEXT("\t") + IndentRegion(PrefixHooks(Setup)) + TEXT("\n"),
+								 SrcLineOfRegion(Decl.Setup, Decl.SetupAt, Line), Line);
+			}
+			Impl += FString::Printf(TEXT("\treturn { %s };\n}\n"), *EmitNodeExpr(*Decl.Root, Decl.BodyAt));
 		}
-		Impl += FString::Printf(TEXT("\treturn { %s };\n}\n"), *EmitNodeExpr(*Decl.Root, Decl.BodyAt));
+		else
+		{
+			// Wave G early returns — the family's verbatim-emit model (Unity SpliceSetupCodeMarkup):
+			// the body's C++ splices VERBATIM (its own control flow branches); every markup
+			// `return ( <X/> )` span lowers to `return { <element expr> };` in place.
+			const TArray<int32> Body = FUetkxLexer::ToCodePoints(Decl.Body);
+			int32 Cursor = 0;
+			for (const FUetkxReturnSpan& Span : Decl.Returns)
+			{
+				const FString Raw = FUetkxLexer::FromCodePoints(Body, Cursor, Span.ReturnAt - Cursor);
+				const FString Segment = Raw.TrimStartAndEnd();
+				if (!Segment.IsEmpty())
+				{
+					Impl += WithLine(TEXT("\t") + IndentRegion(PrefixHooks(Segment)) + TEXT("\n"),
+									 SrcLineOfRegion(Raw, Decl.BodyAt + Cursor, Line), Line);
+				}
+				Impl += FString::Printf(TEXT("\treturn { %s };\n"), *EmitNodeExpr(*Span.Root, Decl.BodyAt));
+				// step past the authored `;` (we emit our own)
+				Cursor = Span.AfterParen;
+				while (Cursor < Body.Num() &&
+					   (Body[Cursor] == ' ' || Body[Cursor] == '\t' || Body[Cursor] == '\n' || Body[Cursor] == '\r'))
+				{
+					++Cursor;
+				}
+				if (Cursor < Body.Num() && Body[Cursor] == ';')
+				{
+					++Cursor;
+				}
+			}
+			const FString RawTail = FUetkxLexer::FromCodePoints(Body, Cursor, Body.Num() - Cursor);
+			const FString Tail = RawTail.TrimStartAndEnd();
+			if (!Tail.IsEmpty())
+			{
+				Impl += WithLine(TEXT("\t") + IndentRegion(PrefixHooks(Tail)) + TEXT("\n"),
+								 SrcLineOfRegion(RawTail, Decl.BodyAt + Cursor, Line), Line);
+			}
+			Impl += TEXT("}\n");
+		}
 		Impl += FString::Printf(TEXT("static const FName G%sUetkxId = RUI::RegisterComponentId((void*)&%s_UetkxImpl, "
 									 "FName(TEXT(\"%s\")));\n"),
 								*Decl.Name, *Decl.Name, *Decl.Name);
