@@ -30,6 +30,9 @@ const CORE: Entry[] = [
 ]
 const SLATE: Entry[] = [
   ['RUI::Slate::VerticalBox() / Button() / Border() / …', 'Host-element factories — one per Slate widget (usually written as tags).'],
+  ['RUI::Slate::ListView / TileView / TreeView / MakeItemRenderer / MakeChildAccessor', 'The item-model views (render-prop APIs — C++-first, no markup tag); TreeView adds a child accessor, controlled expansion, and header Columns.'],
+  ['RUI::Slate::PushNotification(Handle, Text, Duration)', 'Fire a toast at a mounted <NotificationList> (capture its handle via Ref).'],
+  ['RUI::Slate::WidgetFromHandle<TWidget>(Handle)', 'Resolve a captured Ref/handle to its live typed Slate widget — the imperative escape hatch (ScrollToEnd()-class calls); pairs with UseImperativeHandle.'],
   ['RUI::Slate::MakeDrawFn(lambda)', 'Wrap a paint lambda into an FRuiDrawFn for RuiCanvas.'],
   ['RUI::Slate::UseShortcut(...) / FRuiShortcut', 'Register keyboard shortcuts from a component.'],
 ]
