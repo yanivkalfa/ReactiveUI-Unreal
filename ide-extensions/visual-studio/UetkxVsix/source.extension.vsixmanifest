@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
   <Metadata>
-    <Identity Id="UetkxVsix.ReactiveUITK" Version="0.4.0" Language="en-US" Publisher="Yaniv Kalfa" />
+    <Identity Id="UetkxVsix.ReactiveUITK" Version="0.4.1" Language="en-US" Publisher="Yaniv Kalfa" />
     <DisplayName>UETKX (Unreal - VS2022)</DisplayName>
-    <Description xml:space="preserve">Syntax highlighting and language intelligence for .uetkx markup (ReactiveUI for Unreal). Markup completion/hover/formatting from the compiler-exported schema; compiler diagnostics via sidecars — fully offline, no running Unreal editor required.</Description>
+    <Description xml:space="preserve">Syntax highlighting and language intelligence for .uetkx markup (ReactiveUI for Unreal) — completions, hover, diagnostics, formatting from the compiler schema. Fully offline. Discord: discord.gg/Knedqu4Wyv | github.com/yanivkalfa/ReactiveUI-Unreal</Description>
     <Icon>icon.png</Icon>
     <Tags>unreal;slate;uetkx;reactiveui;jsx</Tags>
   </Metadata>
