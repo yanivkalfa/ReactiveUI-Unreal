@@ -29,7 +29,7 @@ existing tree for you (idempotent, surgical — it never touches a line that als
 comment). The demo gallery ships fully migrated: `MvvmDemo.uetkx` now opens with zero includes
 at all.
 
-Update to **ReactiveUI for Unreal 0.10.0** (GitHub release). **Tooling:** UETKX 0.4.0 (VS Code +
+Update to **ReactiveUI for Unreal 0.10.0** (GitHub release). **Tooling:** UETKX 0.4.2 (VS Code +
 VS 2022) — syntax highlighting, live diagnostics, and a discoverable `import "@"` completion
 snippet for the new form. Battery `128/128`.
 

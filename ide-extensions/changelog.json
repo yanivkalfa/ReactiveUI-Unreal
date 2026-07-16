@@ -3,6 +3,16 @@
     {
       "date": "2026-07-16",
       "versions": {
+        "vscode": "0.4.2",
+        "vs2022": "0.4.2"
+      },
+      "shared": [
+        "Embedded-C++ intelligence now sees the full auto-included prelude: the virtual document's header list gains `CoreMinimal.h`, `RuiSignal.h`, `RuiSlateElements.h`, and `RuiStyle.h`, matching the compiler's 18-header list exactly — clangd-backed completion/hover inside setup bodies now resolves Slate element factories, signals, and style types."
+      ]
+    },
+    {
+      "date": "2026-07-16",
+      "versions": {
         "vscode": "0.4.1",
         "vs2022": "0.4.1"
       },

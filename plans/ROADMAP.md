@@ -1,5 +1,16 @@
 # ReactiveUI-Unreal — Overview & Roadmap
 
+> **STATUS UPDATE — 2026-07-16 (`feat/include-retirement`).** Include retirement SHIPPED
+> (plugin 0.10.0, extensions 0.4.0; `plans/archive/INCLUDE_RETIREMENT_PLAN.md`): `.uetkx`
+> preambles are imports-only — generated files auto-include the library's own headers
+> (`FUetkxFileScan::AutoIncludedHeaders()`, `__has_include`-guarded for optional modules);
+> `import "@Header.h"` is the nameless host-include form (family shape, ported from Unity's
+> `import "@Namespace"`); redundant includes get the UETKX2317 hint (2316 reserved post-v1);
+> `-run=RUIMigrateImports -tidy` migrated the demo tree (20 files). Godot-side convergence
+> tracked as TD-030. Battery 128/128 on UE 5.6. Same day: marketplace listing overhaul
+> (extensions 0.3.1, `plans/archive/EXTENSION_LISTING_PLAN.md`) + Discord/repo-link
+> descriptions (0.4.1).
+>
 > **STATUS UPDATE — 2026-07-16 (`plan/widget-completion`).** The widget-completion campaign
 > is COMPLETE: waves 0–4 + G all shipped as additive minors 0.5.0 → 0.9.0. 63 markup tags /
 > 65+ wrapped Slate widgets (every official runtime widget: Shipped, SKIP-annotated, or
@@ -9,7 +20,7 @@
 > `sinceUE: 5.7` widget; grammar wave G (early returns + short-circuit `&&`/`||`,
 > UETKX3002 retired, UETKX3007 added) with corpus in both impls. Battery 127/127 on UE 5.6.
 > The v1 gate's widget-completion clauses are MET — see
-> `plans/WIDGET_COMPLETION_PLAN.md` + `plans/WIDGET_INVENTORY.md`.
+> `plans/archive/WIDGET_COMPLETION_PLAN.md` + `plans/WIDGET_INVENTORY.md`.
 >
 > **STATUS UPDATE — 2026-07-15 (`feat/v1-gate-closeout`).** Localization SHIPPED (the last
 > Phase-7 production gap): verified gather pipeline for markup text + culture-change → root

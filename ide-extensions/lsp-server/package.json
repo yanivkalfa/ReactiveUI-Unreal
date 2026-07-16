@@ -1,6 +1,6 @@
 {
   "name": "uetkx-language-server",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Language server for .uetkx (ReactiveUI for Unreal markup): markup intelligence from the compiler-exported schema + diagnostics sidecars; embedded-C++ intelligence degrades gracefully without clangd.",
   "license": "MIT",
   "main": "out/server.js",

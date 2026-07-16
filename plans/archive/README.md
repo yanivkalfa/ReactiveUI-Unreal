@@ -15,6 +15,9 @@ reversals and consciously-deferred scope (and where that scope is tracked now).
 | `EXIT_ANIMATION_DESIGN.md` | The `<Presence>` boundary shipped as designed (TD-003 RESOLVED 2026-07-12; suite `ReactiveUI.Core.Presence`) |
 | `PR_DESCRIPTION_uetkx-compiler.md` + `PR_DESCRIPTION_uetkx-imports.md` | Historical PR bodies for merged campaigns |
 | ~~`OWNER_ACCEPTANCE_CHECKLIST.md`~~ + ~~`OWNER_ACCEPTANCE_CHECKLIST_v2.md`~~ | UN-ARCHIVED back to `plans/` 2026-07-16 for the post-widget-completion manual acceptance pass (owner request) |
+| `WIDGET_COMPLETION_PLAN.md` | Widget-completion campaign COMPLETE (waves 0–4 + G, plugin 0.5.0→0.9.0, 63 tags): every clause of the v1 widget gate met; `plans/WIDGET_INVENTORY.md` (still live) is the ongoing tracker |
+| `EXTENSION_LISTING_PLAN.md` | Marketplace-listing overhaul shipped (extensions 0.3.1): distinguishable display names + structured page bodies on both marketplaces, README generated via `changelog.mjs extract-overview` |
+| `INCLUDE_RETIREMENT_PLAN.md` | Include retirement shipped (plugin 0.10.0, extensions 0.4.0): imports-only preambles, `import "@Header.h"` host includes, auto-included prelude, UETKX2317 hint, `-tidy` codemod; family follow-up tracked as TD-030 |
 
 ## Still live in `plans/`
 

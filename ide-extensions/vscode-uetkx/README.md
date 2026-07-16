@@ -16,6 +16,9 @@ Editor support for **`.uetkx`**, the JSX-like markup of [ReactiveUI for Unreal](
 
 ## Changelog
 
+### [0.4.2] - 2026-07-16
+- Embedded-C++ intelligence now sees the full auto-included prelude: the virtual document's header list gains `CoreMinimal.h`, `RuiSignal.h`, `RuiSlateElements.h`, and `RuiStyle.h`, matching the compiler's 18-header list exactly — clangd-backed completion/hover inside setup bodies now resolves Slate element factories, signals, and style types.
+
 ### [0.4.1] - 2026-07-16
 - The marketplace description now credits the family Discord (discord.gg/Knedqu4Wyv) and the GitHub repo, kept under 280 characters for both listings.
 
