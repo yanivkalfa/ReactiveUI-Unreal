@@ -77,6 +77,16 @@ struct REACTIVEUISLATE_API FRuiSplitterProps final : public FRuiPropsBase
 				   RUI_EQ(Orientation) RUI_EQ(PhysicalSplitterHandleSize) RUI_EQ(OnSplitterFinishedResizing))
 };
 
+/** SSplitter2x2 (MultiSlot, D-W4) - four resizable quadrants; children route by
+ *  `Slot.Role` = "topLeft" (default) | "bottomLeft" | "topRight" | "bottomRight" (live
+ *  Set*Content setters). Percentages = 4 fractions in that same order (live,
+ *  SetSplitterPercentages; each quadrant's share of its column/row). */
+struct REACTIVEUISLATE_API FRuiSplitter2x2Props final : public FRuiPropsBase
+{
+	RUI_PROP(TArray<FVector2D>, Percentages, 0)
+	RUI_PROPS_BODY(FRuiSplitter2x2Props, RUI_EQ(Percentages))
+};
+
 /** SMenuAnchor (MultiSlot, P3 - THE popup primitive): the default child is the anchor;
  *  the child with `Slot.Role="menu"` is the popup content. bIsOpen is CONTROLLED
  *  (skip-when-equal vs IsOpen, D-16); OnMenuOpenChanged reports user dismissals (Value =
@@ -863,6 +873,8 @@ namespace RUI::Slate
 												  FRuiKey Key = FRuiKey());
 	REACTIVEUISLATE_API FRuiNode Splitter(FRuiSplitterProps Props = FRuiSplitterProps(),
 										  TArray<FRuiNode> Children = TArray<FRuiNode>(), FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode Splitter2x2(FRuiSplitter2x2Props Props = FRuiSplitter2x2Props(),
+											 TArray<FRuiNode> Children = TArray<FRuiNode>(), FRuiKey Key = FRuiKey());
 	REACTIVEUISLATE_API FRuiNode MenuAnchor(FRuiMenuAnchorProps Props = FRuiMenuAnchorProps(),
 											TArray<FRuiNode> Children = TArray<FRuiNode>(), FRuiKey Key = FRuiKey());
 	REACTIVEUISLATE_API FRuiNode WindowTitleBarArea(FRuiWindowTitleBarAreaProps Props = FRuiWindowTitleBarAreaProps(),

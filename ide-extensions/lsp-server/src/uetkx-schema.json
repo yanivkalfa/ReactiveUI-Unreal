@@ -569,6 +569,15 @@
 				"PhysicalSplitterHandleSize": "float"
 			}
 		},
+		"Splitter2x2":
+		{
+			"factory": "RUI::Slate::Splitter2x2",
+			"children": true,
+			"attrs":
+			{
+				"Percentages": "expr"
+			}
+		},
 		"TextBlock":
 		{
 			"factory": "RUI::TextBlock",

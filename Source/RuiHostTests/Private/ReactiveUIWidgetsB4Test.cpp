@@ -12,6 +12,7 @@
 #include "RuiStyle.h"
 #include "RuiTreeView.h"
 #include "Widgets/Layout/SConstraintCanvas.h"
+#include "Widgets/Layout/SSplitter.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -52,6 +53,11 @@ static FRuiNodeArray B4GalleryComp(FRuiContext& Ctx, const FRuiEmptyProps&, cons
 	FRuiNode PaneB =
 		B4Test::WithSlotDict(RUI::TextBlock(TEXT("B")), {{FName(TEXT("Slot.SizeValue")), FRuiValue(0.7f)}});
 
+	// D-W4: quadrants route by slot.role.
+	FRuiNode QuadTL = RUI::TextBlock(TEXT("TL")); // no role -> topLeft default
+	FRuiNode QuadBR = B4Test::WithSlotDict(RUI::TextBlock(TEXT("BR")),
+										   {{FName(TEXT("Slot.Role")), FRuiValue(FName(TEXT("bottomRight")))}});
+
 	// P3: anchor + role="menu" content.
 	FRuiNode MenuContent = B4Test::WithSlotDict(RUI::TextBlock(TEXT("popup")),
 												{{FName(TEXT("Slot.Role")), FRuiValue(FName(TEXT("menu")))}});
@@ -86,7 +92,8 @@ static FRuiNodeArray B4GalleryComp(FRuiContext& Ctx, const FRuiEmptyProps&, cons
 		 RUI::Slate::NumericDropDown(MoveTemp(DropP)), RUI::Slate::BreadcrumbTrail(MoveTemp(CrumbP)),
 		 RUI::Slate::NotificationList(), RUI::Slate::LinkedBox(FRuiLinkedBoxProps(), {RUI::TextBlock(TEXT("linked"))}),
 		 RUI::Slate::VirtualJoystick(), RUI::Slate::VectorInputBox(MoveTemp(VecP)),
-		 RUI::Slate::RotatorInputBox(MoveTemp(RotP)), RUI::Slate::TreeView(MoveTemp(TreeP))})};
+		 RUI::Slate::RotatorInputBox(MoveTemp(RotP)), RUI::Slate::TreeView(MoveTemp(TreeP)),
+		 RUI::Slate::Splitter2x2(FRuiSplitter2x2Props(), {MoveTemp(QuadTL), MoveTemp(QuadBR)})})};
 }
 RUI_COMPONENT(B4GalleryComp)
 
@@ -100,7 +107,7 @@ bool FRuiWidgetsBatch3cTest::RunTest(const FString&)
 		return false;
 	}
 	FChildren* Kids = Panel->GetChildren();
-	TestEqual(TEXT("twelve widgets mounted"), Kids->Num(), 12);
+	TestEqual(TEXT("thirteen widgets mounted"), Kids->Num(), 13);
 	TestEqual(TEXT("SConstraintCanvas"), Kids->GetChildAt(0)->GetType(), FName(TEXT("SConstraintCanvas")));
 	TestEqual(TEXT("SSplitter"), Kids->GetChildAt(1)->GetType(), FName(TEXT("SSplitter")));
 	TestEqual(TEXT("SMenuAnchor"), Kids->GetChildAt(2)->GetType(), FName(TEXT("SMenuAnchor")));
@@ -125,6 +132,16 @@ bool FRuiWidgetsBatch3cTest::RunTest(const FString&)
 
 	// P5b: both panes attached.
 	TestEqual(TEXT("splitter holds both panes"), Kids->GetChildAt(1)->GetChildren()->Num(), 2);
+
+	// D-W4: role routing put TL in the top-left quadrant, BR in the bottom-right.
+	{
+		TSharedPtr<SWidget> Quad = Kids->GetChildAt(12);
+		TestEqual(TEXT("SSplitter2x2"), Quad->GetType(), FName(TEXT("SSplitter2x2")));
+		SSplitter2x2& Q = static_cast<SSplitter2x2&>(*Quad);
+		TestEqual(TEXT("topLeft routed"), Q.GetTopLeftContent()->GetType(), FName(TEXT("STextBlock")));
+		TestEqual(TEXT("bottomRight routed"), Q.GetBottomRightContent()->GetType(), FName(TEXT("STextBlock")));
+		TestNotEqual(TEXT("topRight empty"), Q.GetTopRightContent()->GetType(), FName(TEXT("STextBlock")));
+	}
 	return true;
 }
 

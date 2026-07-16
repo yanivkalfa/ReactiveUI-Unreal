@@ -12,6 +12,25 @@ first announcement post lives at the BOTTOM of this file.
 
 **Hard limit: ≤ 2000 characters per entry** (Discord message cap).
 
+## [0.8.0] - 2026-07-16
+
+### Wave 4 — TreeView lands; the widget-completion plan is DONE
+
+**63 markup tags, 65+ wrapped widgets — every widget in the completion plan is now
+implemented.** `TreeView` closes the last item-model gap (TD-022): a virtualized
+hierarchical tree with per-row reconciler sub-roots, a `GetChildren` accessor, controlled
+expansion (`ExpandedItems` in, `OnExpansionChanged` out), and `HeaderRow` columns built
+from a declarative `Columns` list. C++-first like `ListView`. Plus `VectorInputBox` /
+`RotatorInputBox` for controlled XYZ / Roll-Pitch-Yaw editing, and `Splitter2x2` — four
+resizable quadrants routed by `Slot.Role`.
+
+Also fixed: `ConstraintCanvas` slot ZOrder tripped an engine ensure when applied before
+the slot committed — attach-then-apply now.
+
+Update to **ReactiveUI for Unreal 0.8.0** (GitHub release). Battery `126/126`.
+
+---
+
 ## [0.7.0] - 2026-07-16
 
 ### Wave 3 — popups, toasts, anchors, splitters

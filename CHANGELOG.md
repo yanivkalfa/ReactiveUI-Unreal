@@ -7,6 +7,33 @@ resync with `cp CHANGELOG.md Plugins/ReactiveUI/CHANGELOG.md` (CI byte-compares 
 `scripts/verify-mirror.mjs`). The IDE extensions are NOT covered here — they use
 `ide-extensions/changelog.json` (Lane B; see the release-process skill).
 
+## [0.8.0] — 2026-07-16
+
+Widget-completion wave 4: the hierarchical item-model view closes TD-022 — **every widget
+in the completion plan is now implemented** (63 markup tags; 65+ wrapped widgets).
+
+### Added
+
+- **`TreeView`** (C++-first, like `ListView` — render closures are not markup-expressible):
+  virtualized `STreeView` with per-row reconciler sub-roots, a `GetChildren` child accessor
+  (`RUI::Slate::MakeChildAccessor`), **controlled expansion** (`ExpandedItems` diffs onto the
+  widget; user toggles report via `OnExpansionChanged`), `SelectionMode`/`OnSelectionChanged`,
+  and headless row generation for tests.
+- **`HeaderRow` columns (P5c)**: a construct-only `Columns` list (`FRuiHeaderColumn` —
+  id/label/fill-width) builds the tree's `SHeaderRow`; a `Columns` change rebuilds the header.
+- **`VectorInputBox` / `RotatorInputBox`**: controlled X/Y/Z and Roll/Pitch/Yaw with
+  per-component commit events.
+- **`Splitter2x2`** (D-W4; 63 markup tags total): four resizable quadrants — children route
+  by `Slot.Role` (`topLeft`/`bottomLeft`/`topRight`/`bottomRight`), live `Percentages`.
+- `ReactiveUI.Widgets.Batch3c` suite: mounts all 12 wave-3/4 protocol widgets, pins their
+  Slate types, and asserts the anchor + fraction slot models end-to-end (battery 126 tests).
+
+### Fixed
+
+- `ConstraintCanvas` slot application order: `SetZOrder` on a not-yet-committed scoped slot
+  tripped an engine ensure — children now attach first, then slot props apply through the
+  live slot.
+
 ## [0.7.0] — 2026-07-16
 
 Widget-completion wave 3: the protocol widgets — popups, toasts, anchors, splitters — and

@@ -331,6 +331,128 @@ public:
 };
 
 // ─────────────────────────────────────────────────────────────────────────────────────────
+// SSplitter2x2 (D-W4) — four resizable quadrants; children route by slot.role
+// ("topLeft" default / "bottomLeft" / "topRight" / "bottomRight" — live Set*Content).
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+namespace
+{
+	const FName SlotRoleKey2x2(TEXT("slot.role"));
+
+	/** 0=TL 1=BL 2=TR 3=BR (SSplitter2x2's own percentages order). */
+	int32 QuadrantOf(const FRuiStyleDict* SlotProps)
+	{
+		if (SlotProps != nullptr)
+		{
+			if (const FRuiValue* V = SlotProps->Find(SlotRoleKey2x2))
+			{
+				const FName Role = V->Kind == FRuiValue::EKind::Name ? V->NameValue : FName(*V->StringValue);
+				if (Role == FName(TEXT("bottomLeft")))
+				{
+					return 1;
+				}
+				if (Role == FName(TEXT("topRight")))
+				{
+					return 2;
+				}
+				if (Role == FName(TEXT("bottomRight")))
+				{
+					return 3;
+				}
+			}
+		}
+		return 0;
+	}
+
+	void SetQuadrant(SSplitter2x2& W, int32 Quadrant, const TSharedRef<SWidget>& Child)
+	{
+		switch (Quadrant)
+		{
+		case 1:
+			W.SetBottomLeftContent(Child);
+			break;
+		case 2:
+			W.SetTopRightContent(Child);
+			break;
+		case 3:
+			W.SetBottomRightContent(Child);
+			break;
+		default:
+			W.SetTopLeftContent(Child);
+			break;
+		}
+	}
+} // namespace
+
+class FRuiSplitter2x2Adapter final : public IRuiElementAdapter
+{
+public:
+	virtual ERuiChildKind GetChildKind() const override { return ERuiChildKind::MultiSlot; }
+
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase&, const TSharedPtr<FRuiEventProxy>&) override
+	{
+		return SNew(SSplitter2x2);
+	}
+
+	virtual void ApplyDiff(SWidget& Widget, const FRuiPropsBase* Old, const FRuiPropsBase& New) override
+	{
+		SSplitter2x2& W = static_cast<SSplitter2x2&>(Widget);
+		const FRuiSplitter2x2Props& N = static_cast<const FRuiSplitter2x2Props&>(New);
+		const FRuiSplitter2x2Props* O = static_cast<const FRuiSplitter2x2Props*>(Old);
+		if (N.HasPercentages() && N.Percentages.Num() == 4 &&
+			(O == nullptr || !O->HasPercentages() || !(O->Percentages == N.Percentages)))
+		{
+			TArray<FVector2D> Percentages = N.Percentages;
+			W.SetSplitterPercentages(Percentages);
+		}
+	}
+
+	virtual void InsertChild(SWidget& Parent, const TSharedRef<SWidget>& Child, int32,
+							 const FRuiStyleDict* SlotProps) override
+	{
+		SetQuadrant(static_cast<SSplitter2x2&>(Parent), QuadrantOf(SlotProps), Child);
+	}
+
+	virtual void RemoveChild(SWidget& Parent, const TSharedRef<SWidget>& Child) override
+	{
+		// Find which quadrant holds the child and reset just that one.
+		SSplitter2x2& W = static_cast<SSplitter2x2&>(Parent);
+		if (&W.GetTopLeftContent().Get() == &Child.Get())
+		{
+			W.SetTopLeftContent(SNullWidget::NullWidget);
+		}
+		else if (&W.GetBottomLeftContent().Get() == &Child.Get())
+		{
+			W.SetBottomLeftContent(SNullWidget::NullWidget);
+		}
+		else if (&W.GetTopRightContent().Get() == &Child.Get())
+		{
+			W.SetTopRightContent(SNullWidget::NullWidget);
+		}
+		else if (&W.GetBottomRightContent().Get() == &Child.Get())
+		{
+			W.SetBottomRightContent(SNullWidget::NullWidget);
+		}
+	}
+
+	virtual void ReorderChildren(SWidget& Parent, const TArray<TSharedRef<SWidget>>& Ordered,
+								 TFunctionRef<const FRuiStyleDict*(const TSharedRef<SWidget>&)> SlotPropsOf) override
+	{
+		SSplitter2x2& W = static_cast<SSplitter2x2&>(Parent);
+		for (const TSharedRef<SWidget>& Child : Ordered)
+		{
+			SetQuadrant(W, QuadrantOf(SlotPropsOf(Child)), Child);
+		}
+	}
+
+	virtual void UpdateChildSlotProps(SWidget& Parent, const TSharedRef<SWidget>& Child,
+									  const FRuiStyleDict* SlotProps) override
+	{
+		InsertChild(Parent, Child, 0, SlotProps);
+	}
+};
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
 // SMenuAnchor (P3) — THE popup primitive: anchor child + slot.role="menu" popup content;
 // controlled bIsOpen (D-16 skip vs IsOpen()); user dismissals report via OnMenuOpenChanged.
 // ─────────────────────────────────────────────────────────────────────────────────────────
@@ -1006,6 +1128,10 @@ namespace RUI::Slate
 		{
 			return RUI::InternElementType(FName(TEXT("Splitter")));
 		}
+		FRuiElementTypeId Splitter2x2Type()
+		{
+			return RUI::InternElementType(FName(TEXT("Splitter2x2")));
+		}
 		FRuiElementTypeId MenuAnchorType()
 		{
 			return RUI::InternElementType(FName(TEXT("MenuAnchor")));
@@ -1065,6 +1191,17 @@ namespace RUI::Slate
 		Node.Kind = ERuiNodeKind::Host;
 		Node.ElementType = SplitterType();
 		Node.Props = MakeShared<FRuiSplitterProps>(MoveTemp(Props));
+		Node.Children = RUI::MakeChildren(MoveTemp(Children));
+		Node.Key = Key;
+		return Node;
+	}
+
+	FRuiNode Splitter2x2(FRuiSplitter2x2Props Props, TArray<FRuiNode> Children, FRuiKey Key)
+	{
+		FRuiNode Node;
+		Node.Kind = ERuiNodeKind::Host;
+		Node.ElementType = Splitter2x2Type();
+		Node.Props = MakeShared<FRuiSplitter2x2Props>(MoveTemp(Props));
 		Node.Children = RUI::MakeChildren(MoveTemp(Children));
 		Node.Key = Key;
 		return Node;
@@ -1186,6 +1323,7 @@ namespace RUI::Slate
 		{
 			RegisterAdapter(ConstraintCanvasType(), MakeUnique<FRuiConstraintCanvasAdapter>());
 			RegisterAdapter(SplitterType(), MakeUnique<FRuiSplitterAdapter>());
+			RegisterAdapter(Splitter2x2Type(), MakeUnique<FRuiSplitter2x2Adapter>());
 			RegisterAdapter(MenuAnchorType(), MakeUnique<FRuiMenuAnchorAdapter>());
 			RegisterAdapter(WindowTitleBarAreaType(), MakeUnique<FRuiWindowTitleBarAreaAdapter>());
 			RegisterAdapter(NumericDropDownType(), MakeUnique<FRuiNumericDropDownAdapter>());

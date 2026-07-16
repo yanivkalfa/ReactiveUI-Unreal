@@ -71,6 +71,11 @@ namespace
 				M.Add(TEXT("Splitter"), MoveTemp(T));
 			}
 			{
+				FTagDef T{TEXT("RUI::Slate::Splitter2x2"), TEXT("FRuiSplitter2x2Props"), true, {}};
+				T.Attrs.Add(TEXT("Percentages"), EAttrType::Expr);
+				M.Add(TEXT("Splitter2x2"), MoveTemp(T));
+			}
+			{
 				FTagDef T{TEXT("RUI::Slate::MenuAnchor"), TEXT("FRuiMenuAnchorProps"), true, {}};
 				T.Attrs.Add(TEXT("bIsOpen"), EAttrType::Bool);
 				T.Attrs.Add(TEXT("Placement"), EAttrType::Name);

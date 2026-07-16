@@ -82,41 +82,56 @@ to wrap) · `SPECIAL` (covered by a dedicated mechanism, not a plain adapter).
 | SSegmentedControl | ✅ **shipped** (TD-012 tail) as `RUI::Slate::SegmentedControl` — labelled tab-bar selector (`Labels` bake the segments = construct-only reconstruct mask; `SelectedIndex` controlled; `OnSelectionChanged` fires the index) |
 | SExpandableArea | ✅ **shipped** (TD-012 tail) as `RUI::Slate::ExpandableArea` — the family's first TWO-NAMED-SLOT widget (children carry `slot.role="header"`/`"body"`; controlled `bIsExpanded` + `OnExpansionChanged`; `SRuiExpandableArea` reparents into two SBox holders) |
 | SListView / STileView | ✅ **shipped** (TD-022) as `RUI::Slate::ListView` / `TileView` — the family's item-model treatment (declarative `Items` + `RenderItem` render-prop → per-row `FRuiRoot` sub-roots over SListView's virtualized generate/recycle). C++-first (render closure not markup-expressible). |
-| STreeView | item-model with a hierarchical data shape — needs a per-item child accessor the flat `FRuiValue` item type doesn't carry; designed together with SHeaderRow in WIDGET_COMPLETION_PLAN wave 4 (TD-022 closure) |
-| SHeaderRow | column headers for the item views — FColumn sub-object protocol (P5c); wave 4 with STreeView |
+| STreeView | ✅ **shipped wave 4 (TD-022 CLOSED)** as `RUI::Slate::TreeView` — hierarchical item model: `GetChildren` accessor (`MakeChildAccessor`), per-row sub-roots, CONTROLLED expansion (`ExpandedItems` diff + `OnExpansionChanged`), C++-first like ListView |
+| SHeaderRow | ✅ **shipped wave 4** as the P5c `Columns` protocol on TreeView — declarative `FRuiHeaderColumn` list (id/label/fill-width) builds the `SHeaderRow`; construct-only (column change rebuilds header) |
 
-## Batch 3 — **IN v1 (owner re-decision 2026-07-16; was "v1.x")** — target: all official
+## Shipped (Batch 3 — wave 2, 2026-07-16, 0.6.0) — 12
 
-> Execution: [WIDGET_COMPLETION_PLAN.md](WIDGET_COMPLETION_PLAN.md) (waves 1-4 + protocols
-> P1-P5). Engine-header recon 2026-07-16 annotated each row below (module / gating / wave).
+| Widget | Element tag | Notes |
+|---|---|---|
+| SEditableText | `EditableText` | borderless text edit (D-16 caret rule). **SEditableLabel: SKIP — UE_DEPRECATED(4.21)** |
+| SInlineEditableTextBlock | `InlineEditableTextBlock` | click-to-edit label; controlled edit mode |
+| SVirtualKeyboardEntry | `VirtualKeyboardEntry` | IVirtualKeyboardEntry impl (touch keyboards) |
+| SColorWheel | `ColorWheel` | controlled HSV color (capture begin/end + OnValueChanged) |
+| SColorSpectrum | `ColorSpectrum` | same controlled-color contract (shared TRuiColorPickerAdapter) |
+| SColorGradingWheel | `ColorGradingWheel` | the LIVE `AdvancedWidgets` one (Slate twin is UE_DEPRECATED(5.5)); new Build.cs dep; attribute surface protected → construct-masked |
+| SInputKeySelector | `InputKeySelector` | key-capture + FInputChord; OnKeySelected/OnIsSelectingKeyChanged |
+| SVolumeControl | `VolumeControl` | two controlled values (Volume/Muted) |
+| SRadialBox | `RadialBox` | multi-slot radial panel |
+| STextScroller | `TextScroller` | marquee; imperative start/stop via P2 handles |
+| SLayeredImage | `LayeredImage` | SImage subclass; layer stack via wrapper shim |
+| SExpandableButton | `ExpandableButton` | three role slots (`slot.role="collapsed"/"expanded"` + body) via SRuiExpandableButton |
+
+## Shipped (Batch 3 — wave 3, 2026-07-16, 0.7.0) — 10
+
+| Widget | Element tag | Notes |
+|---|---|---|
+| SConstraintCanvas | `ConstraintCanvas` | P5a anchor slot model (Slot.Anchors/Offset/Alignment/AutoSize/ZOrder); attach-then-apply slot fix in 0.8.0 |
+| SSplitter | `Splitter` | P5b fraction slots (Slot.SizeRule/SizeValue/MinSize/Resizable) + OnSplitterFinishedResizing |
+| SMenuAnchor | `MenuAnchor` | **P3 popup core**: anchor child + `Slot.Role="menu"` content; controlled bIsOpen |
+| SNotificationList | `NotificationList` | **P4 toasts**: declarative mount + imperative `RUI::Slate::PushNotification` |
+| SNumericDropDown | `NumericDropDown` | float form; values+labels lists |
+| SBreadcrumbTrail | `BreadcrumbTrail` | declarative crumbs diffed onto the imperative stack (SyncCrumbs) |
+| SLinkedBox | `LinkedBox` | shared FLinkedBoxManager per `GroupKey` (uniform-size sibling groups) |
+| SWindowTitleBarArea | `WindowTitleBarArea` | OS window-chrome integration |
+| SVirtualJoystick | `VirtualJoystick` | touch joystick (imperative FControlInfo via P2) |
+| SSearchableComboBox | `SearchableComboBox` | **first `sinceUE: 5.7` widget** — compiled out on 5.6, schema-annotated |
+
+## Shipped (Batch 3 — wave 4, 2026-07-16, 0.8.0) — 3 (+TreeView/HeaderRow above)
+
+| Widget | Element tag | Notes |
+|---|---|---|
+| SVectorInputBox | `VectorInputBox` | SNumericVectorInputBox<float,…,3> alias; controlled X/Y/Z + per-component commit |
+| SRotatorInputBox | `RotatorInputBox` | SNumericRotatorInputBox<float> alias; controlled Roll/Pitch/Yaw |
+| SSplitter2x2 | `Splitter2x2` | D-W4: four resizable quadrants routed by `Slot.Role` (topLeft default /bottomLeft/topRight/bottomRight); live `Percentages` |
+
+## Batch 3 — remaining (holds/reclassifications only; the wrap-all target is MET)
 
 | Widget | Notes |
 |---|---|
-| SConstraintCanvas | anchor-based absolute panel — P5a anchors slot model (Slot.Anchors/Offset/Alignment/AutoSize/ZOrder, all live setters); wave 3 |
-| SSplitter (+ SSplitter2x2, same header) | P5b fraction slot model (Slot.SizeRule/Value/MinSize/Resizable + OnSplitterFinishedResizing controlled rule); wave 3 |
-| SEditableText / SInlineEditableTextBlock | text-edit variants (rich setters; both tick via active timers); wave 2. **SEditableLabel: SKIP — UE_DEPRECATED(4.21)**, superseded by SInlineEditableTextBlock |
-| ~~SHyperlink~~ | ✅ **shipped wave 1** (see Shipped table). **SRichTextHyperlink: reclassified to the rich-text story (D-W3)** — needs a FSlateHyperlinkRun view-model ctor arg; an inline-run building block, not a tag |
-| SColorWheel / SColorSpectrum | color pickers (capture-begin/end + OnValueChanged); wave 2. ~~SColorBlock~~ ✅ shipped wave 1 |
-| SColorGradingWheel | **the Slate-module one is UE_DEPRECATED(5.5) — SKIP; the live one is in the `AdvancedWidgets` module** (namespace UE::ColorGrading; FGCObject holding a UMaterial*) → NEW Build.cs dependency; wave 2 |
-| ~~SSimpleGradient / SComplexGradient~~ | ✅ **shipped wave 1** |
-| SVectorInputBox / SRotatorInputBox | aliases of SNumericVectorInputBox<float,…,3> / SNumericRotatorInputBox<float> — templated, construct-only (TD-011 reconstruct masks); wave 4 |
-| SNumericDropDown | templated (float form); spawns a menu → rides P3; wave 3 |
-| SBreadcrumbTrail | templated + fully imperative crumb-stack API → rides P2+P3; wave 3 |
-| SInputKeySelector | key-capture mode + FInputChord (InputCore, already linked); rich runtime setters; wave 2 |
-| SVolumeControl | two controlled values (Volume/Muted) + events; wave 2 |
-| SVirtualJoystick / SVirtualKeyboardEntry | touch controls; joystick is imperative FControlInfo config (P2) + ticks; keyboard entry implements IVirtualKeyboardEntry + ticks; waves 3/2 |
-| ~~SBackgroundBlur~~ | ✅ **shipped wave 1** |
-| SMenuAnchor | **P3 popup protocol core** (spawns windows; ticks; controlled bIsOpen); wave 3 |
-| SNotificationList | **P4 toast protocol** — imperative AddNotification(FNotificationInfo), no declarative slots; wave 3 |
-| ~~SToolTip~~ | ✅ **shipped wave 0** as the universal `ToolTipText` style key (family contract — a prop, never a tag); custom-CONTENT tooltips (SetToolTip with markup) remain a wave-3 follow-on |
-| SLayeredImage | SImage subclass (SlateCore); layers via EXTRA Construct args + imperative AddLayer/SetLayerBrush → wrapper shim; wave 2 |
-| STextScroller | marquee (ticks; imperative start/stop via P2); wave 2 |
-| SLinkedBox / SRadialBox | LinkedBox needs a shared FLinkedBoxManager across siblings (wave 3); RadialBox is a real multi-slot panel with radial params (wave 2). ~~SEnableBox / SScissorRectBox~~ ✅ shipped wave 1 |
 | SResponsiveGridPanel | **HOLD (D-W2)** — header says EXPERIMENTAL/"API may change drastically or be removed"; revisit when the banner drops |
-| SExpandableButton | named-slot state machine (Collapsed/Expanded/Child slots + expansion events); wave 2 |
-| ~~SInvalidationPanel~~ | ✅ **shipped wave 1** |
-| SWindowTitleBarArea | OS window-chrome integration (SetGameWindow, fullscreen toggle delegate); pairs with CreateInWindow; wave 3 |
-| SSearchableComboBox | **5.7+ ONLY (absent from 5.6)** — the first `sinceUE`-gated widget (compile guard + schema annotation + docs badge); popup + item-source model rides P3; wave 3 |
+| SRichTextHyperlink | **reclassified to the rich-text story (D-W3)** — needs a FSlateHyperlinkRun view-model ctor arg; an inline-run building block, not a tag |
+| SToolTip (custom content) | prop form ✅ shipped wave 0 (`ToolTipText` style key — family contract: a prop, never a tag); custom-CONTENT tooltips (SetToolTip with markup) are a tracked follow-on in REMAINING |
 
 ## Special — covered by a dedicated mechanism
 
