@@ -39,6 +39,7 @@ const STYLE_KEYS: Array<[string, string]> = [
   ['ColorAndOpacity', 'FSlateColor / FLinearColor (TextBlock, Image, Separator)'],
   ['Font.Size', 'text size (TextBlock and friends)'],
   ['Justification / AutoWrapText', 'text layout'],
+  ['LineHeightPercentage / OverflowPolicy', 'text line height (float) and overflow (clip | ellipsis) — TextBlock'],
   ['FillColorAndOpacity', 'ProgressBar fill'],
 ]
 
@@ -46,7 +47,11 @@ const SLOT_KEYS: Array<[string, string]> = [
   ['Slot.Padding', 'FMargin — "12", "12,4", or "l,t,r,b"'],
   ['Slot.HAlign / Slot.VAlign', 'fill | left | center | right (top/bottom for VAlign), case-insensitive'],
   ['Slot.Fill', 'stretch weight in a box panel'],
-  ['Slot.ZOrder', 'stacking order in an Overlay'],
+  ['Slot.ZOrder', 'stacking order in an Overlay or ConstraintCanvas'],
+  ['Slot.Position / Slot.Size', 'absolute placement in a Canvas (Vector2 / "x,y") — live per-frame mutation'],
+  ['Slot.Anchors / Slot.Offset / Slot.Alignment / Slot.AutoSize', 'the ConstraintCanvas anchor model: anchors "minX,minY[,maxX,maxY]", offset "l,t,r,b" (margins from the anchors), alignment Vector2, auto-size bool — all live'],
+  ['Slot.SizeRule / Slot.SizeValue / Slot.MinSize / Slot.Resizable', 'Splitter panes: fractionOfParent (default, SizeValue = fraction) | sizeToContent, minimum pane size, per-pane resizability'],
+  ['Slot.Role', 'named-slot routing on multi-slot widgets: "header"/"body" (ExpandableArea), "collapsed"/"expanded" (ExpandableButton), "menu" (MenuAnchor popup content), "topLeft"/"bottomLeft"/"topRight"/"bottomRight" (Splitter2x2 quadrants)'],
 ]
 
 export const StylingPage: FC = () => (

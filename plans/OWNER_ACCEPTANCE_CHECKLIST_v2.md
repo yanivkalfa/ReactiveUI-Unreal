@@ -1,6 +1,6 @@
 # Owner acceptance checklist v2 — verifying the round-2 bug-hunt fixes
 
-> **Scope.** This checklist covers the fixes from [BUGHUNT_2026-07-12_round2.md](BUGHUNT_2026-07-12_round2.md)
+> **Scope.** This checklist covers the fixes from [BUGHUNT_2026-07-12_round2.md](archive/BUGHUNT_2026-07-12_round2.md)
 > (commit `4ff1ab8`, branch `feat/uetkx-imports`). It is deliberately SMALL: **most of the 51 fixes are
 > already proven headless** and you do not need to re-verify them. This file is the short list of things
 > that genuinely need eyes/hands (PIE, the editor loop, the armed CI leg, the IDE), plus optional visual

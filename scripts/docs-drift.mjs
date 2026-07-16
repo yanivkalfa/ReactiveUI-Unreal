@@ -149,6 +149,26 @@ const CHECKS = [
     source: () => Object.keys(readUetkxSchema().elements ?? {}).length,
   },
   {
+    // Components Overview TAG_GROUPS chips: hand-listed, so gate MEMBERSHIP against the schema —
+    // every schema tag in exactly one group's `tags:` array (the chips drifted silently once:
+    // stuck at the 29-tag era while the schema hit 63). Mismatch returns -1 to fail loud.
+    file: 'ReactiveUIUnrealDocs~/src/pages/ComponentsOverview/ComponentsOverviewPage.tsx',
+    pattern: /TAG_GROUPS chips: (\d+) tags/,
+    source: () => {
+      const src = readFileSync(
+        resolve(REPO_ROOT, 'ReactiveUIUnrealDocs~/src/pages/ComponentsOverview/ComponentsOverviewPage.tsx'),
+        'utf8',
+      );
+      const chips = new Set();
+      for (const block of src.matchAll(/tags: \[([^\]]*)\]/g)) {
+        for (const t of block[1].matchAll(/'([^']+)'/g)) chips.add(t[1]);
+      }
+      const schema = new Set(Object.keys(readUetkxSchema().elements ?? {}));
+      const same = chips.size === schema.size && [...schema].every((t) => chips.has(t));
+      return same ? schema.size : -1;
+    },
+  },
+  {
     // The generated per-hook docs pages: the catalog's CORE entries must cover every core hook.
     // (The claim line lives in the catalog header so the check self-anchors to the data file.)
     file: 'ReactiveUIUnrealDocs~/src/hooksCatalog.ts',

@@ -138,13 +138,18 @@ export const CORE_HOOKS: HookEntry[] = [
     signature: 'const T& Handle = UseImperativeHandle<T>(Factory, RUI::Deps(A, B))',
     cppSignature: 'const T& FRuiContext::UseImperativeHandle<T>(TFunction<T()> Factory, FRuiDeps Deps)',
     returns: 'a reference to the cached handle object',
-    description: 'Builds an imperative handle a parent can call into, rebuilt only when deps change. In this family it is a straight alias of UseMemo — the name marks intent, not different machinery. Use it to expose a small struct of operations from a child to whoever holds its ref.',
+    description: 'Builds an imperative handle a parent can call into, rebuilt only when deps change. Two forms: the memo alias (shown above), and the ref-PUBLISHING form UseImperativeHandle(TargetRef, Factory, Deps) — it writes the handle into a parent-supplied TRuiRef on mount and clears it on unmount (the React shape; both siblings ship it). Pair with RUI::Slate::WidgetFromHandle<TWidget>(Handle) to call live Slate APIs (ScrollToEnd()-class) through a captured host Ref.',
     example: `const FPanelHandle& Handle = UseImperativeHandle<FPanelHandle>(
 	[=]() { return FPanelHandle{ FocusField, ScrollToTop }; }, RUI::Deps());
 
-<InspectorHost Handle={ Handle } />`,
+<InspectorHost Handle={ Handle } />
+
+// Ref-publishing form: the parent passed us Props.PanelRef (TSharedRef<TRuiRef<FPanelHandle>>)
+UseImperativeHandle<FPanelHandle>(Props.PanelRef,
+	[=]() { return FPanelHandle{ FocusField, ScrollToTop }; }, RUI::Deps());`,
     gotchas: [
-      'It IS UseMemo under the hood (family alias) — identical deps and caching semantics.',
+      'The memo form IS UseMemo under the hood (family alias) — identical deps and caching semantics.',
+      'The ref-publishing form clears the target ref to a default-constructed handle on unmount — check validity before calling through a stored handle.',
     ],
   },
   {

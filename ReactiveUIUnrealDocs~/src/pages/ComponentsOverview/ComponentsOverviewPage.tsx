@@ -3,25 +3,47 @@ import { Alert, Box, Chip, Stack, Typography } from '@mui/material'
 
 type Group = { title: string; note: string; tags: string[] }
 
+// TAG_GROUPS chips: 63 tags — every schema tag appears in exactly one group (docs-drift-gated).
 const TAG_GROUPS: Group[] = [
   {
     title: 'Layout & panels',
     note: 'Arrange children — each is a Slate panel.',
     tags: [
-      'VerticalBox', 'HorizontalBox', 'Overlay', 'WrapBox', 'UniformGridPanel', 'GridPanel',
-      'UniformWrapPanel', 'ScrollBox', 'WidgetSwitcher', 'Box', 'Border', 'ScaleBox', 'SafeZone',
-      'DPIScaler', 'Spacer', 'Separator',
+      'VerticalBox', 'HorizontalBox', 'Overlay', 'Canvas', 'ConstraintCanvas', 'Splitter',
+      'Splitter2x2', 'WrapBox', 'UniformGridPanel', 'GridPanel', 'UniformWrapPanel', 'RadialBox',
+      'ScrollBox', 'WidgetSwitcher', 'Box', 'Border', 'ScaleBox', 'SafeZone', 'DPIScaler',
+      'Spacer', 'Separator', 'LinkedBox', 'EnableBox', 'ScissorRectBox', 'InvalidationPanel',
+      'WindowTitleBarArea',
     ],
   },
   {
     title: 'Display',
-    note: 'Show text, images and progress.',
-    tags: ['TextBlock', 'RichTextBlock', 'Image', 'ProgressBar', 'Throbber'],
+    note: 'Show text, images, colors and progress.',
+    tags: [
+      'TextBlock', 'RichTextBlock', 'Image', 'LayeredImage', 'ProgressBar', 'Throbber',
+      'TextScroller', 'ColorBlock', 'SimpleGradient', 'ComplexGradient', 'BackgroundBlur',
+    ],
   },
   {
     title: 'Input & controls',
     note: 'Interactive widgets that raise On* events.',
-    tags: ['Button', 'CheckBox', 'Slider', 'SpinBox', 'EditableTextBox', 'MultiLineEditableTextBox', 'SearchBox'],
+    tags: [
+      'Button', 'Hyperlink', 'CheckBox', 'Slider', 'SpinBox', 'EditableTextBox',
+      'MultiLineEditableTextBox', 'EditableText', 'InlineEditableTextBlock', 'SearchBox',
+      'NumericDropDown', 'SearchableComboBox', 'InputKeySelector', 'VolumeControl',
+      'VectorInputBox', 'RotatorInputBox', 'VirtualJoystick', 'VirtualKeyboardEntry',
+      'ExpandableButton',
+    ],
+  },
+  {
+    title: 'Color pickers',
+    note: 'Controlled color editing (capture begin/end + OnValueChanged).',
+    tags: ['ColorWheel', 'ColorSpectrum', 'ColorGradingWheel'],
+  },
+  {
+    title: 'Popups, toasts & navigation',
+    note: 'The protocol widgets — anchored popups, notifications, breadcrumbs.',
+    tags: ['MenuAnchor', 'NotificationList', 'BreadcrumbTrail'],
   },
   {
     title: 'Custom (the Rui mark)',
@@ -32,6 +54,14 @@ const TAG_GROUPS: Group[] = [
 
 const CPP_ONLY: Array<[string, string]> = [
   ['ListView / TileView', 'virtualized item-model views — a render-prop API (see Beyond the tags below)'],
+  [
+    'TreeView',
+    'the hierarchical item-model view: Items + RenderItem + a GetChildren accessor (RUI::Slate::MakeChildAccessor), CONTROLLED expansion (ExpandedItems in, OnExpansionChanged out), optional header Columns (construct-only). C++-first like ListView.',
+  ],
+  [
+    'RUI::Slate::PushNotification',
+    'the toast command — RUI::Slate::PushNotification(Handle, Text, Duration) fires a toast at a mounted <NotificationList> (capture its handle via Ref).',
+  ],
   ['ComboBox / SegmentedControl / NumericEntryBox / SuggestionTextBox / ExpandableArea', 'render-prop / multi-slot specials (ExpandableArea takes header + body roles)'],
   ['DragSource / DropTarget', 'typed drag-and-drop wrappers'],
   ['RUI::Umg::UserWidget', 'host a UMG UUserWidget inside the tree'],

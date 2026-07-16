@@ -14,8 +14,7 @@ reversals and consciously-deferred scope (and where that scope is tracked now).
 | `UETKX_DECLARATIONS_PLAN.md` | `hook`/`module` companion declarations shipped (TD-017 RESOLVED 2026-07-11) |
 | `EXIT_ANIMATION_DESIGN.md` | The `<Presence>` boundary shipped as designed (TD-003 RESOLVED 2026-07-12; suite `ReactiveUI.Core.Presence`) |
 | `PR_DESCRIPTION_uetkx-compiler.md` + `PR_DESCRIPTION_uetkx-imports.md` | Historical PR bodies for merged campaigns |
-| `OWNER_ACCEPTANCE_CHECKLIST.md` | Superseded by v2 |
-| `OWNER_ACCEPTANCE_CHECKLIST_v2.md` | Round-2 acceptance list; the fixes shipped in v0.1.0+. §A's interp-swap mechanics no longer exist (HMR v2). Still-live items (CI arming §H, PIE spot-checks) carried to `plans/REMAINING.md` §3 |
+| ~~`OWNER_ACCEPTANCE_CHECKLIST.md`~~ + ~~`OWNER_ACCEPTANCE_CHECKLIST_v2.md`~~ | UN-ARCHIVED back to `plans/` 2026-07-16 for the post-widget-completion manual acceptance pass (owner request) |
 
 ## Still live in `plans/`
 
