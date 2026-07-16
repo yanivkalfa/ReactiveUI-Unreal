@@ -113,6 +113,18 @@ namespace
 			W.SetRenderTransformPivot(Value != nullptr ? Value->Vector2Value : FVector2D::ZeroVector);
 			return true;
 		}
+		if (Key == FName(TEXT("ToolTipText")))
+		{
+			// Universal tooltip (P1, WIDGET_COMPLETION_PLAN): the family contract is a PROP on
+			// every element, never a wrapper widget — SWidget::SetToolTipText is the loyal
+			// setter. Reset = empty text (Slate shows no tooltip for empty).
+			const FText Text = Value == nullptr						   ? FText::GetEmpty()
+							   : Value->Kind == FRuiValue::EKind::Text ? Value->TextValue
+							   : Value->Kind == FRuiValue::EKind::Name ? FText::FromName(Value->NameValue)
+																	   : FText::FromString(Value->StringValue);
+			W.SetToolTipText(Text);
+			return true;
+		}
 		if (Key == FName(TEXT("Clipping")))
 		{
 			// D-33 loyal: EWidgetClipping member names, lowerCamel. Slate does NOT clip children

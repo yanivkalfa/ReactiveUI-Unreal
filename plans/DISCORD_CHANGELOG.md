@@ -12,6 +12,27 @@ first announcement post lives at the BOTTOM of this file.
 
 **Hard limit: ≤ 2000 characters per entry** (Discord message cap).
 
+## [0.5.0] - 2026-07-16
+
+### Widget-completion wave 1 — 8 new widgets on the road to "1.0 wraps everything"
+
+**The coverage campaign begins: 1.0 will ship with EVERY official runtime Slate widget
+wrapped, and this is the first wave.** New tags: `ColorBlock`, `SimpleGradient`,
+`ComplexGradient`, `Hyperlink`, `EnableBox`, `ScissorRectBox`, `BackgroundBlur`,
+`InvalidationPanel` — 38 markup tags total.
+
+**Tooltips, everywhere.** `ToolTipText` is a universal style key — put it on ANY element,
+markup or C++, same as the Unity/Godot siblings' universal tooltip prop.
+
+Also: `Button` gets `bIsFocusable`, `ProgressBar` gets `BarFillType`, the `RUI::Style()`/
+`RUI::Slot()` C++ builders caught up with every markup key (and a new CI gate keeps it that
+way), and a registry-wide contract test now enforces the widget-replacement rules every new
+adapter must follow — the rails for the ~30 widgets still coming in waves 2-4.
+
+Update to **ReactiveUI for Unreal 0.5.0** (GitHub release). Battery `125/125` · LSP `33/33`.
+
+---
+
 ## [0.4.0] - 2026-07-16
 
 ### DOOM in the widget tree — plus localization closes the last v1 gap

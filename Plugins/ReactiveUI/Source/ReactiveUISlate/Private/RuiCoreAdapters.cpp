@@ -380,9 +380,11 @@ class FRuiButtonAdapter final : public IRuiElementAdapter
 public:
 	virtual ERuiChildKind GetChildKind() const override { return ERuiChildKind::SingleContent; }
 
-	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase&, const TSharedPtr<FRuiEventProxy>& Proxy) override
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase& Props,
+											 const TSharedPtr<FRuiEventProxy>& Proxy) override
 	{
-		TSharedRef<SButton> W = SNew(SButton);
+		const FRuiButtonProps& P = static_cast<const FRuiButtonProps&>(Props);
+		TSharedRef<SButton> W = SNew(SButton).IsFocusable(P.HasbIsFocusable() ? P.bIsFocusable : true);
 		W->SetOnClicked(FOnClicked::CreateSP(Proxy.ToSharedRef(), &FRuiEventProxy::HandleReply,
 											 static_cast<int32>(FRuiButtonProps::OnClicked_Bit)));
 		return W;
@@ -402,6 +404,17 @@ public:
 		{
 			W.SetContentPadding(N.ContentPadding);
 		}
+	}
+
+	// bIsFocusable is CONSTRUCT-ONLY (SButton::SetIsFocusable is protected in 5.6) — it rides
+	// the TD-011 reconstruct mask like Separator's Orientation (TD-012 rider, wave 1).
+	virtual uint64 GetReconstructMask() const override { return 1ull << FRuiButtonProps::bIsFocusable_Bit; }
+
+	virtual bool ConstructOnlyChanged(const FRuiPropsBase& Old, const FRuiPropsBase& New) const override
+	{
+		const FRuiButtonProps& O = static_cast<const FRuiButtonProps&>(Old);
+		const FRuiButtonProps& N = static_cast<const FRuiButtonProps&>(New);
+		return N.HasbIsFocusable() && (!O.HasbIsFocusable() || O.bIsFocusable != N.bIsFocusable);
 	}
 
 	virtual bool HasEvents() const override { return true; }
@@ -703,6 +716,7 @@ namespace RUI::Slate
 		void RegisterNumericEntryBoxAdapter();	 // RuiNumericEntryBox.cpp (TD-012 tail; numeric field)
 		void RegisterComboBoxAdapter();			 // RuiComboBox.cpp (TD-012 tail; dropdown selector)
 		void RegisterSuggestionTextBoxAdapter(); // RuiSuggestionTextBox.cpp (TD-012 tail; autocomplete)
+		void RegisterBatch3WidgetAdapters();	 // RuiWidgetAdaptersB3.cpp (WIDGET_COMPLETION_PLAN wave 1)
 	} // namespace Detail
 
 	void RegisterBuiltinAdapters()
@@ -722,5 +736,6 @@ namespace RUI::Slate
 		Detail::RegisterNumericEntryBoxAdapter();
 		Detail::RegisterComboBoxAdapter();
 		Detail::RegisterSuggestionTextBoxAdapter();
+		Detail::RegisterBatch3WidgetAdapters();
 	}
 } // namespace RUI::Slate

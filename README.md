@@ -13,7 +13,7 @@ shipping builds** and **hot-reloads live in PIE** during development (Windows): 
 the UI update in under a second, no C++ recompile, no script VM in your shipped game.
 
 > **Status: beta — the product is built end to end.** The reconciler (23 core hooks, all
-> stub-free), 35+ wrapped Slate widgets with setter styling (the core set + the batch-2 everyday
+> stub-free), 43+ wrapped Slate widgets with setter styling (the core set + the batch-2 everyday
 > widgets + specials — ExpandableArea/SegmentedControl/NumericEntryBox/ComboBox/SuggestionTextBox)
 > plus **virtualized `ListView`/`TileView`**, the `.uetkx` compiler (committed codegen +
 > `RUICompile`/drift-gate/contract commandlets), live hot reload mid-session (Unreal Live Coding +
@@ -69,7 +69,7 @@ demo** — a playable software-raycast FPS whose entire framebuffer is the widge
 
 ## What v1 will ship (the gate — "no half product")
 
-The reconciler with all 23 family hooks · 35+ wrapped Slate widgets including virtualized
+The reconciler with all 23 family hooks · 43+ wrapped Slate widgets including virtualized
 `ListView`/`TileView` ·
 setter-based styling (a style tweak never rebuilds a widget) · the `.uetkx` compiler
 (compile-to-C++ for shipping, Live-Coding hot reload for dev) · **static imports/exports** (`import { A }

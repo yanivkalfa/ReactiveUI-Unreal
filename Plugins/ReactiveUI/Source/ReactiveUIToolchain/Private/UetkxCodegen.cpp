@@ -53,12 +53,62 @@ namespace
 				T.Attrs.Add(TEXT("OnClicked"), EAttrType::Event);
 				T.Attrs.Add(TEXT("bEnabled"), EAttrType::Bool);
 				T.Attrs.Add(TEXT("ContentPadding"), EAttrType::Margin);
+				T.Attrs.Add(TEXT("bIsFocusable"), EAttrType::Bool);
 				M.Add(TEXT("Button"), MoveTemp(T));
 			}
 			M.Add(TEXT("VerticalBox"), {TEXT("RUI::Slate::VerticalBox"), TEXT("FRuiVerticalBoxProps"), true, {}});
 			M.Add(TEXT("HorizontalBox"), {TEXT("RUI::Slate::HorizontalBox"), TEXT("FRuiHorizontalBoxProps"), true, {}});
 			M.Add(TEXT("Overlay"), {TEXT("RUI::Slate::Overlay"), TEXT("FRuiOverlayProps"), true, {}});
 			M.Add(TEXT("Canvas"), {TEXT("RUI::Slate::Canvas"), TEXT("FRuiCanvasPanelProps"), true, {}});
+			{
+				FTagDef T{TEXT("RUI::Slate::ColorBlock"), TEXT("FRuiColorBlockProps"), false, {}};
+				T.Attrs.Add(TEXT("Color"), EAttrType::Color);
+				T.Attrs.Add(TEXT("Size"), EAttrType::Vector2);
+				T.Attrs.Add(TEXT("bUseSRGB"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("bShowBackgroundForAlpha"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("bColorIsHSV"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("AlphaDisplayMode"), EAttrType::Name);
+				M.Add(TEXT("ColorBlock"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::SimpleGradient"), TEXT("FRuiSimpleGradientProps"), false, {}};
+				T.Attrs.Add(TEXT("StartColor"), EAttrType::Color);
+				T.Attrs.Add(TEXT("EndColor"), EAttrType::Color);
+				T.Attrs.Add(TEXT("Orientation"), EAttrType::Name);
+				T.Attrs.Add(TEXT("bHasAlphaBackground"), EAttrType::Bool);
+				M.Add(TEXT("SimpleGradient"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::ComplexGradient"), TEXT("FRuiComplexGradientProps"), false, {}};
+				T.Attrs.Add(TEXT("GradientColors"), EAttrType::Expr);
+				T.Attrs.Add(TEXT("Orientation"), EAttrType::Name);
+				T.Attrs.Add(TEXT("bHasAlphaBackground"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("DesiredSizeOverride"), EAttrType::Vector2);
+				M.Add(TEXT("ComplexGradient"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::Hyperlink"), TEXT("FRuiHyperlinkProps"), false, {}};
+				T.Attrs.Add(TEXT("Text"), EAttrType::Text);
+				T.Attrs.Add(TEXT("Padding"), EAttrType::Margin);
+				T.Attrs.Add(TEXT("OnNavigate"), EAttrType::Event);
+				M.Add(TEXT("Hyperlink"), MoveTemp(T));
+			}
+			M.Add(TEXT("EnableBox"), {TEXT("RUI::Slate::EnableBox"), TEXT("FRuiEnableBoxProps"), true, {}});
+			M.Add(TEXT("ScissorRectBox"),
+				  {TEXT("RUI::Slate::ScissorRectBox"), TEXT("FRuiScissorRectBoxProps"), true, {}});
+			{
+				FTagDef T{TEXT("RUI::Slate::BackgroundBlur"), TEXT("FRuiBackgroundBlurProps"), true, {}};
+				T.Attrs.Add(TEXT("BlurStrength"), EAttrType::Float);
+				T.Attrs.Add(TEXT("BlurRadius"), EAttrType::Int);
+				T.Attrs.Add(TEXT("bApplyAlphaToBlur"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("Padding"), EAttrType::Margin);
+				M.Add(TEXT("BackgroundBlur"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::InvalidationPanel"), TEXT("FRuiInvalidationPanelProps"), true, {}};
+				T.Attrs.Add(TEXT("bCanCache"), EAttrType::Bool);
+				M.Add(TEXT("InvalidationPanel"), MoveTemp(T));
+			}
 			{
 				FTagDef T{TEXT("RUI::Slate::Border"), TEXT("FRuiBorderProps"), true, {}};
 				T.Attrs.Add(TEXT("Padding"), EAttrType::Margin);
@@ -123,6 +173,7 @@ namespace
 			{
 				FTagDef T{TEXT("RUI::Slate::ProgressBar"), TEXT("FRuiProgressBarProps"), false, {}};
 				T.Attrs.Add(TEXT("Percent"), EAttrType::Float);
+				T.Attrs.Add(TEXT("BarFillType"), EAttrType::Name);
 				M.Add(TEXT("ProgressBar"), MoveTemp(T));
 			}
 			{
@@ -248,7 +299,8 @@ namespace
 										   TEXT("Justification"),
 										   TEXT("AutoWrapText"),
 										   TEXT("FillColorAndOpacity"),
-										   TEXT("Clipping")};
+										   TEXT("Clipping"),
+										   TEXT("ToolTipText")};
 		return Keys;
 	}
 

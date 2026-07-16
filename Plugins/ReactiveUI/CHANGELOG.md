@@ -7,6 +7,34 @@ resync with `cp CHANGELOG.md Plugins/ReactiveUI/CHANGELOG.md` (CI byte-compares 
 `scripts/verify-mirror.mjs`). The IDE extensions are NOT covered here — they use
 `ide-extensions/changelog.json` (Lane B; see the release-process skill).
 
+## [0.5.0] — 2026-07-16
+
+Widget-completion wave 1 (the road to 1.0 = ALL official widgets —
+`plans/WIDGET_COMPLETION_PLAN.md`): eight new wrapped widgets, the universal tooltip, and two
+new anti-drift gates.
+
+### Added
+
+- **8 new widgets** (38 markup tags total): `ColorBlock`, `SimpleGradient`, `ComplexGradient`,
+  `Hyperlink` (with `OnNavigate`), `EnableBox`, `ScissorRectBox`, `BackgroundBlur`
+  (live `BlurStrength`/`BlurRadius`), `InvalidationPanel` (opt-in paint cache via `bCanCache`).
+  The color/gradient/hyperlink leaves are the first widgets whose ENTIRE prop surface is
+  construct-only — any prop change replaces the widget in place through the reconstruct-mask
+  machinery (cheap leaves; no state to lose).
+- **Universal `ToolTipText` style key** — a tooltip on ANY element (the family contract: a
+  prop, never a wrapper widget), via `SWidget::SetToolTipText`; removal resets to no tooltip.
+  14 style keys total.
+- **`RUI::Slot()` gains `ZOrder`/`Position`/`Size`**; `RUI::Style()` gains `Clipping`/
+  `ToolTipText` — and a new CI gate (`scripts/check-style-builders.mjs`) fails the build if a
+  schema style/slot key ever lacks a builder method again (found 3 missing methods on its
+  first run).
+- **Button `bIsFocusable`** (construct-only; reconstruct-masked) and **ProgressBar
+  `BarFillType`** (live; loyal lowerCamel enum names) — TD-012 riders.
+- **`ReactiveUI.Contract.AdapterMasks`** — a registry-wide meta-gate: every adapter declaring
+  a reconstruct mask must implement a side-effect-free, Has-gated `ConstructOnlyChanged`
+  (caught one violating test fixture on its first run). Powered by a new public
+  `RUI::Slate::ForEachAdapter` enumeration seam.
+
 ## [0.4.0] — 2026-07-16
 
 ### Added

@@ -489,6 +489,17 @@ public:
 		const FRuiProgressBarProps& N = static_cast<const FRuiProgressBarProps&>(New);
 		const FRuiProgressBarProps* O = static_cast<const FRuiProgressBarProps*>(Old);
 		RUI_ROW(Percent, W.SetPercent(N.Percent))
+		// TD-012 rider (WIDGET_COMPLETION_PLAN wave 1): loyal lowerCamel enum names.
+		RUI_ROW(BarFillType,
+				W.SetBarFillType(N.BarFillType == FName(TEXT("rightToLeft"))	  ? EProgressBarFillType::RightToLeft
+								 : N.BarFillType == FName(TEXT("fillFromCenter")) ? EProgressBarFillType::FillFromCenter
+								 : N.BarFillType == FName(TEXT("fillFromCenterHorizontal"))
+									 ? EProgressBarFillType::FillFromCenterHorizontal
+								 : N.BarFillType == FName(TEXT("fillFromCenterVertical"))
+									 ? EProgressBarFillType::FillFromCenterVertical
+								 : N.BarFillType == FName(TEXT("topToBottom")) ? EProgressBarFillType::TopToBottom
+								 : N.BarFillType == FName(TEXT("bottomToTop")) ? EProgressBarFillType::BottomToTop
+																			   : EProgressBarFillType::LeftToRight))
 	}
 
 	virtual bool ApplyStyleKey(SWidget& Widget, FName Key, const FRuiValue* Value) override

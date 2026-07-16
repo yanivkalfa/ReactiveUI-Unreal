@@ -1,7 +1,10 @@
 # Widget-completion plan — v1 = ALL official widgets (owner re-decision 2026-07-16)
 
-> **Status: PLANNED** — research complete (engine-header recon of all 38 remaining widgets on
-> UE 5.6/5.8 + family prior-art recon in both sibling repos, 2026-07-16); execution not started.
+> **Status: WAVE 0+1 SHIPPED 2026-07-16 (0.5.0)** — rails (ToolTipText P1, TD-011 meta-gate,
+> TD-013 builder gate) + the 8 mechanical leaves + TD-012 riders; battery 125/125. Research
+> complete (engine-header recon of all 38 remaining widgets on UE 5.6/5.8 + family prior-art
+> recon in both sibling repos, 2026-07-16). NEXT: wave 2 (P2 UseImperativeHandle + 12
+> interactive composites).
 > **The re-decision this plan implements:** the locked ship gate phased Batch 3 as "v1.x";
 > the owner overrode that 2026-07-16 — **full official-widget coverage (+ the TD-012 setter
 > remainder) moves INTO the v1 gate. The 1.0 tag — and the Fab day-one listing — ship with

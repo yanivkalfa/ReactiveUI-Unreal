@@ -37,7 +37,8 @@ struct REACTIVEUISLATE_API FRuiButtonProps final : public FRuiPropsBase
 	RUI_PROP_EVENT(OnClicked, 0)
 	RUI_PROP(bool, bEnabled, 1)
 	RUI_PROP(FMargin, ContentPadding, 2)
-	RUI_PROPS_BODY(FRuiButtonProps, RUI_EQ(OnClicked) RUI_EQ(bEnabled) RUI_EQ(ContentPadding))
+	RUI_PROP(bool, bIsFocusable, 3)
+	RUI_PROPS_BODY(FRuiButtonProps, RUI_EQ(OnClicked) RUI_EQ(bEnabled) RUI_EQ(ContentPadding) RUI_EQ(bIsFocusable))
 };
 
 /** SOverlay (MultiSlot; also the SRuiRoot inner panel). slot.zorder orders the slots. */
@@ -158,7 +159,8 @@ struct REACTIVEUISLATE_API FRuiSliderProps final : public FRuiPropsBase
 struct REACTIVEUISLATE_API FRuiProgressBarProps final : public FRuiPropsBase
 {
 	RUI_PROP(float, Percent, 0)
-	RUI_PROPS_BODY(FRuiProgressBarProps, RUI_EQ(Percent))
+	RUI_PROP(FName, BarFillType, 1)
+	RUI_PROPS_BODY(FRuiProgressBarProps, RUI_EQ(Percent) RUI_EQ(BarFillType))
 };
 
 /** SRuiCanvas (Leaf) — draw_fn by IDENTITY (wrap in a shared fn once; see MakeDrawFn). */
@@ -336,6 +338,100 @@ struct REACTIVEUISLATE_API FRuiUniformGridPanelProps final : public FRuiPropsBas
 				   RUI_EQ(SlotPadding) RUI_EQ(MinDesiredSlotWidth) RUI_EQ(MinDesiredSlotHeight))
 };
 
+// ── Batch 3 wave 1 (WIDGET_COMPLETION_PLAN) ────────────────────────────────────────────────
+
+/** SColorBlock (Leaf): a color swatch. ALL props are construct-only (no engine setters) —
+ *  every bit is on the reconstruct mask; the leaf is cheap to rebuild. AlphaDisplayMode =
+ *  combined|separate|ignore. */
+struct REACTIVEUISLATE_API FRuiColorBlockProps final : public FRuiPropsBase
+{
+	RUI_PROP(FLinearColor, Color, 0)
+	RUI_PROP(FVector2D, Size, 1)
+	RUI_PROP(bool, bUseSRGB, 2)
+	RUI_PROP(bool, bShowBackgroundForAlpha, 3)
+	RUI_PROP(bool, bColorIsHSV, 4)
+	RUI_PROP(FName, AlphaDisplayMode, 5)
+	RUI_PROPS_BODY(FRuiColorBlockProps, RUI_EQ(Color) RUI_EQ(Size) RUI_EQ(bUseSRGB) RUI_EQ(bShowBackgroundForAlpha)
+											RUI_EQ(bColorIsHSV) RUI_EQ(AlphaDisplayMode))
+};
+
+/** SSimpleGradient (Leaf-ish paint widget): two-stop gradient. Construct-only (no setters) —
+ *  fully masked. Orientation = vertical (default) | horizontal. */
+struct REACTIVEUISLATE_API FRuiSimpleGradientProps final : public FRuiPropsBase
+{
+	RUI_PROP(FLinearColor, StartColor, 0)
+	RUI_PROP(FLinearColor, EndColor, 1)
+	RUI_PROP(FName, Orientation, 2)
+	RUI_PROP(bool, bHasAlphaBackground, 3)
+	RUI_PROPS_BODY(FRuiSimpleGradientProps,
+				   RUI_EQ(StartColor) RUI_EQ(EndColor) RUI_EQ(Orientation) RUI_EQ(bHasAlphaBackground))
+};
+
+/** SComplexGradient (Leaf-ish paint widget): N-stop gradient. Construct-only — fully masked. */
+struct REACTIVEUISLATE_API FRuiComplexGradientProps final : public FRuiPropsBase
+{
+	RUI_PROP(TArray<FLinearColor>, GradientColors, 0)
+	RUI_PROP(FName, Orientation, 1)
+	RUI_PROP(bool, bHasAlphaBackground, 2)
+	RUI_PROP(FVector2D, DesiredSizeOverride, 3)
+	RUI_PROPS_BODY(FRuiComplexGradientProps,
+				   RUI_EQ(GradientColors) RUI_EQ(Orientation) RUI_EQ(bHasAlphaBackground) RUI_EQ(DesiredSizeOverride))
+};
+
+/** SHyperlink (Leaf): a link. Text/Padding are construct-only (the inner text block bakes at
+ *  Construct) — masked; OnNavigate binds at construction via the event proxy. */
+struct REACTIVEUISLATE_API FRuiHyperlinkProps final : public FRuiPropsBase
+{
+	RUI_PROP(FText, Text, 0)
+	RUI_PROP(FMargin, Padding, 1)
+	RUI_PROP(FRuiCallback, OnNavigate, 2)
+	// FText has no operator== — identity first, then display-string compare (the TextBlock rule).
+	virtual bool Equals(const FRuiPropsBase& Other) const override
+	{
+		const FRuiHyperlinkProps* Typed = static_cast<const FRuiHyperlinkProps*>(&Other);
+		if (!BaseFieldsEqual(Other))
+		{
+			return false;
+		}
+		if (!(Padding == Typed->Padding))
+		{
+			return false;
+		}
+		return Text.IdenticalTo(Typed->Text) || Text.ToString() == Typed->Text.ToString();
+	}
+};
+
+/** SEnableBox (SingleContent): renders its child as if every ancestor were enabled. */
+struct REACTIVEUISLATE_API FRuiEnableBoxProps final : public FRuiPropsBase
+{
+	RUI_PROPS_BODY(FRuiEnableBoxProps, )
+};
+
+/** SScissorRectBox (SingleContent): hardware scissor-clips its child (render transforms
+ *  included — unlike Clipping="clipToBounds"'s rect). */
+struct REACTIVEUISLATE_API FRuiScissorRectBoxProps final : public FRuiPropsBase
+{
+	RUI_PROPS_BODY(FRuiScissorRectBoxProps, )
+};
+
+/** SBackgroundBlur (SingleContent): post-process blur behind the content. Live setters. */
+struct REACTIVEUISLATE_API FRuiBackgroundBlurProps final : public FRuiPropsBase
+{
+	RUI_PROP(float, BlurStrength, 0)
+	RUI_PROP(int32, BlurRadius, 1)
+	RUI_PROP(bool, bApplyAlphaToBlur, 2)
+	RUI_PROP(FMargin, Padding, 3)
+	RUI_PROPS_BODY(FRuiBackgroundBlurProps,
+				   RUI_EQ(BlurStrength) RUI_EQ(BlurRadius) RUI_EQ(bApplyAlphaToBlur) RUI_EQ(Padding))
+};
+
+/** SInvalidationPanel (SingleContent): opt-in retained-paint cache around static subtrees. */
+struct REACTIVEUISLATE_API FRuiInvalidationPanelProps final : public FRuiPropsBase
+{
+	RUI_PROP(bool, bCanCache, 0)
+	RUI_PROPS_BODY(FRuiInvalidationPanelProps, RUI_EQ(bCanCache))
+};
+
 namespace RUI::Slate
 {
 	REACTIVEUISLATE_API FRuiElementTypeId VerticalBoxType();
@@ -397,6 +493,23 @@ namespace RUI::Slate
 											   FRuiKey Key = FRuiKey());
 	REACTIVEUISLATE_API FRuiNode GridPanel(FRuiGridPanelProps Props = FRuiGridPanelProps(),
 										   TArray<FRuiNode> Children = TArray<FRuiNode>(), FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode ColorBlock(FRuiColorBlockProps Props = FRuiColorBlockProps(), FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode SimpleGradient(FRuiSimpleGradientProps Props = FRuiSimpleGradientProps(),
+												FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode ComplexGradient(FRuiComplexGradientProps Props = FRuiComplexGradientProps(),
+												 FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode Hyperlink(FRuiHyperlinkProps Props = FRuiHyperlinkProps(), FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode EnableBox(FRuiEnableBoxProps Props = FRuiEnableBoxProps(),
+										   TArray<FRuiNode> Children = TArray<FRuiNode>(), FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode ScissorRectBox(FRuiScissorRectBoxProps Props = FRuiScissorRectBoxProps(),
+												TArray<FRuiNode> Children = TArray<FRuiNode>(),
+												FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode BackgroundBlur(FRuiBackgroundBlurProps Props = FRuiBackgroundBlurProps(),
+												TArray<FRuiNode> Children = TArray<FRuiNode>(),
+												FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode InvalidationPanel(FRuiInvalidationPanelProps Props = FRuiInvalidationPanelProps(),
+												   TArray<FRuiNode> Children = TArray<FRuiNode>(),
+												   FRuiKey Key = FRuiKey());
 	REACTIVEUISLATE_API FRuiNode UniformGridPanel(FRuiUniformGridPanelProps Props = FRuiUniformGridPanelProps(),
 												  TArray<FRuiNode> Children = TArray<FRuiNode>(),
 												  FRuiKey Key = FRuiKey());

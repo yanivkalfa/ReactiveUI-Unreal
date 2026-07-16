@@ -38,6 +38,8 @@ jobs:
         run: node scripts/lint-skills.mjs
       - name: docs-drift tripwire (claimed counts vs registries)
         run: node scripts/docs-drift.mjs
+      - name: style/slot builder coverage (TD-013 — schema keys must have RUI::Style()/Slot() methods)
+        run: node scripts/check-style-builders.mjs
       - name: family-corpus hash gate (A4/TD-009 mirror tripwire)
         run: node scripts/corpus-hash.mjs --check
 

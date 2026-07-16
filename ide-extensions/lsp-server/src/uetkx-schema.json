@@ -2,6 +2,18 @@
 	"v": 1,
 	"elements":
 	{
+		"BackgroundBlur":
+		{
+			"factory": "RUI::Slate::BackgroundBlur",
+			"children": true,
+			"attrs":
+			{
+				"bApplyAlphaToBlur": "bool",
+				"BlurRadius": "int",
+				"BlurStrength": "float",
+				"Padding": "margin"
+			}
+		},
 		"Border":
 		{
 			"factory": "RUI::Slate::Border",
@@ -38,6 +50,7 @@
 			"attrs":
 			{
 				"bEnabled": "bool",
+				"bIsFocusable": "bool",
 				"ContentPadding": "margin",
 				"OnClicked": "event"
 			}
@@ -58,6 +71,32 @@
 			{
 				"bIsChecked": "bool",
 				"OnCheckStateChanged": "event"
+			}
+		},
+		"ColorBlock":
+		{
+			"factory": "RUI::Slate::ColorBlock",
+			"children": false,
+			"attrs":
+			{
+				"AlphaDisplayMode": "name",
+				"bColorIsHSV": "bool",
+				"bShowBackgroundForAlpha": "bool",
+				"bUseSRGB": "bool",
+				"Color": "color",
+				"Size": "vector2"
+			}
+		},
+		"ComplexGradient":
+		{
+			"factory": "RUI::Slate::ComplexGradient",
+			"children": false,
+			"attrs":
+			{
+				"bHasAlphaBackground": "bool",
+				"DesiredSizeOverride": "vector2",
+				"GradientColors": "expr",
+				"Orientation": "name"
 			}
 		},
 		"DPIScaler":
@@ -82,6 +121,14 @@
 				"Text": "text"
 			}
 		},
+		"EnableBox":
+		{
+			"factory": "RUI::Slate::EnableBox",
+			"children": true,
+			"attrs":
+			{
+			}
+		},
 		"GridPanel":
 		{
 			"factory": "RUI::Slate::GridPanel",
@@ -98,6 +145,17 @@
 			{
 			}
 		},
+		"Hyperlink":
+		{
+			"factory": "RUI::Slate::Hyperlink",
+			"children": false,
+			"attrs":
+			{
+				"OnNavigate": "event",
+				"Padding": "margin",
+				"Text": "text"
+			}
+		},
 		"Image":
 		{
 			"factory": "RUI::Slate::Image",
@@ -107,6 +165,15 @@
 				"ColorAndOpacity": "color",
 				"DesiredSizeOverride": "vector2",
 				"Image": "expr"
+			}
+		},
+		"InvalidationPanel":
+		{
+			"factory": "RUI::Slate::InvalidationPanel",
+			"children": true,
+			"attrs":
+			{
+				"bCanCache": "bool"
 			}
 		},
 		"MultiLineEditableTextBox":
@@ -136,6 +203,7 @@
 			"children": false,
 			"attrs":
 			{
+				"BarFillType": "name",
 				"Percent": "float"
 			}
 		},
@@ -185,6 +253,14 @@
 				"VAlign": "name"
 			}
 		},
+		"ScissorRectBox":
+		{
+			"factory": "RUI::Slate::ScissorRectBox",
+			"children": true,
+			"attrs":
+			{
+			}
+		},
 		"ScrollBox":
 		{
 			"factory": "RUI::Slate::ScrollBox",
@@ -215,6 +291,18 @@
 				"ColorAndOpacity": "color",
 				"Orientation": "name",
 				"Thickness": "float"
+			}
+		},
+		"SimpleGradient":
+		{
+			"factory": "RUI::Slate::SimpleGradient",
+			"children": false,
+			"attrs":
+			{
+				"bHasAlphaBackground": "bool",
+				"EndColor": "color",
+				"Orientation": "name",
+				"StartColor": "color"
 			}
 		},
 		"Slider":
@@ -335,6 +423,7 @@
 		"RenderTransformAngle",
 		"RenderTransformPivot",
 		"RenderTranslation",
+		"ToolTipText",
 		"Visibility"
 	],
 	"slotPrefix": "Slot.",
@@ -377,6 +466,7 @@
 		"OnCheckStateChanged": "bool",
 		"OnTextChanged": "text",
 		"OnTextCommitted": "text",
+		"OnNavigate": "void",
 		"OnValueChanged": "float"
 	}
 }
