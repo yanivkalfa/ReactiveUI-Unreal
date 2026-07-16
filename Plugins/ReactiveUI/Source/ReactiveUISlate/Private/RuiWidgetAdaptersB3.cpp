@@ -12,14 +12,20 @@
 #include "RuiEventProxy.h"
 #include "RuiSlateElements.h"
 
+#include "Styling/StyleDefaults.h"
 #include "Widgets/Colors/SColorBlock.h"
+#include "Widgets/Colors/SColorSpectrum.h"
+#include "Widgets/Colors/SColorWheel.h"
 #include "Widgets/Colors/SComplexGradient.h"
 #include "Widgets/Colors/SSimpleGradient.h"
+#include "Widgets/Images/SLayeredImage.h"
 #include "Widgets/Input/SHyperlink.h"
+#include "Widgets/Input/SInputKeySelector.h"
 #include "Widgets/Input/SVolumeControl.h"
 #include "Widgets/Layout/SBackgroundBlur.h"
 #include "Widgets/Layout/SBox.h" // SEnableBox is an SBox — content goes through SBox::SetContent
 #include "Widgets/Layout/SEnableBox.h"
+#include "Widgets/Layout/SRadialBox.h"
 #include "Widgets/Layout/SScissorRectBox.h"
 #include "Widgets/SInvalidationPanel.h"
 #include "Widgets/SNullWidget.h"
@@ -415,6 +421,278 @@ public:
 };
 
 // ─────────────────────────────────────────────────────────────────────────────────────────
+// SRadialBox (wave 2) — MultiSlot with BARE slots (no per-child args; arc order = child
+// order). PreferredWidth is construct-only; the angle params have live setters — the inline
+// ones don't invalidate, so we invalidate layout explicitly (the Canvas precedent).
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+class FRuiRadialBoxAdapter final : public IRuiElementAdapter
+{
+public:
+	virtual ERuiChildKind GetChildKind() const override { return ERuiChildKind::MultiSlot; }
+
+	virtual uint64 GetReconstructMask() const override { return 1ull << FRuiRadialBoxProps::PreferredWidth_Bit; }
+
+	virtual bool ConstructOnlyChanged(const FRuiPropsBase& Old, const FRuiPropsBase& New) const override
+	{
+		const FRuiRadialBoxProps& O = static_cast<const FRuiRadialBoxProps&>(Old);
+		const FRuiRadialBoxProps& N = static_cast<const FRuiRadialBoxProps&>(New);
+		return RUI_CTOR_CHANGED(PreferredWidth);
+	}
+
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase& Props, const TSharedPtr<FRuiEventProxy>&) override
+	{
+		const FRuiRadialBoxProps& P = static_cast<const FRuiRadialBoxProps&>(Props);
+		return SNew(SRadialBox)
+			.PreferredWidth(P.HasPreferredWidth() ? P.PreferredWidth : 100.f)
+			.UseAllottedWidth(P.HasbUseAllottedWidth() && P.bUseAllottedWidth)
+			.StartingAngle(P.HasStartingAngle() ? P.StartingAngle : 0.f)
+			.bDistributeItemsEvenly(!P.HasbDistributeItemsEvenly() || P.bDistributeItemsEvenly)
+			.AngleBetweenItems(P.HasAngleBetweenItems() ? P.AngleBetweenItems : 45.f)
+			.SectorCentralAngle(P.HasSectorCentralAngle() ? P.SectorCentralAngle : 360.f);
+	}
+
+	virtual void ApplyDiff(SWidget& Widget, const FRuiPropsBase* Old, const FRuiPropsBase& New) override
+	{
+		SRadialBox& W = static_cast<SRadialBox&>(Widget);
+		const FRuiRadialBoxProps& N = static_cast<const FRuiRadialBoxProps&>(New);
+		const FRuiRadialBoxProps* O = static_cast<const FRuiRadialBoxProps*>(Old);
+		bool bTouched = false;
+		RUI_ROW(bUseAllottedWidth, W.SetUseAllottedWidth(N.bUseAllottedWidth))
+		RUI_ROW(StartingAngle, (W.SetStartingAngle(N.StartingAngle), bTouched = true))
+		RUI_ROW(bDistributeItemsEvenly, (W.SetDistributeItemsEvenly(N.bDistributeItemsEvenly), bTouched = true))
+		RUI_ROW(AngleBetweenItems, (W.SetAngleBetweenItems(N.AngleBetweenItems), bTouched = true))
+		RUI_ROW(SectorCentralAngle, (W.SetSectorCentralAngle(N.SectorCentralAngle), bTouched = true))
+		if (bTouched)
+		{
+			W.Invalidate(EInvalidateWidgetReason::Layout); // the inline setters skip invalidation
+		}
+	}
+
+	virtual void InsertChild(SWidget& Parent, const TSharedRef<SWidget>& Child, int32, const FRuiStyleDict*) override
+	{
+		SRadialBox::FScopedWidgetSlotArguments Slot = static_cast<SRadialBox&>(Parent).AddSlot();
+		Slot.AttachWidget(Child);
+	}
+
+	virtual void RemoveChild(SWidget& Parent, const TSharedRef<SWidget>& Child) override
+	{
+		static_cast<SRadialBox&>(Parent).RemoveSlot(Child);
+	}
+
+	virtual void ReorderChildren(SWidget& Parent, const TArray<TSharedRef<SWidget>>& Ordered,
+								 TFunctionRef<const FRuiStyleDict*(const TSharedRef<SWidget>&)>) override
+	{
+		SRadialBox& W = static_cast<SRadialBox&>(Parent);
+		for (const TSharedRef<SWidget>& Child : Ordered)
+		{
+			W.RemoveSlot(Child);
+		}
+		for (const TSharedRef<SWidget>& Child : Ordered)
+		{
+			SRadialBox::FScopedWidgetSlotArguments Slot = W.AddSlot();
+			Slot.AttachWidget(Child);
+		}
+	}
+};
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// SColorWheel / SColorSpectrum (wave 2) — SelectedColor is attribute-only: controlled via the
+// reconstruct mask; drags report through OnValueChanged (+ capture begin/end).
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+template <typename TWidget, typename TProps> class TRuiColorPickerAdapter : public IRuiElementAdapter
+{
+public:
+	virtual ERuiChildKind GetChildKind() const override { return ERuiChildKind::Leaf; }
+	virtual bool HasEvents() const override { return true; }
+
+	virtual uint64 GetReconstructMask() const override { return 1ull << TProps::SelectedColor_Bit; }
+
+	virtual bool ConstructOnlyChanged(const FRuiPropsBase& Old, const FRuiPropsBase& New) const override
+	{
+		const TProps& O = static_cast<const TProps&>(Old);
+		const TProps& N = static_cast<const TProps&>(New);
+		return N.HasSelectedColor() && (!O.HasSelectedColor() || !(O.SelectedColor == N.SelectedColor));
+	}
+
+	virtual void SyncEventHandlers(FRuiEventProxy& Proxy, const FRuiPropsBase& New) override
+	{
+		const TProps& N = static_cast<const TProps&>(New);
+		Proxy.SetHandler(static_cast<int32>(TProps::OnValueChanged_Bit), N.OnValueChanged);
+		Proxy.SetHandler(static_cast<int32>(TProps::OnMouseCaptureBegin_Bit), N.OnMouseCaptureBegin);
+		Proxy.SetHandler(static_cast<int32>(TProps::OnMouseCaptureEnd_Bit), N.OnMouseCaptureEnd);
+	}
+
+	virtual void ApplyDiff(SWidget&, const FRuiPropsBase*, const FRuiPropsBase&) override {}
+
+protected:
+	template <typename TArgs> void FillCommon(TArgs& Args, const TProps& P, const TSharedPtr<FRuiEventProxy>& Proxy)
+	{
+		Args.SelectedColor(P.HasSelectedColor() ? P.SelectedColor : FLinearColor::White)
+			.OnValueChanged(FOnLinearColorValueChanged::CreateSP(Proxy.ToSharedRef(), &FRuiEventProxy::HandleColor,
+																 static_cast<int32>(TProps::OnValueChanged_Bit)))
+			.OnMouseCaptureBegin(FSimpleDelegate::CreateSP(Proxy.ToSharedRef(), &FRuiEventProxy::HandleVoid,
+														   static_cast<int32>(TProps::OnMouseCaptureBegin_Bit)))
+			.OnMouseCaptureEnd(FSimpleDelegate::CreateSP(Proxy.ToSharedRef(), &FRuiEventProxy::HandleVoid,
+														 static_cast<int32>(TProps::OnMouseCaptureEnd_Bit)));
+	}
+};
+
+class FRuiColorWheelAdapter final : public TRuiColorPickerAdapter<SColorWheel, FRuiColorWheelProps>
+{
+public:
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase& Props,
+											 const TSharedPtr<FRuiEventProxy>& Proxy) override
+	{
+		const FRuiColorWheelProps& P = static_cast<const FRuiColorWheelProps&>(Props);
+		SColorWheel::FArguments Args;
+		FillCommon(Args, P, Proxy);
+		TSharedRef<SColorWheel> W = SNew(SColorWheel);
+		W->Construct(Args);
+		return W;
+	}
+};
+
+class FRuiColorSpectrumAdapter final : public TRuiColorPickerAdapter<SColorSpectrum, FRuiColorSpectrumProps>
+{
+public:
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase& Props,
+											 const TSharedPtr<FRuiEventProxy>& Proxy) override
+	{
+		const FRuiColorSpectrumProps& P = static_cast<const FRuiColorSpectrumProps&>(Props);
+		SColorSpectrum::FArguments Args;
+		FillCommon(Args, P, Proxy);
+		TSharedRef<SColorSpectrum> W = SNew(SColorSpectrum);
+		W->Construct(Args);
+		return W;
+	}
+};
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// SLayeredImage (wave 2) — SImage + live overlay layers (brush identity, B11 reset rule).
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+class FRuiLayeredImageAdapter final : public IRuiElementAdapter
+{
+public:
+	virtual ERuiChildKind GetChildKind() const override { return ERuiChildKind::Leaf; }
+
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase&, const TSharedPtr<FRuiEventProxy>&) override
+	{
+		return SNew(SLayeredImage);
+	}
+
+	virtual void ApplyDiff(SWidget& Widget, const FRuiPropsBase* Old, const FRuiPropsBase& New) override
+	{
+		SLayeredImage& W = static_cast<SLayeredImage&>(Widget);
+		const FRuiLayeredImageProps& N = static_cast<const FRuiLayeredImageProps&>(New);
+		const FRuiLayeredImageProps* O = static_cast<const FRuiLayeredImageProps*>(Old);
+		RUI_ROW(ColorAndOpacity, W.SetColorAndOpacity(FSlateColor(N.ColorAndOpacity)))
+		RUI_ROW(DesiredSizeOverride, W.SetDesiredSizeOverride(N.DesiredSizeOverride))
+		// Base brush: pointer-backed — reset on removal (B11), else the widget dangles.
+		if (O != nullptr && O->HasImage() && !N.HasImage())
+		{
+			W.SetImage(FStyleDefaults::GetNoBrush());
+		}
+		else
+		{
+			RUI_ROW(Image, W.SetImage(N.Image.Get()))
+		}
+		// Layers: identity-diffed as a list; any change rebuilds the layer stack (cheap).
+		const bool bLayersRemoved = O != nullptr && O->HasLayers() && !N.HasLayers();
+		const bool bLayersChanged = N.HasLayers() && (O == nullptr || !O->HasLayers() || !(N.Layers == O->Layers));
+		if (bLayersRemoved || bLayersChanged)
+		{
+			W.RemoveAllLayers();
+			if (N.HasLayers())
+			{
+				for (const TSharedPtr<FSlateBrush>& Layer : N.Layers)
+				{
+					W.AddLayer(Layer.Get());
+				}
+			}
+		}
+	}
+};
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// SInputKeySelector (wave 2) — live SelectedKey; capture-behavior args construct-only.
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+class FRuiInputKeySelectorAdapter final : public IRuiElementAdapter
+{
+public:
+	virtual ERuiChildKind GetChildKind() const override { return ERuiChildKind::Leaf; }
+	virtual bool HasEvents() const override { return true; }
+
+	virtual uint64 GetReconstructMask() const override
+	{
+		return (1ull << FRuiInputKeySelectorProps::KeySelectionText_Bit) |
+			   (1ull << FRuiInputKeySelectorProps::NoKeySpecifiedText_Bit) |
+			   (1ull << FRuiInputKeySelectorProps::bAllowModifierKeys_Bit) |
+			   (1ull << FRuiInputKeySelectorProps::bAllowGamepadKeys_Bit) |
+			   (1ull << FRuiInputKeySelectorProps::bEscapeCancelsSelection_Bit);
+	}
+
+	virtual bool ConstructOnlyChanged(const FRuiPropsBase& Old, const FRuiPropsBase& New) const override
+	{
+		const FRuiInputKeySelectorProps& O = static_cast<const FRuiInputKeySelectorProps&>(Old);
+		const FRuiInputKeySelectorProps& N = static_cast<const FRuiInputKeySelectorProps&>(New);
+		auto TextChanged = [](bool bNewHas, bool bOldHas, const FText& A, const FText& B)
+		{ return bNewHas && (!bOldHas || !(B.IdenticalTo(A) || B.ToString() == A.ToString())); };
+		return TextChanged(N.HasKeySelectionText(), O.HasKeySelectionText(), O.KeySelectionText, N.KeySelectionText) ||
+			   TextChanged(N.HasNoKeySpecifiedText(), O.HasNoKeySpecifiedText(), O.NoKeySpecifiedText,
+						   N.NoKeySpecifiedText) ||
+			   RUI_CTOR_CHANGED(bAllowModifierKeys) || RUI_CTOR_CHANGED(bAllowGamepadKeys) ||
+			   RUI_CTOR_CHANGED(bEscapeCancelsSelection);
+	}
+
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase& Props,
+											 const TSharedPtr<FRuiEventProxy>& Proxy) override
+	{
+		const FRuiInputKeySelectorProps& P = static_cast<const FRuiInputKeySelectorProps&>(Props);
+		TWeakPtr<FRuiEventProxy> WeakProxy = Proxy;
+		return SNew(SInputKeySelector)
+			.SelectedKey(P.HasSelectedKey() ? FInputChord(FKey(P.SelectedKey)) : FInputChord())
+			.KeySelectionText(P.KeySelectionText)
+			.NoKeySpecifiedText(P.NoKeySpecifiedText)
+			.AllowModifierKeys(!P.HasbAllowModifierKeys() || P.bAllowModifierKeys)
+			.AllowGamepadKeys(P.HasbAllowGamepadKeys() && P.bAllowGamepadKeys)
+			.EscapeCancelsSelection(!P.HasbEscapeCancelsSelection() || P.bEscapeCancelsSelection)
+			.OnKeySelected(SInputKeySelector::FOnKeySelected::CreateLambda(
+				[WeakProxy](const FInputChord& Chord)
+				{
+					if (TSharedPtr<FRuiEventProxy> Pinned = WeakProxy.Pin())
+					{
+						// Key-only payload (TD-016: modifiers are the multi-field trigger).
+						Pinned->HandleName(Chord.Key.GetFName(),
+										   static_cast<int32>(FRuiInputKeySelectorProps::OnKeySelected_Bit));
+					}
+				}))
+			.OnIsSelectingKeyChanged(SInputKeySelector::FOnIsSelectingKeyChanged::CreateSP(
+				Proxy.ToSharedRef(), &FRuiEventProxy::HandleVoid,
+				static_cast<int32>(FRuiInputKeySelectorProps::OnIsSelectingKeyChanged_Bit)));
+	}
+
+	virtual void SyncEventHandlers(FRuiEventProxy& Proxy, const FRuiPropsBase& New) override
+	{
+		const FRuiInputKeySelectorProps& N = static_cast<const FRuiInputKeySelectorProps&>(New);
+		Proxy.SetHandler(static_cast<int32>(FRuiInputKeySelectorProps::OnKeySelected_Bit), N.OnKeySelected);
+		Proxy.SetHandler(static_cast<int32>(FRuiInputKeySelectorProps::OnIsSelectingKeyChanged_Bit),
+						 N.OnIsSelectingKeyChanged);
+	}
+
+	virtual void ApplyDiff(SWidget& Widget, const FRuiPropsBase* Old, const FRuiPropsBase& New) override
+	{
+		SInputKeySelector& W = static_cast<SInputKeySelector&>(Widget);
+		const FRuiInputKeySelectorProps& N = static_cast<const FRuiInputKeySelectorProps&>(New);
+		const FRuiInputKeySelectorProps* O = static_cast<const FRuiInputKeySelectorProps*>(Old);
+		RUI_ROW(SelectedKey, W.SetSelectedKey(FInputChord(FKey(N.SelectedKey))))
+	}
+};
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
 // Type ids + factories + registration
 // ─────────────────────────────────────────────────────────────────────────────────────────
 
@@ -474,6 +752,26 @@ namespace RUI::Slate
 		{
 			return RUI::InternElementType(FName(TEXT("TextScroller")));
 		}
+		FRuiElementTypeId RadialBoxType()
+		{
+			return RUI::InternElementType(FName(TEXT("RadialBox")));
+		}
+		FRuiElementTypeId ColorWheelType()
+		{
+			return RUI::InternElementType(FName(TEXT("ColorWheel")));
+		}
+		FRuiElementTypeId ColorSpectrumType()
+		{
+			return RUI::InternElementType(FName(TEXT("ColorSpectrum")));
+		}
+		FRuiElementTypeId LayeredImageType()
+		{
+			return RUI::InternElementType(FName(TEXT("LayeredImage")));
+		}
+		FRuiElementTypeId InputKeySelectorType()
+		{
+			return RUI::InternElementType(FName(TEXT("InputKeySelector")));
+		}
 	} // namespace
 
 	FRuiNode ColorBlock(FRuiColorBlockProps Props, FRuiKey Key)
@@ -516,6 +814,26 @@ namespace RUI::Slate
 	{
 		return MakeHostNodeB3(TextScrollerType(), MoveTemp(Props), MoveTemp(Children), Key);
 	}
+	FRuiNode RadialBox(FRuiRadialBoxProps Props, TArray<FRuiNode> Children, FRuiKey Key)
+	{
+		return MakeHostNodeB3(RadialBoxType(), MoveTemp(Props), MoveTemp(Children), Key);
+	}
+	FRuiNode ColorWheel(FRuiColorWheelProps Props, FRuiKey Key)
+	{
+		return MakeHostNodeB3(ColorWheelType(), MoveTemp(Props), TArray<FRuiNode>(), Key);
+	}
+	FRuiNode ColorSpectrum(FRuiColorSpectrumProps Props, FRuiKey Key)
+	{
+		return MakeHostNodeB3(ColorSpectrumType(), MoveTemp(Props), TArray<FRuiNode>(), Key);
+	}
+	FRuiNode LayeredImage(FRuiLayeredImageProps Props, FRuiKey Key)
+	{
+		return MakeHostNodeB3(LayeredImageType(), MoveTemp(Props), TArray<FRuiNode>(), Key);
+	}
+	FRuiNode InputKeySelector(FRuiInputKeySelectorProps Props, FRuiKey Key)
+	{
+		return MakeHostNodeB3(InputKeySelectorType(), MoveTemp(Props), TArray<FRuiNode>(), Key);
+	}
 
 	namespace Detail
 	{
@@ -531,6 +849,11 @@ namespace RUI::Slate
 			RegisterAdapter(InvalidationPanelType(), MakeUnique<FRuiInvalidationPanelAdapter>());
 			RegisterAdapter(VolumeControlType(), MakeUnique<FRuiVolumeControlAdapter>());
 			RegisterAdapter(TextScrollerType(), MakeUnique<FRuiTextScrollerAdapter>());
+			RegisterAdapter(RadialBoxType(), MakeUnique<FRuiRadialBoxAdapter>());
+			RegisterAdapter(ColorWheelType(), MakeUnique<FRuiColorWheelAdapter>());
+			RegisterAdapter(ColorSpectrumType(), MakeUnique<FRuiColorSpectrumAdapter>());
+			RegisterAdapter(LayeredImageType(), MakeUnique<FRuiLayeredImageAdapter>());
+			RegisterAdapter(InputKeySelectorType(), MakeUnique<FRuiInputKeySelectorAdapter>());
 		}
 	} // namespace Detail
 } // namespace RUI::Slate

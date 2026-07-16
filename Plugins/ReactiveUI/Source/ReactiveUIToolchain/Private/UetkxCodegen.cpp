@@ -126,6 +126,52 @@ namespace
 				M.Add(TEXT("TextScroller"), MoveTemp(T));
 			}
 			{
+				FTagDef T{TEXT("RUI::Slate::RadialBox"), TEXT("FRuiRadialBoxProps"), true, {}};
+				T.Attrs.Add(TEXT("PreferredWidth"), EAttrType::Float);
+				T.Attrs.Add(TEXT("bUseAllottedWidth"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("StartingAngle"), EAttrType::Float);
+				T.Attrs.Add(TEXT("bDistributeItemsEvenly"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("AngleBetweenItems"), EAttrType::Float);
+				T.Attrs.Add(TEXT("SectorCentralAngle"), EAttrType::Float);
+				M.Add(TEXT("RadialBox"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::ColorWheel"), TEXT("FRuiColorWheelProps"), false, {}};
+				T.Attrs.Add(TEXT("SelectedColor"), EAttrType::Color);
+				T.Attrs.Add(TEXT("OnValueChanged"), EAttrType::Event);
+				T.Attrs.Add(TEXT("OnMouseCaptureBegin"), EAttrType::Event);
+				T.Attrs.Add(TEXT("OnMouseCaptureEnd"), EAttrType::Event);
+				M.Add(TEXT("ColorWheel"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::ColorSpectrum"), TEXT("FRuiColorSpectrumProps"), false, {}};
+				T.Attrs.Add(TEXT("SelectedColor"), EAttrType::Color);
+				T.Attrs.Add(TEXT("OnValueChanged"), EAttrType::Event);
+				T.Attrs.Add(TEXT("OnMouseCaptureBegin"), EAttrType::Event);
+				T.Attrs.Add(TEXT("OnMouseCaptureEnd"), EAttrType::Event);
+				M.Add(TEXT("ColorSpectrum"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::LayeredImage"), TEXT("FRuiLayeredImageProps"), false, {}};
+				T.Attrs.Add(TEXT("ColorAndOpacity"), EAttrType::Color);
+				T.Attrs.Add(TEXT("DesiredSizeOverride"), EAttrType::Vector2);
+				T.Attrs.Add(TEXT("Image"), EAttrType::Expr);
+				T.Attrs.Add(TEXT("Layers"), EAttrType::Expr);
+				M.Add(TEXT("LayeredImage"), MoveTemp(T));
+			}
+			{
+				FTagDef T{TEXT("RUI::Slate::InputKeySelector"), TEXT("FRuiInputKeySelectorProps"), false, {}};
+				T.Attrs.Add(TEXT("SelectedKey"), EAttrType::Name);
+				T.Attrs.Add(TEXT("KeySelectionText"), EAttrType::Text);
+				T.Attrs.Add(TEXT("NoKeySpecifiedText"), EAttrType::Text);
+				T.Attrs.Add(TEXT("bAllowModifierKeys"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("bAllowGamepadKeys"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("bEscapeCancelsSelection"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("OnKeySelected"), EAttrType::Event);
+				T.Attrs.Add(TEXT("OnIsSelectingKeyChanged"), EAttrType::Event);
+				M.Add(TEXT("InputKeySelector"), MoveTemp(T));
+			}
+			{
 				FTagDef T{TEXT("RUI::Slate::Border"), TEXT("FRuiBorderProps"), true, {}};
 				T.Attrs.Add(TEXT("Padding"), EAttrType::Margin);
 				T.Attrs.Add(TEXT("BorderBackgroundColor"), EAttrType::Color);
