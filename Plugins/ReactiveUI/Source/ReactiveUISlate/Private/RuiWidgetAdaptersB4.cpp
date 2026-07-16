@@ -11,6 +11,7 @@
 
 #include "Widgets/Layout/SConstraintCanvas.h"
 #include "Widgets/Input/SMenuAnchor.h"
+#include "Widgets/Input/SNumericDropDown.h"
 #include "Widgets/Layout/SSplitter.h"
 #include "Engine/Engine.h"
 #include "Engine/GameViewportClient.h"
@@ -504,6 +505,63 @@ public:
 	}
 };
 
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// SNumericDropDown<float> — preset dropdown; fully attribute/construct-only → masked.
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+class FRuiNumericDropDownAdapter final : public IRuiElementAdapter
+{
+public:
+	virtual ERuiChildKind GetChildKind() const override { return ERuiChildKind::Leaf; }
+	virtual bool HasEvents() const override { return true; }
+
+	virtual uint64 GetReconstructMask() const override
+	{
+		return (1ull << FRuiNumericDropDownProps::Values_Bit) | (1ull << FRuiNumericDropDownProps::Labels_Bit) |
+			   (1ull << FRuiNumericDropDownProps::Value_Bit) | (1ull << FRuiNumericDropDownProps::bShowNamedValue_Bit);
+	}
+
+	virtual bool ConstructOnlyChanged(const FRuiPropsBase& Old, const FRuiPropsBase& New) const override
+	{
+		const FRuiNumericDropDownProps& O = static_cast<const FRuiNumericDropDownProps&>(Old);
+		const FRuiNumericDropDownProps& N = static_cast<const FRuiNumericDropDownProps&>(New);
+		auto Changed = [](bool bNewHas, bool bOldHas, const auto& OldV, const auto& NewV)
+		{ return bNewHas && (!bOldHas || !(OldV == NewV)); };
+		return Changed(N.HasValues(), O.HasValues(), O.Values, N.Values) ||
+			   Changed(N.HasLabels(), O.HasLabels(), O.Labels, N.Labels) ||
+			   Changed(N.HasValue(), O.HasValue(), O.Value, N.Value) ||
+			   Changed(N.HasbShowNamedValue(), O.HasbShowNamedValue(), O.bShowNamedValue, N.bShowNamedValue);
+	}
+
+	virtual TSharedRef<SWidget> CreateWidget(const FRuiPropsBase& Props,
+											 const TSharedPtr<FRuiEventProxy>& Proxy) override
+	{
+		const FRuiNumericDropDownProps& P = static_cast<const FRuiNumericDropDownProps&>(Props);
+		TArray<SNumericDropDown<float>::FNamedValue> Named;
+		for (int32 i = 0; i < P.Values.Num(); ++i)
+		{
+			const FText Label =
+				P.Labels.IsValidIndex(i) ? FText::FromString(P.Labels[i]) : FText::AsNumber(P.Values[i]);
+			Named.Add(SNumericDropDown<float>::FNamedValue(P.Values[i], Label, Label));
+		}
+		return SNew(SNumericDropDown<float>)
+			.DropDownValues(Named)
+			.Value(P.HasValue() ? P.Value : 0.0f)
+			.bShowNamedValue(P.HasbShowNamedValue() && P.bShowNamedValue)
+			.OnValueChanged(SNumericDropDown<float>::FOnValueChanged::CreateSP(
+				Proxy.ToSharedRef(), &FRuiEventProxy::HandleFloat,
+				static_cast<int32>(FRuiNumericDropDownProps::OnValueChanged_Bit)));
+	}
+
+	virtual void SyncEventHandlers(FRuiEventProxy& Proxy, const FRuiPropsBase& New) override
+	{
+		const FRuiNumericDropDownProps& N = static_cast<const FRuiNumericDropDownProps&>(New);
+		Proxy.SetHandler(static_cast<int32>(FRuiNumericDropDownProps::OnValueChanged_Bit), N.OnValueChanged);
+	}
+
+	virtual void ApplyDiff(SWidget&, const FRuiPropsBase*, const FRuiPropsBase&) override {} // all masked
+};
+
 namespace RUI::Slate
 {
 	namespace
@@ -523,6 +581,10 @@ namespace RUI::Slate
 		FRuiElementTypeId WindowTitleBarAreaType()
 		{
 			return RUI::InternElementType(FName(TEXT("WindowTitleBarArea")));
+		}
+		FRuiElementTypeId NumericDropDownType()
+		{
+			return RUI::InternElementType(FName(TEXT("NumericDropDown")));
 		}
 	} // namespace
 
@@ -570,6 +632,17 @@ namespace RUI::Slate
 		return Node;
 	}
 
+	FRuiNode NumericDropDown(FRuiNumericDropDownProps Props, FRuiKey Key)
+	{
+		FRuiNode Node;
+		Node.Kind = ERuiNodeKind::Host;
+		Node.ElementType = NumericDropDownType();
+		Node.Props = MakeShared<FRuiNumericDropDownProps>(MoveTemp(Props));
+		Node.Children = RUI::MakeChildren(TArray<FRuiNode>());
+		Node.Key = Key;
+		return Node;
+	}
+
 	namespace Detail
 	{
 		void RegisterBatch3Wave3Adapters()
@@ -578,6 +651,7 @@ namespace RUI::Slate
 			RegisterAdapter(SplitterType(), MakeUnique<FRuiSplitterAdapter>());
 			RegisterAdapter(MenuAnchorType(), MakeUnique<FRuiMenuAnchorAdapter>());
 			RegisterAdapter(WindowTitleBarAreaType(), MakeUnique<FRuiWindowTitleBarAreaAdapter>());
+			RegisterAdapter(NumericDropDownType(), MakeUnique<FRuiNumericDropDownAdapter>());
 		}
 	} // namespace Detail
 } // namespace RUI::Slate

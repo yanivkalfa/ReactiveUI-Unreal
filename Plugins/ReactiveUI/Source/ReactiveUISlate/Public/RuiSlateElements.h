@@ -105,6 +105,20 @@ struct REACTIVEUISLATE_API FRuiWindowTitleBarAreaProps final : public FRuiPropsB
 				   RUI_EQ(HAlign) RUI_EQ(VAlign) RUI_EQ(Padding) RUI_EQ(RequestToggleFullscreen))
 };
 
+/** SNumericDropDown<float> (Leaf): numeric preset dropdown. Values+Labels zip into the
+ *  engine's FNamedValue list; everything is construct-only (masked) except the controlled
+ *  Value (also masked - attribute-only) - user picks report via OnValueChanged. */
+struct REACTIVEUISLATE_API FRuiNumericDropDownProps final : public FRuiPropsBase
+{
+	RUI_PROP(TArray<float>, Values, 0)
+	RUI_PROP(TArray<FString>, Labels, 1)
+	RUI_PROP(float, Value, 2)
+	RUI_PROP(bool, bShowNamedValue, 3)
+	RUI_PROP_EVENT(OnValueChanged, 4)
+	RUI_PROPS_BODY(FRuiNumericDropDownProps,
+				   RUI_EQ(Values) RUI_EQ(Labels) RUI_EQ(Value) RUI_EQ(bShowNamedValue) RUI_EQ(OnValueChanged))
+};
+
 /** SBorder (SingleContent). Alignment values: fill|left|center|right / fill|top|center|bottom.
  *  BorderImage takes an FCoreStyle brush NAME (v1 — e.g. "WhiteBrush" for a solid fill
  *  tinted by BorderBackgroundColor; the engine default is a thin frame-type brush). Asset
@@ -769,6 +783,8 @@ namespace RUI::Slate
 	REACTIVEUISLATE_API FRuiNode WindowTitleBarArea(FRuiWindowTitleBarAreaProps Props = FRuiWindowTitleBarAreaProps(),
 													TArray<FRuiNode> Children = TArray<FRuiNode>(),
 													FRuiKey Key = FRuiKey());
+	REACTIVEUISLATE_API FRuiNode NumericDropDown(FRuiNumericDropDownProps Props = FRuiNumericDropDownProps(),
+												 FRuiKey Key = FRuiKey());
 	REACTIVEUISLATE_API FRuiNode ColorWheel(FRuiColorWheelProps Props = FRuiColorWheelProps(), FRuiKey Key = FRuiKey());
 	REACTIVEUISLATE_API FRuiNode ColorSpectrum(FRuiColorSpectrumProps Props = FRuiColorSpectrumProps(),
 											   FRuiKey Key = FRuiKey());

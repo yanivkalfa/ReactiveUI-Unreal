@@ -86,6 +86,15 @@ namespace
 				M.Add(TEXT("WindowTitleBarArea"), MoveTemp(T));
 			}
 			{
+				FTagDef T{TEXT("RUI::Slate::NumericDropDown"), TEXT("FRuiNumericDropDownProps"), false, {}};
+				T.Attrs.Add(TEXT("Values"), EAttrType::Expr);
+				T.Attrs.Add(TEXT("Labels"), EAttrType::Expr);
+				T.Attrs.Add(TEXT("Value"), EAttrType::Float);
+				T.Attrs.Add(TEXT("bShowNamedValue"), EAttrType::Bool);
+				T.Attrs.Add(TEXT("OnValueChanged"), EAttrType::Event);
+				M.Add(TEXT("NumericDropDown"), MoveTemp(T));
+			}
+			{
 				FTagDef T{TEXT("RUI::Slate::ColorBlock"), TEXT("FRuiColorBlockProps"), false, {}};
 				T.Attrs.Add(TEXT("Color"), EAttrType::Color);
 				T.Attrs.Add(TEXT("Size"), EAttrType::Vector2);
