@@ -176,6 +176,9 @@ jobs:
           node ide-extensions/scripts/changelog.mjs extract --ide vscode --out ide-extensions/vscode-uetkx/CHANGELOG.md
           # `npm run build` = tsc + scripts/bundle-server.mjs (bundles the just-built lsp-server) — no separate call.
           (cd ide-extensions/vscode-uetkx && npm ci && npm run build)
+      - name: Generate README.md from centralized changelog
+        if: steps.check.outputs.skip == 'false'
+        run: node ide-extensions/scripts/changelog.mjs extract-overview --ide vscode --template ide-extensions/vscode-uetkx/readme-template.md --out ide-extensions/vscode-uetkx/README.md
       - name: Package VSIX
         if: steps.check.outputs.skip == 'false'
         working-directory: ide-extensions/vscode-uetkx
