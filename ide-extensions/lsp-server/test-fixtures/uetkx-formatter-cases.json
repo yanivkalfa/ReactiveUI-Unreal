@@ -130,6 +130,11 @@
       },
       "input": "component Labels {\n\treturn (\n\t\t<VerticalBox>\n\t\t\t<Button OnClicked={ Go() }>\n\t\t\t\t+\n\t\t\t</Button>\n\t\t\t<Button bEnabled>This label is far far too long to fit into forty columns</Button>\n\t\t</VerticalBox>\n\t);\n}\n",
       "expect": "component Labels {\n\treturn (\n\t\t<VerticalBox>\n\t\t\t<Button OnClicked={ Go() }>+</Button>\n\t\t\t<Button bEnabled>\n\t\t\t\tThis label is far far too long to fit into forty columns\n\t\t\t</Button>\n\t\t</VerticalBox>\n\t);\n}\n"
+    },
+    {
+      "name": "S4/markup-everywhere: value markup in setup is setup code — reanchored, never restructured (family parity)",
+      "input": "export component CardStack {\n\tint32 Total = 3;\n\tauto Card = (<VerticalBox>\n\t\t<TextBlock Text={ FText::AsNumber(Total) } />\n\t</VerticalBox>);\n\tFRuiNode Bare = <Spacer />;\n\treturn (\n\t\t<Border>\n\t\t\t{ Card }\n\t\t</Border>\n\t);\n}\n",
+      "expect": "export component CardStack {\n\tint32 Total = 3;\n\tauto Card = (<VerticalBox>\n\t\t<TextBlock Text={ FText::AsNumber(Total) } />\n\t</VerticalBox>);\n\tFRuiNode Bare = <Spacer />;\n\treturn (\n\t\t<Border>\n\t\t\t{ Card }\n\t\t</Border>\n\t);\n}\n"
     }
   ]
 }

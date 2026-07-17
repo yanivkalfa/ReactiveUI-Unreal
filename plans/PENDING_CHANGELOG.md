@@ -20,4 +20,21 @@ around.
      the single bullet went straight into Lane A ([0.10.0]), Lane B (changelog.json 0.4.0 —
      shared entry), and Lane C (DISCORD_CHANGELOG [0.10.0]) as it was authored — nothing was
      staged here mid-campaign, so there was nothing to drain from THIS file, only to verify. -->
-(empty — drained 2026-07-16)
+- [lane A+C] [plugin] Markup everywhere (§4): markup is first-class at every expression
+  boundary — `auto X = (<VerticalBox>…);`, call arguments, ternaries, short-circuit — lowering
+  in place via the family jsx scan; UETKX0114 narrowed to the paren-less markup return; NEW
+  rules-of-hooks diagnostics UETKX0013-0016 (hooks are top-level-body-only); hook signatures
+  now exclude markup text (HMR protection — components with statement-level early returns get
+  a ONE-TIME signature change: one HMR state reset at upgrade); AcceptanceLab §10 demos it
+  (feat/click-counter-demo)
+- [lane B] [both extensions] LSP markup-everywhere mirror: jsxScan.ts port, scanner parity
+  (0114 narrowed + 0013-0016), jsx-aware virtual doc (value markup neutralizes to a typed
+  placeholder, its expressions get full clangd intel), formatter family-parity pin; family
+  corpus reconciled across all three repos incl. the wave-G drift (hash 917dd8cd…)
+  (feat/click-counter-demo)
+- [lane A] [plugin] Editor: ReactiveUetkx menu gains a "Message Log" entry (one-click access
+  to the ReactiveUI compile-error page with jump-to-file rows) (feat/click-counter-demo)
+- [lane B] [both extensions] Crash-proof server (§1): process-level traps, clangd pump guards,
+  URI re-serialization fallback; embedded C++ intelligence in EVERY markup expression (§2):
+  expression lifting, compile-DB sanitizer (STL/SDK includes, SharedPCH drop, -fmsc-version),
+  clangd discovery chain (feat/click-counter-demo)

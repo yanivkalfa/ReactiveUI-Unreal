@@ -47,6 +47,16 @@ export component AcceptanceLab {
 	// loop always terminates at 3 — a SAFE, actually-iterating @while (not the @while(false) guard).
 	int32 WhileI = 0;
 
+	// ── 10 · MARKUP AS A VALUE (§4 markup-everywhere) — markup is first-class at every
+	// expression boundary: assigned to a local (both the parenthesized and bare `=` spellings),
+	// then spliced below with { Badge } / { Chip }. The same FRuiNode splices TWICE — two
+	// mounted instances from one value. Editing THIS markup and saving must HMR without
+	// resetting the counter above (the hook signature ignores markup text).
+	auto Badge = (<TextBlock
+		Text={ RUI::Fmt(TEXT("count is {}"), Count) }
+		ColorAndOpacity={ LabStyle::Accent } />);
+	FRuiNode Chip = <TextBlock Text="   a bare `=` markup value" />;
+
 	return (
 		<Border
 			Padding="12"
@@ -260,6 +270,26 @@ export component AcceptanceLab {
 						Ref={ [RefTarget](const FRuiHostHandle& H) { RefTarget->Current = H; } }
 					>
 						<TextBlock Text={ RUI::Fmt(TEXT("9. Ref captured this Border - attached: {}"), bRefAttached) } />
+					</Border>
+					<Spacer Size={ FVector2D(1.0f, 6.0f) } />
+					<!-- 10 · MARKUP AS A VALUE — `Badge`/`Chip` are FRuiNode locals built in setup (see
+					     the top of the component). The Badge splices TWICE: both rows track the counter.
+					     Short-circuit + ternary value markup ride along inline. -->
+					<Border
+						Padding="8"
+						BorderImage="WhiteBrush"
+						BorderBackgroundColor={ FLinearColor(0.04f, 0.04f, 0.06f, 0.9f) }
+					>
+						<VerticalBox>
+							<TextBlock Text="10. Markup as a value (FRuiNode locals, spliced below)" />
+							{ Badge }
+							{ Badge }
+							{ Chip }
+							{ bChecked && <TextBlock Text="   short-circuit chip (uncheck 3 to hide me)" /> }
+							{ bMounted
+								? <TextBlock Text="   ternary: mounted" ColorAndOpacity={ LabStyle::Good } />
+								: <TextBlock Text="   ternary: not yet" /> }
+						</VerticalBox>
 					</Border>
 				</VerticalBox>
 			</ScrollBox>

@@ -267,3 +267,69 @@ test("clangd proxy degrades gracefully when clangd is absent", async () => {
   assert.strictEqual(hover, null, "requests return null under degradation");
   proxy.dispose();
 });
+
+// ── §4 markup-everywhere: the virtual doc is jsx-aware everywhere code is emitted ──────────
+
+test("virtual doc: value markup in setup neutralizes to __rui_rn and lifts its expressions", () => {
+  const source = [
+    "export component CardStack {",
+    "\tint32 Total = 3;",
+    "\tauto Card = (<VerticalBox><TextBlock Text={ FText::AsNumber(Total) } /></VerticalBox>);",
+    "\tFRuiNode Bare = <Spacer />;",
+    "\treturn (",
+    "\t\t<Border>",
+    "\t\t\t{ Card }",
+    "\t\t</Border>",
+    "\t);",
+    "}",
+    "",
+  ].join("\n");
+  const doc = buildVirtualCpp(source, "CardStack");
+  assert.ok(!doc.text.includes("<VerticalBox"), "no raw markup reaches the virtual TU");
+  assert.ok(!doc.text.includes("<Spacer"), "bare `=` markup neutralized too");
+  assert.ok(doc.text.includes("auto Card = (__rui_rn);"), "paren value markup reads as a typed placeholder");
+  assert.ok(doc.text.includes("FRuiNode Bare = __rui_rn;"), "bare value markup reads as a typed placeholder");
+  assert.ok(doc.text.includes("extern FRuiNode __rui_rn;"), "the placeholder is declared in the prelude");
+  // the nested attr expr got its own mapped region
+  const attrExpr = "\nFText::AsNumber(Total)\n";
+  const virAt = doc.text.indexOf(attrExpr);
+  assert.ok(virAt >= 0, "nested attr expr lifted");
+  const srcAt = doc.map.virtualToSource(virAt + 1);
+  assert.strictEqual(srcAt, source.indexOf("FText::AsNumber(Total)"), "lifted expr maps byte-exactly to source");
+});
+
+test("virtual doc: short-circuit markup in an attr expr desugars to a ternary placeholder", () => {
+  const source = [
+    "export component Gate(bOpen: bool = false) {",
+    "\treturn (",
+    "\t\t<Border Content={ bOpen && <TextBlock Text={ GetLabel() } /> } />",
+    "\t);",
+    "}",
+    "",
+  ].join("\n");
+  const doc = buildVirtualCpp(source, "Gate");
+  assert.ok(!doc.text.includes("<TextBlock"), "nested markup neutralized");
+  assert.ok(doc.text.includes("? __rui_rn : __rui_rn"), "short-circuit desugars like codegen's ternary");
+  assert.ok(doc.text.includes("\nGetLabel()\n"), "the nested markup's own attr expr still lifts");
+});
+
+test("virtual doc: statement-level early markup returns neutralize without double-lifting", () => {
+  const source = [
+    "export component Early(Flag: bool = false) {",
+    "\tif (Flag) {",
+    "\t\treturn ( <TextBlock Text={ FText::AsNumber(1) } /> );",
+    "\t}",
+    "\treturn (",
+    "\t\t<Box />",
+    "\t);",
+    "}",
+    "",
+  ].join("\n");
+  const doc = buildVirtualCpp(source, "Early");
+  assert.ok(!doc.text.includes("<TextBlock"), "early-return window neutralized in setup");
+  assert.ok(doc.text.includes("return ( __rui_rn );") || doc.text.includes("return (__rui_rn);"), "the early return still reads as a real return");
+  const first = doc.text.indexOf("FText::AsNumber(1)");
+  const second = doc.text.indexOf("FText::AsNumber(1)", first + 1);
+  assert.ok(first >= 0, "the early window's attr expr lifts once (via comp.returns)");
+  assert.strictEqual(second, -1, "…and exactly once — no duplicate region");
+});

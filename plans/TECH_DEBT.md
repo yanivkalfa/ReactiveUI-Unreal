@@ -826,4 +826,10 @@ referenced from plans/PRs.
   grammar acceptance, codegen lowering to an `FRuiNode` local (the runtime type already exists
   and `{ X }` children already splice it), formatter layout for markup in initializer position,
   LSP/corpus in all three legs. No runtime work — this is purely a front-end feature.
-- **Status:** OPEN — diagnostic shipped; the feature awaits the family RFC alongside TD-031.
+- **Status:** **CLOSED (2026-07-17)** — shipped by the markup-everywhere campaign
+  (`plans/MARKUP_EVERYWHERE_PLAN.md` §4): value-position markup lowers in place via the family
+  jsx scan (`FUetkxJsxScan` was already the Godot-parity port; codegen's verbatim-splice sites
+  now route through `EmitExpr`), the LSP neutralizes + lifts it, the family corpus pins it in
+  all three repos (hash 917dd8cd…), and `UETKX0114` narrowed to the paren-less-return
+  remainder. Formatter = family parity (reanchored, not restructured — a family-wide
+  value-markup formatter remains future work, tracked by the corpus pin).

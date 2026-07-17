@@ -271,6 +271,15 @@
       "name": "wave G: every return window parses per-span — a bad EARLY window still diagnoses",
       "input": "component MultiBad {\n\tif (true) {\n\t\treturn ( <TextBlock Text=\"a\" /> <Spacer /> );\n\t}\n\treturn ( <Spacer /> );\n}\n",
       "expect": { "diags": ["UETKX0108"] }
+    },
+    {
+      "name": "S4/markup-everywhere (family): markup as a value scans clean — assignment + paren boundaries",
+      "input": "component ValueMarkup {\n\tx = (<VerticalBox>\n\t\t<Spacer />\n\t</VerticalBox>);\n\ty = <Spacer />;\n\treturn (\n\t\t<Border />\n\t);\n}\n",
+      "expect": {
+        "components": [{ "name": "ValueMarkup", "exported": false }],
+        "diags": [],
+        "noError": true
+      }
     }
   ],
   "fileScanLeg": [
@@ -378,11 +387,68 @@
       }
     },
     {
-      "name": "TB-12/0114: markup as a VALUE (auto X = (<Tag>...)) is a friendly error, not MSVC soup",
+      "name": "S4/markup-everywhere: markup as a VALUE (auto X = (<Tag>...)) scans clean",
       "input": "export component T {\n\tauto Some = (<VerticalBox>\n\t\t<Spacer />\n\t</VerticalBox>);\n\treturn (\n\t\t<Border>\n\t\t\t{ Some }\n\t\t</Border>\n\t);\n}\n",
       "expect": {
         "components": [{ "name": "T", "exported": true }],
-        "diags": ["UETKX0114"]
+        "diags": [],
+        "noError": true
+      }
+    },
+    {
+      "name": "S4/0114 narrowed: a paren-less markup return is the one still-illegal spelling",
+      "input": "export component T {\n\treturn <Spacer />;\n}\n",
+      "expect": {
+        "diags": ["UETKX0114", "UETKX2101"]
+      }
+    },
+    {
+      "name": "S4/rules-of-hooks 0013: hook under an if block",
+      "input": "export component T(Flag: bool = false) {\n\tif (Flag) {\n\t\tauto [A, SetA] = UseState(0);\n\t}\n\treturn ( <Spacer /> );\n}\n",
+      "expect": {
+        "components": [{ "name": "T", "exported": true }],
+        "diags": ["UETKX0013"]
+      }
+    },
+    {
+      "name": "S4/rules-of-hooks 0014: hook inside a loop",
+      "input": "export component T {\n\tfor (int32 i = 0; i < 3; ++i) {\n\t\tauto [A, SetA] = UseState(i);\n\t}\n\treturn ( <Spacer /> );\n}\n",
+      "expect": {
+        "components": [{ "name": "T", "exported": true }],
+        "diags": ["UETKX0014"]
+      }
+    },
+    {
+      "name": "S4/rules-of-hooks 0016: hook inside a lambda",
+      "input": "export component T {\n\tauto Fn = [&]() { auto [A, SetA] = UseState(0); };\n\treturn ( <Spacer /> );\n}\n",
+      "expect": {
+        "components": [{ "name": "T", "exported": true }],
+        "diags": ["UETKX0016"]
+      }
+    },
+    {
+      "name": "S4/rules-of-hooks 0013: hook inside a markup attr expression",
+      "input": "export component T {\n\treturn ( <TextBlock Text={ FText::AsNumber(UseState(0)) } /> );\n}\n",
+      "expect": {
+        "components": [{ "name": "T", "exported": true }],
+        "diags": ["UETKX0013"]
+      }
+    },
+    {
+      "name": "S4/rules-of-hooks 0016: hook inside an event attr",
+      "input": "export component T {\n\treturn ( <Button OnClicked={ UseState(0) }>x</Button> );\n}\n",
+      "expect": {
+        "components": [{ "name": "T", "exported": true }],
+        "diags": ["UETKX0016"]
+      }
+    },
+    {
+      "name": "S4/HMR protection: hook names inside value-markup text never enter the hook signature",
+      "input": "export component T {\n\tauto [Count, SetCount] = UseState(0);\n\tauto Chip = (<TextBlock Text=\"UseState(1) is just prose here\" />);\n\treturn (\n\t\t<Border>\n\t\t\t{ Chip }\n\t\t</Border>\n\t);\n}\n",
+      "expect": {
+        "components": [{ "name": "T", "exported": true, "hookCalls": ["UseState"] }],
+        "diags": [],
+        "noError": true
       }
     }
   ]

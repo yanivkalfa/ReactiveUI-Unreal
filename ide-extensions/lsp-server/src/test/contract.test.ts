@@ -43,7 +43,7 @@ test("uetkx-scanner-cases.json replays byte-identically", () => {
 
 type FileScanExpect = {
   imports?: { names: string[]; specifier: string }[];
-  components?: { name: string; exported: boolean }[];
+  components?: { name: string; exported: boolean; hookCalls?: string[] }[];
   hooks?: { name: string; exported: boolean }[];
   modules?: { name: string; exported: boolean }[];
   order?: string[];
@@ -66,7 +66,15 @@ test("fileScan corpus replays byte-identically (import/export/mixed-decl grammar
         const exp = e.imports.map((i) => `${i.names.join("|")}<-${i.specifier}`).join(";");
         assert.strictEqual(act, exp, `${label} imports`);
       }
-      if (e.components) assert.strictEqual(scan.components.map(declStr).join(","), e.components.map(declStr).join(","), `${label} components`);
+      if (e.components) {
+        assert.strictEqual(scan.components.map(declStr).join(","), e.components.map(declStr).join(","), `${label} components`);
+        // §4.3 HMR protection pin: the ordered hook-call kinds (the signature input).
+        e.components.forEach((exp, x) => {
+          if (exp.hookCalls && x < scan.components.length) {
+            assert.strictEqual(scan.components[x].hookCalls.join(","), exp.hookCalls.join(","), `${label} hookCalls`);
+          }
+        });
+      }
       if (e.hooks) assert.strictEqual(scan.hooks.map(declStr).join(","), e.hooks.map(declStr).join(","), `${label} hooks`);
       if (e.modules) assert.strictEqual(scan.modules.map(declStr).join(","), e.modules.map(declStr).join(","), `${label} modules`);
       if (e.order) {

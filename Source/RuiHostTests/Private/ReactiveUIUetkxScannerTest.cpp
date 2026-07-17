@@ -219,6 +219,26 @@ bool FRuiUetkxScannerTest::RunTest(const FString&)
 			TestEqual(Label + TEXT(" diags"), Join(ActS, TEXT(",")), Join(ExpS, TEXT(",")));
 		}
 
+		// §4.3 HMR protection pin: a component's ordered hook-call kinds (the signature input).
+		if (Expect->TryGetArrayField(TEXT("components"), Exp))
+		{
+			for (int32 x = 0; x < Exp->Num() && x < Scan.Components.Num(); ++x)
+			{
+				const TSharedPtr<FJsonObject> O = (*Exp)[x]->AsObject();
+				const TArray<TSharedPtr<FJsonValue>>* HooksExp = nullptr;
+				if (O.IsValid() && O->TryGetArrayField(TEXT("hookCalls"), HooksExp))
+				{
+					TArray<FString> ExpH;
+					for (const TSharedPtr<FJsonValue>& V : *HooksExp)
+					{
+						ExpH.Add(V->AsString());
+					}
+					TestEqual(Label + TEXT(" hookCalls"), Join(Scan.Components[x].HookCalls, TEXT(",")),
+							  Join(ExpH, TEXT(",")));
+				}
+			}
+		}
+
 		bool NoError = false;
 		if (Expect->TryGetBoolField(TEXT("noError"), NoError) && NoError)
 		{

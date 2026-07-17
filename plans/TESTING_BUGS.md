@@ -176,7 +176,17 @@ C++. The gap is that violating this produced NO friendly diagnostic.
 **Fix now:** `UETKX0114` (error, both scanners, corpus-pinned): "markup is only legal in a
 `return ( … )` — markup-as-value is not supported; extract a component instead". Full
 markup-as-value support recorded as **TD-032** (family RFC — same lane as TD-031's
-`<Provider>`). **Status: diagnostic FIXED; feature OPEN as TD-032.**
+`<Provider>`).
+
+**RESOLVED by the markup-everywhere campaign (2026-07-17,
+`plans/MARKUP_EVERYWHERE_PLAN.md` §4):** markup-as-value is now FIRST-CLASS — it lowers in
+place at every family boundary position (assignment, call argument, ternary, short-circuit),
+the LSP lifts it (typed `__rui_rn` placeholder + mapped inner expressions), AcceptanceLab §10
+demos it, and the corrected owner repro (`auto X = (<VerticalBox>…); … { X }`) compiles and
+renders. `UETKX0114` NARROWED to the one still-illegal spelling: a paren-less statement-level
+markup return (`return <Tag/>;`). Rules-of-hooks landed alongside (UETKX0013-0016 — hooks are
+top-level-body-only, never inside directives or markup). **Status: FEATURE SHIPPED; 0114
+narrowed; TD-032 closed.**
 
 ## Decision — UETKX3007 stays (owner, 2026-07-17)
 

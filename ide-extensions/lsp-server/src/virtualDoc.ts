@@ -10,6 +10,7 @@
 
 import { collectMarkupReturns, scanFile, UetkxComponentDecl, UetkxHookDecl, UetkxModuleDecl } from "./uetkxFileScan";
 import { parseMarkup, UetkxNode } from "./uetkxMarkup";
+import { findMarkupRanges } from "./jsxScan";
 import { skipNoncode } from "./cppScanner";
 import { SourceMap, SourceSpan } from "./sourceMap";
 import { codePointToUtf16, fromCodePoints, toCodePoints } from "./codePoints";
@@ -145,6 +146,10 @@ function buildPrefix(scan: ReturnType<typeof scanFile>, source: string, resolveI
   }
   // Ctx BEFORE the surfaces/adapters — the qualified-hook adapters' decltype references it.
   lines.push("extern FRuiContext Ctx;");
+  // §4 markup-everywhere: the typed placeholder every neutralized markup range lowers to in the
+  // virtual TU (`auto X = (<VerticalBox>…);` reads `auto X = (__rui_rn);` — X types FRuiNode,
+  // exactly what codegen produces). Unmapped glue: it can never squiggle user code.
+  lines.push("extern FRuiNode __rui_rn;");
   if (resolveImport) {
     for (const imp of scan.imports) {
       if (imp.hostInclude || imp.names.length === 0) continue;
@@ -212,6 +217,76 @@ export function buildVirtualCpp(source: string, basename = "doc", resolveImport?
     vir += text.length;
   };
 
+  // ── §4 markup-everywhere: EVERY code emission is jsx-aware. Markup ranges nested in code
+  // (`auto X = (<VerticalBox>…);`, `cond && <Chip/>`) neutralize to the typed `__rui_rn`
+  // placeholder (short-circuit ops desugar `? __rui_rn : __rui_rn`, mirroring codegen's
+  // ternary), the code segments around them stay EXACT mapped substrings, and each range's
+  // parsed tree is returned for the caller to lift at the nearest STATEMENT context (its attr
+  // exprs get their own mapped regions there). `excludeSpans` marks early-return windows in
+  // setup: their glue still neutralizes, but their roots are lifted by the caller (comp.returns)
+  // — parsing them here would double-lift. Ranges never sever the map's byte-identity contract:
+  // only whole segments are emitted, glue is raw.
+  type Deferred = { node: UetkxNode; base: number };
+  const emitCode = (
+    text: string,
+    srcAt: number,
+    prefix: string,
+    suffix: string,
+    excludeSpans?: ReadonlyArray<{ mStart: number; mEnd: number; returnAt: number; afterParen: number }>,
+  ): Deferred[] => {
+    const cp = toCodePoints(text);
+    type Neutral = { start: number; end: number; op: string; opPos: number; parse: boolean };
+    const neutrals: Neutral[] = findMarkupRanges(cp, 0, cp.length).map((r) => ({
+      start: r.start,
+      end: r.end === -1 ? cp.length : r.end,
+      op: r.op,
+      opPos: r.opPos,
+      parse: true,
+    }));
+    if (excludeSpans) {
+      for (const nr of neutrals) {
+        if (excludeSpans.some((s) => nr.start >= s.returnAt && nr.start < s.afterParen)) nr.parse = false;
+      }
+      // directive-form early-return windows (`return ( @if … )`) are not jsx ranges — neutralize
+      // the whole window so raw `@if` text never reaches clangd (their roots lift via comp.returns).
+      for (const s of excludeSpans) {
+        if (s.mStart < cp.length && !neutrals.some((nr) => nr.start >= s.returnAt && nr.start < s.afterParen)) {
+          neutrals.push({ start: s.mStart, end: Math.min(s.mEnd, cp.length), op: "", opPos: s.mStart, parse: false });
+        }
+      }
+      neutrals.sort((a, b) => a.start - b.start);
+    }
+    if (neutrals.length === 0) {
+      emit(text, srcAt, prefix, suffix);
+      return [];
+    }
+    raw(prefix);
+    const deferred: Deferred[] = [];
+    let cursor = 0;
+    for (const r of neutrals) {
+      if (r.start < cursor) continue;
+      const upTo = r.op !== "" ? r.opPos : r.start;
+      const seg = fromCodePoints(cp, cursor, upTo - cursor);
+      if (seg.length > 0) emit(seg, srcAt + cursor, "", "");
+      raw(r.op !== "" ? " ? __rui_rn : __rui_rn" : "__rui_rn");
+      if (r.parse) {
+        const parsed = parseMarkup(cp, r.start, r.end);
+        if (!parsed.errorCode) {
+          for (const n of parsed.nodes) deferred.push({ node: n, base: srcAt });
+        }
+      }
+      cursor = r.end;
+    }
+    const tail = fromCodePoints(cp, cursor, cp.length - cursor);
+    if (tail.length > 0) emit(tail, srcAt + cursor, "", "");
+    raw(suffix);
+    return deferred;
+  };
+
+  const flushDeferred = (deferred: Deferred[]): void => {
+    for (const d of deferred) liftNode(d.node, d.base);
+  };
+
   // ── §2 (MARKUP_EVERYWHERE_PLAN): lift every markup EXPRESSION into the component's
   // function scope so clangd sees ALL embedded C++, not just the setup. A body is a body:
   // directives mirror as REAL C++ control flow (`if`/`for`/`while` with their actual
@@ -230,7 +305,7 @@ export function buildVirtualCpp(source: string, basename = "doc", resolveImport?
     for (const span of returns) {
       const stmts = fromCodePoints(cp, cursor, span.returnAt - cursor);
       if (stmts.trim().length > 0) {
-        emit(stmts, absAt + cursor, "\n", "\n");
+        flushDeferred(emitCode(stmts, absAt + cursor, "\n", "\n"));
       }
       const parsed = parseMarkup(cp, span.mStart, span.mEnd);
       if (!parsed.errorCode) {
@@ -240,7 +315,7 @@ export function buildVirtualCpp(source: string, basename = "doc", resolveImport?
     }
     const tail = fromCodePoints(cp, cursor, cp.length - cursor);
     if (tail.trim().length > 0) {
-      emit(tail, absAt + cursor, "\n", "\n");
+      flushDeferred(emitCode(tail, absAt + cursor, "\n", "\n"));
     }
   };
 
@@ -252,9 +327,9 @@ export function buildVirtualCpp(source: string, basename = "doc", resolveImport?
           if (a.kind === "expr" || a.kind === "spread") {
             if (/^On[A-Z]/.test(a.name)) {
               // The event-handler shape codegen emits (verified: SimpleTextField.uetkx.inl).
-              emit(a.value, base + a.vat, "\n{ (void)[=](const FRuiValue& Value) {\n", "\n; }; }\n");
+              flushDeferred(emitCode(a.value, base + a.vat, "\n{ (void)[=](const FRuiValue& Value) {\n", "\n; }; }\n"));
             } else {
-              emit(a.value, base + a.vat, "\n{ (void)(\n", "\n); }\n");
+              flushDeferred(emitCode(a.value, base + a.vat, "\n{ (void)(\n", "\n); }\n"));
             }
           }
         }
@@ -263,7 +338,7 @@ export function buildVirtualCpp(source: string, basename = "doc", resolveImport?
       }
       case "expr":
         if (node.code !== undefined && node.vat !== undefined) {
-          emit(node.code, base + node.vat, "\n{ (void)(\n", "\n); }\n");
+          flushDeferred(emitCode(node.code, base + node.vat, "\n{ (void)(\n", "\n); }\n"));
         }
         break;
       case "if": {
@@ -272,8 +347,9 @@ export function buildVirtualCpp(source: string, basename = "doc", resolveImport?
           const br = branches[k];
           if (br.condAt < 0) continue;
           raw(k === 0 ? "\nif (" : "\nelse if (");
-          emit(br.cond, base + br.condAt, "", "");
+          const condDeferred = emitCode(br.cond, base + br.condAt, "", "");
           raw(") {\n");
+          flushDeferred(condDeferred); // markup nested in the cond lifts inside the branch scope
           if (br.bodyAt >= 0) liftBody(br.bodyMarkup, base + br.bodyAt);
           raw("}\n");
         }
@@ -288,8 +364,9 @@ export function buildVirtualCpp(source: string, basename = "doc", resolveImport?
       case "while": {
         if (node.headerAt === undefined || node.headerAt < 0 || node.header === undefined) break;
         raw(node.type === "for" ? "\nfor (" : "\nwhile (");
-        emit(node.header, base + node.headerAt, "", "");
+        const headerDeferred = emitCode(node.header, base + node.headerAt, "", "");
         raw(") {\n");
+        flushDeferred(headerDeferred); // header locals stay in scope for the lifted markup
         if (node.bodyMarkup !== undefined && node.bodyAt !== undefined && node.bodyAt >= 0) {
           liftBody(node.bodyMarkup, base + node.bodyAt);
         }
@@ -299,11 +376,11 @@ export function buildVirtualCpp(source: string, basename = "doc", resolveImport?
       case "match": {
         raw("\n{\n");
         if (node.subject !== undefined && node.subjectAt !== undefined && node.subjectAt >= 0) {
-          emit(node.subject, base + node.subjectAt, "{ (void)(\n", "\n); }\n");
+          flushDeferred(emitCode(node.subject, base + node.subjectAt, "{ (void)(\n", "\n); }\n"));
         }
         for (const c of node.cases ?? []) {
           raw("{\n");
-          if (c.valueAt >= 0) emit(c.value, base + c.valueAt, "{ (void)(\n", "\n); }\n");
+          if (c.valueAt >= 0) flushDeferred(emitCode(c.value, base + c.valueAt, "{ (void)(\n", "\n); }\n"));
           if (c.bodyAt >= 0) liftBody(c.bodyMarkup, base + c.bodyAt);
           raw("}\n");
         }
@@ -325,7 +402,10 @@ export function buildVirtualCpp(source: string, basename = "doc", resolveImport?
     // The function scaffold is raw'd (not emit-prefixed) so a return-only component with an
     // EMPTY setup still gets a scope for its lifted markup expressions (HelloWorld shape).
     raw(`\nvoid __rui_setup_${comp.name}(FRuiContext& Ctx${cppParamList(comp)}) {\n`);
-    emit(comp.setup, comp.setupAt, "", "\n");
+    // §4: setup is jsx-aware — value markup neutralizes to __rui_rn (its attr exprs lift as
+    // deferred statements below), early-return windows neutralize whole (their roots lift via
+    // comp.returns — excludeSpans stops the double-lift).
+    flushDeferred(emitCode(comp.setup, comp.setupAt, "", "\n", comp.returns ?? []));
     for (const span of comp.returns ?? []) {
       if (span.root) liftNode(span.root, comp.setupAt);
     }
@@ -335,7 +415,9 @@ export function buildVirtualCpp(source: string, basename = "doc", resolveImport?
     const ret = hook.ret.trim().length > 0 ? hook.ret.trim() : "void";
     // NO Ctx param (TB-10): in-file bare calls (`UseCounter(0)`) must keep their arity; the
     // body's Ctx references resolve against the prefix's global declaration instead.
-    emit(hook.body, hook.bodyAt, `\n${ret} ${hook.name}(${hook.params.trim()}) {\n`, "\n}\n");
+    raw(`\n${ret} ${hook.name}(${hook.params.trim()}) {\n`);
+    flushDeferred(emitCode(hook.body, hook.bodyAt, "", "\n"));
+    raw("}\n");
   }
   for (const mod of scan.modules as UetkxModuleDecl[]) {
     emit(mod.body, mod.bodyAt, `\nnamespace ${mod.name} {\n`, "\n}\n");

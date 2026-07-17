@@ -145,6 +145,44 @@ their corpus cases for these shapes (family-core cases must MATCH, not approxima
 corpus hash identical across the three repos; LSP suite green; the owner's original
 ClickCounter experiment (`auto X = (<VerticalBox>…); … { X }`) COMPILES AND RENDERS.
 
+**DONE (2026-07-17) — execution notes, all Verify items green:**
+- **The port was smaller than planned**: `FUetkxJsxScan` (the guitkx_jsx_scan.gd port) already
+  existed with `=` in its boundary set — codegen only needed the five verbatim-splice sites
+  (single-return setup, multi-return segments + tail, EmitBody lead + no-return) routed through
+  `EmitExpr`, which degenerates to `PrefixHooks` byte-identically when no markup is present.
+  **All 14 pre-existing contract goldens stayed byte-identical**; the new `ValueMarkup` fixture
+  pins the IIFE value-lowering (`auto Card = ([&]() -> FRuiNode { … }());`).
+- **Hook placement = the family codes**, not a new number: UETKX0013 conditional / 0014 loop /
+  0015 match / 0016 callback (Unity UITKX0013-0016, Godot GUITKX T2.5), C++-shaped as a
+  brace-stack walk (if/else/for/while/do/switch + lambda intro detection) plus a parsed-tree
+  walk over every markup region (event attrs → 0016; plain attr/child exprs → 0013 "inside
+  markup"; directive bodies → the directive's kind, recursively via the EmitBody split).
+- **0114 narrowed**, not deleted: the one still-illegal spelling is a paren-less statement-level
+  markup return (`return <Tag/>;` → "must be parenthesized"); it would otherwise die as an
+  FRuiNode→FRuiNodeArray conversion error inside the .inl. Lambda-nested bare returns (deduced
+  return type) lower fine and stay legal.
+- **HMR protection (§4.3)**: `ScanHookCalls` skips all jsx ranges (C++ + TS), corpus-pinned via
+  the new `hookCalls` expectation field in both harnesses. 0107's walker skips ranges too (its
+  depth tracking would otherwise lex markup text as C++).
+- **Virtual doc**: every code emission is jsx-aware (`emitCode`) — ranges neutralize to the
+  prelude-declared `extern FRuiNode __rui_rn;` placeholder (`? __rui_rn : __rui_rn` for
+  short-circuit ops), code segments stay exact mapped substrings, and each range's parsed tree
+  lifts at the nearest statement context. Statement-level early-return windows in setup (incl.
+  directive-form `return ( @if … )`, a pre-existing gap) neutralize whole. 7-file clangd sweep
+  CLEAN (AcceptanceLab now 88 regions).
+- **Formatter = family parity**: Godot's formatter does NOT restructure value markup — setup is
+  reanchored code in the whole family. Pinned with an idempotence corpus case rather than
+  inventing a divergent restructuring. (A family-wide value-markup formatter is future work.)
+- **Corpus ×3 reconciled INCLUDING the wave-G drift**: the two wave-G family cases had never
+  been mirrored (Unreal hashed 499fe2e4…, siblings 657e5f4e…). Mirrored those + the new
+  S4 value-markup case into both siblings; all three repos now hash
+  `917dd8cd…` and their suites pass unchanged scanners (Unreal battery 128/128, Godot TS
+  182/182, Unity dotnet 123/123) — both sibling scanners already implemented the semantics.
+  Godot has no GDScript-side consumer of the fileScan corpus (TS suite is its runner there).
+- **AcceptanceLab §10**: Badge/Chip FRuiNode locals (paren + bare spellings), the same Badge
+  spliced twice, short-circuit + ternary value markup inline — compiled by the sweep
+  (`RUICompile`: 1 compiled, 0 errors) and rendered by the Demos suite.
+
 ## §5 — clangd bundling (per §0 decisions)
 
 1. Layout: `ide-extensions/vscode-uetkx/clangd/<platform>/` staging (gitignored — binaries
