@@ -89,8 +89,7 @@ namespace
 					if (R.Start == P)
 					{
 						AddDiag(Diags, TEXT("UETKX0114"), 0,
-								TEXT("a markup return must be parenthesized — write `return ( <...> );`"),
-								BodyAt + P);
+								TEXT("a markup return must be parenthesized — write `return ( <...> );`"), BodyAt + P);
 						return;
 					}
 				}
@@ -158,7 +157,8 @@ namespace
 				if (Span)
 				{
 					End = Span->AfterParen;
-					while (End < N && (Body[End] == C_SPACE || Body[End] == C_TAB || Body[End] == C_NL || Body[End] == C_CR))
+					while (End < N &&
+						   (Body[End] == C_SPACE || Body[End] == C_TAB || Body[End] == C_NL || Body[End] == C_CR))
 					{
 						++End;
 					}
@@ -238,8 +238,8 @@ namespace
 			return;
 		}
 		int32 Last = N;
-		while (Last > First &&
-			   (Body[Last - 1] == C_SPACE || Body[Last - 1] == C_TAB || Body[Last - 1] == C_NL || Body[Last - 1] == C_CR))
+		while (Last > First && (Body[Last - 1] == C_SPACE || Body[Last - 1] == C_TAB || Body[Last - 1] == C_NL ||
+								Body[Last - 1] == C_CR))
 		{
 			--Last;
 		}
@@ -573,8 +573,7 @@ namespace
 			{
 				if (Nd.IsValid())
 				{
-					ValidateMarkupNodeHooks(*Nd, Base, Base < 0 ? FallbackAt : Base + Split.MStart, Enclosing,
-											Diags);
+					ValidateMarkupNodeHooks(*Nd, Base, Base < 0 ? FallbackAt : Base + Split.MStart, Enclosing, Diags);
 				}
 			}
 		}
@@ -625,9 +624,8 @@ namespace
 			for (const FUetkxIfBranch& Branch : Node.Branches)
 			{
 				ScanMarkupCodeForHooks(Branch.Cond, -1, NodeAt, EHookBlock::Conditional, Diags);
-				ValidateDirectiveBodyHooks(Branch.BodyMarkup,
-										   Base < 0 || Branch.BodyAt < 0 ? -1 : Base + Branch.BodyAt, NodeAt,
-										   EHookBlock::Conditional, Diags);
+				ValidateDirectiveBodyHooks(Branch.BodyMarkup, Base < 0 || Branch.BodyAt < 0 ? -1 : Base + Branch.BodyAt,
+										   NodeAt, EHookBlock::Conditional, Diags);
 			}
 			if (Node.ElseBody.IsSet())
 			{
@@ -639,8 +637,8 @@ namespace
 		case EUetkxNodeType::For:
 		case EUetkxNodeType::While:
 			ScanMarkupCodeForHooks(Node.Header, -1, NodeAt, EHookBlock::Loop, Diags);
-			ValidateDirectiveBodyHooks(Node.BodyMarkup, Base < 0 || Node.BodyAt < 0 ? -1 : Base + Node.BodyAt,
-									   NodeAt, EHookBlock::Loop, Diags);
+			ValidateDirectiveBodyHooks(Node.BodyMarkup, Base < 0 || Node.BodyAt < 0 ? -1 : Base + Node.BodyAt, NodeAt,
+									   EHookBlock::Loop, Diags);
 			break;
 		case EUetkxNodeType::Match:
 			ScanMarkupCodeForHooks(Node.Subject, -1, NodeAt, EHookBlock::Match, Diags);
@@ -653,8 +651,8 @@ namespace
 			if (Node.DefaultBody.IsSet())
 			{
 				ValidateDirectiveBodyHooks(Node.DefaultBody.GetValue(),
-										   Base < 0 || Node.DefaultBodyAt < 0 ? -1 : Base + Node.DefaultBodyAt,
-										   NodeAt, EHookBlock::Match, Diags);
+										   Base < 0 || Node.DefaultBodyAt < 0 ? -1 : Base + Node.DefaultBodyAt, NodeAt,
+										   EHookBlock::Match, Diags);
 			}
 			break;
 		default:

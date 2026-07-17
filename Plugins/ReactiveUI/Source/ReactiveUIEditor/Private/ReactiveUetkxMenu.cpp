@@ -54,7 +54,8 @@ namespace
 		// which the owner scrolled straight past.
 		Main.AddMenuEntry(
 			"MessageLog", LOCTEXT("MessageLog", "Message Log"),
-			LOCTEXT("MessageLogTip", "Open the ReactiveUI Message Log page (.uetkx compile errors with jump-to-file links)."),
+			LOCTEXT("MessageLogTip",
+					"Open the ReactiveUI Message Log page (.uetkx compile errors with jump-to-file links)."),
 			FSlateIcon(),
 			FUIAction(FExecuteAction::CreateLambda(
 				[]() { FMessageLog(TEXT("ReactiveUI")).Open(EMessageSeverity::Info, /*bOpenEvenIfEmpty*/ true); })));

@@ -163,8 +163,8 @@ component CardStack(Names: TArray<FString>) {
 		}
 		if (TestTrue(TEXT("markup-as-value compiles"), Out.bOk))
 		{
-			TestTrue(TEXT("paren value markup lowered"), Out.Inl.Contains(TEXT("auto Card = (")) &&
-															 Out.Inl.Contains(TEXT("RUI::Slate::VerticalBox(")));
+			TestTrue(TEXT("paren value markup lowered"),
+					 Out.Inl.Contains(TEXT("auto Card = (")) && Out.Inl.Contains(TEXT("RUI::Slate::VerticalBox(")));
 			TestTrue(TEXT("bare `=` value markup lowered"),
 					 Out.Inl.Contains(TEXT("FRuiNode Bare = ")) && !Out.Inl.Contains(TEXT("<Spacer />")));
 			TestTrue(TEXT("call-argument markup lowered"),
@@ -185,26 +185,26 @@ component CardStack(Names: TArray<FString>) {
 
 	// ── §4: the narrowed 0114 (paren-less markup return) + rules of hooks 0013-0016 ───────
 	{
-		FUetkxCompileOutput BareRet = FUetkxCodegen::CompileSource(
-			TEXT("component BareRet {\n\treturn <Spacer />;\n}"), TEXT("BareRet"));
+		FUetkxCompileOutput BareRet =
+			FUetkxCodegen::CompileSource(TEXT("component BareRet {\n\treturn <Spacer />;\n}"), TEXT("BareRet"));
 		TestTrue(TEXT("paren-less markup return fails"), !BareRet.bOk);
 		TestTrue(TEXT("0114 narrowed to the paren-less return"),
 				 BareRet.Diags.ContainsByPredicate([](const FUetkxDiag& D) { return D.Code == TEXT("UETKX0114"); }));
 
 		auto HasCode = [](const FUetkxCompileOutput& O, const TCHAR* Code)
-		{
-			return O.Diags.ContainsByPredicate([Code](const FUetkxDiag& D) { return D.Code == Code; });
-		};
-		FUetkxCompileOutput HookIf = FUetkxCodegen::CompileSource(
-			TEXT("component HookIf(Flag: bool = false) {\n\tif (Flag) {\n\t\tauto [A, SetA] = UseState(0);\n\t}\n\treturn "
-				 "( <Spacer /> );\n}"),
-			TEXT("HookIf"));
+		{ return O.Diags.ContainsByPredicate([Code](const FUetkxDiag& D) { return D.Code == Code; }); };
+		FUetkxCompileOutput HookIf =
+			FUetkxCodegen::CompileSource(TEXT("component HookIf(Flag: bool = false) {\n\tif (Flag) {\n\t\tauto [A, "
+											  "SetA] = UseState(0);\n\t}\n\treturn "
+											  "( <Spacer /> );\n}"),
+										 TEXT("HookIf"));
 		TestTrue(TEXT("0013 hook in if"), !HookIf.bOk && HasCode(HookIf, TEXT("UETKX0013")));
 
-		FUetkxCompileOutput HookFor = FUetkxCodegen::CompileSource(
-			TEXT("component HookFor {\n\tfor (int32 i = 0; i < 3; ++i) {\n\t\tauto [A, SetA] = UseState(i);\n\t}\n\treturn "
-				 "( <Spacer /> );\n}"),
-			TEXT("HookFor"));
+		FUetkxCompileOutput HookFor =
+			FUetkxCodegen::CompileSource(TEXT("component HookFor {\n\tfor (int32 i = 0; i < 3; ++i) {\n\t\tauto [A, "
+											  "SetA] = UseState(i);\n\t}\n\treturn "
+											  "( <Spacer /> );\n}"),
+										 TEXT("HookFor"));
 		TestTrue(TEXT("0014 hook in loop"), !HookFor.bOk && HasCode(HookFor, TEXT("UETKX0014")));
 
 		FUetkxCompileOutput HookLambda = FUetkxCodegen::CompileSource(
@@ -231,10 +231,11 @@ component CardStack(Names: TArray<FString>) {
 		TestTrue(TEXT("0014 hook in an @for body"), HasCode(HookDirective, TEXT("UETKX0014")));
 
 		// unconditional top-level hooks (incl. structured bindings + init-captures) stay clean
-		FUetkxCompileOutput CleanHooks = FUetkxCodegen::CompileSource(
-			TEXT("component CleanHooks {\n\tauto [A, SetA] = UseState(0);\n\tUseEffect([Copy = A]() {}, {});\n\treturn ( "
-				 "<Spacer /> );\n}"),
-			TEXT("CleanHooks"));
+		FUetkxCompileOutput CleanHooks =
+			FUetkxCodegen::CompileSource(TEXT("component CleanHooks {\n\tauto [A, SetA] = "
+											  "UseState(0);\n\tUseEffect([Copy = A]() {}, {});\n\treturn ( "
+											  "<Spacer /> );\n}"),
+										 TEXT("CleanHooks"));
 		TestTrue(TEXT("top-level hooks emit no 0013-0016"),
 				 CleanHooks.bOk && !HasCode(CleanHooks, TEXT("UETKX0013")) && !HasCode(CleanHooks, TEXT("UETKX0014")) &&
 					 !HasCode(CleanHooks, TEXT("UETKX0015")) && !HasCode(CleanHooks, TEXT("UETKX0016")));
