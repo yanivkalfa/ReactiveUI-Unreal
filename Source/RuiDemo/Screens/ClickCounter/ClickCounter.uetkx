@@ -1,4 +1,4 @@
-export component ClickCounter {
+export FRuiNode ClickCounter() {
 	auto [Count, SetCount] = UseState<int32>(0);
 
 

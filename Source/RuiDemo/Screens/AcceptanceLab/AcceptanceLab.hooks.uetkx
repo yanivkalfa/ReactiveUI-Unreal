@@ -15,7 +15,7 @@
 // built-in Use* calls) — the documented family divergence. It returns a TTuple the caller
 // destructures with a structured binding.
 
-export hook UseLabState(int32 Start) -> TTuple<int32, TFunction<void()>, TFunction<void()>> {
+export TTuple<int32, TFunction<void()>, TFunction<void()>> UseLabState(int32 Start) {
 	auto [Count, SetCount] = UseState<int32>(Start);
 	const int32 Current = Count;
 	TFunction<void()> Increment = [SetCount, Current]() { SetCount(Current + 1); };

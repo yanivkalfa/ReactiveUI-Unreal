@@ -21,14 +21,14 @@ static FRuiNodeArray ContextDemo_UetkxImpl(FRuiContext& Ctx, const FContextDemoU
 {
 #line 6 "Source/RuiDemo/Screens/ContextDemo/ContextDemo.uetkx"
 	auto [bPrimary, SetPrimary] = Ctx.UseState<bool>(true);
-		const FLinearColor Theme = bPrimary ? ContextDemoStyle::CoolTheme : ContextDemoStyle::WarmTheme;
+		const FLinearColor Theme = bPrimary ? CoolTheme : WarmTheme;
 		Ctx.ProvideContext(RuiDemo::GDemoThemeCtx, Theme);
 #line 27 "ContextDemo.uetkx.inl"
 	return { [&]() -> FRuiNode {
 		FRuiBorderProps P;
 		P.SetPadding(FMargin(12));
 		P.SetBorderImage(FName(TEXT("WhiteBrush")));
-		P.SetBorderBackgroundColor((ContextDemoStyle::PanelBackground));
+		P.SetBorderBackgroundColor((PanelBackground));
 		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
 		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
 		__Slot->Add(FName(TEXT("Slot.Padding")), FRuiValue(TEXT("0,10,0,0")));

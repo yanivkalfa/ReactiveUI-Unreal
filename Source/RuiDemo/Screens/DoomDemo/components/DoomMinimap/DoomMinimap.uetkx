@@ -6,7 +6,7 @@ import "@Doom/DoomTypes.h"
 // (Slot.Position / Slot.Size), each quad a WhiteBrush Border tinted with the exact
 // original color. `State` is the live game state, mutated in place — `Version` exists
 // purely to defeat the props-equality bailout (bump it every simulation tick).
-export component DoomMinimap(State: const RuiDoom::FGameState* = nullptr, Version: int32 = 0) {
+export FRuiNode DoomMinimap(const RuiDoom::FGameState* State = nullptr, int32 Version = 0) {
 	(void)Version; // re-render key only
 
 	constexpr int32 MAP_PX = 160;

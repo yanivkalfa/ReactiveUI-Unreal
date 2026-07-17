@@ -95,12 +95,11 @@ bool FRuiUetkxSchemaTest::RunTest(const FString&)
 		TestTrue(TEXT("template created"), !Created.IsEmpty() && IFileManager::Get().FileExists(*Created));
 		FString Source;
 		FFileHelper::LoadFileToString(Source, *Created);
-		TestTrue(TEXT("declares the component"), Source.Contains(TEXT("component MyPanel {")));
+		// ES-modules (M7): the scaffold uses the NEW plain-declaration grammar — no wrapper, no 2320.
+		TestTrue(TEXT("declares the component (new plain grammar)"),
+				 Source.Contains(TEXT("export FRuiNode MyPanel() {")));
 		const FUetkxCompileOutput Out = FUetkxCodegen::CompileSource(Source, TEXT("MyPanel"));
-		// ES-modules (M1): the template still uses the legacy `component` wrapper (M7 migrates it) —
-		// a clean compile now legitimately carries the one 2320 deprecation warning, not zero diags.
-		TestTrue(TEXT("template compiles clean (bOk, only the 2320 wrapper-deprecation warning)"),
-				 Out.bOk && Out.Diags.Num() == 1 && Out.Diags[0].Code == TEXT("UETKX2320"));
+		TestTrue(TEXT("template compiles clean (zero diagnostics)"), Out.bOk && Out.Diags.Num() == 0);
 
 		TestTrue(TEXT("never overwrites"), FUetkxFileActions::CreateComponentFile(Scratch, TEXT("MyPanel")).IsEmpty());
 		TestTrue(TEXT("rejects lowercase (UETKX2100 grammar)"),

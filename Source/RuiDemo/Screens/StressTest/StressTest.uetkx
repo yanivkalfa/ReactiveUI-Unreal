@@ -1,6 +1,6 @@
 import "@RuiDemoSupport.h"
 
-export component StressTest {
+export FRuiNode StressTest() {
 	auto [CountText, SetCountText] = UseState<FString>(FString(TEXT("300")));
 	auto [DurationText, SetDurationText] = UseState<FString>(FString(TEXT("10")));
 	auto [bRunning, SetRunning] = UseState<bool>(false);

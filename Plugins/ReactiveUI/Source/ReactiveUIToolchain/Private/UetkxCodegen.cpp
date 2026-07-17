@@ -584,7 +584,10 @@ namespace
 						continue;
 					}
 					bMember = (P == '.') || (P == '>' && k > 0 && Src[k - 1] == '-');
-					bScope = (P == ':');
+					// Only a real `::` scope qual blocks (a SECOND colon precedes) — a lone `:` is a
+					// ternary/label/case and must NOT block (the IMPORT-3 rule; a ternary's second
+					// arm `? A::X : B::Y` otherwise kept its alias qual and emitted broken C++).
+					bScope = (P == ':') && k > 0 && Src[k - 1] == ':';
 					break;
 				}
 				if (!bMember && !bScope)
@@ -658,7 +661,10 @@ namespace
 						continue;
 					}
 					bOutMember = (P == '.') || (P == '>' && k > 0 && Src[k - 1] == '-');
-					bOutScope = (P == ':');
+					// Only a real `::` scope qual blocks — a lone `:` is a ternary/label/case (the
+					// IMPORT-3 rule, applied here in ES-modules M7; a private name in a ternary's
+					// second arm otherwise skipped its RuiPriv_:: qualification).
+					bOutScope = (P == ':') && k > 0 && Src[k - 1] == ':';
 					break;
 				}
 			};

@@ -1,5 +1,5 @@
 // MVVM / FieldNotify — their data feeds us, authored in .uetkx.
-export component MvvmDemo {
+export FRuiNode MvvmDemo() {
 	// A viewmodel we own: created once (UseMemo, empty deps), GC-rooted by the strong ptr, released on unmount.
 	const TStrongObjectPtr<URuiSignalViewModel>& VmPtr = UseMemo<TStrongObjectPtr<URuiSignalViewModel>>(
 		[]() { return TStrongObjectPtr<URuiSignalViewModel>(NewObject<URuiSignalViewModel>()); }, RUI::Deps());

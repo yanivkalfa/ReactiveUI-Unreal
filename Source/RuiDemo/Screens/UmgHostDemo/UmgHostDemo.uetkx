@@ -6,7 +6,7 @@ import "@DemoInteropWidgets.h"
 //     UmgHostInner component by name (ReactiveUI → UMG → ReactiveUI, the full sandwich);
 //   · their-view-on-our-state — a plain UMG TextBlock FieldNotify-bound to OUR
 //     URuiSignalViewModel; our button writes it, their widget and our UseField both react.
-export component UmgHostDemo {
+export FRuiNode UmgHostDemo() {
 	UWorld* World = RuiDemo::GetDemoWorld();
 	URuiSignalViewModel* Vm = RuiDemo::GetSharedVm();
 	const int32 N = RUI::Umg::UseField<int32>(Ctx, Vm, FName(TEXT("Int")), 0);

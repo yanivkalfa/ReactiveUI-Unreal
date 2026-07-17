@@ -4,7 +4,7 @@ import { RouterUser } from "./components/RouterUser/RouterUser"
 // The docs' Router sample, live: a Router owns an in-memory history; Routes
 // renders the best match for the current location. Routes are data (FRuiRoute),
 // not tags — the Router mounts as an expression child (the RUI:: structural API).
-export component RouterDemo {
+export FRuiNode RouterDemo() {
 	TArray<RUI::FRuiRoute> RouteList;
 	RouteList.Add(RUI::FRuiRoute{ TEXT("/"), RouterHome() });
 	RouteList.Add(RUI::FRuiRoute{ TEXT("/users/:id"), RouterUser() });

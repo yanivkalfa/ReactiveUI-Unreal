@@ -11,7 +11,7 @@ import { DoomMinimap } from "./components/DoomMinimap/DoomMinimap"
 // order = child order: the eleven @for passes emit in painter's order, stable within a pass;
 // occlusion was already decided by the geometry builders. The 160-column framebuffer runs
 // at C::VIEWPORT_W × C::VIEWPORT_H with the HUD strip below, exactly like the siblings.
-export component DoomGameScreen(Level: int32 = 1, Diff: int32 = 1, OnBackToMenu: FRuiCallback = FRuiCallback()) {
+export FRuiNode DoomGameScreen(int32 Level = 1, int32 Diff = 1, FRuiCallback OnBackToMenu = FRuiCallback()) {
 	// Local level state so LEVEL COMPLETE → "Next level" can advance without the menu; the
 	// shell remounts this screen per START (keyed), so the prop seed is always fresh.
 	auto [ActiveLevel, SetActiveLevel] = UseState<int32>(Level);

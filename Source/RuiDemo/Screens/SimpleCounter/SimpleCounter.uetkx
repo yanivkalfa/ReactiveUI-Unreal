@@ -1,6 +1,6 @@
 import { UseCounter } from "./SimpleCounter.hooks"
 
-export component SimpleCounter {
+export FRuiNode SimpleCounter() {
 	auto [Count, Increment] = UseCounter(0);
 
 	return (

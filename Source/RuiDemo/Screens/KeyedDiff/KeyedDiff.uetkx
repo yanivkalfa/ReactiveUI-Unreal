@@ -1,4 +1,4 @@
-export component KeyedDiff {
+export FRuiNode KeyedDiff() {
 	static const TCHAR* Seed[] = {TEXT("Alpha"), TEXT("Bravo"), TEXT("Charlie"), TEXT("Delta"),
 									TEXT("Echo"), TEXT("Foxtrot"), TEXT("Golf")};
 	auto SeedItems = []() {

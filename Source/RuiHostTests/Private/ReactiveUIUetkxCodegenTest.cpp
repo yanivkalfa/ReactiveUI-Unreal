@@ -401,6 +401,25 @@ component CardStack(Names: TArray<FString>) {
 			TestFalse(TEXT("Uses does not record the alias"), Alias.Uses.Contains(TEXT("Chip")));
 		}
 
+		// IMPORT-3 regression at the ALIAS plane (M7 bughunt): a ternary's SECOND arm sits after a
+		// lone `:` — the scan-back must not read it as a `::` scope qual, or the alias survives
+		// into broken C++ (`? Good : LabStyle::Warn` shipped exactly that before the fix).
+		const FUetkxCompileOutput Tern = FUetkxCodegen::CompileSource(
+			TEXT("import * as Pal from \"./Palette2\"\n")
+				TEXT("import { Cool as Primary } from \"./Palette2\"\n") TEXT("export FRuiNode TernAlias() {\n")
+					TEXT("\tconst FLinearColor T = true ? Pal::Accent : Pal::Cool;\n")
+						TEXT("\tconst FLinearColor U = false ? Primary : Primary;\n")
+							TEXT("\treturn ( <Spacer /> );\n}\n"),
+			TEXT("TernAlias"));
+		if (TestTrue(TEXT("ternary alias sample compiles"), Tern.bOk))
+		{
+			TestTrue(TEXT("ternary second arm strips the namespace qual"),
+					 Tern.Inl.Contains(TEXT("true ? Accent : Cool;")));
+			TestTrue(TEXT("ternary second arm rewrites the rename alias"),
+					 Tern.Inl.Contains(TEXT("false ? Cool : Cool;")));
+			TestFalse(TEXT("no alias qual survives"), Tern.Inl.Contains(TEXT("Pal::")));
+		}
+
 		// TD-026 (M3): private runtime identity is FILE-QUALIFIED — two files' private `Row`s get
 		// distinct RegisterComponentId keys; the exported wrapper keeps its short name; NEITHER
 		// private registers a named factory (tree-shaken).

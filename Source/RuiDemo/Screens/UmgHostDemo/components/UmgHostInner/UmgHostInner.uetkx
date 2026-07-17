@@ -1,6 +1,6 @@
 // The component URuiHostWidget mounts BY NAME (no import needed anywhere — `export`
 // registers it): live proof that hooks/state work while hosted inside a UMG tree.
-export component UmgHostInner {
+export FRuiNode UmgHostInner() {
 	auto [Count, SetCount] = UseState<int32>(0);
 
 	return (

@@ -1,6 +1,6 @@
 import { CycleB } from "./CycleB"
 
-export component CycleA(Depth: int32 = 0) {
+export FRuiNode CycleA(int32 Depth = 0) {
 	return (
 		<VerticalBox>
 			<TextBlock Text="A" />
