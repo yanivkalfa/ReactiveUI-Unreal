@@ -53,8 +53,8 @@ clangd: no hover, no completion, no diagnostics. The parser already records offs
 function (so setup locals are in scope), emit each markup expression as a mapped region:
 - plain attr exprs / expr children / spreads / `key={}`: `{ (void)( <expr> ); }`
 - event handlers (`On[A-Z]*={ … }` — D-33 makes the name test exact): wrapped in a lambda
-  whose `Value` parameter uses the SAME type codegen emits (read it from a committed `.inl`,
-  do not guess) — `Value.TextValue`-style member access then types for real.
+  matching codegen's emitted shape — VERIFIED from SimpleTextField.uetkx.inl:
+  `[=](const FRuiValue& Value) { … }` — so `Value.TextValue`-style access types for real.
 - directive interiors: recurse via each branch's `bodyAt` re-parse; directive conditions
   (`@if (cond)`) lift as `(void)(cond);` regions.
 - CONSISTENCY RULE (already load-bearing): every `buildEmbeddedView` for a doc must produce
@@ -85,13 +85,19 @@ directives are conditional/looping contexts). Unity's analyzer enforces hook pla
 HookContext walk; our leg must diagnose the same way (research the exact UITKX code + message
 and mirror it with the family number).
 
-**Research first (both siblings, exact semantics — no more single-line-grep conclusions):**
-- Unity `language-lib` parser/analyzer + `DeepNestedSection.uitkx`: accepted positions
-  (parenthesized `= ( <JSX> )`, bare `= <JSX>`, bare `return <JSX>` inside directives,
-  `{variable}` splice), how their codegen lowers a markup value, their hook-placement codes.
-- Godot `addons/reactive_ui` parser: same checklist (owner states support is 100% there).
-- Unity's corpus/test cases for these shapes — the family-core cases should MATCH their
-  semantics, not approximate them.
+**Research (RESOLVED 2026-07-17 — the family algorithm exists and is documented):**
+`ReactiveUI-Gadot/addons/reactive_ui/guitkx/guitkx_jsx_scan.gd` is the reference
+implementation: markup inside an expression is detected via a **POSITION-GATED WHITELIST** —
+a `<` begins markup ONLY when it follows (whitespace-skipped) a boundary token that can only
+be followed by an expression (assignment, `return`, `(`, `,`, ternary/short-circuit
+operators), AND the char after `<` is a tag-name start or `>` (fragment). Comparisons
+(`a < b`, `i < n`) can never match because no boundary token precedes them. Its header says
+"**Like uitkx**" — Unity uses the same gate. It also specifies: unbalanced markup after a
+boundary token is a DIAGNOSTIC, never verbatim emit (their T1.2), and short-circuit
+`and`/`&&` markup records an `op` for ternary desugar at emit (our wave G already retired
+UETKX3002 for this — partial overlap to reconcile, not duplicate). Port THIS gate into both
+Unreal scanners; remaining research during execution: Unity's hook-placement code numbers +
+their corpus cases for these shapes (family-core cases must MATCH, not approximate).
 
 **Do (Unreal leg, C++ + TS in lockstep):**
 1. **Scanner** (`FUetkxFileScan` + `uetkxFileScan.ts`): generalize the markup-return
@@ -99,14 +105,33 @@ and mirror it with the family number).
    `= <…>`) and treats directive bodies as nested bodies (recursive). `UETKX0114` narrows to
    the positions that stay illegal (markup outside any body/value/return context). New
    hook-placement diagnostic (family-numbered per Unity) for `Use*` below top level.
-2. **Codegen** (`UetkxCodegen`/`UetkxDriver`): lower a markup value in place to an
-   `FRuiNode` local (the same node-building emission as return-position markup, minus the
-   `return`). RUNTIME IS UNTOUCHED — `{ X }` children already splice `FRuiNode` values.
-3. **Formatter** (both): markup in initializer position formats with the same rules as
+2. **Codegen** (`UetkxCodegen`/`UetkxDriver`): REUSE the wave-G cursor-walk (the multi-
+   return path at the tail of the component emitter — verbatim segments spliced between
+   spans, each span lowered in place; the comment names Unity's `SpliceSetupCodeMarkup`) with
+   a second span kind: a VALUE span lowers to its `EmitNodeExpr` in initializer position
+   instead of `return { … };`. `EmitBody` already gives directive bodies the same treatment.
+   RUNTIME IS UNTOUCHED — `{ X }` children already splice `FRuiNode` values.
+3. **HMR PROTECTION (research finding, 2026-07-17 — MANDATORY):** the hook signature
+   (`ScanHookCalls` over `Decl.Setup`) currently scans markup spans too — with markup values
+   in setup, an edit INSIDE markup could perturb the signature and cause spurious
+   Live-Coding state resets. Fix in the same change: hook-signature scanning AND
+   `PrefixHookCalls` treat ALL collected markup spans (returns + values) as excluded
+   regions — signatures derive from CODE only. Note: this corrects a latent wart (early-
+   return markup already leaks into the signature domain today), so components with early
+   returns get a ONE-TIME signature change at upgrade — one HMR state reset, changelogged.
+   Confirm the signature's runtime consumer during execution (grep HookSignature uses) and
+   pin the new exclusion with a scanner corpus case.
+4. **Formatter** (both): markup in initializer position formats with the same rules as
    return markup (indent anchored at the statement); corpus cases pin it.
-4. **LSP**: virtual-doc lifting from §2 extends naturally (a markup value's expressions are
+5. **LSP**: virtual-doc lifting from §2 extends naturally (a markup value's expressions are
    body content); grammar/TextMate already highlights `= (<Tag` correctly (verified).
-5. **Corpus, family-core, ALL THREE repos**: author the shared cases (value-position markup,
+6. **Contract + compiled proof**: a ContractFixtures golden pinning the value-lowering
+   codegen shape, and a GrammarProof case (compiled through MSVC and mounted at runtime,
+   the MultiReturnProof pattern) — sweep pins bump accordingly.
+7. **Corpus, family-core, ALL THREE repos** (paths verified: Godot has
+   `scripts/corpus-hash.mjs` + `plans/family-corpus.hash`; Unity's corpus is
+   `ide-extensions~/lsp-server/test-fixtures/uitkx-scanner-cases.json`): author the shared
+   cases (value-position markup,
    bare forms, directive-body recursion, hook-placement violations, 0114-remainder), add to
    each repo's corpus with the code-prefix substitution, regenerate the SAME
    `family-corpus.hash` in all three, run each leg's suite (Unity: dotnet test on
