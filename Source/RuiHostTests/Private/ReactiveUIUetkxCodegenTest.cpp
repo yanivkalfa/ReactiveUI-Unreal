@@ -310,6 +310,117 @@ component CardStack(Names: TArray<FString>) {
 					 Split >= 0 && Out.Inl.Find(TEXT("TwoPhase_UetkxImpl")) > Split);
 		}
 	}
+
+	// ── ES-modules M2: value/util emission + the alias plane (U-03/U-04) ─────────────────────────
+	{
+		// Typed + inferred value exports: DECL-phase-only `inline const`, no body-phase trace.
+		const FUetkxCompileOutput Vals = FUetkxCodegen::CompileSource(
+			TEXT("export FLinearColor Cool = FLinearColor(0.2f, 0.6f, 0.9f, 1.0f);\n")
+				TEXT("export Accent = FLinearColor(0.9f, 0.2f, 0.2f, 1.0f);\n"),
+			TEXT("Palette2"));
+		if (TestTrue(TEXT("value exports compile"), Vals.bOk))
+		{
+			TestTrue(TEXT("typed value emits inline const <T>"),
+					 Vals.Inl.Contains(TEXT("inline const FLinearColor Cool =")));
+			TestTrue(TEXT("inferred value emits inline const auto"),
+					 Vals.Inl.Contains(TEXT("inline const auto Accent =")));
+			const int32 Split = Vals.Inl.Find(TEXT("#else"));
+			TestTrue(TEXT("values are DECL-phase-only (before #else)"),
+					 Split >= 0 && Vals.Inl.Find(TEXT("Cool")) < Split && Vals.Inl.Find(TEXT("Cool"), ESearchCase::CaseSensitive, ESearchDir::FromEnd) < Split);
+			TestTrue(TEXT("exported values join the export ledger"),
+					 Vals.ExportedNames.Contains(TEXT("Cool")) && Vals.ExportedNames.Contains(TEXT("Accent")));
+			TestTrue(TEXT("a value/util-only file is a support file"), Vals.bSupportFile);
+		}
+
+		// Util: fwd-decl (DECL phase) + definition (BODY phase), no Ctx injection into the signature.
+		const FUetkxCompileOutput Util = FUetkxCodegen::CompileSource(
+			TEXT("export FString FormatScore(int32 Score) {\n\treturn FString::FromInt(Score);\n}\n"), TEXT("ScoreFmt"));
+		if (TestTrue(TEXT("util compiles"), Util.bOk))
+		{
+			const int32 Split = Util.Inl.Find(TEXT("#else"));
+			TestTrue(TEXT("util fwd-decl in the DECL phase"),
+					 Split >= 0 && Util.Inl.Find(TEXT("inline FString FormatScore(int32 Score);")) < Split);
+			TestTrue(TEXT("util definition in the BODY phase"),
+					 Util.Inl.Find(TEXT("inline FString FormatScore(int32 Score)\n{")) > Split);
+			TestFalse(TEXT("no Ctx in a util signature"), Util.Inl.Contains(TEXT("FormatScore(FRuiContext&")));
+		}
+
+		// Private value + util: wrapped in the detail namespace, same-file references qualified.
+		const FUetkxCompileOutput Priv = FUetkxCodegen::CompileSource(
+			TEXT("FLinearColor RowTint = FLinearColor(1.0f, 1.0f, 1.0f, 1.0f);\n")
+				TEXT("FString Pad(FString S) {\n\treturn S;\n}\n") TEXT("export FRuiNode Panel2() {\n")
+					TEXT("\tauto T = RowTint;\n\tauto S = Pad(FString());\n\treturn ( <Spacer /> );\n}\n"),
+			TEXT("Panel2"));
+		if (TestTrue(TEXT("private value/util sample compiles"), Priv.bOk))
+		{
+			TestTrue(TEXT("private value wrapped"), Priv.Inl.Contains(TEXT("namespace RuiPriv_Panel2")));
+			TestTrue(TEXT("private value reference qualified"), Priv.Inl.Contains(TEXT("RuiPriv_Panel2::RowTint")));
+			TestTrue(TEXT("private util call qualified"), Priv.Inl.Contains(TEXT("RuiPriv_Panel2::Pad(")));
+			TestTrue(TEXT("exported list excludes privates"),
+					 Priv.ExportedNames.Num() == 1 && Priv.ExportedNames[0] == TEXT("Panel2"));
+		}
+
+		// New-form component + hook feed the EXISTING emitters (props struct + registrations).
+		const FUetkxCompileOutput NewForm = FUetkxCodegen::CompileSource(
+			TEXT("export int32 UseTick(int32 Start) {\n\treturn Start;\n}\n")
+				TEXT("export FRuiNode Chip2(FString Label, int32 Count = 0) {\n")
+					TEXT("\tauto V = UseTick(1);\n\treturn ( <TextBlock Text={ FText::FromString(Label) } /> );\n}\n"),
+			TEXT("Chip2"));
+		if (TestTrue(TEXT("new-form component + hook compile"), NewForm.bOk))
+		{
+			TestTrue(TEXT("props struct emitted"), NewForm.Inl.Contains(TEXT("struct FChip2UetkxProps")));
+			TestTrue(TEXT("C++-native param -> props field with default"),
+					 NewForm.Inl.Contains(TEXT("int32 Count = 0;")) && NewForm.Inl.Contains(TEXT("FString Label")));
+			TestTrue(TEXT("new-form hook takes Ctx first"),
+					 NewForm.Inl.Contains(TEXT("inline int32 UseTick(FRuiContext& Ctx, int32 Start)")));
+			TestTrue(TEXT("hook call site Ctx-injected"), NewForm.Inl.Contains(TEXT("UseTick(Ctx, 1)")));
+			TestTrue(TEXT("named factory registered"),
+					 NewForm.Inl.Contains(TEXT("RegisterNamedFactory(FName(TEXT(\"Chip2\"))")));
+		}
+
+		// Alias plane: rename import rewrites the tag, a hook call, and a bare value reference;
+		// `* as` strips the namespace qual. (No resolver — emission-plane behavior only.)
+		const FUetkxCompileOutput Alias = FUetkxCodegen::CompileSource(
+			TEXT("import { StatusChip as Chip } from \"./StatusChip\"\n")
+				TEXT("import { UseCounter as UseTick } from \"./Hooks2\"\n")
+					TEXT("import { Cool as Primary } from \"./Palette2\"\n")
+						TEXT("import * as Palette from \"./Palette2\"\n") TEXT("export FRuiNode AliasUser() {\n")
+							TEXT("\tauto A = UseTick(1);\n\tauto B = Primary;\n\tauto C = Palette::Accent;\n")
+								TEXT("\treturn ( <Chip /> );\n}\n"),
+			TEXT("AliasUser"));
+		if (TestTrue(TEXT("alias sample compiles"), Alias.bOk))
+		{
+			TestTrue(TEXT("renamed tag emits the target props+factory"),
+					 Alias.Inl.Contains(TEXT("FStatusChipUetkxProps")) && Alias.Inl.Contains(TEXT("StatusChip(")));
+			TestFalse(TEXT("the local tag alias never reaches the C++"), Alias.Inl.Contains(TEXT("FChipUetkxProps")));
+			TestTrue(TEXT("renamed hook call rewrites to the target + Ctx"),
+					 Alias.Inl.Contains(TEXT("UseCounter(Ctx, 1)")));
+			TestTrue(TEXT("renamed value reference rewrites"), Alias.Inl.Contains(TEXT("auto B = Cool;")));
+			TestTrue(TEXT("namespace qual strips"), Alias.Inl.Contains(TEXT("auto C = Accent;")));
+			TestTrue(TEXT("Uses records the TARGET component"), Alias.Uses.Contains(TEXT("StatusChip")));
+			TestFalse(TEXT("Uses does not record the alias"), Alias.Uses.Contains(TEXT("Chip")));
+		}
+
+		// Mixed 5-kind file: source order preserved within each phase region.
+		const FUetkxCompileOutput Mixed = FUetkxCodegen::CompileSource(
+			TEXT("export FRuiNode Widget5() {\n\treturn ( <Spacer /> );\n}\n")
+				TEXT("export int32 UseFive(int32 A) {\n\treturn A;\n}\n")
+					TEXT("export FLinearColor Five = FLinearColor(0.1f, 0.1f, 0.1f, 1.0f);\n")
+						TEXT("export FString FmtFive(int32 S) {\n\treturn FString::FromInt(S);\n}\n")
+							TEXT("export module FiveStyles { inline const float P5 = 5.0f; }\n"),
+			TEXT("Widget5"));
+		if (TestTrue(TEXT("mixed 5-kind file compiles"), Mixed.bOk))
+		{
+			TestTrue(TEXT("all five kinds present"),
+					 Mixed.Inl.Contains(TEXT("FWidget5UetkxProps")) && Mixed.Inl.Contains(TEXT("UseFive")) &&
+						 Mixed.Inl.Contains(TEXT("inline const FLinearColor Five")) &&
+						 Mixed.Inl.Contains(TEXT("FmtFive")) && Mixed.Inl.Contains(TEXT("namespace FiveStyles")));
+			TestTrue(TEXT("exported ledger carries all five"),
+					 Mixed.ExportedNames.Contains(TEXT("Widget5")) && Mixed.ExportedNames.Contains(TEXT("UseFive")) &&
+						 Mixed.ExportedNames.Contains(TEXT("Five")) && Mixed.ExportedNames.Contains(TEXT("FmtFive")) &&
+						 Mixed.ExportedNames.Contains(TEXT("FiveStyles")));
+		}
+	}
 	return true;
 }
 

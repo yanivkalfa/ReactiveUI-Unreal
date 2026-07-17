@@ -529,6 +529,96 @@ namespace
 		return Out;
 	}
 
+	/** ES-modules (U-03): the import-alias substitution plane. Exported symbols keep their real
+	 *  emission home; every ALIASED reference in the importer is rewritten at emit:
+	 *  - Rename: `import { A as B }` — local `B` → target `A` (identifier replacement).
+	 *  - NamespaceStrip: `import * as X` — a `X::` qual is stripped (`X::Member` → `Member`).
+	 *  - Default aliases (`import D from "./x"` → the target's `export default` symbol) join the
+	 *    Rename map once the target's default-export name is known (M4 export tables — the
+	 *    resolver is the only place that knows it; wired there, same plane). */
+	struct FUetkxAliasPlane
+	{
+		TMap<FString, FString> Rename; // local alias -> imported target name
+		TSet<FString> NamespaceStrip;  // `X` of `import * as X` — `X::` quals are stripped
+		bool IsEmpty() const { return Rename.IsEmpty() && NamespaceStrip.IsEmpty(); }
+	};
+
+	/** ES-modules (U-03): the alias PRE-PASS over verbatim C++ — runs before the hook-prefix walk
+	 *  so a renamed hook alias bears its target (Use-prefixed) name by the time Ctx injection
+	 *  looks at it. Word-boundary identifiers only; member access (`.`/`->`) and an existing scope
+	 *  qual (`::`) block the rewrite exactly like the hook walk; strings/comments are opaque
+	 *  (skip-noncode). The `X ::`-lookahead crosses spaces/tabs only — never a newline — so line
+	 *  counts (the `#line` mapping) are always preserved. Known limit (family watch-list): a local
+	 *  variable shadowing an alias name is rewritten too — 2325 polices declared-name collisions,
+	 *  not body locals. */
+	FString RewriteAliases(const FString& Code, const FUetkxAliasPlane& Aliases)
+	{
+		const TArray<int32> Src = FUetkxLexer::ToCodePoints(Code);
+		FString Out;
+		int32 i = 0;
+		const int32 N = Src.Num();
+		while (i < N)
+		{
+			const int32 j = FUetkxLexer::SkipNoncode(Src, i);
+			if (j != i)
+			{
+				Out += FUetkxLexer::FromCodePoints(Src, i, j - i);
+				i = j;
+				continue;
+			}
+			const bool bWordStart = (i == 0) || !FUetkxLexer::IsIdentCode(Src[i - 1]);
+			if (bWordStart && FUetkxLexer::IsIdentCode(Src[i]) && !(Src[i] >= '0' && Src[i] <= '9'))
+			{
+				int32 e = i;
+				while (e < N && FUetkxLexer::IsIdentCode(Src[e]))
+				{
+					++e;
+				}
+				const FString Ident = FUetkxLexer::FromCodePoints(Src, i, e - i);
+				bool bMember = false, bScope = false;
+				for (int32 k = i - 1; k >= 0; --k)
+				{
+					const int32 P = Src[k];
+					if (P == ' ' || P == '\t')
+					{
+						continue;
+					}
+					bMember = (P == '.') || (P == '>' && k > 0 && Src[k - 1] == '-');
+					bScope = (P == ':');
+					break;
+				}
+				if (!bMember && !bScope)
+				{
+					if (Aliases.NamespaceStrip.Contains(Ident))
+					{
+						int32 p = e;
+						while (p < N && (Src[p] == ' ' || Src[p] == '\t'))
+						{
+							++p;
+						}
+						if (p + 1 < N && Src[p] == ':' && Src[p + 1] == ':')
+						{
+							i = p + 2; // drop `X ::` entirely — the member name flows through bare
+							continue;
+						}
+					}
+					if (const FString* Target = Aliases.Rename.Find(Ident))
+					{
+						Out += *Target;
+						i = e;
+						continue;
+					}
+				}
+				Out += Ident;
+				i = e;
+				continue;
+			}
+			Out += FUetkxLexer::FromCodePoints(Src, i, 1);
+			++i;
+		}
+		return Out;
+	}
+
 	/** Hook auto-prefix over verbatim C++ (shared by component setup/exprs AND `hook` decl
 	 *  bodies): bare BUILT-IN hook calls become Ctx.-qualified; bare USER hook calls
 	 *  (`Use<Upper>...` not in the built-in table, incl. `NS::Use...`) get `Ctx` injected as
@@ -536,10 +626,13 @@ namespace
 	 *  documented divergence from Unity's ambient statics). Member access (`.`/`->`) blocks
 	 *  both transforms. `Qualified` (M5) maps a same-file PRIVATE decl name to its detail-namespace
 	 *  prefix (`RuiPriv_<Basename>::`); a private hook call or a private `Module::` qual is rewritten
-	 *  to reach into that namespace. */
-	FString PrefixHookCalls(const FString& Code, const TMap<FString, FString>& Qualified = {})
+	 *  to reach into that namespace. `Aliases` (ES-modules U-03) runs as a pre-pass — see
+	 *  RewriteAliases. */
+	FString PrefixHookCalls(const FString& Code, const TMap<FString, FString>& Qualified = {},
+							const FUetkxAliasPlane* Aliases = nullptr)
 	{
-		const TArray<int32> Src = FUetkxLexer::ToCodePoints(Code);
+		const FString Rewritten = (Aliases != nullptr && !Aliases->IsEmpty()) ? RewriteAliases(Code, *Aliases) : Code;
+		const TArray<int32> Src = FUetkxLexer::ToCodePoints(Rewritten);
 		FString Out;
 		int32 i = 0;
 		const int32 N = Src.Num();
@@ -631,8 +724,12 @@ namespace
 					bMatched = true;
 				}
 			}
-			// private same-file `Module::` qual → RuiPriv_<Basename>::Module:: (M5). Only fires for
-			// an identifier the file declares privately; ambient namespaces are untouched.
+			// private same-file reference → RuiPriv_<Basename>:: qualification. Originally (M5)
+			// only `Module::` quals; ES-modules (U-04) generalizes to ANY privately-declared
+			// identifier at a word boundary — a private VALUE is referenced bare and a private
+			// UTIL as a plain call, and both live inside the detail namespace, so every reference
+			// shape needs the prefix (a hook call was already handled by the branch above). Only
+			// fires for names the file declares privately; ambient identifiers are untouched.
 			if (!bMatched && bWordStart && !Qualified.IsEmpty() && FUetkxLexer::IsIdentCode(Src[i]) &&
 				!(Src[i] >= '0' && Src[i] <= '9'))
 			{
@@ -641,16 +738,11 @@ namespace
 				{
 					++e;
 				}
-				int32 p = e;
-				while (p < N && (Src[p] == ' ' || Src[p] == '\t'))
-				{
-					++p;
-				}
 				bool bMember = false, bScope = false;
 				ScanBack(i, bMember, bScope);
 				const FString Ident = FUetkxLexer::FromCodePoints(Src, i, e - i);
 				const FString* Prefix = Qualified.Find(Ident);
-				if (Prefix && !bMember && !bScope && p + 1 < N && Src[p] == ':' && Src[p + 1] == ':')
+				if (Prefix && !bMember && !bScope)
 				{
 					Out += *Prefix;
 					Out += Ident;
@@ -788,7 +880,7 @@ namespace
 	 *  calls in the body Ctx.-prefixed, nested user hooks Ctx-injected). DECL phase = the forward
 	 *  declaration; BODY phase = the definition. A non-exported hook wraps in the detail namespace. */
 	FEmittedDecl EmitHookInl(const FUetkxHookDecl& Hook, const FString& PrivNs, const TMap<FString, FString>& Qualified,
-							 const FLineCtx& Line)
+							 const FLineCtx& Line, const FUetkxAliasPlane* Aliases = nullptr)
 	{
 		const FString Ret = Hook.Ret.IsEmpty() ? FString(TEXT("void")) : Hook.Ret;
 		const FString Sig = FString::Printf(TEXT("inline %s %s(FRuiContext& Ctx%s%s)"), *Ret, *Hook.Name,
@@ -796,7 +888,7 @@ namespace
 		FEmittedDecl E;
 		E.DeclPhase = Sig + TEXT(";\n");
 		FString Def = Sig + TEXT("\n{\n");
-		const FString Body = PrefixHookCalls(Hook.Body.TrimStartAndEnd(), Qualified);
+		const FString Body = PrefixHookCalls(Hook.Body.TrimStartAndEnd(), Qualified, Aliases);
 		if (!Body.IsEmpty())
 		{
 			Def += WithLine(TEXT("\t") + IndentRegion(Body) + TEXT("\n"), SrcLineOfRegion(Hook.Body, Hook.BodyAt, Line),
@@ -833,15 +925,69 @@ namespace
 		return E;
 	}
 
+	/** ES-modules (U-04): a `[export] <Type> Name = <Init>;` VALUE export → DECL-PHASE-ONLY
+	 *  `inline const <T> Name = <Init>;` (typed) or `inline const auto Name = <Init>;` (inferred
+	 *  — U-01). Immutable by construction: there is no BODY phase (module-level mutable state is
+	 *  not a thing). The initializer still runs through the alias-rewrite plane (`PrefixHookCalls`
+	 *  with `Qualified` — U-03: import renames, `X::` namespace quals, private same-file
+	 *  qualification); a value initializer that happens to look like a hook call is not policed
+	 *  here — it surfaces as a normal downstream compile error (no `Ctx` in scope) exactly like
+	 *  any other misuse. A non-exported value nests in the per-file detail namespace. */
+	FEmittedDecl EmitValueInl(const FUetkxValueDecl& Value, const FString& PrivNs, const TMap<FString, FString>& Qualified,
+							 const FLineCtx& Line, const FUetkxAliasPlane* Aliases = nullptr)
+	{
+		const FString Type = Value.Type.IsEmpty() ? FString(TEXT("auto")) : Value.Type;
+		const FString Init = PrefixHookCalls(Value.Init.TrimStartAndEnd(), Qualified, Aliases);
+		FString Out = FString::Printf(TEXT("inline const %s %s =\n"), *Type, *Value.Name);
+		Out += WithLine(Init + TEXT("\n"), SrcLineOfRegion(Value.Init, Value.InitAt, Line), Line);
+		Out += TEXT(";\n");
+		FEmittedDecl E;
+		E.DeclPhase = Out;
+		if (!Value.bExported)
+		{
+			WrapPrivate(E, PrivNs);
+		}
+		return E;
+	}
+
+	/** ES-modules (U-04): a `[export] <Type> Name(params) { body }` UTIL function → an inline
+	 *  free function, EXACTLY like `EmitHookInl` minus the `FRuiContext& Ctx` parameter and minus
+	 *  HookSig participation (utils are never scanned into a component's HookCalls — the scanner
+	 *  never records them there). The body still runs through the full `PrefixHookCalls` text
+	 *  transform (built-in hook Ctx.-prefixing, user-hook Ctx-injection, alias rewriting) — a util
+	 *  body that happens to call something hook-shaped is not specially policed; it fails to
+	 *  compile downstream (no `Ctx` in scope), the same as any other misuse. */
+	FEmittedDecl EmitUtilInl(const FUetkxUtilDecl& Util, const FString& PrivNs, const TMap<FString, FString>& Qualified,
+							const FLineCtx& Line, const FUetkxAliasPlane* Aliases = nullptr)
+	{
+		const FString Sig = FString::Printf(TEXT("inline %s %s(%s)"), *Util.RetType, *Util.Name, *Util.Params);
+		FEmittedDecl E;
+		E.DeclPhase = Sig + TEXT(";\n");
+		FString Def = Sig + TEXT("\n{\n");
+		const FString Body = PrefixHookCalls(Util.Body.TrimStartAndEnd(), Qualified, Aliases);
+		if (!Body.IsEmpty())
+		{
+			Def += WithLine(TEXT("\t") + IndentRegion(Body) + TEXT("\n"), SrcLineOfRegion(Util.Body, Util.BodyAt, Line),
+							Line);
+		}
+		Def += TEXT("}\n");
+		E.BodyPhase = Def;
+		if (!Util.bExported)
+		{
+			WrapPrivate(E, PrivNs);
+		}
+		return E;
+	}
+
 	/** The one emitter (per component). */
 	class FEmitter
 	{
 	public:
 		FEmitter(const FString& InBasename, const FUetkxComponentDecl& InDecl, TArray<FUetkxDiag>& InDiags,
 				 TSet<FString>& InUses, TMap<FString, int32>& InUseAts, const TMap<FString, FString>& InQualified,
-				 const FLineCtx& InLine)
+				 const FLineCtx& InLine, const FUetkxAliasPlane& InAliases)
 			: Basename(InBasename), Decl(InDecl), Diags(InDiags), Uses(InUses), UseAts(InUseAts),
-			  Qualified(InQualified), Line(InLine)
+			  Qualified(InQualified), Line(InLine), Aliases(InAliases)
 		{
 		}
 
@@ -867,8 +1013,9 @@ namespace
 		}
 
 		/** Hook auto-prefix (built-in → Ctx.*, user hooks → Ctx first arg), plus same-file PRIVATE
-		 *  reference qualification (private hook calls + `Module::` quals → RuiPriv_<Basename>::…). */
-		FString PrefixHooks(const FString& Code) { return PrefixHookCalls(Code, Qualified); }
+		 *  reference qualification (private hook calls + `Module::` quals → RuiPriv_<Basename>::…),
+		 *  plus the ES-modules import-alias plane (U-03 — rename / `X::` strip pre-pass). */
+		FString PrefixHooks(const FString& Code) { return PrefixHookCalls(Code, Qualified, &Aliases); }
 
 		/** An embedded expression: rewrite nested markup ranges (jsx scan) to element exprs. */
 		FString EmitExpr(const FString& Expr, int32 AbsAt)
@@ -937,6 +1084,7 @@ namespace
 		TMap<FString, int32>& UseAts;			 // tag -> first reference offset (strict-import diagnostics, M4)
 		const TMap<FString, FString>& Qualified; // private same-file decl name -> RuiPriv_<Basename>::name
 		const FLineCtx& Line;					 // #line directive context (M7)
+		const FUetkxAliasPlane& Aliases;		 // ES-modules import-alias substitution plane (U-03)
 		int32 TextKeyCounter = 0;
 		bool bError = false;
 	};
@@ -1006,9 +1154,16 @@ namespace
 			Fail(TEXT("UETKX0105"), FString::Printf(TEXT("unknown tag <%s>"), *Node.Tag), AbsAt + Node.At);
 			return FString(TEXT("FRuiNode()"));
 		}
+		// ES-modules (U-03): a component tag spelled with a rename-import alias (`import { A as B }`
+		// + `<B/>`) emits against the TARGET name (its real props struct + wrapper). `Uses` (the
+		// aggregator's topo-order input) records the TARGET — dependency edges are keyed by exported
+		// names; `UseAts` keeps the LOCAL spelling — the resolver's usage accounting (2304) and
+		// diagnostics anchor on what the author wrote (M4).
+		const FString* AliasTarget = bComponent ? Aliases.Rename.Find(Node.Tag) : nullptr;
+		const FString EmitTag = AliasTarget ? *AliasTarget : Node.Tag;
 		if (bComponent)
 		{
-			Uses.Add(Node.Tag);
+			Uses.Add(EmitTag);
 			if (!UseAts.Contains(Node.Tag))
 			{
 				UseAts.Add(Node.Tag, AbsAt + Node.At);
@@ -1112,12 +1267,14 @@ namespace
 		}
 
 		// A same-file PRIVATE component lives in the per-file detail namespace, so its call site
-		// qualifies both the props struct and the wrapper (RuiPriv_<Basename>::…).
-		const FString* Priv = bComponent ? Qualified.Find(Node.Tag) : nullptr;
+		// qualifies both the props struct and the wrapper (RuiPriv_<Basename>::…). EmitTag (not
+		// Node.Tag) so a rename-imported component resolves to its real emission home (U-03) — an
+		// import target is never same-file-private, so the two prefixes cannot both apply.
+		const FString* Priv = bComponent ? Qualified.Find(EmitTag) : nullptr;
 		const FString Prefix = Priv ? *Priv : FString();
 		const FString PropsType =
-			bComponent ? FString::Printf(TEXT("%sF%sUetkxProps"), *Prefix, *Node.Tag) : Tag->PropsType;
-		const FString Factory = bComponent ? Prefix + Node.Tag : Tag->Factory;
+			bComponent ? FString::Printf(TEXT("%sF%sUetkxProps"), *Prefix, *EmitTag) : Tag->PropsType;
+		const FString Factory = bComponent ? Prefix + EmitTag : Tag->Factory;
 
 		FString Out = TEXT("[&]() -> FRuiNode {\n");
 		Out += FString::Printf(TEXT("\t\t%s P;\n"), *PropsType);
@@ -1622,6 +1779,50 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 			Qualified.Add(D.Name, PrivNs + TEXT("::"));
 		}
 	}
+	for (const FUetkxValueDecl& D : Scan.Values)
+	{
+		if (!D.bExported)
+		{
+			Qualified.Add(D.Name, PrivNs + TEXT("::"));
+		}
+	}
+	for (const FUetkxUtilDecl& D : Scan.Utils)
+	{
+		if (!D.bExported)
+		{
+			Qualified.Add(D.Name, PrivNs + TEXT("::"));
+		}
+	}
+
+	// ES-modules (U-03): the import-alias plane, built from the scan's import bindings. Rename
+	// (`{ A as B }`) maps local → target; namespace (`* as X`) strips `X::` quals. A DEFAULT
+	// import's target symbol lives in the TARGET file's export table — only the resolver knows it
+	// (M4 wires that lookup into this same map before emit); no resolver ⇒ the default alias
+	// passes through verbatim and resolution reports it.
+	FUetkxAliasPlane Aliases;
+	for (const FUetkxImportDecl& Imp : Scan.Imports)
+	{
+		if (Imp.bHostInclude)
+		{
+			continue;
+		}
+		if (Imp.bNamespace)
+		{
+			Aliases.NamespaceStrip.Add(Imp.NamespaceAlias);
+			continue;
+		}
+		if (Imp.bDefault)
+		{
+			continue; // M4: resolver fills Rename[DefaultAlias] = target's default-export name
+		}
+		for (int32 n = 0; n < Imp.Names.Num(); ++n)
+		{
+			if (Imp.LocalNames.IsValidIndex(n) && Imp.LocalNames[n] != Imp.Names[n])
+			{
+				Aliases.Rename.Add(Imp.LocalNames[n], Imp.Names[n]);
+			}
+		}
+	}
 
 	// #line mapping (M7): breakpoints in the .uetkx bind to the generated body. ProjRel is the
 	// machine-stable path (M3); fixtures/tests fall back to `<Basename>.uetkx`.
@@ -1645,7 +1846,7 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 		case EUetkxDeclKind::Component:
 		{
 			const FUetkxComponentDecl& Decl = Scan.Components[Entry.Value];
-			FEmitter Emitter(Basename, Decl, Out.Diags, Uses, UseAts, Qualified, Line);
+			FEmitter Emitter(Basename, Decl, Out.Diags, Uses, UseAts, Qualified, Line, Aliases);
 			const FEmittedDecl E = Emitter.Emit();
 			if (Emitter.HasError())
 			{
@@ -1662,7 +1863,7 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 		}
 		case EUetkxDeclKind::Hook:
 		{
-			const FEmittedDecl E = EmitHookInl(Scan.Hooks[Entry.Value], PrivNs, Qualified, Line);
+			const FEmittedDecl E = EmitHookInl(Scan.Hooks[Entry.Value], PrivNs, Qualified, Line, &Aliases);
 			OtherDecls += E.DeclPhase + TEXT("\n");
 			Bodies += E.BodyPhase + TEXT("\n");
 			Out.ComponentNames.Add(Scan.Hooks[Entry.Value].Name);
@@ -1672,6 +1873,23 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 			ModuleDecls += EmitModuleInl(Scan.Modules[Entry.Value], PrivNs, Line).DeclPhase + TEXT("\n");
 			Out.ComponentNames.Add(Scan.Modules[Entry.Value].Name);
 			break;
+		// ES-modules (U-04): a VALUE is DECL-PHASE-ONLY, in the same early region as module
+		// bodies (a props-struct default may reference a file value, so values must precede
+		// every props struct exactly as module constants do).
+		case EUetkxDeclKind::Value:
+			ModuleDecls += EmitValueInl(Scan.Values[Entry.Value], PrivNs, Qualified, Line, &Aliases).DeclPhase + TEXT("\n");
+			Out.ComponentNames.Add(Scan.Values[Entry.Value].Name);
+			break;
+		// ES-modules (U-04): a UTIL is hook-shaped (fwd-decl in the DECL phase, definition in
+		// the BODY phase) minus Ctx/HookSig.
+		case EUetkxDeclKind::Util:
+		{
+			const FEmittedDecl E = EmitUtilInl(Scan.Utils[Entry.Value], PrivNs, Qualified, Line, &Aliases);
+			OtherDecls += E.DeclPhase + TEXT("\n");
+			Bodies += E.BodyPhase + TEXT("\n");
+			Out.ComponentNames.Add(Scan.Utils[Entry.Value].Name);
+			break;
+		}
 		}
 	}
 	Inl += TEXT("#if defined(RUI_UETKX_DECL_PHASE)\n");
@@ -1730,6 +1948,20 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 		}
 	}
 	for (const FUetkxModuleDecl& D : Scan.Modules)
+	{
+		if (D.bExported)
+		{
+			Out.ExportedNames.Add(D.Name);
+		}
+	}
+	for (const FUetkxValueDecl& D : Scan.Values)
+	{
+		if (D.bExported)
+		{
+			Out.ExportedNames.Add(D.Name);
+		}
+	}
+	for (const FUetkxUtilDecl& D : Scan.Utils)
 	{
 		if (D.bExported)
 		{
