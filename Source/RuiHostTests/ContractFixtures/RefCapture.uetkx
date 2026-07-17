@@ -1,6 +1,6 @@
 // Pins the universal reserved `Ref={ expr }` attribute: props-level host-handle capture from
 // markup — on an element (Border), on the TextBlock special case, and alongside style keys.
-export component RefCapture {
+export FRuiNode RefCapture() {
 	const TSharedRef<TRuiRef<FRuiHostHandle>>& Target = UseRef<FRuiHostHandle>();
 	auto Focus = RUI::Slate::UseFocus();
 

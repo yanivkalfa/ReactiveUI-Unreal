@@ -1,0 +1,7 @@
+import { StatusChip as Err2325 } from "./StatusChip"
+
+export FRuiNode Err2325() {
+	return (
+		<Spacer />
+	);
+}

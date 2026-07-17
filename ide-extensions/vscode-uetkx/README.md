@@ -32,6 +32,11 @@ Editor support for **`.uetkx`**, the JSX-like markup of [ReactiveUI for Unreal](
 
 ## Changelog
 
+### [0.6.0] - 2026-07-17
+- ES modules: the .uetkx language server understands the whole new grammar — signature-classified plain declarations (components/hooks/values/utils), rename (`A as B`), namespace (`* as X`) and default imports, `export { … };` lists and `export default`. Completions, hover and go-to-definition resolve THROUGH aliases; embedded-C++ intelligence types imported values/utils and your own value initializers/util bodies; the new UETKX2320–2327 diagnostics surface live, and the deprecated wrapper keywords warn with the codemod hint.
+- Compiler diagnostics are back in the editor: the sidecar reader silently dropped EVERY compiler-written diagnostics file after the driver moved to schema v3 (a strict version check) — only live-parse diagnostics showed. The gate now accepts v2+, so full compiler errors/warnings flow into the IDE again.
+- Typed event-payload completion (`Value.` → the enclosing event's field first) now wins over the embedded-C++ forward inside event expressions — clangd's generic member list (or, with no compile database, its identifier fallback) previously preempted the payload-first ordering.
+
 ### [0.5.0] - 2026-07-17
 - Crash-proof language server: process-level traps, a guarded clangd message pump, and a URI re-serialization fallback (clangd's percent-encoded drive letters silently dropped every diagnostic) — a single bad message or background rejection can no longer take the server down.
 - Embedded C++ intelligence, root-caused clean: every markup expression (attr values, event handlers, expr children, directive headers/bodies) now lifts into the virtual TU with byte-exact source mapping — completion, hover, and diagnostics work inside ALL embedded C++, not just setup. The clangd channel was rebuilt end-to-end: the UBT compile database is sanitized (quote-aware .rsp expansion, MSVC STL + Windows SDK include derivation, SharedPCH force-include dropped, -fmsc-version pinned to the toolchain), clangd is discovered across PATH/LLVM/VS/managed installs, and the demo tree sweeps with ZERO false positives.

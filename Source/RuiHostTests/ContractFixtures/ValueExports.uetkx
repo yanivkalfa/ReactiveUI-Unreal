@@ -1,0 +1,9 @@
+// ES-modules value/util exports (U-01/U-04): typed + inference-sugar values, a private value
+// (RuiPriv-wrapped, same-file reference qualified), and a util function (hook shape minus Ctx).
+export FLinearColor Cool = FLinearColor(0.2f, 0.6f, 0.9f, 1.0f);
+export Accent = FLinearColor(0.9f, 0.2f, 0.2f, 1.0f);
+FLinearColor RowTint = FLinearColor(1.0f, 1.0f, 1.0f, 1.0f);
+export FLinearColor Padded = RowTint;
+export FString FormatScore(int32 Score) {
+	return FString::FromInt(Score);
+}

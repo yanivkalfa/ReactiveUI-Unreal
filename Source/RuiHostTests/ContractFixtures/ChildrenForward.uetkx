@@ -1,4 +1,4 @@
-component ChildrenForward {
+FRuiNode ChildrenForward() {
 	return (
 		<VerticalBox>
 			<TextBlock Text="header" />

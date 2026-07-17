@@ -1,7 +1,7 @@
 import "@Doom/DoomTypes.h"
 import { StatusChip } from "./StatusChip"
 
-export component HostImport {
+export FRuiNode HostImport() {
 	const FString Label = TEXT("host-import");
 	return (
 		<VerticalBox>

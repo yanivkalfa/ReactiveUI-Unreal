@@ -12,6 +12,43 @@ first announcement post lives at the BOTTOM of this file.
 
 **Hard limit: ≤ 2000 characters per entry** (Discord message cap).
 
+## [0.12.0] - 2026-07-18
+
+### ES modules — a .uetkx file IS a module now
+
+**The wrapper keywords are gone (deprecated).** No more `component`/`hook`/`module` — a
+declaration's kind is read from its plain C++ signature: `export FRuiNode Card(FString Label)`
+is a component, `export int32 UseTick(...)` a hook, `export FLinearColor Cool = ...;` a **value
+export**, any other function a util. Style modules become plain value exports.
+
+**The full ES import surface:**
+- `import { Chip as Badge } from "./Chip"` — rename-on-import (tags too: `<Badge/>`)
+- `import * as Palette from "./Palette"` — then `Palette::Cool`
+- `import Home from "./Screen"` — default imports + `export default Screen;`
+- `export { A, B };` deferred export lists
+
+**Privacy is real at runtime now.** A private (non-exported) component's identity is
+file-qualified — two files' private `Row`s can never collide in HMR again (the old
+last-swap-wins bug). Heads-up: renaming a FILE remounts its privates (state reset); exported
+members keep identity.
+
+**One command migrates your whole project:** `-run=RUIMigrateEsModules` — idempotent,
+record-driven (never regex), flips wrappers to plain declarations, hoists modules to value
+exports (importers auto-flip to `* as`), and gates on a zero-diagnostics compile. Old syntax
+still parses this one minor (warns UETKX2320) — then it's removed.
+
+**IDE:** completions/hover/F12 resolve through aliases; embedded-C++ intel types imported
+values/utils; new diagnostics 2320–2327 live. Also fixed: compiler diagnostics silently
+stopped reaching the editor after a sidecar schema bump — they're back.
+
+Update: reinstall the plugin zip + grab UETKX 0.6.0 (VS Code + VS 2022). Re-run the codemod
+per the docs' "Migrating to ES modules" page.
+
+**Tooling:** UETKX 0.6.0 (VS Code + VS 2022) · battery 128/128 · LSP 49/49 · 31 contract
+goldens · corpus pinned tri-repo
+
+---
+
 ## [0.11.0] - 2026-07-17
 
 ### Markup everywhere — markup is a first-class expression now

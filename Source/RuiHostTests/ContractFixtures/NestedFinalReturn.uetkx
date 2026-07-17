@@ -1,4 +1,4 @@
-component NestedFinalReturn(bA: bool = false) {
+FRuiNode NestedFinalReturn(bool bA = false) {
 	if (bA) {
 		return ( <TextBlock Text="a" /> );
 	} else {

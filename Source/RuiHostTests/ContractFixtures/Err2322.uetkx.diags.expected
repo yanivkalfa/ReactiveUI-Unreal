@@ -1,0 +1,1 @@
+UETKX2322 0 @13+1: cannot infer the type of `Bad` — the initializer must name the type (`T(...)` / `T{...}`), or declare it: `export <Type> Bad = ...`
