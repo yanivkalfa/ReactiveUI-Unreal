@@ -401,6 +401,35 @@ component CardStack(Names: TArray<FString>) {
 			TestFalse(TEXT("Uses does not record the alias"), Alias.Uses.Contains(TEXT("Chip")));
 		}
 
+		// TD-026 (M3): private runtime identity is FILE-QUALIFIED — two files' private `Row`s get
+		// distinct RegisterComponentId keys; the exported wrapper keeps its short name; NEITHER
+		// private registers a named factory (tree-shaken).
+		{
+			const FString PairSrc = TEXT("FRuiNode Row() {\n\treturn ( <Spacer /> );\n}\n")
+				TEXT("export FRuiNode PAIRNAME() {\n\treturn ( <VerticalBox> <Row /> </VerticalBox> );\n}\n");
+			const FUetkxCompileOutput A = FUetkxCodegen::CompileSource(
+				PairSrc.Replace(TEXT("PAIRNAME"), TEXT("PrivPairA")), TEXT("PrivPairA"));
+			const FUetkxCompileOutput B = FUetkxCodegen::CompileSource(
+				PairSrc.Replace(TEXT("PAIRNAME"), TEXT("PrivPairB")), TEXT("PrivPairB"));
+			if (TestTrue(TEXT("PrivPair sources compile"), A.bOk && B.bOk))
+			{
+				TestTrue(TEXT("A's private Row keys RuiPriv_PrivPairA::Row"),
+						 A.Inl.Contains(TEXT("RegisterComponentId((void*)&Row_UetkxImpl, "
+											 "FName(TEXT(\"RuiPriv_PrivPairA::Row\")))")));
+				TestTrue(TEXT("B's private Row keys RuiPriv_PrivPairB::Row"),
+						 B.Inl.Contains(TEXT("RegisterComponentId((void*)&Row_UetkxImpl, "
+											 "FName(TEXT(\"RuiPriv_PrivPairB::Row\")))")));
+				TestTrue(TEXT("exported components keep the SHORT runtime id"),
+						 A.Inl.Contains(TEXT("RegisterComponentId((void*)&PrivPairA_UetkxImpl, "
+											 "FName(TEXT(\"PrivPairA\")))")));
+				TestFalse(TEXT("no bare-name id for a private component"),
+						  A.Inl.Contains(TEXT("RegisterComponentId((void*)&Row_UetkxImpl, FName(TEXT(\"Row\")))")));
+				TestFalse(TEXT("neither private registers a named factory"),
+						  A.Inl.Contains(TEXT("RegisterNamedFactory(FName(TEXT(\"Row\"))")) ||
+							  B.Inl.Contains(TEXT("RegisterNamedFactory(FName(TEXT(\"Row\"))")));
+			}
+		}
+
 		// Mixed 5-kind file: source order preserved within each phase region.
 		const FUetkxCompileOutput Mixed = FUetkxCodegen::CompileSource(
 			TEXT("export FRuiNode Widget5() {\n\treturn ( <Spacer /> );\n}\n")

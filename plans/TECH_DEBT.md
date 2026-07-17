@@ -660,7 +660,15 @@ referenced from plans/PRs.
   reach and the aggregator TU still fences symbol collisions; only the live-reload registry is flat.
 - **Production-grade resolution:** file-scoped runtime component identity (qualified ids in the
   registry) so private names never alias across files at runtime.
-- **Status:** OPEN (accepted caveat, documented in M5/M9)
+- **Status:** **RESOLVED** (ES-modules M3, CodegenVersion 3). The interpreter half died with HMR v2
+  (interp deleted, TD-027). The registry half: a PRIVATE component's `RegisterComponentId` key is now
+  the FILE-QUALIFIED emitted name `RuiPriv_<Basename>::<Name>` (built from `PrivNamespaceFor` — one
+  source of truth), so two files' private same-named components hold distinct registry + HMR-map
+  identities; exported components keep the short name (2106 ledger guarantees uniqueness). Pinned by
+  `ContractFixtures/PrivPairA/B.uetkx` goldens + the TD-026 block in `ReactiveUIUetkxCodegenTest.cpp`.
+  G-01 documented semantic: renaming a file renames `RuiPriv_<Basename>` ⇒ private members remount
+  (state reset) on the next sweep. The preview's misleading "not compiled yet" hint for private
+  components was fixed in the same window (`UetkxPreview.cpp` — "private — add `export` to preview").
 
 ## TD-027 — HMR v2: Live-Coding-driven whole-project HMR + `ReactiveUetkx` menu/window
 - **Where:** `ReactiveUIInterp` (the interpreter executor), `RuiHmr.*`, `UetkxWatcher.cpp`,

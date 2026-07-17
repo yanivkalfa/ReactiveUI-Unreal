@@ -52,8 +52,10 @@ class REACTIVEUITOOLCHAIN_API FUetkxDriver
 {
 public:
 	/** Bump when generated-code SHAPE changes — the fingerprint that re-stales everything.
-	 *  v2: two-phase (`RUI_UETKX_DECL_PHASE`) aggregator + fwd-decl emit + `#line` directives (M6/M7). */
-	static constexpr int32 CodegenVersion = 2;
+	 *  v2: two-phase (`RUI_UETKX_DECL_PHASE`) aggregator + fwd-decl emit + `#line` directives (M6/M7).
+	 *  v3: ES-modules (U-10) — value/util emission, the import-alias rewrite plane, and the TD-026
+	 *  file-qualified runtime identity for private components (RuiPriv_<Basename>::<Name> keys). */
+	static constexpr int32 CodegenVersion = 3;
 
 	static FString InlPathFor(const FString& UetkxPath) { return UetkxPath + TEXT(".inl"); }
 	static FString SidecarPathFor(const FString& UetkxPath) { return UetkxPath + TEXT(".diags.json"); }

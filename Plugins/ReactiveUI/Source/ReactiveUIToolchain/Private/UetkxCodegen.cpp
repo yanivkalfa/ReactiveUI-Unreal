@@ -1674,9 +1674,17 @@ namespace
 			}
 			Impl += TEXT("}\n");
 		}
+		// TD-026 (ES-modules M3): runtime identity keys. An EXPORTED component registers its short
+		// name (globally unique via the UETKX2106 ledger); a PRIVATE one registers the FILE-QUALIFIED
+		// `RuiPriv_<Basename>::<Name>` — the exact emitted C++ qualified name — so two files' private
+		// same-named components never collide in the process-global registries (HMR maps included).
+		// G-01 documented semantic: renaming a file renames RuiPriv_<Basename> ⇒ private members get
+		// fresh runtime identity ⇒ remount/state-reset on the next sweep.
+		const FString RuntimeId =
+			Decl.bExported ? Decl.Name : PrivNamespaceFor(Basename) + TEXT("::") + Decl.Name;
 		Impl += FString::Printf(TEXT("static const FName G%sUetkxId = RUI::RegisterComponentId((void*)&%s_UetkxImpl, "
 									 "FName(TEXT(\"%s\")));\n"),
-								*Decl.Name, *Decl.Name, *Decl.Name);
+								*Decl.Name, *Decl.Name, *RuntimeId);
 		Impl += FString::Printf(TEXT("static constexpr uint32 %s_RUI_HOOK_SIG = 0x%08Xu;\n"), *Decl.Name,
 								FUetkxFileScan::HookSignature(Decl.HookCalls));
 		Impl += FString::Printf(TEXT("inline FRuiNode %s(%s InProps, TArray<FRuiNode> InChildren, FRuiKey "
