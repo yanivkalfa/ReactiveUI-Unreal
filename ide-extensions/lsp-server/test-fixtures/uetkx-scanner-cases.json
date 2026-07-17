@@ -150,7 +150,19 @@
     "the source `order`, and the exact set of diagnostic CODES. `basename` defaults to \"\" (so the",
     "component/file-name nudge 0103 never fires). `noError` asserts hasError()==false (LINT-only).",
     "fileScan = family-core import/export/mixed grammar (byte-identical family-wide); fileScanLeg =",
-    "per-leg hook casing (Unreal/Unity PascalCase Use*, Godot snake_case use_*)."
+    "per-leg hook casing (Unreal/Unity PascalCase Use*, Godot snake_case use_*).",
+    "ES-MODULES DRAFT (M0.4, plans/ES_MODULES_EXECUTION_PLAN.md — NOT YET IMPLEMENTED, prospective",
+    "hash only): import.localNames (rename target; omitted when == names), import.namespace",
+    "(`* as X` local alias), import.default (default-import local alias), defaultExport (the",
+    "file's `export default <Name>` target, if any) are new fileScan fields. `values`/`utils`",
+    "arrays + `value:`/`util:` order entries are new decl-kind shapes. New-form typed",
+    "component/hook/value/util declarations are per-leg (fileScanLeg) — G-04 native-idiom typing",
+    "means their HEAD grammar is not byte-identical family-wide (GDScript's trailing `-> Type` vs",
+    "C++/C# leading-type head); only the wrapper-keyword deprecation (2320) and the import/export",
+    "surface itself (rename/namespace/default/export-list/export-default, 2323-2325/2327) stay",
+    "family-core, since those are engine-neutral syntax. 2321/2322 need native type spelling to",
+    "trigger (per-leg). 2326 (no default export) is a cross-file RESOLVER check, not a scanner",
+    "diagnostic — it is corpus-tested via ContractFixtures/resolver tests instead, not here."
   ],
   "fileScan": [
     {
@@ -280,6 +292,116 @@
         "diags": [],
         "noError": true
       }
+    },
+    {
+      "name": "S5/es-modules: rename import (`as`)",
+      "input": "import { A as B } from \"./x\"\ncomponent Foo {\n\treturn ( <Spacer /> );\n}\n",
+      "expect": {
+        "imports": [{ "names": ["A"], "localNames": ["B"], "specifier": "./x" }],
+        "diags": []
+      }
+    },
+    {
+      "name": "S5/es-modules: rename import mixed with a plain name in one brace list",
+      "input": "import { A as B, C } from \"./x\"\ncomponent Foo {\n\treturn ( <Spacer /> );\n}\n",
+      "expect": {
+        "imports": [{ "names": ["A", "C"], "localNames": ["B", "C"], "specifier": "./x" }],
+        "diags": []
+      }
+    },
+    {
+      "name": "S5/es-modules: namespace import (`* as`)",
+      "input": "import * as Palette from \"./Palette\"\ncomponent Foo {\n\treturn ( <Spacer /> );\n}\n",
+      "expect": {
+        "imports": [{ "namespace": "Palette", "specifier": "./Palette" }],
+        "diags": []
+      }
+    },
+    {
+      "name": "S5/es-modules: default import",
+      "input": "import Screen from \"./Screen\"\ncomponent Foo {\n\treturn ( <Spacer /> );\n}\n",
+      "expect": {
+        "imports": [{ "default": "Screen", "specifier": "./Screen" }],
+        "diags": []
+      }
+    },
+    {
+      "name": "S5/es-modules: deferred export list (`export { a, b };`)",
+      "input": "component Alpha {\n\treturn ( <Spacer /> );\n}\ncomponent Beta {\n\treturn ( <Spacer /> );\n}\nexport { Alpha, Beta };\n",
+      "expect": {
+        "components": [{ "name": "Alpha", "exported": true }, { "name": "Beta", "exported": true }],
+        "diags": []
+      }
+    },
+    {
+      "name": "S5/es-modules: export list is mixable with inline `export`",
+      "input": "export component Alpha {\n\treturn ( <Spacer /> );\n}\ncomponent Beta {\n\treturn ( <Spacer /> );\n}\nexport { Beta };\n",
+      "expect": {
+        "components": [{ "name": "Alpha", "exported": true }, { "name": "Beta", "exported": true }],
+        "diags": []
+      }
+    },
+    {
+      "name": "S5/es-modules: `export default Name;` does not implicitly export it for named import",
+      "input": "component Screen {\n\treturn ( <Spacer /> );\n}\nexport default Screen;\n",
+      "expect": {
+        "components": [{ "name": "Screen", "exported": false }],
+        "defaultExport": "Screen",
+        "diags": []
+      }
+    },
+    {
+      "name": "S5/es-modules 2320: `component` wrapper is deprecated",
+      "input": "export component LegacyWidget {\n\treturn ( <Spacer /> );\n}\n",
+      "expect": {
+        "components": [{ "name": "LegacyWidget", "exported": true }],
+        "diags": ["UETKX2320"],
+        "noError": true
+      }
+    },
+    {
+      "name": "S5/es-modules 2320: `module` wrapper is deprecated",
+      "input": "export module LegacyStyles { inline const float Pad = 4.0f; }\n",
+      "expect": {
+        "modules": [{ "name": "LegacyStyles", "exported": true }],
+        "diags": ["UETKX2320"],
+        "noError": true
+      }
+    },
+    {
+      "name": "S5/es-modules 2323: export list names an undeclared identifier",
+      "input": "component Foo {\n\treturn ( <Spacer /> );\n}\nexport { Ghost };\n",
+      "expect": { "diags": ["UETKX2323"] }
+    },
+    {
+      "name": "S5/es-modules 2323: `export default` names an undeclared identifier",
+      "input": "component Foo {\n\treturn ( <Spacer /> );\n}\nexport default Ghost;\n",
+      "expect": { "diags": ["UETKX2323"] }
+    },
+    {
+      "name": "S5/es-modules 2324: duplicate export -- already exported inline",
+      "input": "export component Foo {\n\treturn ( <Spacer /> );\n}\nexport { Foo };\n",
+      "expect": { "diags": ["UETKX2324"] }
+    },
+    {
+      "name": "S5/es-modules 2324: duplicate export -- named in two separate export lists",
+      "input": "component Foo {\n\treturn ( <Spacer /> );\n}\nexport { Foo };\nexport { Foo };\n",
+      "expect": { "diags": ["UETKX2324"] }
+    },
+    {
+      "name": "S5/es-modules 2325: import alias collides with a local declaration",
+      "input": "import { A as Foo } from \"./x\"\ncomponent Foo {\n\treturn ( <Spacer /> );\n}\n",
+      "expect": { "diags": ["UETKX2325"] }
+    },
+    {
+      "name": "S5/es-modules 2325: namespace import alias collides with another import's local name",
+      "input": "import { Foo } from \"./a\"\nimport * as Foo from \"./b\"\ncomponent Bar {\n\treturn ( <Spacer /> );\n}\n",
+      "expect": { "diags": ["UETKX2325"] }
+    },
+    {
+      "name": "S5/es-modules 2327: duplicate `export default`",
+      "input": "component Foo {\n\treturn ( <Spacer /> );\n}\ncomponent Bar {\n\treturn ( <Spacer /> );\n}\nexport default Foo;\nexport default Bar;\n",
+      "expect": { "diags": ["UETKX2327"] }
     }
   ],
   "fileScanLeg": [
@@ -450,6 +572,99 @@
         "diags": [],
         "noError": true
       }
+    },
+    {
+      "name": "S5/es-modules: new-form component (`export FRuiNode Name() { ... }`)",
+      "input": "export FRuiNode Widget() {\n\treturn ( <Spacer /> );\n}\n",
+      "expect": {
+        "components": [{ "name": "Widget", "exported": true }],
+        "order": ["component:Widget"],
+        "diags": []
+      }
+    },
+    {
+      "name": "S5/es-modules: private new-form component (no export)",
+      "input": "FRuiNode Widget() {\n\treturn ( <Spacer /> );\n}\n",
+      "expect": { "components": [{ "name": "Widget", "exported": false }], "diags": [] }
+    },
+    {
+      "name": "S5/es-modules: new-form component with C++-native typed params",
+      "input": "export FRuiNode Row(FString Label, int32 Count = 0) {\n\treturn ( <TextBlock Text={ Label } /> );\n}\n",
+      "expect": { "components": [{ "name": "Row", "exported": true }], "diags": [] }
+    },
+    {
+      "name": "S5/es-modules: new-form hook (leading return type, no `->`)",
+      "input": "export int32 UseThing(int32 A) {\n\treturn A;\n}\n",
+      "expect": { "hooks": [{ "name": "UseThing", "exported": true }], "order": ["hook:UseThing"], "diags": [] }
+    },
+    {
+      "name": "S5/es-modules: private new-form hook",
+      "input": "int32 UseThing() {\n\treturn 0;\n}\n",
+      "expect": { "hooks": [{ "name": "UseThing", "exported": false }], "diags": [] }
+    },
+    {
+      "name": "S5/es-modules: new-form hook with explicit `void` return",
+      "input": "export void UseSideEffect() {\n}\n",
+      "expect": { "hooks": [{ "name": "UseSideEffect", "exported": true }], "diags": [] }
+    },
+    {
+      "name": "S5/es-modules: typed value export",
+      "input": "export FLinearColor Cool = FLinearColor(0.23f, 0.65f, 0.95f, 1.0f);\n",
+      "expect": { "values": [{ "name": "Cool", "exported": true }], "order": ["value:Cool"], "diags": [] }
+    },
+    {
+      "name": "S5/es-modules: inferred value export (initializer names the type -- `T(...)`)",
+      "input": "export Accent = FLinearColor(0.9f, 0.2f, 0.2f, 1.0f);\n",
+      "expect": { "values": [{ "name": "Accent", "exported": true }], "diags": [] }
+    },
+    {
+      "name": "S5/es-modules: private value (file-local, no export)",
+      "input": "FLinearColor RowTint = FLinearColor(1.0f, 1.0f, 1.0f, 1.0f);\n",
+      "expect": { "values": [{ "name": "RowTint", "exported": false }], "diags": [] }
+    },
+    {
+      "name": "S5/es-modules: util function (non-`Use`-prefixed, non-FRuiNode-returning)",
+      "input": "export FString FormatScore(int32 Score) {\n\treturn FString::FromInt(Score);\n}\n",
+      "expect": { "utils": [{ "name": "FormatScore", "exported": true }], "order": ["util:FormatScore"], "diags": [] }
+    },
+    {
+      "name": "S5/es-modules: private util function",
+      "input": "FString Pad(FString S) {\n\treturn S;\n}\n",
+      "expect": { "utils": [{ "name": "Pad", "exported": false }], "diags": [] }
+    },
+    {
+      "name": "S5/es-modules: mixed component + hook + value + util + module in source order",
+      "input": "export FRuiNode Widget() {\n\treturn ( <Spacer /> );\n}\nexport int32 UseThing(int32 A) {\n\treturn A;\n}\nexport FLinearColor Cool = FLinearColor(0.23f, 0.65f, 0.95f, 1.0f);\nexport FString FormatScore(int32 Score) {\n\treturn FString::FromInt(Score);\n}\nexport module Styles { inline const float Pad = 4.0f; }\n",
+      "expect": {
+        "components": [{ "name": "Widget", "exported": true }],
+        "hooks": [{ "name": "UseThing", "exported": true }],
+        "values": [{ "name": "Cool", "exported": true }],
+        "utils": [{ "name": "FormatScore", "exported": true }],
+        "modules": [{ "name": "Styles", "exported": true }],
+        "order": ["component:Widget", "hook:UseThing", "value:Cool", "util:FormatScore", "module:Styles"],
+        "diags": ["UETKX2320"],
+        "noError": true
+      }
+    },
+    {
+      "name": "S5/es-modules: mixed old + new declarations in one file (2320 fires only on the wrapper)",
+      "input": "component Legacy {\n\treturn ( <Spacer /> );\n}\nexport FRuiNode Modern() {\n\treturn ( <Spacer /> );\n}\n",
+      "expect": {
+        "components": [{ "name": "Legacy", "exported": false }, { "name": "Modern", "exported": true }],
+        "order": ["component:Legacy", "component:Modern"],
+        "diags": ["UETKX2320"],
+        "noError": true
+      }
+    },
+    {
+      "name": "S5/es-modules 2321: `Use`-prefixed name returning FRuiNode -- did you mean a component?",
+      "input": "export FRuiNode UseThing() {\n\treturn ( <Spacer /> );\n}\n",
+      "expect": { "diags": ["UETKX2321"] }
+    },
+    {
+      "name": "S5/es-modules 2322: cannot infer the type -- initializer does not name a type",
+      "input": "export Bad = 5;\n",
+      "expect": { "diags": ["UETKX2322"] }
     }
   ]
 }

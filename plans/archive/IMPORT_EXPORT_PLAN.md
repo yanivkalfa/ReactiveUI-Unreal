@@ -26,6 +26,11 @@
 - **Strict from day one.** Implicit cross-file resolution = ERROR the moment the feature lands;
   the migration codemod runs inside the same PR so every file gains imports before strictness on.
 - **Named exports only.** No `default`, no `import *`. Re-export = fast-follow, not v1.
+  > **SUPERSEDED 2026-07-17 (owner decision, family G-05 —
+  > [plans/ES_MODULES_GENERAL_PLAN.md](../ES_MODULES_GENERAL_PLAN.md) §2):** the full ES import
+  > surface ships in the ES-modules leg — named, rename-as, `* as` namespace, default import +
+  > `export default`, deferred `export { … };` lists. Re-exports (`export { a } from "./x"`)
+  > remain deferred, unchanged. See [plans/ES_MODULES_EXECUTION_PLAN.md](../ES_MODULES_EXECUTION_PLAN.md).
 - **Specifiers:** relative (`./`, `../`) AND family root alias `~/`, both v1. Engine-native forms
   (`res://`, `Assets/`, `Source/`) FORBIDDEN in import specifiers. Extensionless (`.uetkx` implied).
   `~/` root defined per repo by the existing config walk-up file (`uetkx.config.json`).
