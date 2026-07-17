@@ -794,3 +794,36 @@ referenced from plans/PRs.
   particular form is leg-specific. Until then this is a one-way ledger entry, not a blocker.
 - **Status:** OPEN (informational — no cross-repo PR pending). Unreal + the family's origin
   (Unity) both ship the `@` form; Godot tracked here for whenever the need arises.
+
+## TD-031 — `<Provider>` element: slice-scoped context provision (owner decision 2026-07-17)
+- **Where:** the family markup grammar (all three legs) + `ReactiveUICore` fibers + codegen/LSP
+- **What/why:** context provision is hook-style (`ProvideContext(Handle, Value)` — family API,
+  D-08.3): the provision boundary is the COMPONENT boundary, so providing to a SLICE of a
+  component's markup requires extracting a child component. React spells this as a
+  `<Context.Provider value={…}>` wrapper element scoping exactly its children. During the
+  2026-07-17 testing session the owner reviewed the trade-off and DECIDED to adopt a
+  `<Provider>` element in the future. No hard technical blocker exists: fragments already prove
+  widget-less structural nodes, and since markup compiles to C++, a provider element can
+  desugar to the existing typed call — "a fragment that carries a provided value" (a structural
+  fiber holding the ProvidedContext map slot).
+- **Production-grade resolution:** family RFC first (grammar change must land in all three
+  repos or be recorded as a divergence): agree the element shape (e.g.
+  `<Provider Context={GThemeCtx} Value={Theme}> …children… </Provider>`), then per leg: grammar
+  + parser + a structural provider fiber + codegen desugar + LSP schema/completions + formatter
+  + corpus cases + docs. Keep `ProvideContext` working (the element is sugar over it, not a
+  replacement — same stack, same change detection).
+- **Status:** OPEN — owner-approved direction ("we will switch to that in the future",
+  2026-07-17); scheduled after the IDE-extension debugging passes; blocked on the family RFC.
+
+## TD-032 — Markup-as-value (`auto X = (<Tag>…);`) — family grammar RFC (owner interest 2026-07-17)
+- **Where:** the family markup grammar (all three legs) + codegen + formatter + LSP
+- **What/why:** markup is legal only in return position; assigning a subtree to a local and
+  embedding it with `{ X }` (a React idiom the owner reached for during the testing session,
+  TESTING_BUGS.md TB-12) silently produced garbage C++ for MSVC. The stopgap shipped 2026-07-17:
+  `UETKX0114` (error, both scanners, corpus-pinned) rejects the shape with a pointer here; the
+  supported spelling is extracting a child component.
+- **Production-grade resolution:** family RFC (the TD-031 lane): markup expressions as VALUES —
+  grammar acceptance, codegen lowering to an `FRuiNode` local (the runtime type already exists
+  and `{ X }` children already splice it), formatter layout for markup in initializer position,
+  LSP/corpus in all three legs. No runtime work — this is purely a front-end feature.
+- **Status:** OPEN — diagnostic shipped; the feature awaits the family RFC alongside TD-031.
