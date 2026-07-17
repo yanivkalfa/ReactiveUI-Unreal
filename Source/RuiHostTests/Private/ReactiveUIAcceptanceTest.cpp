@@ -67,7 +67,7 @@ bool FRuiAcceptanceTest::RunTest(const FString&)
 		const FUetkxCheckResult Drift = FUetkxDriver::CheckDrift(Roots);
 		TestEqual(TEXT("1. no .uetkx drift"), Drift.Drift, 0);
 		TestEqual(TEXT("1. no .uetkx compile errors"), Drift.Errors, 0);
-		// 41 = 15 screens (incl. RouterDemo, DoomGame, DoomGameScreen) + 4 interop screens (MvvmDemo,
+		// 42 = 16 screens (incl. ClickCounter, RouterDemo, DoomGame, DoomGameScreen) + 4 interop screens (MvvmDemo,
 		// CommonUiDemo, UmgHostDemo, InteropShowcase — the Epic-interop pillars authored in .uetkx)
 		// + 12 subcomponents (DemoContextPanel, SignalPanel, LabCard, ActivationProbe, ShowcaseProbe,
 		// UmgHostInner, RouterHome, RouterUser, DoomFace, DoomMainMenu, DoomHUD, DoomMinimap — one
@@ -75,8 +75,8 @@ bool FRuiAcceptanceTest::RunTest(const FString&)
 		// SimpleCounter.hooks, AcceptanceLab.style, AcceptanceLab.hooks) + 2 CycleProof (CycleA/CycleB)
 		// + 2 ChildrenProof (ChildHost/ChildParent) + 2 GrammarProof (MultiReturnProof wave G,
 		// HostImportProof INCLUDE_RETIREMENT_PLAN.md §B).
-		TestEqual(TEXT("1. all 41 swept .uetkx files (gallery + interop + cycle + children + grammar proof)"),
-				  Drift.Total, 41);
+		TestEqual(TEXT("1. all 42 swept .uetkx files (gallery + interop + cycle + children + grammar proof)"),
+				  Drift.Total, 42);
 	}
 
 	// 2. The contract goldens hold (codegen shape is what the fixtures pinned).
