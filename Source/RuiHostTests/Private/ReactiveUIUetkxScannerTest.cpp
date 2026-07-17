@@ -101,13 +101,86 @@ bool FRuiUetkxScannerTest::RunTest(const FString&)
 	// Family-core import/export/mixed-decl grammar (`fileScan`) + per-leg hook casing (`fileScanLeg`)
 	// — the same cases run by lsp-server's node --test (the mirror contract, A4).
 	auto Join = [](const TArray<FString>& A, const TCHAR* Sep) { return FString::Join(A, Sep); };
-	auto KindName = [](EUetkxDeclKind K)
+	auto KindName = [](EUetkxDeclKind K) -> const TCHAR*
 	{
-		return K == EUetkxDeclKind::Component ? TEXT("component")
-			   : K == EUetkxDeclKind::Hook	  ? TEXT("hook")
-											  : TEXT("module");
+		switch (K)
+		{
+			case EUetkxDeclKind::Component:
+				return TEXT("component");
+			case EUetkxDeclKind::Hook:
+				return TEXT("hook");
+			case EUetkxDeclKind::Module:
+				return TEXT("module");
+			case EUetkxDeclKind::Value:
+				return TEXT("value");
+			case EUetkxDeclKind::Util:
+				return TEXT("util");
+		}
+		return TEXT("module");
 	};
-	auto RunFileScan = [this, &Total, &Join, &KindName](const TSharedPtr<FJsonObject>& Case)
+	// ES-modules (M1): a single canonical import stringification used for BOTH the expected (JSON)
+	// and actual (FUetkxImportDecl) sides, so rename/namespace/default forms compare exactly.
+	auto ExpectedImportKey = [](const TSharedPtr<FJsonObject>& O) -> FString
+	{
+		FString Spec, Ns, Def;
+		O->TryGetStringField(TEXT("specifier"), Spec);
+		if (O->TryGetStringField(TEXT("namespace"), Ns))
+		{
+			return FString::Printf(TEXT("*%s<-%s"), *Ns, *Spec);
+		}
+		if (O->TryGetStringField(TEXT("default"), Def))
+		{
+			return FString::Printf(TEXT("default:%s<-%s"), *Def, *Spec);
+		}
+		TArray<FString> Names, Locals;
+		const TArray<TSharedPtr<FJsonValue>>* NArr = nullptr;
+		if (O->TryGetArrayField(TEXT("names"), NArr))
+		{
+			for (const TSharedPtr<FJsonValue>& NV : *NArr)
+			{
+				Names.Add(NV->AsString());
+			}
+		}
+		const TArray<TSharedPtr<FJsonValue>>* LArr = nullptr;
+		if (O->TryGetArrayField(TEXT("localNames"), LArr))
+		{
+			for (const TSharedPtr<FJsonValue>& LV : *LArr)
+			{
+				Locals.Add(LV->AsString());
+			}
+		}
+		else
+		{
+			Locals = Names;
+		}
+		TArray<FString> Pieces;
+		for (int32 n = 0; n < Names.Num(); ++n)
+		{
+			const FString Local = Locals.IsValidIndex(n) ? Locals[n] : Names[n];
+			Pieces.Add(Local == Names[n] ? Names[n] : FString::Printf(TEXT("%s=>%s"), *Names[n], *Local));
+		}
+		return FString::Printf(TEXT("%s<-%s"), *FString::Join(Pieces, TEXT("|")), *Spec);
+	};
+	auto ActualImportKey = [](const FUetkxImportDecl& I) -> FString
+	{
+		if (I.bNamespace)
+		{
+			return FString::Printf(TEXT("*%s<-%s"), *I.NamespaceAlias, *I.Specifier);
+		}
+		if (I.bDefault)
+		{
+			return FString::Printf(TEXT("default:%s<-%s"), *I.DefaultAlias, *I.Specifier);
+		}
+		TArray<FString> Pieces;
+		for (int32 n = 0; n < I.Names.Num(); ++n)
+		{
+			const FString Local = I.LocalNames.IsValidIndex(n) ? I.LocalNames[n] : I.Names[n];
+			Pieces.Add(Local == I.Names[n] ? I.Names[n] : FString::Printf(TEXT("%s=>%s"), *I.Names[n], *Local));
+		}
+		return FString::Printf(TEXT("%s<-%s"), *FString::Join(Pieces, TEXT("|")), *I.Specifier);
+	};
+	auto RunFileScan = [this, &Total, &Join, &KindName, &ExpectedImportKey,
+						&ActualImportKey](const TSharedPtr<FJsonObject>& Case)
 	{
 		const FString Name = Case->GetStringField(TEXT("name"));
 		const FString Input = Case->GetStringField(TEXT("input"));
@@ -124,20 +197,20 @@ bool FRuiUetkxScannerTest::RunTest(const FString&)
 			TArray<FString> ExpS;
 			for (const TSharedPtr<FJsonValue>& V : *Exp)
 			{
-				const TSharedPtr<FJsonObject> O = V->AsObject();
-				TArray<FString> Ns;
-				for (const TSharedPtr<FJsonValue>& NV : O->GetArrayField(TEXT("names")))
-				{
-					Ns.Add(NV->AsString());
-				}
-				ExpS.Add(FString::Printf(TEXT("%s<-%s"), *Join(Ns, TEXT("|")), *O->GetStringField(TEXT("specifier"))));
+				ExpS.Add(ExpectedImportKey(V->AsObject()));
 			}
 			TArray<FString> ActS;
 			for (const FUetkxImportDecl& I : Scan.Imports)
 			{
-				ActS.Add(FString::Printf(TEXT("%s<-%s"), *Join(I.Names, TEXT("|")), *I.Specifier));
+				ActS.Add(ActualImportKey(I));
 			}
 			TestEqual(Label + TEXT(" imports"), Join(ActS, TEXT(";")), Join(ExpS, TEXT(";")));
+		}
+
+		FString ExpDefault;
+		if (Expect->TryGetStringField(TEXT("defaultExport"), ExpDefault))
+		{
+			TestEqual(Label + TEXT(" defaultExport"), Scan.DefaultExportName, ExpDefault);
 		}
 
 		auto CheckDecls = [&](const TCHAR* Field, const TArray<FString>& ActNames, const TArray<bool>& ActExported)
@@ -163,8 +236,8 @@ bool FRuiUetkxScannerTest::RunTest(const FString&)
 			}
 			TestEqual(Label + TEXT(" ") + Field, Join(ActS, TEXT(",")), Join(ExpS, TEXT(",")));
 		};
-		TArray<FString> CNames, HNames, MNames;
-		TArray<bool> CExp, HExp, MExp;
+		TArray<FString> CNames, HNames, MNames, VNames, UNames;
+		TArray<bool> CExp, HExp, MExp, VExp, UExp;
 		for (const FUetkxComponentDecl& D : Scan.Components)
 		{
 			CNames.Add(D.Name);
@@ -180,9 +253,21 @@ bool FRuiUetkxScannerTest::RunTest(const FString&)
 			MNames.Add(D.Name);
 			MExp.Add(D.bExported);
 		}
+		for (const FUetkxValueDecl& D : Scan.Values)
+		{
+			VNames.Add(D.Name);
+			VExp.Add(D.bExported);
+		}
+		for (const FUetkxUtilDecl& D : Scan.Utils)
+		{
+			UNames.Add(D.Name);
+			UExp.Add(D.bExported);
+		}
 		CheckDecls(TEXT("components"), CNames, CExp);
 		CheckDecls(TEXT("hooks"), HNames, HExp);
 		CheckDecls(TEXT("modules"), MNames, MExp);
+		CheckDecls(TEXT("values"), VNames, VExp);
+		CheckDecls(TEXT("utils"), UNames, UExp);
 
 		if (Expect->TryGetArrayField(TEXT("order"), Exp))
 		{
@@ -194,9 +279,25 @@ bool FRuiUetkxScannerTest::RunTest(const FString&)
 			TArray<FString> ActS;
 			for (const TPair<EUetkxDeclKind, int32>& P : Scan.Order)
 			{
-				const FString Nm = P.Key == EUetkxDeclKind::Component ? Scan.Components[P.Value].Name
-								   : P.Key == EUetkxDeclKind::Hook	  ? Scan.Hooks[P.Value].Name
-																	  : Scan.Modules[P.Value].Name;
+				FString Nm;
+				switch (P.Key)
+				{
+					case EUetkxDeclKind::Component:
+						Nm = Scan.Components[P.Value].Name;
+						break;
+					case EUetkxDeclKind::Hook:
+						Nm = Scan.Hooks[P.Value].Name;
+						break;
+					case EUetkxDeclKind::Module:
+						Nm = Scan.Modules[P.Value].Name;
+						break;
+					case EUetkxDeclKind::Value:
+						Nm = Scan.Values[P.Value].Name;
+						break;
+					case EUetkxDeclKind::Util:
+						Nm = Scan.Utils[P.Value].Name;
+						break;
+				}
 				ActS.Add(FString::Printf(TEXT("%s:%s"), KindName(P.Key), *Nm));
 			}
 			TestEqual(Label + TEXT(" order"), Join(ActS, TEXT(",")), Join(ExpS, TEXT(",")));

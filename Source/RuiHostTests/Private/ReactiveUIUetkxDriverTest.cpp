@@ -68,7 +68,10 @@ bool FRuiUetkxDriverTest::RunTest(const FString&)
 			TestTrue(TEXT("v3 records an export_hash"), Sidecar->HasField(TEXT("export_hash")));
 			TestEqual(TEXT("src_hash recorded"), (uint32)Sidecar->GetNumberField(TEXT("src_hash")),
 					  FUetkxDriver::SrcHash(GoodBadge));
-			TestEqual(TEXT("clean compile -> no diagnostics"), Sidecar->GetArrayField(TEXT("diagnostics")).Num(), 0);
+			// ES-modules (2320): `export component` is the legacy wrapper — one deprecation warning
+			// is now the CORRECT "clean" outcome (no errors) for this still-legal syntax.
+			TestEqual(TEXT("clean compile -> only the 2320 deprecation warning"),
+					  Sidecar->GetArrayField(TEXT("diagnostics")).Num(), 1);
 			TestEqual(TEXT("refs maps component -> inl"),
 					  Sidecar->GetObjectField(TEXT("refs"))->GetStringField(TEXT("Badge")),
 					  FString(TEXT("Badge.uetkx.inl")));
@@ -94,7 +97,8 @@ bool FRuiUetkxDriverTest::RunTest(const FString&)
 		FFileHelper::SaveStringToFile(BrokenSrc, *BrokenPath);
 		const FUetkxFileResult R = FUetkxDriver::CompileFile(BrokenPath);
 		TestFalse(TEXT("broken fails"), R.bOk);
-		TestTrue(TEXT("carries error diags"), R.Diags.Num() > 0 && R.Diags[0].Severity == 0);
+		TestTrue(TEXT("carries error diags"),
+				 R.Diags.Num() > 0 && R.Diags.ContainsByPredicate([](const FUetkxDiag& D) { return D.Severity == 0; }));
 		TestFalse(TEXT("no .inl for broken source"), FM.FileExists(*FUetkxDriver::InlPathFor(BrokenPath)));
 		TestFalse(TEXT("error verdict -> NOT stale (busy-loop guard)"), FUetkxDriver::IsStale(BrokenPath));
 		TestTrue(TEXT("error verdict -> skip"), FUetkxDriver::CompileFile(BrokenPath).bSkipped);

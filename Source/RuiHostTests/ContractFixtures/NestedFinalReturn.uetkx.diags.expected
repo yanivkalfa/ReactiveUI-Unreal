@@ -1,1 +1,2 @@
+UETKX2320 1 @0+9: `component` wrapper syntax is deprecated — write a plain typed declaration (`export FRuiNode Name(...)` / `export <Type> UseName(...)` / `export <Type> Name = ...`); run `-run=RUIMigrateEsModules`. Removed in the next minor.
 UETKX3007 0 @108+6: the component's final markup `return ( ... )` must be at the top level of the body

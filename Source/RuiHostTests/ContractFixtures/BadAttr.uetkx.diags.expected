@@ -1,1 +1,2 @@
+UETKX2320 1 @0+9: `component` wrapper syntax is deprecated — write a plain typed declaration (`export FRuiNode Name(...)` / `export <Type> UseName(...)` / `export <Type> Name = ...`); run `-run=RUIMigrateEsModules`. Removed in the next minor.
 UETKX0105 0 @40+1: unknown attribute 'Bogus' on <Button>

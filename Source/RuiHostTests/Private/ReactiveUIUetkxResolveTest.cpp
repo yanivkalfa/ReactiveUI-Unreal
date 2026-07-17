@@ -77,16 +77,17 @@ bool FRuiUetkxResolveTest::RunTest(const FString&)
 
 	// ── strict diagnostics, one per case (rel = Screens/T.uetkx so ./ anchors in Screens) ─────
 	const FString Rel = TEXT("Screens/T.uetkx");
-	{ // clean: import a used component
+	{ // clean: import a used component (the `component`/`hook` wrapper keywords are still legal —
+	  // ES-modules 2320 is the one expected deprecation warning, not an error)
 		const TArray<FString> C =
 			Codes(TEXT("import { Chip } from \"./Chip\"\ncomponent T {\n\treturn ( <Chip /> );\n}\n"), Rel, R);
-		TestEqual(TEXT("clean import has no diags"), C.Num(), 0);
+		TestEqual(TEXT("clean import has only the 2320 deprecation warning"), C.Num(), 1);
 	}
 	{ // clean: ~/ hook import + use
 		const TArray<FString> C = Codes(TEXT("import { UseThing } from \"~/hooks/Thing\"\ncomponent T "
 											 "{\n\tUseThing();\n\treturn ( <Spacer /> );\n}\n"),
 										Rel, R);
-		TestEqual(TEXT("~/ hook import + use is clean"), C.Num(), 0);
+		TestEqual(TEXT("~/ hook import + use has only the 2320 deprecation warning"), C.Num(), 1);
 	}
 	Has(Codes(TEXT("import { Chip } from \"./Nope\"\ncomponent T {\n\treturn ( <Spacer /> );\n}\n"), Rel, R),
 		TEXT("UETKX2300")); // unknown specifier

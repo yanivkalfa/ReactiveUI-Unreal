@@ -120,10 +120,12 @@ component RowList(Names: TArray<FString>) {
 
 	// ── diagnostics that fail the compile ─────────────────────────────────────────────────
 	{
-		TestEqual(
-			TEXT("2100 lowercase component"),
-			FUetkxCodegen::CompileSource(TEXT("component tiny { return ( <Spacer /> ); }"), TEXT("tiny")).Diags[0].Code,
-			FString(TEXT("UETKX2100")));
+		{
+			FUetkxCompileOutput Lower =
+				FUetkxCodegen::CompileSource(TEXT("component tiny { return ( <Spacer /> ); }"), TEXT("tiny"));
+			TestTrue(TEXT("2100 lowercase component"), Lower.Diags.ContainsByPredicate([](const FUetkxDiag& D)
+																					   { return D.Code == TEXT("UETKX2100"); }));
+		}
 		FUetkxCompileOutput NoReturn =
 			FUetkxCodegen::CompileSource(TEXT("component Empty { int32 A = 1; }"), TEXT("Empty"));
 		TestTrue(TEXT("2101 no markup return"), !NoReturn.bOk && NoReturn.Diags.Last().Code == TEXT("UETKX2101"));
