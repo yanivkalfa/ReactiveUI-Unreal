@@ -142,6 +142,91 @@ test("virtual doc emits REAL declarations for cross-file imports (hook signature
   fs.rmSync(root, { recursive: true, force: true });
 });
 
+test("§2 lifter: markup expressions become mapped code regions (events, directives, children)", () => {
+  const src = [
+    "export component Lift {",
+    "\tauto [Count, SetCount] = UseState<int32>(0);",
+    "\treturn (",
+    "\t\t<VerticalBox>",
+    '\t\t\t<Button OnClicked={ SetCount(Count + 1) } ContentPadding="12,4">Go</Button>',
+    "\t\t\t{ RUI::TextBlock(FString(TEXT(\"hi\"))) }",
+    "\t\t\t@for (int32 i = 0; i < 3; ++i) {",
+    "\t\t\t\tconst FString Row = FString::FromInt(i);",
+    "\t\t\t\treturn ( <TextBlock Text={ Row } /> );",
+    "\t\t\t}",
+    "\t\t</VerticalBox>",
+    "\t);",
+    "}",
+    "",
+  ].join("\n");
+  const vd = buildVirtualCpp(src, "Lift");
+  assert.ok(vd.text.includes("(void)[=](const FRuiValue& Value)"), "event handler lifted in codegen's lambda shape");
+  assert.ok(vd.text.includes("for (int32 i = 0; i < 3; ++i) {"), "directive header lifted as a REAL loop");
+  assert.ok(vd.text.includes("const FString Row = FString::FromInt(i);"), "directive-body statement lifted inside the loop scope");
+  assert.ok(vd.text.includes('RUI::TextBlock(FString(TEXT("hi")))'), "expr child lifted");
+  // Round-trip: an offset INSIDE the OnClicked expression maps into the virtual doc and back.
+  const at = src.indexOf("SetCount(Count + 1)");
+  const vir = vd.map.sourceToVirtual(at);
+  assert.ok(vir !== null && vd.map.virtualToSource(vir) === at, "attr-expr offsets round-trip");
+  // Empty-setup components still scaffold (HelloWorld shape).
+  const hw = buildVirtualCpp('component Tiny { return ( <Spacer Size={ FVector2D(1.0f, 2.0f) } /> ); }', "Tiny");
+  assert.ok(hw.text.includes("__rui_setup_Tiny"), "empty-setup scaffold present");
+  assert.ok(hw.text.includes("FVector2D(1.0f, 2.0f)"), "its attr expr lifted");
+});
+
+test("§2 prefix: qualified real-header hooks get decltype adapters; imported components declared", () => {
+  const src = [
+    'import "@Doom/DoomGameHook.h"',
+    "export component Q {",
+    "\tauto View = RuiDoom::UseDoomGame(1, 2, 3);",
+    "\treturn ( <Spacer /> );",
+    "}",
+    "",
+  ].join("\n");
+  const vd = buildVirtualCpp(src, "Q");
+  assert.ok(
+    vd.text.includes("namespace RuiDoom { template <typename... TArgs> auto UseDoomGame(TArgs&&... Args) -> decltype(UseDoomGame(Ctx, static_cast<TArgs&&>(Args)...)); }"),
+    "qualified-hook adapter emitted inside its namespace",
+  );
+  // A comment mentioning a qualified hook must NOT produce an adapter (code-aware scan).
+  const commented = buildVirtualCpp('component C {\n\t// see Fake::UseGhost(1) for details\n\treturn ( <Spacer /> );\n}\n', "C");
+  // The comment itself rides along in the verbatim setup region — only the ADAPTER must not exist.
+  assert.ok(!commented.text.includes("decltype(UseGhost"), "commented pseudo-call produces no adapter");
+  // Imported components appear as fully-defaulted wrapper declarations via the resolver.
+  const resolver = () => ({ hooks: [], modules: [], components: ["RouterHome"] });
+  const withComp = buildVirtualCpp('import { RouterHome } from "./R"\ncomponent W {\n\tauto N = RouterHome();\n\treturn ( <Spacer /> );\n}\n', "W", resolver);
+  assert.ok(withComp.text.includes("FRuiNode RouterHome();"), "imported component declared");
+});
+
+test("§2 sanitizer: rsp expansion honors quotes; SharedPCH dropped; system includes appended", () => {
+  const { tokenizeRspLine, sanitizeCompileCommands, mirrorNeedsRefresh } = require("../clangdProxy") as typeof import("../clangdProxy");
+  assert.deepStrictEqual(tokenizeRspLine('/I "C:\\Program Files\\X" '), ["/I", "C:\\Program Files\\X"]);
+  assert.deepStrictEqual(tokenizeRspLine("/DFOO=1"), ["/DFOO=1"]);
+  assert.deepStrictEqual(tokenizeRspLine(""), []);
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "uetkx-sani-"));
+  const rsp = path.join(dir, "M.1.rsp");
+  fs.writeFileSync(
+    rsp,
+    '/FI "C:\\x\\Definitions.M.h" \n/FI "C:\\x\\SharedPCH.Big.h" \n/I "C:\\Program Files\\Inc" \n/std:c++20\n',
+  );
+  const db = path.join(dir, "compileCommands_T.json");
+  fs.writeFileSync(db, JSON.stringify([{ file: "C:\\x\\a.cpp", directory: "C:\\x", arguments: ["cl.exe", `@${rsp}`] }]));
+  const entries = sanitizeCompileCommands(db);
+  const args = entries[0].arguments;
+  assert.ok(!args.some((a) => /SharedPCH/i.test(a)), "SharedPCH force-include dropped");
+  assert.ok(args.includes("C:\\x\\Definitions.M.h"), "Definitions force-include kept");
+  assert.ok(args.includes("C:\\Program Files\\Inc"), "quoted path with spaces survives");
+
+  // mirrorNeedsRefresh: rsp-form and command-form targets self-heal; sanitized form does not.
+  const target = path.join(dir, "compile_commands.json");
+  fs.writeFileSync(target, JSON.stringify([{ file: "a", directory: "b", arguments: ["cl.exe", "@x.rsp"] }]));
+  assert.strictEqual(mirrorNeedsRefresh(db, target), true, "unexpanded @rsp target refreshes");
+  fs.writeFileSync(target, JSON.stringify(entries, null, "\t"));
+  assert.strictEqual(mirrorNeedsRefresh(db, target), false, "sanitized target is stable");
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
 test("findCompileCommands picks up UBT's .vscode generator output, project file over Default (TB-10)", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "uetkx-ccdb-"));
   const vscodeDir = path.join(root, ".vscode");

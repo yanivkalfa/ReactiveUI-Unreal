@@ -7,3 +7,9 @@
 # the include set but DROPS /std:c++20 — re-pin it here (cl driver mode, hence the slash form).
 CompileFlags:
   Add: [/std:c++20]
+  # UBT's VSCode-generator commands force-include the module's SharedPCH *header* (meant for
+  # MSVC's compiled-PCH machinery). Re-parsing that ~everything-header under clang fails
+  # partway and silently truncates core engine templates (TFunction internals!) — every
+  # downstream "undeclared identifier" was cascade from this. Definitions.*.h (the macro set)
+  # stays force-included; the PCH header goes.
+  Remove: [/FI*SharedPCH*, -include*SharedPCH*]

@@ -156,6 +156,155 @@ export function drainMessages(buffer: Buffer): { messages: unknown[]; rest: Buff
   return { messages, rest };
 }
 
+/** §2 root-cause fix: UBT's VSCode-generator commands force-include the module's SharedPCH
+ *  HEADER — meant for MSVC's compiled-PCH machinery. Re-parsing that everything-header under
+ *  clang fails partway and silently truncates core engine templates (TFunction's internals
+ *  came back "undefined"); every downstream `undeclared identifier` was cascade. The mirror
+ *  therefore EXPANDS each entry's @rsp into explicit arguments and drops the `/FI <SharedPCH>`
+ *  pair (Definitions.*.h — the macro set — stays). Explicit arguments also remove clangd's
+ *  rsp-expansion variability. Exported for tests. */
+/** Split one rsp line into arguments, honoring double quotes (`/I "C:\Program Files\X"` →
+ *  two args, quotes stripped). Exported for tests. */
+export function tokenizeRspLine(line: string): string[] {
+  const out: string[] = [];
+  let cur = "";
+  let inQuotes = false;
+  let sawAny = false;
+  for (const ch of line) {
+    if (ch === '"') {
+      inQuotes = !inQuotes;
+      sawAny = true;
+      continue;
+    }
+    if (!inQuotes && (ch === " " || ch === "\t")) {
+      if (sawAny) {
+        out.push(cur);
+        cur = "";
+        sawAny = false;
+      }
+      continue;
+    }
+    cur += ch;
+    sawAny = true;
+  }
+  if (sawAny) {
+    out.push(cur);
+  }
+  return out;
+}
+
+export function sanitizeCompileCommands(dbPath: string): Array<{ file: string; directory: string; arguments: string[] }> {
+  const raw = JSON.parse(fs.readFileSync(dbPath, "utf8")) as Array<{
+    file: string;
+    directory: string;
+    arguments?: string[];
+    command?: string;
+  }>;
+  const out: Array<{ file: string; directory: string; arguments: string[] }> = [];
+  for (const entry of raw) {
+    let args = entry.arguments ?? (entry.command ? entry.command.split(/\s+/) : []);
+    // Expand response files (`@path.rsp`). UBT's rsp lines hold flag+value PAIRS with quoted
+    // paths (`/I "C:\Program Files\…"`) — tokenize per line honoring double quotes; one
+    // line is NOT one argument.
+    const expanded: string[] = [];
+    for (const a of args) {
+      if (a.startsWith("@")) {
+        try {
+          const rsp = fs.readFileSync(a.slice(1), "utf8");
+          for (const line of rsp.split(/\r?\n/)) {
+            expanded.push(...tokenizeRspLine(line));
+          }
+        } catch {
+          expanded.push(a); // unreadable rsp — keep the reference, clangd can try
+        }
+      } else {
+        expanded.push(a);
+      }
+    }
+    // Drop the SharedPCH force-include: `/FI <path>`, `/FIpath`, `-include <path>` forms.
+    const cleaned: string[] = [];
+    for (let i = 0; i < expanded.length; i++) {
+      const a = expanded[i];
+      const next = expanded[i + 1] ?? "";
+      if ((a === "/FI" || a === "-include") && /SharedPCH/i.test(next)) {
+        i++; // skip the path too
+        continue;
+      }
+      if (/^(\/FI|-include)/.test(a) && /SharedPCH/i.test(a)) {
+        continue;
+      }
+      cleaned.push(a);
+    }
+    // The rsp carries NO STL/SDK paths — real cl.exe gets them from its ENVIRONMENT, which
+    // clangd's spawn doesn't have, and driver auto-detection is unreliable outside a VS
+    // prompt ('type_traits' file not found was the root under every cascade). Derive them
+    // deterministically: MSVC's include dir from the entry's own cl.exe path, the Windows
+    // SDK from its standard install root; append as -imsvc (clang-cl system includes).
+    cleaned.push(...systemIncludeArgs(cleaned[0] ?? ""));
+    out.push({ file: entry.file, directory: entry.directory, arguments: cleaned });
+  }
+  return out;
+}
+
+let cachedSystemIncludes: string[] | null = null;
+/** `-imsvc` args for the MSVC STL (derived from the cl.exe path: …\VC\Tools\MSVC\<ver>\bin\…
+ *  → …\include) and the newest installed Windows 10/11 SDK (ucrt/shared/um/winrt). Cached —
+ *  identical for every entry. Exported for tests. */
+export function systemIncludeArgs(clExePath: string): string[] {
+  if (cachedSystemIncludes) {
+    return cachedSystemIncludes;
+  }
+  const args: string[] = [];
+  const msvcMatch = /^(.*\\VC\\Tools\\MSVC\\(\d+)\.(\d+)[^\\]*)\\bin\\/i.exec(clExePath);
+  if (msvcMatch && fs.existsSync(path.join(msvcMatch[1], "include"))) {
+    args.push("-imsvc", path.join(msvcMatch[1], "include"));
+    // clang assumes _MSC_VER 1933 by default; UE's headers static_assert on the REAL
+    // toolchain version (14.44 → 1944). Derive it from the same path.
+    args.push(`-fmsc-version=19${msvcMatch[3]}`);
+  }
+  for (const kitsRoot of ["C:\\Program Files (x86)\\Windows Kits\\10\\Include", "C:\\Program Files\\Windows Kits\\10\\Include"]) {
+    try {
+      const versions = fs
+        .readdirSync(kitsRoot)
+        .filter((v) => /^\d+\./.test(v))
+        .sort()
+        .reverse();
+      if (versions.length > 0) {
+        for (const sub of ["ucrt", "shared", "um", "winrt"]) {
+          const p = path.join(kitsRoot, versions[0], sub);
+          if (fs.existsSync(p)) {
+            args.push("-imsvc", p);
+          }
+        }
+        break;
+      }
+    } catch {
+      /* kit root absent — try the next */
+    }
+  }
+  cachedSystemIncludes = args;
+  return args;
+}
+
+/** The mirror refreshes when the source is newer OR when the existing target is not in
+ *  sanitized form: a visible SharedPCH force-include, an UNEXPANDED `@rsp` reference (which
+ *  can hide the SharedPCH inside the response file), or `command`-string entries. Content-
+ *  based, so stale pre-sanitizer mirrors self-heal regardless of mtimes. */
+export function mirrorNeedsRefresh(srcPath: string, targetPath: string): boolean {
+  if (!fs.existsSync(targetPath)) {
+    return true;
+  }
+  try {
+    if (fs.statSync(targetPath).mtimeMs < fs.statSync(srcPath).mtimeMs) {
+      return true;
+    }
+    const txt = fs.readFileSync(targetPath, "utf8");
+    return /SharedPCH/i.test(txt) || txt.includes('"@') || txt.includes('"command"');
+  } catch {
+    return true;
+  }
+}
+
 export class ClangdProxy {
   private proc: ChildProcessWithoutNullStreams | null = null;
   private buffer: Buffer = Buffer.alloc(0);
@@ -198,17 +347,15 @@ export class ClangdProxy {
         if (cc) {
           // clangd only reads the CANONICAL filename from --compile-commands-dir. When the hit
           // is UBT's .vscode/compileCommands_*.json, mirror it to <root>/compile_commands.json
-          // (refreshed when the source is newer) — no manual copy step for the user (TB-10).
+          // SANITIZED (no manual copy step for the user, TB-10; no MSVC-only flags, §2).
           let ccDir: string | null = null;
           if (path.basename(cc) === "compile_commands.json") {
             ccDir = path.dirname(cc);
           } else {
             const target = path.join(path.dirname(path.dirname(cc)), "compile_commands.json");
             try {
-              const src = fs.statSync(cc);
-              const dst = fs.existsSync(target) ? fs.statSync(target) : null;
-              if (!dst || dst.mtimeMs < src.mtimeMs) {
-                fs.copyFileSync(cc, target);
+              if (mirrorNeedsRefresh(cc, target)) {
+                fs.writeFileSync(target, JSON.stringify(sanitizeCompileCommands(cc), null, "\t"));
               }
               ccDir = path.dirname(target);
             } catch {

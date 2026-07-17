@@ -174,6 +174,9 @@ export function listUetkxFiles(rootDir: string): string[] {
 export interface ImportedSurface {
   hooks: Array<{ name: string; ret: string; params: string }>;
   modules: Array<{ name: string; body: string }>;
+  /** Component names — their generated wrappers are fully-defaulted (`FRuiNode Name();` is a
+   *  valid call shape), and CODE references them (router tables: `RouterHome()`). */
+  components: string[];
 }
 
 const surfaceCache = new Map<string, { mtimeMs: number; surface: ImportedSurface }>();
@@ -202,6 +205,7 @@ export function importedSurfaceFor(importerFsPath: string, specifier: string): I
   const surface: ImportedSurface = {
     hooks: scan.hooks.map((h) => ({ name: h.name, ret: h.ret, params: h.params })),
     modules: scan.modules.map((m) => ({ name: m.name, body: m.body })),
+    components: scan.components.map((c) => c.name),
   };
   surfaceCache.set(key, { mtimeMs, surface });
   return surface;

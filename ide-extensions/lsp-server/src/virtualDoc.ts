@@ -8,9 +8,11 @@
 // virtual doc and translate the answer ranges back. Regions outside embedded C++ contribute
 // nothing (a request there returns null — markup intelligence is the schema-driven path).
 
-import { scanFile, UetkxComponentDecl, UetkxHookDecl, UetkxModuleDecl } from "./uetkxFileScan";
+import { collectMarkupReturns, scanFile, UetkxComponentDecl, UetkxHookDecl, UetkxModuleDecl } from "./uetkxFileScan";
+import { parseMarkup, UetkxNode } from "./uetkxMarkup";
+import { skipNoncode } from "./cppScanner";
 import { SourceMap, SourceSpan } from "./sourceMap";
-import { codePointToUtf16 } from "./codePoints";
+import { codePointToUtf16, fromCodePoints, toCodePoints } from "./codePoints";
 
 export interface VirtualDoc {
   /** The synthesized C++ translation unit. */
@@ -27,6 +29,7 @@ export interface VirtualDoc {
  *  UetkxDriver.cpp) UNGUARDED — clangd simply fails to resolve a header missing from a
  *  non-interop workspace's compile_commands, degrading exactly as it did before this plan. A
  *  header added to the aggregator prelude should be added here too. */
+const guarded = (h: string): string => `#if __has_include("${h}")\n#include "${h}"\n#endif`;
 const PRELUDE = [
   "// GENERATED virtual C++ for .uetkx embedded-code intelligence (TD-020). Do not edit.",
   '#include "CoreMinimal.h"',
@@ -36,15 +39,18 @@ const PRELUDE = [
   '#include "RuiSlateElements.h"',
   '#include "RuiStyle.h"',
   '#include "RuiRouter.h"',
-  '#include "RuiAssetBrush.h"',
-  '#include "RuiFieldHooks.h"',
-  '#include "RuiUmgElement.h"',
-  '#include "RuiSignalViewModel.h"',
-  '#include "RuiHostWidget.h"',
-  '#include "RuiWorldSubsystem.h"',
-  '#include "RuiActivation.h"',
-  '#include "RuiActivatableScreen.h"',
-  '#include "RuiMvvmViewModel.h"',
+  // Optional-module headers are __has_include-guarded EXACTLY like the aggregator prelude
+  // (UetkxDriver.cpp): a workspace whose project doesn't link an interop module must not see
+  // a file-not-found error in its virtual TU.
+  guarded("RuiAssetBrush.h"),
+  guarded("RuiFieldHooks.h"),
+  guarded("RuiUmgElement.h"),
+  guarded("RuiSignalViewModel.h"),
+  guarded("RuiHostWidget.h"),
+  guarded("RuiWorldSubsystem.h"),
+  guarded("RuiActivation.h"),
+  guarded("RuiActivatableScreen.h"),
+  guarded("RuiMvvmViewModel.h"),
   '#include "UObject/StrongObjectPtr.h"',
   '#include "Engine/World.h"',
   "using namespace RUI;",
@@ -73,7 +79,54 @@ const CTX_MEMBER_HOOKS = [
 export type ImportSurfaceResolver = (specifier: string) => {
   hooks: Array<{ name: string; ret: string; params: string }>;
   modules: Array<{ name: string; body: string }>;
+  components: string[];
 } | null;
+
+/** Qualified real-header hook calls (`RuiDoom::UseDoomGame(A, B, C)`): codegen inserts `Ctx`
+ *  as the first argument, so the REAL declaration has one more parameter than the markup
+ *  call. Collect every `Ns::…::UseX` chain (code-aware — comments/strings can't fake one)
+ *  and emit a variadic adapter INSIDE the same namespace whose decltype return type derives
+ *  from the real function: overload resolution picks the adapter for the Ctx-less call and
+ *  the real one for explicit-Ctx calls. */
+function scanQualifiedHookCalls(source: string): Array<{ namespaces: string[]; name: string }> {
+  const cp = toCodePoints(source);
+  const n = cp.length;
+  const isIdent = (c: number) => (c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c === 95;
+  const out = new Map<string, { namespaces: string[]; name: string }>();
+  let i = 0;
+  while (i < n) {
+    const j = skipNoncode(cp, i);
+    if (j !== i) {
+      i = j;
+      continue;
+    }
+    const wordStart = (i === 0 || !isIdent(cp[i - 1])) && isIdent(cp[i]) && !(cp[i] >= 48 && cp[i] <= 57);
+    if (!wordStart) {
+      i++;
+      continue;
+    }
+    // Read an ident::ident::…::ident chain.
+    const chain: string[] = [];
+    let k = i;
+    for (;;) {
+      const s = k;
+      while (k < n && isIdent(cp[k])) k++;
+      chain.push(fromCodePoints(cp, s, k - s));
+      if (k + 1 < n && cp[k] === 58 /*:*/ && cp[k + 1] === 58) {
+        k += 2;
+        continue;
+      }
+      break;
+    }
+    if (chain.length >= 2 && /^Use[A-Z]/.test(chain[chain.length - 1]) && k < n && (cp[k] === 40 /*(*/ || cp[k] === 60 /*<*/)) {
+      const name = chain[chain.length - 1];
+      const namespaces = chain.slice(0, -1);
+      out.set(chain.join("::"), { namespaces, name });
+    }
+    i = k > i ? k : i + 1;
+  }
+  return [...out.values()];
+}
 
 /** Per-file virtual-doc prefix (TB-10): the fixed PRELUDE, then the file's OWN host includes
  *  (`import "@X.h"` — without them `RuiDemo::…` symbols are undeclared in the virtual TU),
@@ -83,13 +136,15 @@ export type ImportSurfaceResolver = (specifier: string) => {
  *  hooks are emitted WITHOUT a Ctx param so bare in-file calls keep their arity). Order
  *  matters: all #includes and verbatim bodies BEFORE the #defines, or the shims would mangle
  *  any occurrence of a builtin hook name inside them. */
-function buildPrefix(scan: ReturnType<typeof scanFile>, resolveImport?: ImportSurfaceResolver): string {
+function buildPrefix(scan: ReturnType<typeof scanFile>, source: string, resolveImport?: ImportSurfaceResolver): string {
   const lines: string[] = [PRELUDE];
   for (const imp of scan.imports) {
     if (imp.hostInclude) {
       lines.push(`#include "${imp.specifier}"`);
     }
   }
+  // Ctx BEFORE the surfaces/adapters — the qualified-hook adapters' decltype references it.
+  lines.push("extern FRuiContext Ctx;");
   if (resolveImport) {
     for (const imp of scan.imports) {
       if (imp.hostInclude || imp.names.length === 0) continue;
@@ -107,9 +162,20 @@ function buildPrefix(scan: ReturnType<typeof scanFile>, resolveImport?: ImportSu
           lines.push(`namespace ${m.name} {`, m.body, `}`);
         }
       }
+      for (const c of surface.components) {
+        if (wanted.has(c)) {
+          lines.push(`FRuiNode ${c}();`); // the generated wrapper is fully-defaulted
+        }
+      }
     }
   }
-  lines.push("extern FRuiContext Ctx;");
+  for (const q of scanQualifiedHookCalls(source)) {
+    const open = q.namespaces.map((ns) => `namespace ${ns} { `).join("");
+    const close = q.namespaces.map(() => "}").join(" ");
+    lines.push(
+      `${open}template <typename... TArgs> auto ${q.name}(TArgs&&... Args) -> decltype(${q.name}(Ctx, static_cast<TArgs&&>(Args)...)); ${close}`,
+    );
+  }
   for (const hook of CTX_MEMBER_HOOKS) {
     lines.push(`#define ${hook} Ctx.${hook}`);
   }
@@ -120,7 +186,7 @@ function buildPrefix(scan: ReturnType<typeof scanFile>, resolveImport?: ImportSu
 /** Build the virtual C++ document + source map for a .uetkx source. */
 export function buildVirtualCpp(source: string, basename = "doc", resolveImport?: ImportSurfaceResolver): VirtualDoc {
   const scan = scanFile(source, basename);
-  const prefix = buildPrefix(scan, resolveImport);
+  const prefix = buildPrefix(scan, source, resolveImport);
   const parts: string[] = [prefix];
   const spans: SourceSpan[] = [];
   let vir = prefix.length;
@@ -141,8 +207,129 @@ export function buildVirtualCpp(source: string, basename = "doc", resolveImport?
     vir += suffix.length;
   };
 
+  const raw = (text: string): void => {
+    parts.push(text);
+    vir += text.length;
+  };
+
+  // ── §2 (MARKUP_EVERYWHERE_PLAN): lift every markup EXPRESSION into the component's
+  // function scope so clangd sees ALL embedded C++, not just the setup. A body is a body:
+  // directives mirror as REAL C++ control flow (`if`/`for`/`while` with their actual
+  // condition/header text) so directive-local declarations scope correctly for the
+  // expressions nested under them. Event handlers wrap in codegen's exact lambda shape
+  // (`[=](const FRuiValue& Value)`) so `Value.…` types for real. Every emitted region is an
+  // EXACT source substring (the parser's trimmed-start offsets guarantee it) — the source
+  // map's byte-identity contract is untouched.
+  const liftBody = (bodyText: string, absAt: number): void => {
+    // A directive body is a mini-body: verbatim statements + markup returns (wave G).
+    // Slices go through code points — bodyText.slice() with cp indices would shear on
+    // non-BMP content (the B14 lesson).
+    const cp = toCodePoints(bodyText);
+    const returns = collectMarkupReturns(cp);
+    let cursor = 0;
+    for (const span of returns) {
+      const stmts = fromCodePoints(cp, cursor, span.returnAt - cursor);
+      if (stmts.trim().length > 0) {
+        emit(stmts, absAt + cursor, "\n", "\n");
+      }
+      const parsed = parseMarkup(cp, span.mStart, span.mEnd);
+      if (!parsed.errorCode) {
+        for (const n of parsed.nodes) liftNode(n, absAt);
+      }
+      cursor = span.afterParen;
+    }
+    const tail = fromCodePoints(cp, cursor, cp.length - cursor);
+    if (tail.trim().length > 0) {
+      emit(tail, absAt + cursor, "\n", "\n");
+    }
+  };
+
+  const liftNode = (node: UetkxNode, base: number): void => {
+    switch (node.type) {
+      case "el":
+      case "frag": {
+        for (const a of node.attrs ?? []) {
+          if (a.kind === "expr" || a.kind === "spread") {
+            if (/^On[A-Z]/.test(a.name)) {
+              // The event-handler shape codegen emits (verified: SimpleTextField.uetkx.inl).
+              emit(a.value, base + a.vat, "\n{ (void)[=](const FRuiValue& Value) {\n", "\n; }; }\n");
+            } else {
+              emit(a.value, base + a.vat, "\n{ (void)(\n", "\n); }\n");
+            }
+          }
+        }
+        for (const c of node.children ?? []) liftNode(c, base);
+        break;
+      }
+      case "expr":
+        if (node.code !== undefined && node.vat !== undefined) {
+          emit(node.code, base + node.vat, "\n{ (void)(\n", "\n); }\n");
+        }
+        break;
+      case "if": {
+        const branches = node.branches ?? [];
+        for (let k = 0; k < branches.length; k++) {
+          const br = branches[k];
+          if (br.condAt < 0) continue;
+          raw(k === 0 ? "\nif (" : "\nelse if (");
+          emit(br.cond, base + br.condAt, "", "");
+          raw(") {\n");
+          if (br.bodyAt >= 0) liftBody(br.bodyMarkup, base + br.bodyAt);
+          raw("}\n");
+        }
+        if (node.elseBody !== undefined && node.elseBodyAt !== undefined && node.elseBodyAt >= 0) {
+          raw("\nelse {\n");
+          liftBody(node.elseBody, base + node.elseBodyAt);
+          raw("}\n");
+        }
+        break;
+      }
+      case "for":
+      case "while": {
+        if (node.headerAt === undefined || node.headerAt < 0 || node.header === undefined) break;
+        raw(node.type === "for" ? "\nfor (" : "\nwhile (");
+        emit(node.header, base + node.headerAt, "", "");
+        raw(") {\n");
+        if (node.bodyMarkup !== undefined && node.bodyAt !== undefined && node.bodyAt >= 0) {
+          liftBody(node.bodyMarkup, base + node.bodyAt);
+        }
+        raw("}\n");
+        break;
+      }
+      case "match": {
+        raw("\n{\n");
+        if (node.subject !== undefined && node.subjectAt !== undefined && node.subjectAt >= 0) {
+          emit(node.subject, base + node.subjectAt, "{ (void)(\n", "\n); }\n");
+        }
+        for (const c of node.cases ?? []) {
+          raw("{\n");
+          if (c.valueAt >= 0) emit(c.value, base + c.valueAt, "{ (void)(\n", "\n); }\n");
+          if (c.bodyAt >= 0) liftBody(c.bodyMarkup, base + c.bodyAt);
+          raw("}\n");
+        }
+        if (node.defaultBody !== undefined && node.defaultBodyAt !== undefined && node.defaultBodyAt >= 0) {
+          raw("{\n");
+          liftBody(node.defaultBody, base + node.defaultBodyAt);
+          raw("}\n");
+        }
+        raw("}\n");
+        break;
+      }
+      case "text":
+      case "comment":
+        break;
+    }
+  };
+
   for (const comp of scan.components) {
-    emit(comp.setup, comp.setupAt, `\nvoid __rui_setup_${comp.name}(FRuiContext& Ctx${cppParamList(comp)}) {\n`, "\n}\n");
+    // The function scaffold is raw'd (not emit-prefixed) so a return-only component with an
+    // EMPTY setup still gets a scope for its lifted markup expressions (HelloWorld shape).
+    raw(`\nvoid __rui_setup_${comp.name}(FRuiContext& Ctx${cppParamList(comp)}) {\n`);
+    emit(comp.setup, comp.setupAt, "", "\n");
+    for (const span of comp.returns ?? []) {
+      if (span.root) liftNode(span.root, comp.setupAt);
+    }
+    raw("}\n");
   }
   for (const hook of scan.hooks as UetkxHookDecl[]) {
     const ret = hook.ret.trim().length > 0 ? hook.ret.trim() : "void";

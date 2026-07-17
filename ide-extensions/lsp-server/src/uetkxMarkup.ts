@@ -38,12 +38,14 @@ export interface UetkxAttr {
 
 export interface UetkxIfBranch {
   cond: string;
+  condAt: number; // trimmed-start offset of cond (exact substring — virtual-doc mapping)
   bodyMarkup: string;
   bodyAt: number;
 }
 
 export interface UetkxMatchCase {
   value: string;
+  valueAt: number; // trimmed-start offset (virtual-doc mapping)
   bodyMarkup: string;
   bodyAt: number;
 }
@@ -63,9 +65,11 @@ export interface UetkxNode {
   elseBody?: string;
   elseBodyAt?: number;
   header?: string;
+  headerAt?: number; // trimmed-start offset (virtual-doc mapping)
   bodyMarkup?: string;
   bodyAt?: number;
   subject?: string;
+  subjectAt?: number; // trimmed-start offset (virtual-doc mapping)
   cases?: UetkxMatchCase[];
   defaultBody?: string;
   defaultBodyAt?: number;
@@ -154,12 +158,13 @@ class Parser {
           this.fail("UETKX0304", "unclosed `{` expression", i);
           break;
         }
-        nodes.push({
-          type: "expr",
-          at: i,
-          vat: this.skipWs(i + 1, close),
-          code: this.sliceTrimmed(i + 1, close),
-        });
+        {
+          // vat derives from the SAME trim that produces `code`, so `code` is the exact
+          // source substring at `vat` (virtual-doc mapping; skipWs and trim can disagree).
+          const rawExpr = this.slice(i + 1, close);
+          const leadExpr = rawExpr.length - rawExpr.trimStart().length;
+          nodes.push({ type: "expr", at: i, vat: i + 1 + leadExpr, code: rawExpr.trim() });
+        }
         i = close + 1;
       } else {
         const r = this.parseText(i, end);
@@ -349,19 +354,24 @@ class Parser {
     return { node: null, next: end };
   }
 
-  private readParen(index: number, end: number): { text: string; next: number } {
+  private readParen(index: number, end: number): { text: string; next: number; at: number } {
     const s = this.src;
     const i = this.skipWs(index, end);
     if (i >= end || s[i] !== C_LPAREN) {
       this.fail("UETKX2506", "directive expects `(...)`", i);
-      return { text: "", next: end };
+      return { text: "", next: end, at: -1 };
     }
     const close = findMatching(s, i);
     if (close === -1 || close >= end) {
       this.fail("UETKX0304", "unclosed `(` in directive", i);
-      return { text: "", next: end };
+      return { text: "", next: end, at: -1 };
     }
-    return { text: this.sliceTrimmed(i + 1, close), next: close + 1 };
+    // `at` is the offset of the TRIMMED text's first char — computed from the same trim that
+    // produces `text`, so `text` is the EXACT source substring at `at` (the virtual-doc
+    // source map depends on this; skipWs and String.trim disagree on exotic whitespace).
+    const raw = this.slice(i + 1, close);
+    const lead = raw.length - raw.trimStart().length; // ws is BMP single-unit — cp == utf16
+    return { text: raw.trim(), next: close + 1, at: i + 1 + lead };
   }
 
   private readBraceBody(index: number, end: number): { text: string; next: number; at: number } {
@@ -386,7 +396,7 @@ class Parser {
     if (this.err.code) return { node: null, next: end };
     const b = this.readBraceBody(p.next, end);
     if (this.err.code) return { node: null, next: end };
-    node.branches!.push({ cond: p.text, bodyMarkup: b.text, bodyAt: b.at });
+    node.branches!.push({ cond: p.text, condAt: p.at, bodyMarkup: b.text, bodyAt: b.at });
     let i = b.next;
     for (;;) {
       const k = this.skipWs(i, end);
@@ -396,7 +406,7 @@ class Parser {
         if (this.err.code) return { node: null, next: end };
         const be = this.readBraceBody(pe.next, end);
         if (this.err.code) return { node: null, next: end };
-        node.branches!.push({ cond: pe.text, bodyMarkup: be.text, bodyAt: be.at });
+        node.branches!.push({ cond: pe.text, condAt: pe.at, bodyMarkup: be.text, bodyAt: be.at });
         i = be.next;
       } else if (k + 5 <= end && keywordAt(s, k + 1, "else")) {
         const bb = this.readBraceBody(k + 5, end);
@@ -415,7 +425,7 @@ class Parser {
     if (this.err.code) return { node: null, next: end };
     const b = this.readBraceBody(p.next, end);
     if (this.err.code) return { node: null, next: end };
-    return { node: { type: kind, at, header: p.text, bodyMarkup: b.text, bodyAt: b.at }, next: b.next };
+    return { node: { type: kind, at, header: p.text, headerAt: p.at, bodyMarkup: b.text, bodyAt: b.at }, next: b.next };
   }
 
   private parseMatch(at: number, end: number): { node: UetkxNode | null; next: number } {
@@ -424,6 +434,7 @@ class Parser {
     const p = this.readParen(at + 6, end);
     if (this.err.code) return { node: null, next: end };
     node.subject = p.text;
+    node.subjectAt = p.at;
     const bi = this.skipWs(p.next, end);
     if (bi >= end || s[bi] !== C_LBRACE) {
       this.fail("UETKX0303", "@match expects `{ ... }` with @case/@default arms", bi);
@@ -443,7 +454,7 @@ class Parser {
         if (this.err.code) return { node: null, next: end };
         const cb = this.readBraceBody(cp.next, bclose);
         if (this.err.code) return { node: null, next: end };
-        node.cases!.push({ value: cp.text, bodyMarkup: cb.text, bodyAt: cb.at });
+        node.cases!.push({ value: cp.text, valueAt: cp.at, bodyMarkup: cb.text, bodyAt: cb.at });
         j = cb.next;
       } else if (s[j] === C_AT && keywordAt(s, j + 1, "default")) {
         const db = this.readBraceBody(j + 8, bclose);
