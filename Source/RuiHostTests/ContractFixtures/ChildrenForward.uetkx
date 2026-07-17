@@ -2,7 +2,7 @@ component ChildrenForward {
 	return (
 		<VerticalBox>
 			<TextBlock Text="header" />
-			{children}
+			{ children }
 			<TextBlock Text="footer" />
 		</VerticalBox>
 	);

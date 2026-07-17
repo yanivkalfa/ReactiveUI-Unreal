@@ -56,3 +56,4 @@ scripts/diff-reports/
 .vscode/compileCommands_*
 .vscode/compileCommands_*/
 .vscode/c_cpp_properties.json
+ReactiveUIUnrealDemo.code-workspace

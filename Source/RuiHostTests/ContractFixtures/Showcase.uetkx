@@ -18,15 +18,35 @@ export component Showcase {
 				<Spacer Size={ FVector2D(1.0f, 2.0f) } />
 			</>
 			@for (int32 i = 0; i < Total; ++i) {
-				return ( <TextBlock key={ i } Text={ FText::AsNumber(i) } RenderOpacity={ 0.9f } Slot.Padding="0,2,0,0" /> );
+				return (
+					<TextBlock
+						key={ i }
+						Text={ FText::AsNumber(i) }
+						RenderOpacity={ 0.9f }
+						Slot.Padding="0,2,0,0" />
+				);
 			}
 			@while (false) {
-				return ( <Spacer /> );
+				return (
+					<Spacer />
+				);
 			}
 			@match (ModeNow) {
-				@case (0) { return ( <StatusChip /> ); }
-				@case (1) { return ( <StatusChip Label="one" /> ); }
-				@default { return ( <StatusChip Label={ FString::Printf(TEXT("m%d"), ModeNow) } /> ); }
+				@case (0) {
+					return (
+						<StatusChip />
+					);
+				}
+				@case (1) {
+					return (
+						<StatusChip Label="one" />
+					);
+				}
+				@default {
+					return (
+						<StatusChip Label={ FString::Printf(TEXT("m%d"), ModeNow) } />
+					);
+				}
 			}
 			<Button OnClicked={ Set(ModeNow + 1) } bEnabled ContentPadding="8,2">Next</Button>
 		</VerticalBox>
