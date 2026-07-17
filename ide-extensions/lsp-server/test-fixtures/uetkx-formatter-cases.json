@@ -122,6 +122,14 @@
       "name": "mixed file in source order: module, hook, component (one blank line between)",
       "input": "export module M {\n    using T = int32;\n}\nexport hook UseX() -> int32 {\n    return 1;\n}\ncomponent App {\n    return (\n        <Spacer />\n    );\n}\n",
       "expect": "export module M {\n\tusing T = int32;\n}\n\nexport hook UseX() -> int32 {\n\treturn 1;\n}\n\ncomponent App {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n"
+    },
+    {
+      "name": "TB-4: single short text child stays inline; an over-width one still explodes",
+      "opts": {
+        "printWidth": 40
+      },
+      "input": "component Labels {\n\treturn (\n\t\t<VerticalBox>\n\t\t\t<Button OnClicked={ Go() }>\n\t\t\t\t+\n\t\t\t</Button>\n\t\t\t<Button bEnabled>This label is far far too long to fit into forty columns</Button>\n\t\t</VerticalBox>\n\t);\n}\n",
+      "expect": "component Labels {\n\treturn (\n\t\t<VerticalBox>\n\t\t\t<Button OnClicked={ Go() }>+</Button>\n\t\t\t<Button bEnabled>\n\t\t\t\tThis label is far far too long to fit into forty columns\n\t\t\t</Button>\n\t\t</VerticalBox>\n\t);\n}\n"
     }
   ]
 }

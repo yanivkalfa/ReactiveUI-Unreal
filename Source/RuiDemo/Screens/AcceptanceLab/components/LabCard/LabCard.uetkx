@@ -19,9 +19,17 @@ export component LabCard(Label: FString = FString(TEXT("Card")), Count: int32 = 
 	const FLinearColor Tint = Count > 0 ? LabStyle::Good : LabStyle::Warn;
 
 	return (
-		<Border Padding="8" BorderImage="WhiteBrush" BorderBackgroundColor={ FLinearColor(0.05f, 0.05f, 0.07f, 0.9f) } Slot.Padding="0,0,6,0">
+		<Border
+			Padding="8"
+			BorderImage="WhiteBrush"
+			BorderBackgroundColor={ FLinearColor(0.05f, 0.05f, 0.07f, 0.9f) }
+			Slot.Padding="0,0,6,0"
+		>
 			<VerticalBox>
-				<TextBlock Text={ FText::FromString(Label) } Font.Size={ 12.0f } ColorAndOpacity={ LabStyle::Accent } />
+				<TextBlock
+					Text={ FText::FromString(Label) }
+					Font.Size={ 12.0f }
+					ColorAndOpacity={ LabStyle::Accent } />
 				<TextBlock Text={ RUI::Fmt(TEXT("value = {}"), Count) } ColorAndOpacity={ Tint } />
 			</VerticalBox>
 		</Border>

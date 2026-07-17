@@ -6,7 +6,9 @@ export component RouterUser {
 	return (
 		<VerticalBox>
 			<TextBlock Text={ RUI::Fmt(TEXT("User {}"), Params[TEXT("id")]) } />
-			<Button OnClicked={ Navigate(TEXT("/"), false) } ContentPadding="12,4" Slot.Padding="0,6,0,0">Back home</Button>
+			<Button OnClicked={ Navigate(TEXT("/"), false) } ContentPadding="12,4" Slot.Padding="0,6,0,0">
+				Back home
+			</Button>
 		</VerticalBox>
 	);
 }

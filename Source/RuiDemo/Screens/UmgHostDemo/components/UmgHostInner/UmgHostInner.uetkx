@@ -4,11 +4,20 @@ export component UmgHostInner {
 	auto [Count, SetCount] = UseState<int32>(0);
 
 	return (
-		<Border Padding="8" BorderImage="WhiteBrush" BorderBackgroundColor={ FLinearColor(0.08f, 0.22f, 0.14f, 0.95f) }>
+		<Border
+			Padding="8"
+			BorderImage="WhiteBrush"
+			BorderBackgroundColor={ FLinearColor(0.08f, 0.22f, 0.14f, 0.95f) }
+		>
 			<VerticalBox>
-				<TextBlock Text="▼ ReactiveUI again — mounted INSIDE that UMG widget by URuiHostWidget" Font.Size={ 11.0f } ColorAndOpacity={ FLinearColor(0.6f, 1.0f, 0.7f) } />
+				<TextBlock
+					Text="▼ ReactiveUI again — mounted INSIDE that UMG widget by URuiHostWidget"
+					Font.Size={ 11.0f }
+					ColorAndOpacity={ FLinearColor(0.6f, 1.0f, 0.7f) } />
 				<HorizontalBox>
-					<Button OnClicked={ SetCount(Count + 1) } ContentPadding="10,3" Slot.Padding="0,4,6,0">+1</Button>
+					<Button OnClicked={ SetCount(Count + 1) } ContentPadding="10,3" Slot.Padding="0,4,6,0">
+						+1
+					</Button>
 					<TextBlock Text={ RUI::Fmt(TEXT(" hooks work in here: {}"), Count) } Slot.Padding="0,7,0,0" />
 				</HorizontalBox>
 			</VerticalBox>

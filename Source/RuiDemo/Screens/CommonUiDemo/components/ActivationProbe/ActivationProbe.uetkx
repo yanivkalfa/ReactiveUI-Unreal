@@ -4,8 +4,8 @@ export component ActivationProbe {
 	const bool bActive = RUI::CommonUI::UseIsActive();
 	const ERuiInputMethod Method = RUI::CommonUI::UseInputMethod();
 	const FString MethodStr = Method == ERuiInputMethod::Gamepad ? TEXT("Gamepad")
-							  : Method == ERuiInputMethod::Touch ? TEXT("Touch")
-																 : TEXT("Mouse & Keyboard");
+									: Method == ERuiInputMethod::Touch ? TEXT("Touch")
+																	: TEXT("Mouse & Keyboard");
 	return (
 		<VerticalBox>
 			<TextBlock Text={ RUI::Fmt(TEXT("Screen is {}"), bActive ? TEXT("ACTIVE") : TEXT("INACTIVE")) } />

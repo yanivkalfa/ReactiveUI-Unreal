@@ -24,8 +24,17 @@ export component DoomFace(Frame: int32 = 0) {
 			<Border BorderImage="WhiteBrush" BorderBackgroundColor={ BorderClr } Padding="1">
 				<Border BorderImage="WhiteBrush" BorderBackgroundColor={ PanelBg } Padding="0,1">
 					<VerticalBox>
-						<TextBlock Text="DOOMGUY" Font.Size={ 10.0f } ColorAndOpacity={ LabelClr } Justification="center" Slot.HAlign="center" Slot.Padding="0,1" />
-						<Image Image={ FaceBrush } DesiredSizeOverride={ FVector2D(48.0f, 48.0f) } Slot.HAlign="center" />
+						<TextBlock
+							Text="DOOMGUY"
+							Font.Size={ 10.0f }
+							ColorAndOpacity={ LabelClr }
+							Justification="center"
+							Slot.HAlign="center"
+							Slot.Padding="0,1" />
+						<Image
+							Image={ FaceBrush }
+							DesiredSizeOverride={ FVector2D(48.0f, 48.0f) }
+							Slot.HAlign="center" />
 					</VerticalBox>
 				</Border>
 			</Border>

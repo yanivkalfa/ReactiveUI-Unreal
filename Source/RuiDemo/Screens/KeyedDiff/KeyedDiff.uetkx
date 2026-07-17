@@ -1,6 +1,6 @@
 export component KeyedDiff {
 	static const TCHAR* Seed[] = {TEXT("Alpha"), TEXT("Bravo"), TEXT("Charlie"), TEXT("Delta"),
-								  TEXT("Echo"), TEXT("Foxtrot"), TEXT("Golf")};
+									TEXT("Echo"), TEXT("Foxtrot"), TEXT("Golf")};
 	auto SeedItems = []() {
 		TArray<FString> Out;
 		for (const TCHAR* S : Seed)
@@ -65,28 +65,46 @@ export component KeyedDiff {
 	};
 
 	return (
-		<Border Padding="12" BorderImage="WhiteBrush" BorderBackgroundColor={ FLinearColor(0.02f, 0.02f, 0.03f, 0.85f) } Slot.Padding="0,10,0,0">
+		<Border
+			Padding="12"
+			BorderImage="WhiteBrush"
+			BorderBackgroundColor={ FLinearColor(0.02f, 0.02f, 0.03f, 0.85f) }
+			Slot.Padding="0,10,0,0"
+		>
 			<VerticalBox>
-				<TextBlock Text="Keyed diff / LIS test" Font.Size={ 16.0f } ColorAndOpacity={ FLinearColor(1.0f, 0.8f, 0.4f) } />
+				<TextBlock
+					Text="Keyed diff / LIS test"
+					Font.Size={ 16.0f }
+					ColorAndOpacity={ FLinearColor(1.0f, 0.8f, 0.4f) } />
 				<TextBlock Text="Reorder, insert, and remove keyed rows -- rows stay mounted while order changes." />
 				<TextBlock Text={ RUI::Fmt(TEXT("Operations performed: {}"), Ops) } />
 				<Spacer Size={ FVector2D(1.0f, 6.0f) } />
 				<HorizontalBox>
 					<Button OnClicked={ DoReset() } ContentPadding="12,4" Slot.Padding="0,0,6,0">Reset</Button>
 					<Button OnClicked={ DoReverse() } ContentPadding="12,4" Slot.Padding="0,0,6,0">Reverse</Button>
-					<Button OnClicked={ DoRotate() } ContentPadding="12,4" Slot.Padding="0,0,6,0">Rotate tail to head</Button>
+					<Button OnClicked={ DoRotate() } ContentPadding="12,4" Slot.Padding="0,0,6,0">
+						Rotate tail to head
+					</Button>
 				</HorizontalBox>
 				<HorizontalBox>
 					<Button OnClicked={ DoShuffle() } ContentPadding="12,4" Slot.Padding="0,0,6,0">Shuffle</Button>
-					<Button OnClicked={ DoInsert() } ContentPadding="12,4" Slot.Padding="0,0,6,0">Insert new key</Button>
-					<Button OnClicked={ DoRemove() } ContentPadding="12,4" Slot.Padding="0,0,6,0">Remove middle</Button>
+					<Button OnClicked={ DoInsert() } ContentPadding="12,4" Slot.Padding="0,0,6,0">
+						Insert new key
+					</Button>
+					<Button OnClicked={ DoRemove() } ContentPadding="12,4" Slot.Padding="0,0,6,0">
+						Remove middle
+					</Button>
 				</HorizontalBox>
 				<Spacer Size={ FVector2D(1.0f, 6.0f) } />
 				@for (int32 i = 0; i < Items.Num(); ++i) {
 					return (
 						<HorizontalBox key={ FName(*Items[i]) }>
 							<TextBlock Text={ RUI::Fmt(TEXT("Key: {}"), Items[i]) } />
-							<TextBlock Text={ RUI::Fmt(TEXT("   Index {}"), i) } Font.Size={ 9.0f } ColorAndOpacity={ FLinearColor(0.3f, 0.9f, 0.9f) } Slot.Padding="10,0,0,0" />
+							<TextBlock
+								Text={ RUI::Fmt(TEXT("   Index {}"), i) }
+								Font.Size={ 9.0f }
+								ColorAndOpacity={ FLinearColor(0.3f, 0.9f, 0.9f) }
+								Slot.Padding="10,0,0,0" />
 						</HorizontalBox>
 					);
 				}

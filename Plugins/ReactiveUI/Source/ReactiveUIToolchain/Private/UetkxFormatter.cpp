@@ -474,6 +474,17 @@ namespace
 		{
 			bWrap = true;
 		}
+		// TB-4 (TESTING_BUGS.md): an element whose ONLY child is one raw-text run stays inline —
+		// `<Button …>+</Button>` — when the whole form fits PrintWidth. TS-identical (fmtElement).
+		if (!bWrap && Children.Num() == 1 && Children[0]->Type == EUetkxNodeType::Text)
+		{
+			const FString Text = Children[0]->Value.TrimStartAndEnd();
+			const FString Inline = FString::Printf(TEXT("%s>%s</%s>"), *Head, *Text, *Node.Tag);
+			if (!Text.IsEmpty() && P.Len() + Inline.Len() <= State.O.PrintWidth)
+			{
+				return P + Inline + TEXT("\n");
+			}
+		}
 		FString Out;
 		if (!bWrap)
 		{

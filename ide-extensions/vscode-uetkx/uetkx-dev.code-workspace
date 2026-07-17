@@ -1,0 +1,7 @@
+{
+	// F5 dev-host workspace (launch.json --file-uri): a .code-workspace gives the Extension
+	// Development Host its OWN workspace identity, so open editors/layout persist across F5
+	// runs even while the main VS Code window has the same repo-root FOLDER open (a folder
+	// can't restore its UI state into two windows at once — the sibling repo's F5 flow).
+	"folders": [{ "path": "../.." }]
+}

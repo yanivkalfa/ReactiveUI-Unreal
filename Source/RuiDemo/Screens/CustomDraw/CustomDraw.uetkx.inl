@@ -28,19 +28,21 @@ static FRuiNodeArray CustomDraw_UetkxImpl(FRuiContext& Ctx, const FCustomDrawUet
 		const TSharedPtr<FRuiDrawFn>& PolyFn = Ctx.UseMemo<TSharedPtr<FRuiDrawFn>>(
 			[Sides]() {
 				return RUI::Slate::MakeDrawFn([Sides](const FGeometry& G, FSlateWindowElementList& O, int32 L)
-											  { return RuiDemo::DrawPolygon(G, O, L, Sides); });
+												{ return RuiDemo::DrawPolygon(G, O, L, Sides); });
 			},
 			RUI::Deps(Sides));
+	
 		const TSharedPtr<FRuiDrawFn>& QuadFn = Ctx.UseMemo<TSharedPtr<FRuiDrawFn>>(
 			[bBlue]() {
 				return RUI::Slate::MakeDrawFn([bBlue](const FGeometry& G, FSlateWindowElementList& O, int32 L)
-											  { return RuiDemo::DrawQuad(G, O, L, bBlue); });
+												{ return RuiDemo::DrawQuad(G, O, L, bBlue); });
 			},
 			RUI::Deps(bBlue));
+	
 		// 3: STABLE fn + RedrawKey bump forces the repaint instead.
 		const TSharedPtr<FRuiDrawFn>& ScatterFn =
 			Ctx.UseMemo<TSharedPtr<FRuiDrawFn>>([]() { return RUI::Slate::MakeDrawFn(&RuiDemo::DrawScatter); }, RUI::Deps());
-#line 44 "CustomDraw.uetkx.inl"
+#line 46 "CustomDraw.uetkx.inl"
 	return { [&]() -> FRuiNode {
 		FRuiBorderProps P;
 		P.SetPadding(FMargin(12));
@@ -183,7 +185,7 @@ static FRuiNodeArray CustomDraw_UetkxImpl(FRuiContext& Ctx, const FCustomDrawUet
 		if (!__Style->IsEmpty()) { P.Style = __Style; }
 		if (!__Slot->IsEmpty()) { P.SlotProps = __Slot; }
 		TArray<FRuiNode> Ch;
-		Ch.Add(RUI::TextBlock(NSLOCTEXT("Uetkx.CustomDraw", "CustomDraw_8", "Shuffle (bump RedrawKey)")));
+		Ch.Add(RUI::TextBlock(NSLOCTEXT("Uetkx.CustomDraw", "CustomDraw_8", "Shuffle(bump RedrawKey)")));
 		return RUI::Slate::Button(MoveTemp(P), MoveTemp(Ch), FRuiKey());
 	}());
 		Ch.Add(RUI::TextBlock((RUI::Fmt(TEXT("  redrawKey = {}"), RedrawTick)), FRuiKey()));

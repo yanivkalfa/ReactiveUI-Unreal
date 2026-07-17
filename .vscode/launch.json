@@ -20,7 +20,11 @@
 				// noise that reads like OUR extension failing (owner-reported, 2026-07-11).
 				"--disable-extensions",
 				"--extensionDevelopmentPath=${workspaceFolder}/ide-extensions/vscode-uetkx",
-				"${workspaceFolder}"
+				// A .code-workspace (not the bare folder): the repo-root FOLDER is already open
+				// in the main window, and one folder can't restore UI state into two windows —
+				// the workspace file gives the dev host its OWN identity, so open editors
+				// persist across F5 runs (Unity-sibling parity).
+				"--file-uri=file:///C:/Yanivs/GameDev/ReactiveUI/ReactiveUI-Unreal/ide-extensions/vscode-uetkx/uetkx-dev.code-workspace"
 			],
 			"outFiles": ["${workspaceFolder}/ide-extensions/vscode-uetkx/out/**/*.js"],
 			"preLaunchTask": "Build UETKX Extension"

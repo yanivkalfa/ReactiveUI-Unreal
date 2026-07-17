@@ -9,29 +9,41 @@ export component CustomDraw {
 	const TSharedPtr<FRuiDrawFn>& PolyFn = UseMemo<TSharedPtr<FRuiDrawFn>>(
 		[Sides]() {
 			return RUI::Slate::MakeDrawFn([Sides](const FGeometry& G, FSlateWindowElementList& O, int32 L)
-										  { return RuiDemo::DrawPolygon(G, O, L, Sides); });
+											{ return RuiDemo::DrawPolygon(G, O, L, Sides); });
 		},
 		RUI::Deps(Sides));
+
 	const TSharedPtr<FRuiDrawFn>& QuadFn = UseMemo<TSharedPtr<FRuiDrawFn>>(
 		[bBlue]() {
 			return RUI::Slate::MakeDrawFn([bBlue](const FGeometry& G, FSlateWindowElementList& O, int32 L)
-										  { return RuiDemo::DrawQuad(G, O, L, bBlue); });
+											{ return RuiDemo::DrawQuad(G, O, L, bBlue); });
 		},
 		RUI::Deps(bBlue));
+
 	// 3: STABLE fn + RedrawKey bump forces the repaint instead.
 	const TSharedPtr<FRuiDrawFn>& ScatterFn =
 		UseMemo<TSharedPtr<FRuiDrawFn>>([]() { return RUI::Slate::MakeDrawFn(&RuiDemo::DrawScatter); }, RUI::Deps());
 
 	return (
-		<Border Padding="12" BorderImage="WhiteBrush" BorderBackgroundColor={ FLinearColor(0.02f, 0.02f, 0.03f, 0.85f) } Slot.Padding="0,10,0,0">
+		<Border
+			Padding="12"
+			BorderImage="WhiteBrush"
+			BorderBackgroundColor={ FLinearColor(0.02f, 0.02f, 0.03f, 0.85f) }
+			Slot.Padding="0,10,0,0"
+		>
 			<VerticalBox>
-				<TextBlock Text="Custom Rendering Demo (RuiCanvas draw_fn)" Font.Size={ 16.0f } ColorAndOpacity={ FLinearColor(0.4f, 0.8f, 1.0f) } />
+				<TextBlock
+					Text="Custom Rendering Demo (RuiCanvas draw_fn)"
+					Font.Size={ 16.0f }
+					ColorAndOpacity={ FLinearColor(0.4f, 0.8f, 1.0f) } />
 				<Spacer Size={ FVector2D(1.0f, 6.0f) } />
 				<TextBlock Text="1. Polygon -- redraws when 'sides' state changes" />
 				<RuiCanvas DrawFn={ PolyFn } CanvasSize={ FVector2D(360.0f, 110.0f) } />
 				<Spacer Size={ FVector2D(1.0f, 6.0f) } />
 				<HorizontalBox>
-					<Button OnClicked={ SetSides(Sides + 1) } ContentPadding="12,4" Slot.Padding="0,0,6,0">Add side</Button>
+					<Button OnClicked={ SetSides(Sides + 1) } ContentPadding="12,4" Slot.Padding="0,0,6,0">
+						Add side
+					</Button>
 					<Button OnClicked={ SetSides(3) } ContentPadding="12,4" Slot.Padding="0,0,6,0">Reset</Button>
 					<TextBlock Text={ RUI::Fmt(TEXT("  sides = {}"), Sides) } />
 				</HorizontalBox>
@@ -40,15 +52,26 @@ export component CustomDraw {
 				<RuiCanvas DrawFn={ QuadFn } CanvasSize={ FVector2D(360.0f, 110.0f) } />
 				<Spacer Size={ FVector2D(1.0f, 6.0f) } />
 				<HorizontalBox>
-					<Button OnClicked={ SetBlue(!bBlue) } ContentPadding="12,4" Slot.Padding="0,0,6,0">Toggle color</Button>
+					<Button OnClicked={ SetBlue(!bBlue) } ContentPadding="12,4" Slot.Padding="0,0,6,0">
+						Toggle color
+					</Button>
 					<TextBlock Text={ FText::FromString(bBlue ? TEXT("  blue") : TEXT("  orange")) } />
 				</HorizontalBox>
 				<Spacer Size={ FVector2D(1.0f, 6.0f) } />
 				<TextBlock Text="3. Stable callback + RedrawKey -- repaint on demand" />
-				<RuiCanvas DrawFn={ ScatterFn } RedrawKey={ RedrawTick } CanvasSize={ FVector2D(360.0f, 110.0f) } />
+				<RuiCanvas
+					DrawFn={ ScatterFn }
+					RedrawKey={ RedrawTick }
+					CanvasSize={ FVector2D(360.0f, 110.0f) } />
 				<Spacer Size={ FVector2D(1.0f, 6.0f) } />
 				<HorizontalBox>
-					<Button OnClicked={ SetRedrawTick(RedrawTick + 1) } ContentPadding="12,4" Slot.Padding="0,0,6,0">Shuffle (bump RedrawKey)</Button>
+					<Button
+						OnClicked={ SetRedrawTick(RedrawTick + 1) }
+						ContentPadding="12,4"
+						Slot.Padding="0,0,6,0"
+					>
+						Shuffle(bump RedrawKey)
+					</Button>
 					<TextBlock Text={ RUI::Fmt(TEXT("  redrawKey = {}"), RedrawTick) } />
 				</HorizontalBox>
 			</VerticalBox>
