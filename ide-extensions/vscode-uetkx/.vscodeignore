@@ -5,3 +5,5 @@ node_modules/**
 !server/node_modules/**
 **/*.map
 readme-template.md
+uetkx-dev.code-workspace
+*.vsix

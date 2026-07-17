@@ -5,7 +5,11 @@ export component RefCapture {
 	auto Focus = RUI::Slate::UseFocus();
 
 	return (
-		<Border Padding="4" BorderImage="WhiteBrush" Ref={ [Target](const FRuiHostHandle& H) { Target->Current = H; } }>
+		<Border
+			Padding="4"
+			BorderImage="WhiteBrush"
+			Ref={ [Target](const FRuiHostHandle& H) { Target->Current = H; } }
+		>
 			<TextBlock Text="focus me" Ref={ Focus.Ref } RenderOpacity={ 0.9f } />
 		</Border>
 	);

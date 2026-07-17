@@ -27,7 +27,9 @@ const EXTS_HASH = new Set(['.ps1']);
 // the filesystem so a locally-built bundle must not trip the gate either).
 // `bin`/`obj` = MSBuild output (the UetkxVsix build generates .cs stubs under obj/) — same
 // walks-the-filesystem rationale.
-const EXCLUDE_DIRS = new Set(['node_modules', 'out', 'dist', 'server', 'bin', 'obj', 'Binaries', 'Intermediate', 'Saved', '.git']);
+// `clangd` = the staged LLVM bundle (fetch-clangd.mjs output — third-party headers under
+// lib/clang/, LLVM's copyright not ours; git-ignored, same walks-the-filesystem rationale).
+const EXCLUDE_DIRS = new Set(['node_modules', 'out', 'dist', 'server', 'bin', 'obj', 'clangd', 'Binaries', 'Intermediate', 'Saved', '.git']);
 const NEEDLE = /Copyright \(c\) .*Yaniv Kalfa/;
 
 const failures = [];

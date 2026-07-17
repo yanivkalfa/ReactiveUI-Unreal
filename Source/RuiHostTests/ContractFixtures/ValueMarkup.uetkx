@@ -1,0 +1,16 @@
+export component ValueMarkup(bShow: bool = false) {
+	auto [Count, SetCount] = UseState(0);
+	auto Card = (<VerticalBox>
+		<TextBlock Text={ FText::AsNumber(Count) } />
+	</VerticalBox>);
+	FRuiNode Chip = <TextBlock Text="bare" />;
+	TArray<FRuiNode> Extra;
+	Extra.Add(<Spacer />);
+	return (
+		<Border>
+			{ Card }
+			{ Chip }
+			{ bShow ? <TextBlock Text="on" /> : <TextBlock Text="off" /> }
+		</Border>
+	);
+}

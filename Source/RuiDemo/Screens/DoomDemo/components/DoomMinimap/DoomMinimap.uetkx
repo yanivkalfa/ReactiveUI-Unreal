@@ -127,30 +127,53 @@ export component DoomMinimap(State: const RuiDoom::FGameState* = nullptr, Versio
 	const float PAngle = State != nullptr ? State->Player.Angle : 0.0f;
 
 	return (
-		<Box WidthOverride={ static_cast<float>(InnerW + 6) } HeightOverride={ static_cast<float>(InnerH + 6) }>
+		<Box
+			WidthOverride={ static_cast<float>(InnerW + 6) }
+			HeightOverride={ static_cast<float>(InnerH + 6) }
+		>
 			<Border BorderImage="WhiteBrush" BorderBackgroundColor={ BorderClr } Padding="1">
 				<Border BorderImage="WhiteBrush" BorderBackgroundColor={ BgClr } Padding="2">
 					<Canvas>
 						@for (int32 i = 0; i < Cells.Num(); ++i) {
 							return (
-								<Border key={ FName(*FString::Printf(TEXT("c%d"), i)) } BorderImage="WhiteBrush" BorderBackgroundColor={ Cells[i].Color } Slot.Position={ FVector2D(Cells[i].X, Cells[i].Y) } Slot.Size={ FVector2D(static_cast<float>(CellPx), static_cast<float>(CellPx)) } />
+								<Border
+									key={ FName(*FString::Printf(TEXT("c%d"), i)) }
+									BorderImage="WhiteBrush"
+									BorderBackgroundColor={ Cells[i].Color }
+									Slot.Position={ FVector2D(Cells[i].X, Cells[i].Y) }
+									Slot.Size={ FVector2D(static_cast<float>(CellPx), static_cast<float>(CellPx)) } />
 							);
 						}
 						@for (int32 i = 0; i < Dots.Num(); ++i) {
 							return (
-								<Border key={ FName(*FString::Printf(TEXT("m%d"), i)) } BorderImage="WhiteBrush" BorderBackgroundColor={ Dots[i].Color } Slot.Position={ FVector2D(Dots[i].X - 2.0f, Dots[i].Y - 2.0f) } Slot.Size={ FVector2D(4.0f, 4.0f) } />
+								<Border
+									key={ FName(*FString::Printf(TEXT("m%d"), i)) }
+									BorderImage="WhiteBrush"
+									BorderBackgroundColor={ Dots[i].Color }
+									Slot.Position={ FVector2D(Dots[i].X - 2.0f, Dots[i].Y - 2.0f) }
+									Slot.Size={ FVector2D(4.0f, 4.0f) } />
 							);
 						}
 						@if (State != nullptr) {
 							// Player marker.
 							return (
-								<Border key="player" BorderImage="WhiteBrush" BorderBackgroundColor={ PlayerClr } Slot.Position={ FVector2D(PxX - 3.0f, PxY - 3.0f) } Slot.Size={ FVector2D(6.0f, 6.0f) } />
+								<Border
+									key="player"
+									BorderImage="WhiteBrush"
+									BorderBackgroundColor={ PlayerClr }
+									Slot.Position={ FVector2D(PxX - 3.0f, PxY - 3.0f) }
+									Slot.Size={ FVector2D(6.0f, 6.0f) } />
 							);
 						}
 						@if (State != nullptr) {
 							// Heading indicator.
 							return (
-								<Border key="heading" BorderImage="WhiteBrush" BorderBackgroundColor={ PlayerClr } Slot.Position={ FVector2D(PxX + FMath::Cos(PAngle) * 4.0f - 1.0f, PxY - FMath::Sin(PAngle) * 4.0f - 1.0f) } Slot.Size={ FVector2D(2.0f, 2.0f) } />
+								<Border
+									key="heading"
+									BorderImage="WhiteBrush"
+									BorderBackgroundColor={ PlayerClr }
+									Slot.Position={ FVector2D(PxX + FMath::Cos(PAngle) * 4.0f - 1.0f, PxY - FMath::Sin(PAngle) * 4.0f - 1.0f) }
+									Slot.Size={ FVector2D(2.0f, 2.0f) } />
 							);
 						}
 					</Canvas>

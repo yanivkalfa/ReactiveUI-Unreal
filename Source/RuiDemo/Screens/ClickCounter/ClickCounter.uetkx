@@ -1,0 +1,23 @@
+export component ClickCounter {
+	auto [Count, SetCount] = UseState<int32>(0);
+
+
+	return (
+		<Border
+			Padding="12"
+			BorderImage="WhiteBrush"
+			BorderBackgroundColor={ FLinearColor(0.02f, 0.02f, 0.03f, 0.85f) }
+			Slot.Padding="0,10,0,0"
+		>
+			<VerticalBox>
+				<TextBlock Text={ RUI::Fmt(TEXT("Count: {}"), Count) } />
+				<Spacer Size={ FVector2D(1.0f, 6.0f) } />
+				<HorizontalBox>
+					<Button OnClicked={ SetCount(Count + 1) } ContentPadding="12,4" Slot.Padding="0,0,6,0">+</Button>
+					<Button OnClicked={ SetCount(Count - 1) } ContentPadding="12,4" Slot.Padding="0,0,6,0">-</Button>
+					<Button OnClicked={ SetCount(0) } ContentPadding="12,4">Reset</Button>
+				</HorizontalBox>
+			</VerticalBox>
+		</Border>
+	);
+}

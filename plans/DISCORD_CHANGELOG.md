@@ -12,6 +12,37 @@ first announcement post lives at the BOTTOM of this file.
 
 **Hard limit: ≤ 2000 characters per entry** (Discord message cap).
 
+## [0.11.0] - 2026-07-17
+
+### Markup everywhere — markup is a first-class expression now
+
+**`auto Card = (<VerticalBox>…</VerticalBox>);` just works.** Markup is legal at every
+expression boundary — assignments (both spellings), call arguments, ternary branches,
+short-circuit `cond && <Chip/>` — detected by the family's position-gated jsx scan (so
+`a < b` can never be mistaken for a tag) and lowered in place to an `FRuiNode` value you can
+splice with `{ Card }`, even more than once. Same grammar as the Godot and Unity siblings;
+the shared scanner corpus now hashes identically across all three repos.
+
+**Rules of hooks land too (UETKX0013–0016).** A `Use*` call under an `if`, a loop, a
+`switch`/`@match` branch, a lambda, or anywhere inside markup is now a compile error instead
+of a hook-order landmine — hooks run unconditionally at the top of the body, period. And hook
+signatures now ignore markup text entirely: editing markup can never spuriously reset your
+live HMR state again (components with early returns get a one-time signature change on first
+swap).
+
+**The IDE side is a rebuild.** UETKX 0.5.0: crash-proof server, and embedded C++
+intelligence in EVERY markup expression — completion/hover/diagnostics inside attr values,
+event handlers, and directive bodies, with the compile database sanitized until the demo
+tree sweeps with zero false positives. Biggest news: **clangd 22.1.6 now ships INSIDE the
+extension** — the VS Code win32-x64 flavor and the VS2022 VSIX bundle it, so embedded C++
+intelligence works with zero machine setup. Plus a new demo: AcceptanceLab §10 shows every
+markup-as-value shape live.
+
+Update to **ReactiveUI for Unreal 0.11.0** (GitHub release). **Tooling:** UETKX 0.5.0
+(VS Code + VS 2022). Battery `128/128`, LSP `46/46`.
+
+---
+
 ## [0.10.0] - 2026-07-16
 
 ### `.uetkx` preambles are imports-only now

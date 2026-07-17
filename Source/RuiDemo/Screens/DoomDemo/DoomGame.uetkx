@@ -16,14 +16,29 @@ export component DoomGame {
 		SetPlayCount([](const int32& N) { return N + 1; });
 		SetInGame(true);
 	});
+
 	FRuiCallback OnBackToMenu = UseStableAction([SetInGame](const FRuiValue&) { SetInGame(false); });
 
 	return (
 		<Box>
 			@if (bInGame) {
-				return ( <DoomGameScreen key={ FName(*FString::Printf(TEXT("play%d"), PlayCount)) } Level={ Level } Diff={ Diff } OnBackToMenu={ OnBackToMenu } /> );
+				return (
+					<DoomGameScreen
+						key={ FName(*FString::Printf(TEXT("play%d"), PlayCount)) }
+						Level={ Level }
+						Diff={ Diff }
+						OnBackToMenu={ OnBackToMenu } />
+				);
 			} @else {
-				return ( <DoomMainMenu key="menu" Level={ Level } Diff={ Diff } OnLevelChange={ OnLevelChange } OnDifficultyChange={ OnDiffChange } OnStart={ OnStart } /> );
+				return (
+					<DoomMainMenu
+						key="menu"
+						Level={ Level }
+						Diff={ Diff }
+						OnLevelChange={ OnLevelChange }
+						OnDifficultyChange={ OnDiffChange }
+						OnStart={ OnStart } />
+				);
 			}
 		</Box>
 	);

@@ -34,7 +34,7 @@ static FRuiNodeArray DoomMainMenu_UetkxImpl(FRuiContext& Ctx, const FDoomMainMen
 	const auto& OnLevelChange = Props.OnLevelChange;
 	const auto& OnDifficultyChange = Props.OnDifficultyChange;
 	const auto& OnStart = Props.OnStart;
-#line 15 "Source/RuiDemo/Screens/DoomDemo/components/DoomMainMenu/DoomMainMenu.uetkx"
+#line 9 "Source/RuiDemo/Screens/DoomDemo/components/DoomMainMenu/DoomMainMenu.uetkx"
 	const FLinearColor Bg(0.06f, 0.05f, 0.05f, 1.0f);
 		const FLinearColor TitleClr(0.95f, 0.20f, 0.15f, 1.0f);
 		const FLinearColor SubtitleClr(0.85f, 0.70f, 0.40f, 1.0f);

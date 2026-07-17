@@ -30,125 +30,246 @@ export component DoomGameScreen(Level: int32 = 1, Diff: int32 = 1, OnBackToMenu:
 	// the HUD to the window's bottom edge whenever width is the constraining axis.
 	return (
 		<ScaleBox Stretch="scaleToFit" HAlign="center" VAlign="bottom">
-		<Box WidthOverride={ ViewportW } HeightOverride={ ViewportH + HudH }>
-			<VerticalBox>
-				<Overlay>
-					<!-- Clipping is MANDATORY here: Slate never clips children to bounds by
+			<Box WidthOverride={ ViewportW } HeightOverride={ ViewportH + HudH }>
+				<VerticalBox>
+					<Overlay>
+						<!-- Clipping is MANDATORY here: Slate never clips children to bounds by
 						 default, and the framebuffer's backstop/band quads deliberately extend
 						 past the viewport (the horizon moves with pitch) — unclipped they paint
 						 over the HUD and the letterbox (the Godot port's clip_contents: true). -->
-					<Box WidthOverride={ ViewportW } HeightOverride={ ViewportH } Clipping="clipToBounds">
-						<Canvas>
-							@for (const RuiDoom::FDoomQuad& Q : G->Sky) {
-								return ( <Image key={ Q.Key } Image={ Q.Brush } ColorAndOpacity={ Q.Tint } Slot.Position={ Q.Position } Slot.Size={ Q.Size } /> );
-							}
-							@for (const RuiDoom::FDoomQuad& Q : G->FloorBackstop) {
-								return ( <Image key={ Q.Key } Image={ Q.Brush } ColorAndOpacity={ Q.Tint } Slot.Position={ Q.Position } Slot.Size={ Q.Size } /> );
-							}
-							@for (const RuiDoom::FDoomQuad& Q : G->CeilingBands) {
-								return ( <Image key={ Q.Key } Image={ Q.Brush } ColorAndOpacity={ Q.Tint } Slot.Position={ Q.Position } Slot.Size={ Q.Size } /> );
-							}
-							@for (const RuiDoom::FDoomQuad& Q : G->FloorBands) {
-								return ( <Image key={ Q.Key } Image={ Q.Brush } ColorAndOpacity={ Q.Tint } Slot.Position={ Q.Position } Slot.Size={ Q.Size } /> );
-							}
-							@for (const RuiDoom::FDoomQuad& Q : G->FloorRims) {
-								return ( <Image key={ Q.Key } Image={ Q.Brush } ColorAndOpacity={ Q.Tint } Slot.Position={ Q.Position } Slot.Size={ Q.Size } /> );
-							}
-							@for (const RuiDoom::FDoomQuad& Q : G->ExtraSegs) {
-								return ( <Image key={ Q.Key } Image={ Q.Brush } ColorAndOpacity={ Q.Tint } Slot.Position={ Q.Position } Slot.Size={ Q.Size } /> );
-							}
-							@for (const RuiDoom::FDoomQuad& Q : G->RiserRims) {
-								return ( <Image key={ Q.Key } Image={ Q.Brush } ColorAndOpacity={ Q.Tint } Slot.Position={ Q.Position } Slot.Size={ Q.Size } /> );
-							}
-							@for (const RuiDoom::FDoomQuad& Q : G->Walls) {
-								return ( <Image key={ Q.Key } Image={ Q.Brush } ColorAndOpacity={ Q.Tint } Slot.Position={ Q.Position } Slot.Size={ Q.Size } /> );
-							}
-							@for (const RuiDoom::FDoomQuad& Q : G->Sprites) {
-								return ( <Image key={ Q.Key } Image={ Q.Brush } ColorAndOpacity={ Q.Tint } Slot.Position={ Q.Position } Slot.Size={ Q.Size } /> );
-							}
-							@for (const RuiDoom::FDoomQuad& Q : G->Tracers) {
-								return ( <Image key={ Q.Key } Image={ Q.Brush } ColorAndOpacity={ Q.Tint } RenderTransformAngle={ Q.Angle } RenderTransformPivot={ FVector2D(0.0f, 0.5f) } Slot.Position={ Q.Position } Slot.Size={ Q.Size } /> );
-							}
-							@for (const RuiDoom::FDoomQuad& Q : G->Overlay) {
-								return ( <Image key={ Q.Key } Image={ Q.Brush } ColorAndOpacity={ Q.Tint } Slot.Position={ Q.Position } Slot.Size={ Q.Size } /> );
-							}
-						</Canvas>
-					</Box>
-
-					<!-- automap, top-right (the component is fixed-size; placement is ours) -->
-					<Box Slot.HAlign="right" Slot.VAlign="top" Slot.Padding="0,8,8,0">
-						<DoomMinimap State={ St } Version={ View.Version } />
-					</Box>
-
-					<!-- Ctrl+R FPS readout, top-left (the Godot bootstrap counter's colors) -->
-					@if (View.bShowFps) {
-						return (
-							<Box Slot.HAlign="left" Slot.VAlign="top" Slot.Padding="8,8,0,0" key="fps">
-								<TextBlock Text={ RUI::Fmt(TEXT("FPS {}"), FMath::RoundToInt(View.Fps)) } Font.Size={ 16.0f } ColorAndOpacity={ FLinearColor(1.0f, 0.95f, 0.4f, 1.0f) } />
-							</Box>
-						);
-					}
-
-					<!-- pickup/message line, top-center, timer-driven -->
-					@if (St->Player.MessageTimer > 0.0f) {
-						return (
-							<Box Slot.HAlign="center" Slot.VAlign="top" Slot.Padding="0,10,0,0" key="msg">
-								<TextBlock Text={ FText::FromString(St->Player.MessageText) } Font.Size={ 14.0f } ColorAndOpacity={ FLinearColor(0.95f, 0.85f, 0.50f, 1.0f) } />
-							</Box>
-						);
-					}
-
-					<!-- YOU DIED overlay (cursor auto-released by the hook) -->
-					@if (!St->Player.Alive && !St->Victory) {
-						return (
-							<Border key="died" BorderImage="WhiteBrush" BorderBackgroundColor={ FLinearColor(0.10f, 0.0f, 0.0f, 0.55f) } Slot.HAlign="fill" Slot.VAlign="fill">
-								<VerticalBox Slot.HAlign="center" Slot.VAlign="center">
-									<TextBlock Text="YOU DIED" Font.Size={ 48.0f } ColorAndOpacity={ FLinearColor(0.95f, 0.15f, 0.10f, 1.0f) } Justification="center" />
-									<Spacer Size={ FVector2D(1.0f, 14.0f) } />
-									<HorizontalBox Slot.HAlign="center">
-										<Button OnClicked={ SetRestartVersion(RestartVersion + 1) } ContentPadding="16,6" Slot.Padding="0,0,8,0"><TextBlock Text="Restart level" /></Button>
-										<Button OnClicked={ OnBackToMenu.Execute() } ContentPadding="16,6"><TextBlock Text="Main menu" /></Button>
-									</HorizontalBox>
-								</VerticalBox>
-							</Border>
-						);
-					}
-
-					<!-- LEVEL COMPLETE overlay -->
-					@if (St->Victory) {
-						return (
-							<Border key="won" BorderImage="WhiteBrush" BorderBackgroundColor={ FLinearColor(0.0f, 0.06f, 0.0f, 0.55f) } Slot.HAlign="fill" Slot.VAlign="fill">
-								<VerticalBox Slot.HAlign="center" Slot.VAlign="center">
-									<TextBlock Text="LEVEL COMPLETE" Font.Size={ 42.0f } ColorAndOpacity={ FLinearColor(0.60f, 0.95f, 0.40f, 1.0f) } Justification="center" />
-									<TextBlock Text={ RUI::Fmt(TEXT("Kills {} / {}   ·   Score {}"), St->KillCount, St->KillTotal, St->Score) } Justification="center" ColorAndOpacity={ FLinearColor(0.85f, 0.85f, 0.70f, 1.0f) } />
-									<Spacer Size={ FVector2D(1.0f, 14.0f) } />
-									<HorizontalBox Slot.HAlign="center">
-										@if (ActiveLevel < RuiDoom::LEVEL_COUNT) {
-											return ( <Button key="next" OnClicked={ SetActiveLevel(ActiveLevel + 1) } ContentPadding="16,6" Slot.Padding="0,0,8,0"><TextBlock Text="Next level" /></Button> );
-										}
-										<Button OnClicked={ OnBackToMenu.Execute() } ContentPadding="16,6"><TextBlock Text="Main menu" /></Button>
-									</HorizontalBox>
-								</VerticalBox>
-							</Border>
-						);
-					}
-				</Overlay>
-
-				<DoomHUD
-					Health={ St->Player.Health }
-					Armor={ St->Player.Armor }
-					ArmorClass={ St->Player.ArmorClass }
-					Weapon={ St->Player.Weapon }
-					Ammo={ St->Player.Ammo }
-					OwnedWeapons={ St->Player.OwnedWeapons }
-					Keys={ St->Player.Keys }
-					Score={ St->Score }
-					KillCount={ St->KillCount }
-					KillTotal={ St->KillTotal }
-					MapName={ RuiDoom::LevelName(ActiveLevel) }
-					FaceState={ St->Player.FaceState } />
-			</VerticalBox>
-		</Box>
+						<Box WidthOverride={ ViewportW } HeightOverride={ ViewportH } Clipping="clipToBounds">
+							<Canvas>
+								@for (const RuiDoom::FDoomQuad& Q : G->Sky) {
+									return (
+										<Image
+											key={ Q.Key }
+											Image={ Q.Brush }
+											ColorAndOpacity={ Q.Tint }
+											Slot.Position={ Q.Position }
+											Slot.Size={ Q.Size } />
+									);
+								}
+								@for (const RuiDoom::FDoomQuad& Q : G->FloorBackstop) {
+									return (
+										<Image
+											key={ Q.Key }
+											Image={ Q.Brush }
+											ColorAndOpacity={ Q.Tint }
+											Slot.Position={ Q.Position }
+											Slot.Size={ Q.Size } />
+									);
+								}
+								@for (const RuiDoom::FDoomQuad& Q : G->CeilingBands) {
+									return (
+										<Image
+											key={ Q.Key }
+											Image={ Q.Brush }
+											ColorAndOpacity={ Q.Tint }
+											Slot.Position={ Q.Position }
+											Slot.Size={ Q.Size } />
+									);
+								}
+								@for (const RuiDoom::FDoomQuad& Q : G->FloorBands) {
+									return (
+										<Image
+											key={ Q.Key }
+											Image={ Q.Brush }
+											ColorAndOpacity={ Q.Tint }
+											Slot.Position={ Q.Position }
+											Slot.Size={ Q.Size } />
+									);
+								}
+								@for (const RuiDoom::FDoomQuad& Q : G->FloorRims) {
+									return (
+										<Image
+											key={ Q.Key }
+											Image={ Q.Brush }
+											ColorAndOpacity={ Q.Tint }
+											Slot.Position={ Q.Position }
+											Slot.Size={ Q.Size } />
+									);
+								}
+								@for (const RuiDoom::FDoomQuad& Q : G->ExtraSegs) {
+									return (
+										<Image
+											key={ Q.Key }
+											Image={ Q.Brush }
+											ColorAndOpacity={ Q.Tint }
+											Slot.Position={ Q.Position }
+											Slot.Size={ Q.Size } />
+									);
+								}
+								@for (const RuiDoom::FDoomQuad& Q : G->RiserRims) {
+									return (
+										<Image
+											key={ Q.Key }
+											Image={ Q.Brush }
+											ColorAndOpacity={ Q.Tint }
+											Slot.Position={ Q.Position }
+											Slot.Size={ Q.Size } />
+									);
+								}
+								@for (const RuiDoom::FDoomQuad& Q : G->Walls) {
+									return (
+										<Image
+											key={ Q.Key }
+											Image={ Q.Brush }
+											ColorAndOpacity={ Q.Tint }
+											Slot.Position={ Q.Position }
+											Slot.Size={ Q.Size } />
+									);
+								}
+								@for (const RuiDoom::FDoomQuad& Q : G->Sprites) {
+									return (
+										<Image
+											key={ Q.Key }
+											Image={ Q.Brush }
+											ColorAndOpacity={ Q.Tint }
+											Slot.Position={ Q.Position }
+											Slot.Size={ Q.Size } />
+									);
+								}
+								@for (const RuiDoom::FDoomQuad& Q : G->Tracers) {
+									return (
+										<Image
+											key={ Q.Key }
+											Image={ Q.Brush }
+											ColorAndOpacity={ Q.Tint }
+											RenderTransformAngle={ Q.Angle }
+											RenderTransformPivot={ FVector2D(0.0f, 0.5f) }
+											Slot.Position={ Q.Position }
+											Slot.Size={ Q.Size } />
+									);
+								}
+								@for (const RuiDoom::FDoomQuad& Q : G->Overlay) {
+									return (
+										<Image
+											key={ Q.Key }
+											Image={ Q.Brush }
+											ColorAndOpacity={ Q.Tint }
+											Slot.Position={ Q.Position }
+											Slot.Size={ Q.Size } />
+									);
+								}
+							</Canvas>
+						</Box>
+						<!-- automap, top-right (the component is fixed-size; placement is ours) -->
+						<Box Slot.HAlign="right" Slot.VAlign="top" Slot.Padding="0,8,8,0">
+							<DoomMinimap State={ St } Version={ View.Version } />
+						</Box>
+						<!-- Ctrl+R FPS readout, top-left (the Godot bootstrap counter's colors) -->
+						@if (View.bShowFps) {
+							return (
+								<Box Slot.HAlign="left" Slot.VAlign="top" Slot.Padding="8,8,0,0" key="fps">
+									<TextBlock
+										Text={ RUI::Fmt(TEXT("FPS {}"), FMath::RoundToInt(View.Fps)) }
+										Font.Size={ 16.0f }
+										ColorAndOpacity={ FLinearColor(1.0f, 0.95f, 0.4f, 1.0f) } />
+								</Box>
+							);
+						}
+						<!-- pickup/message line, top-center, timer-driven -->
+						@if (St->Player.MessageTimer > 0.0f) {
+							return (
+								<Box Slot.HAlign="center" Slot.VAlign="top" Slot.Padding="0,10,0,0" key="msg">
+									<TextBlock
+										Text={ FText::FromString(St->Player.MessageText) }
+										Font.Size={ 14.0f }
+										ColorAndOpacity={ FLinearColor(0.95f, 0.85f, 0.50f, 1.0f) } />
+								</Box>
+							);
+						}
+						<!-- YOU DIED overlay (cursor auto-released by the hook) -->
+						@if (!St->Player.Alive && !St->Victory) {
+							return (
+								<Border
+									key="died"
+									BorderImage="WhiteBrush"
+									BorderBackgroundColor={ FLinearColor(0.10f, 0.0f, 0.0f, 0.55f) }
+									Slot.HAlign="fill"
+									Slot.VAlign="fill"
+								>
+									<VerticalBox Slot.HAlign="center" Slot.VAlign="center">
+										<TextBlock
+											Text="YOU DIED"
+											Font.Size={ 48.0f }
+											ColorAndOpacity={ FLinearColor(0.95f, 0.15f, 0.10f, 1.0f) }
+											Justification="center" />
+										<Spacer Size={ FVector2D(1.0f, 14.0f) } />
+										<HorizontalBox Slot.HAlign="center">
+											<Button
+												OnClicked={ SetRestartVersion(RestartVersion + 1) }
+												ContentPadding="16,6"
+												Slot.Padding="0,0,8,0"
+											>
+												<TextBlock Text="Restart level" />
+											</Button>
+											<Button OnClicked={ OnBackToMenu.Execute() } ContentPadding="16,6">
+												<TextBlock Text="Main menu" />
+											</Button>
+										</HorizontalBox>
+									</VerticalBox>
+								</Border>
+							);
+						}
+						<!-- LEVEL COMPLETE overlay -->
+						@if (St->Victory) {
+							return (
+								<Border
+									key="won"
+									BorderImage="WhiteBrush"
+									BorderBackgroundColor={ FLinearColor(0.0f, 0.06f, 0.0f, 0.55f) }
+									Slot.HAlign="fill"
+									Slot.VAlign="fill"
+								>
+									<VerticalBox Slot.HAlign="center" Slot.VAlign="center">
+										<TextBlock
+											Text="LEVEL COMPLETE"
+											Font.Size={ 42.0f }
+											ColorAndOpacity={ FLinearColor(0.60f, 0.95f, 0.40f, 1.0f) }
+											Justification="center" />
+										<TextBlock
+											Text={ RUI::Fmt(TEXT("Kills {} / {}   ·   Score {}"), St->KillCount, St->KillTotal, St->Score) }
+											Justification="center"
+											ColorAndOpacity={ FLinearColor(0.85f, 0.85f, 0.70f, 1.0f) } />
+										<Spacer Size={ FVector2D(1.0f, 14.0f) } />
+										<HorizontalBox Slot.HAlign="center">
+											@if (ActiveLevel < RuiDoom::LEVEL_COUNT) {
+												return (
+													<Button
+														key="next"
+														OnClicked={ SetActiveLevel(ActiveLevel + 1) }
+														ContentPadding="16,6"
+														Slot.Padding="0,0,8,0"
+													>
+														<TextBlock Text="Next level" />
+													</Button>
+												);
+											}
+											<Button OnClicked={ OnBackToMenu.Execute() } ContentPadding="16,6">
+												<TextBlock Text="Main menu" />
+											</Button>
+										</HorizontalBox>
+									</VerticalBox>
+								</Border>
+							);
+						}
+					</Overlay>
+					<DoomHUD
+						Health={ St->Player.Health }
+						Armor={ St->Player.Armor }
+						ArmorClass={ St->Player.ArmorClass }
+						Weapon={ St->Player.Weapon }
+						Ammo={ St->Player.Ammo }
+						OwnedWeapons={ St->Player.OwnedWeapons }
+						Keys={ St->Player.Keys }
+						Score={ St->Score }
+						KillCount={ St->KillCount }
+						KillTotal={ St->KillTotal }
+						MapName={ RuiDoom::LevelName(ActiveLevel) }
+						FaceState={ St->Player.FaceState } />
+				</VerticalBox>
+			</Box>
 		</ScaleBox>
 	);
 }

@@ -3,7 +3,9 @@
 #include "UetkxFileScan.h"
 
 #include "UetkxChars.h"
+#include "UetkxJsxScan.h"
 #include "UetkxLexer.h"
+#include "UetkxMarkup.h"
 
 using namespace UetkxChars;
 
@@ -19,6 +21,229 @@ namespace
 		D.Offset = Offset;
 		D.Length = Length;
 		Diags.Add(MoveTemp(D));
+	}
+
+	/** §4 markup-everywhere: if code point `i` lands inside a jsx markup range, the index to jump
+	 *  to (the range end); -1 otherwise. Walkers use this to keep CODE lexis off markup text. */
+	int32 JsxSkipTo(const TArray<FUetkxMarkupRange>& Ranges, int32 i)
+	{
+		for (const FUetkxMarkupRange& R : Ranges)
+		{
+			if (i >= R.Start && i < R.End)
+			{
+				return R.End;
+			}
+		}
+		return -1;
+	}
+
+	/** TB-12 / UETKX0114, NARROWED by §4 markup-everywhere: markup-as-value is now first-class
+	 *  (`auto X = (<VerticalBox>…);` lowers in place), so the old detector is gone. What stays
+	 *  illegal is a PAREN-LESS markup return at statement level (`return <Tag/>;`) — the family
+	 *  return spelling is `return ( <markup> );` (that's what the collector recognizes; a bare
+	 *  form would otherwise die as an FRuiNode→FRuiNodeArray conversion error inside the .inl).
+	 *  Lambda-nested returns (ParenDepth > 0, deduced return type) lower fine and stay legal. */
+	void DiagnoseBareMarkupReturn(const TArray<int32>& Body, const TArray<FUetkxMarkupRange>& Ranges, int32 BodyAt,
+								  TArray<FUetkxDiag>& Diags)
+	{
+		using namespace UetkxChars;
+		const int32 N = Body.Num();
+		int32 ParenDepth = 0;
+		int32 i = 0;
+		while (i < N)
+		{
+			const int32 Skip = JsxSkipTo(Ranges, i);
+			if (Skip != -1)
+			{
+				i = Skip;
+				continue;
+			}
+			const int32 j = FUetkxLexer::SkipNoncode(Body, i);
+			if (j != i)
+			{
+				i = j;
+				continue;
+			}
+			const int32 C = Body[i];
+			if (C == C_LPAREN || C == C_LBRACKET)
+			{
+				++ParenDepth;
+				++i;
+				continue;
+			}
+			if (C == C_RPAREN || C == C_RBRACKET)
+			{
+				--ParenDepth;
+				++i;
+				continue;
+			}
+			if (ParenDepth == 0 && C == 'r' && FUetkxLexer::KeywordAt(Body, i, TEXT("return")))
+			{
+				int32 P = i + 6;
+				while (P < N && (Body[P] == C_SPACE || Body[P] == C_TAB || Body[P] == C_NL || Body[P] == C_CR))
+				{
+					++P;
+				}
+				for (const FUetkxMarkupRange& R : Ranges)
+				{
+					if (R.Start == P)
+					{
+						AddDiag(Diags, TEXT("UETKX0114"), 0,
+								TEXT("a markup return must be parenthesized — write `return ( <...> );`"), BodyAt + P);
+						return;
+					}
+				}
+				i += 6;
+				continue;
+			}
+			++i;
+		}
+	}
+
+	/** TB-5 / UETKX0107 — Unity's UnreachableAfterReturn (UITKX0107), family-numbered: dead code
+	 *  after the FIRST top-level `return` statement of a component body. Handles BOTH shapes —
+	 *  a top-level markup `return ( … )` before the end of the body, and a plain C++ early
+	 *  `return x;` in setup (the collector never sees those — they carry no markup). Severity 2
+	 *  (hint); the LSP attaches the Unnecessary tag so editors FADE the range instead of
+	 *  squiggling it. Comment-only tails don't count as content. */
+	void DiagnoseUnreachableAfterReturn(const TArray<int32>& Body, const TArray<FUetkxReturnSpan>& Returns,
+										const TArray<FUetkxMarkupRange>& Ranges, int32 BodyAt,
+										TArray<FUetkxDiag>& Diags)
+	{
+		using namespace UetkxChars;
+		const int32 N = Body.Num();
+		int32 DeadStart = -1;
+		int32 Depth = 0;
+		int32 i = 0;
+		while (i < N)
+		{
+			const int32 Skip = JsxSkipTo(Ranges, i);
+			if (Skip != -1)
+			{
+				i = Skip;
+				continue;
+			}
+			const int32 j = FUetkxLexer::SkipNoncode(Body, i);
+			if (j != i)
+			{
+				i = j;
+				continue;
+			}
+			const int32 C = Body[i];
+			if (C == C_LBRACE || C == C_LPAREN || C == C_LBRACKET)
+			{
+				++Depth;
+				++i;
+				continue;
+			}
+			if (C == C_RBRACE || C == C_RPAREN || C == C_RBRACKET)
+			{
+				--Depth;
+				++i;
+				continue;
+			}
+			if (Depth == 0 && FUetkxLexer::KeywordAt(Body, i, TEXT("return")))
+			{
+				const FUetkxReturnSpan* Span = nullptr;
+				for (const FUetkxReturnSpan& S : Returns)
+				{
+					if (S.ReturnAt == i)
+					{
+						Span = &S;
+						break;
+					}
+				}
+				int32 End;
+				if (Span)
+				{
+					End = Span->AfterParen;
+					while (End < N &&
+						   (Body[End] == C_SPACE || Body[End] == C_TAB || Body[End] == C_NL || Body[End] == C_CR))
+					{
+						++End;
+					}
+					if (End < N && Body[End] == ';')
+					{
+						++End;
+					}
+				}
+				else
+				{
+					// A plain C++ `return expr;` — scan to its statement-ending top-level `;`.
+					// Markup ranges jump whole (a `;` inside markup text is not a terminator).
+					int32 D2 = 0;
+					int32 k = i + 6;
+					while (k < N)
+					{
+						const int32 Skip2 = JsxSkipTo(Ranges, k);
+						if (Skip2 != -1)
+						{
+							k = Skip2;
+							continue;
+						}
+						const int32 j2 = FUetkxLexer::SkipNoncode(Body, k);
+						if (j2 != k)
+						{
+							k = j2;
+							continue;
+						}
+						const int32 C2 = Body[k];
+						if (C2 == C_LBRACE || C2 == C_LPAREN || C2 == C_LBRACKET)
+						{
+							++D2;
+						}
+						else if (C2 == C_RBRACE || C2 == C_RPAREN || C2 == C_RBRACKET)
+						{
+							--D2;
+						}
+						else if (C2 == ';' && D2 == 0)
+						{
+							++k;
+							break;
+						}
+						++k;
+					}
+					End = k;
+				}
+				DeadStart = End;
+				break;
+			}
+			++i;
+		}
+		if (DeadStart < 0)
+		{
+			return;
+		}
+		int32 First = -1;
+		i = DeadStart;
+		while (i < N)
+		{
+			const int32 j = FUetkxLexer::SkipNoncode(Body, i);
+			if (j != i)
+			{
+				i = j;
+				continue;
+			}
+			const int32 C = Body[i];
+			if (C == C_SPACE || C == C_TAB || C == C_NL || C == C_CR)
+			{
+				++i;
+				continue;
+			}
+			First = i;
+			break;
+		}
+		if (First < 0)
+		{
+			return;
+		}
+		int32 Last = N;
+		while (Last > First && (Body[Last - 1] == C_SPACE || Body[Last - 1] == C_TAB || Body[Last - 1] == C_NL ||
+								Body[Last - 1] == C_CR))
+		{
+			--Last;
+		}
+		AddDiag(Diags, TEXT("UETKX0107"), 2, TEXT("Unreachable code after 'return'."), BodyAt + First, Last - First);
 	}
 
 	int32 SkipWsOnly(const TArray<int32>& S, int32 i)
@@ -128,8 +353,11 @@ namespace
 		return Out;
 	}
 
-	/** Collect the ordered hook-call kinds in setup (word-boundary, not after . or ::). */
-	TArray<FString> ScanHookCalls(const TArray<int32>& Setup)
+	/** Collect the ordered hook-call kinds in setup (word-boundary, not after . or ::).
+	 *  §4.3 HMR protection: markup ranges are EXCLUDED — hooks are illegal inside markup
+	 *  (UETKX0013), so markup text must never perturb the hook signature: editing a value-markup
+	 *  child would otherwise flip the signature and spuriously reset live state on a HMR swap. */
+	TArray<FString> ScanHookCalls(const TArray<int32>& Setup, const TArray<FUetkxMarkupRange>* SkipRanges = nullptr)
 	{
 		TArray<FString> Out;
 		const TArray<FString>& Hooks = FUetkxFileScan::HookNames();
@@ -137,6 +365,15 @@ namespace
 		const int32 N = Setup.Num();
 		while (i < N)
 		{
+			if (SkipRanges != nullptr)
+			{
+				const int32 Skip = JsxSkipTo(*SkipRanges, i);
+				if (Skip != -1)
+				{
+					i = Skip;
+					continue;
+				}
+			}
 			const int32 j = FUetkxLexer::SkipNoncode(Setup, i);
 			if (j != i)
 			{
@@ -163,6 +400,456 @@ namespace
 			++i;
 		}
 		return Out;
+	}
+
+	// ── §4 rules of hooks — the family port (Unity UITKX0013-0016, Godot T2.5), C++-shaped ──────
+	// Hooks must run unconditionally at the top level of the component body: 0013 conditional
+	// (if/else — and any hook inside markup, which renders conditionally by construction), 0014
+	// loop (for/while/@for/@while), 0015 match branch (switch/@match), 0016 callback/lambda
+	// (incl. event attributes). Every violating call is reported, not just the first.
+
+	enum class EHookBlock : uint8
+	{
+		None,
+		Conditional,
+		Loop,
+		Match,
+		Callback,
+		Markup // plain attr/child expression — 0013 with the in-markup wording
+	};
+
+	const TCHAR* HookBlockCode(EHookBlock Kind)
+	{
+		switch (Kind)
+		{
+		case EHookBlock::Loop:
+			return TEXT("UETKX0014");
+		case EHookBlock::Match:
+			return TEXT("UETKX0015");
+		case EHookBlock::Callback:
+			return TEXT("UETKX0016");
+		default:
+			return TEXT("UETKX0013");
+		}
+	}
+
+	FString HookBlockMessage(EHookBlock Kind)
+	{
+		const TCHAR* What = TEXT("conditionally (inside an if/else)");
+		switch (Kind)
+		{
+		case EHookBlock::Loop:
+			What = TEXT("inside a loop");
+			break;
+		case EHookBlock::Match:
+			What = TEXT("inside a switch/match branch");
+			break;
+		case EHookBlock::Callback:
+			What = TEXT("inside a callback/lambda");
+			break;
+		case EHookBlock::Markup:
+			What = TEXT("inside markup");
+			break;
+		default:
+			break;
+		}
+		return FString::Printf(
+			TEXT("hook called %s — hooks must run unconditionally at the top level of the component body"), What);
+	}
+
+	/** Hook-call match at `i` (same rule as ScanHookCalls): a known hook name followed by `(` or
+	 *  a `<` template-arg list. Returns the name length, or 0. */
+	int32 HookCallLenAt(const TArray<int32>& Src, int32 i)
+	{
+		const int32 N = Src.Num();
+		if (i >= N || (Src[i] != 'U' && Src[i] != 'P'))
+		{
+			return 0;
+		}
+		for (const FString& Hook : FUetkxFileScan::HookNames())
+		{
+			if (FUetkxLexer::KeywordAt(Src, i, *Hook))
+			{
+				const int32 K = SkipWsOnly(Src, i + Hook.Len());
+				if (K < N && (Src[K] == C_LPAREN || Src[K] == C_LT))
+				{
+					return Hook.Len();
+				}
+			}
+		}
+		return 0;
+	}
+
+	void ValidateMarkupNodeHooks(const FUetkxNode& Node, int32 Base, int32 FallbackAt, EHookBlock Enclosing,
+								 TArray<FUetkxDiag>& Diags);
+
+	/** Code embedded in markup (attr/child expressions, directive headers/bodies): flag hook
+	 *  calls with `Kind`, then recurse into any markup ranges nested in the code (jsx scan).
+	 *  `Base` is the absolute offset of Code[0], or -1 when unknown (diags fall back to
+	 *  FallbackAt). */
+	void ScanMarkupCodeForHooks(const FString& Code, int32 Base, int32 FallbackAt, EHookBlock Kind,
+								TArray<FUetkxDiag>& Diags)
+	{
+		const TArray<int32> Src = FUetkxLexer::ToCodePoints(Code);
+		TArray<FUetkxMarkupRange> Ranges = FUetkxJsxScan::FindMarkupRanges(Src, 0, Src.Num());
+		for (FUetkxMarkupRange& R : Ranges)
+		{
+			if (R.End == -1)
+			{
+				R.End = Src.Num();
+			}
+		}
+		const int32 N = Src.Num();
+		int32 i = 0;
+		while (i < N)
+		{
+			const int32 Jump = JsxSkipTo(Ranges, i);
+			if (Jump != -1)
+			{
+				i = Jump;
+				continue;
+			}
+			const int32 j = FUetkxLexer::SkipNoncode(Src, i);
+			if (j != i)
+			{
+				i = j;
+				continue;
+			}
+			const int32 HookLen = HookCallLenAt(Src, i);
+			if (HookLen > 0)
+			{
+				AddDiag(Diags, HookBlockCode(Kind), 0, HookBlockMessage(Kind), Base < 0 ? FallbackAt : Base + i,
+						HookLen);
+				i += HookLen;
+				continue;
+			}
+			if (FUetkxLexer::IsIdentCode(Src[i]))
+			{
+				while (i < N && FUetkxLexer::IsIdentCode(Src[i]))
+				{
+					++i;
+				}
+				continue;
+			}
+			++i;
+		}
+		for (const FUetkxMarkupRange& R : Ranges)
+		{
+			FUetkxMarkup Parser;
+			FUetkxParseResult Pr = Parser.Parse(Src, R.Start, R.End);
+			if (!Pr.IsOk())
+			{
+				continue; // the emitter owns markup parse errors (UETKX2508 / family codes)
+			}
+			for (const TSharedPtr<FUetkxNode>& Nd : Pr.Nodes)
+			{
+				if (Nd.IsValid())
+				{
+					ValidateMarkupNodeHooks(*Nd, Base, Base < 0 ? FallbackAt : Base + R.Start, Kind, Diags);
+				}
+			}
+		}
+	}
+
+	/** A directive body — statements + `return ( <markup> )` (family 0.7): validate the lead code
+	 *  (jsx-aware), then every root of the return window. Mirrors EmitBody's split exactly. */
+	void ValidateDirectiveBodyHooks(const FString& BodyMarkup, int32 Base, int32 FallbackAt, EHookBlock Enclosing,
+									TArray<FUetkxDiag>& Diags)
+	{
+		const TArray<int32> Body = FUetkxLexer::ToCodePoints(BodyMarkup);
+		const FUetkxSplitReturn Split = FUetkxFileScan::SplitMarkupReturn(Body, /*bRequireMarkupPeek*/ false);
+		if (!Split.bOk)
+		{
+			ScanMarkupCodeForHooks(BodyMarkup, Base, FallbackAt, Enclosing, Diags);
+			return;
+		}
+		ScanMarkupCodeForHooks(FUetkxLexer::FromCodePoints(Body, 0, Split.ReturnAt), Base, FallbackAt, Enclosing,
+							   Diags);
+		FUetkxMarkup Parser;
+		FUetkxParseResult Pr = Parser.Parse(Body, Split.MStart, Split.MEnd);
+		if (Pr.IsOk())
+		{
+			for (const TSharedPtr<FUetkxNode>& Nd : Pr.Nodes)
+			{
+				if (Nd.IsValid())
+				{
+					ValidateMarkupNodeHooks(*Nd, Base, Base < 0 ? FallbackAt : Base + Split.MStart, Enclosing, Diags);
+				}
+			}
+		}
+	}
+
+	/** Walk one parsed markup node: attr/child expressions, directive headers and bodies.
+	 *  `Base` is the absolute anchor of this tree's offset frame (node.At/Vat/BodyAt compose on
+	 *  top of it), or -1 when the frame is detached (diags fall back to FallbackAt). */
+	void ValidateMarkupNodeHooks(const FUetkxNode& Node, int32 Base, int32 FallbackAt, EHookBlock Enclosing,
+								 TArray<FUetkxDiag>& Diags)
+	{
+		const int32 NodeAt = Base < 0 ? FallbackAt : Base + Node.At;
+		switch (Node.Type)
+		{
+		case EUetkxNodeType::El:
+		case EUetkxNodeType::Frag:
+			for (const FUetkxAttr& Attr : Node.Attrs)
+			{
+				if (Attr.Kind != EUetkxAttrKind::Expr && Attr.Kind != EUetkxAttrKind::Spread)
+				{
+					continue;
+				}
+				EHookBlock Kind = Enclosing;
+				if (Attr.Name.Len() > 2 && Attr.Name.StartsWith(TEXT("On")))
+				{
+					Kind = EHookBlock::Callback; // event attrs run as callbacks
+				}
+				else if (Kind == EHookBlock::None)
+				{
+					Kind = EHookBlock::Markup;
+				}
+				ScanMarkupCodeForHooks(Attr.Value, Base < 0 || Attr.Vat < 0 ? -1 : Base + Attr.Vat, NodeAt, Kind,
+									   Diags);
+			}
+			for (const TSharedPtr<FUetkxNode>& Child : Node.Children)
+			{
+				if (Child.IsValid())
+				{
+					ValidateMarkupNodeHooks(*Child, Base, NodeAt, Enclosing, Diags);
+				}
+			}
+			break;
+		case EUetkxNodeType::Expr:
+			ScanMarkupCodeForHooks(Node.Code, Base < 0 || Node.Vat < 0 ? -1 : Base + Node.Vat, NodeAt,
+								   Enclosing == EHookBlock::None ? EHookBlock::Markup : Enclosing, Diags);
+			break;
+		case EUetkxNodeType::If:
+			for (const FUetkxIfBranch& Branch : Node.Branches)
+			{
+				ScanMarkupCodeForHooks(Branch.Cond, -1, NodeAt, EHookBlock::Conditional, Diags);
+				ValidateDirectiveBodyHooks(Branch.BodyMarkup, Base < 0 || Branch.BodyAt < 0 ? -1 : Base + Branch.BodyAt,
+										   NodeAt, EHookBlock::Conditional, Diags);
+			}
+			if (Node.ElseBody.IsSet())
+			{
+				ValidateDirectiveBodyHooks(Node.ElseBody.GetValue(),
+										   Base < 0 || Node.ElseBodyAt < 0 ? -1 : Base + Node.ElseBodyAt, NodeAt,
+										   EHookBlock::Conditional, Diags);
+			}
+			break;
+		case EUetkxNodeType::For:
+		case EUetkxNodeType::While:
+			ScanMarkupCodeForHooks(Node.Header, -1, NodeAt, EHookBlock::Loop, Diags);
+			ValidateDirectiveBodyHooks(Node.BodyMarkup, Base < 0 || Node.BodyAt < 0 ? -1 : Base + Node.BodyAt, NodeAt,
+									   EHookBlock::Loop, Diags);
+			break;
+		case EUetkxNodeType::Match:
+			ScanMarkupCodeForHooks(Node.Subject, -1, NodeAt, EHookBlock::Match, Diags);
+			for (const FUetkxMatchCase& Case : Node.Cases)
+			{
+				ScanMarkupCodeForHooks(Case.Value, -1, NodeAt, EHookBlock::Match, Diags);
+				ValidateDirectiveBodyHooks(Case.BodyMarkup, Base < 0 || Case.BodyAt < 0 ? -1 : Base + Case.BodyAt,
+										   NodeAt, EHookBlock::Match, Diags);
+			}
+			if (Node.DefaultBody.IsSet())
+			{
+				ValidateDirectiveBodyHooks(Node.DefaultBody.GetValue(),
+										   Base < 0 || Node.DefaultBodyAt < 0 ? -1 : Base + Node.DefaultBodyAt, NodeAt,
+										   EHookBlock::Match, Diags);
+			}
+			break;
+		default:
+			break;
+		}
+	}
+
+	/** The C++ brace-stack walk over the body's CODE (markup regions skipped): flag hook calls
+	 *  under if/else/for/while/do/switch blocks (incl. brace-less bodies + headers) and inside
+	 *  lambdas. */
+	void CodeWalkHooks(const TArray<int32>& Body, const TArray<FUetkxMarkupRange>& Skip, int32 BodyAt,
+					   TArray<FUetkxDiag>& Diags)
+	{
+		TArray<EHookBlock> Stack; // one entry per '{'
+		TSet<int32> LambdaBraces; // '{' offsets recognized as lambda bodies
+		EHookBlock Pending = EHookBlock::None;
+		int32 ParenDepth = 0;
+		const int32 N = Body.Num();
+		int32 i = 0;
+		while (i < N)
+		{
+			const int32 Jump = JsxSkipTo(Skip, i);
+			if (Jump != -1)
+			{
+				i = Jump;
+				continue;
+			}
+			const int32 j = FUetkxLexer::SkipNoncode(Body, i);
+			if (j != i)
+			{
+				i = j;
+				continue;
+			}
+			const int32 C = Body[i];
+			if (C == C_LPAREN)
+			{
+				++ParenDepth;
+				++i;
+				continue;
+			}
+			if (C == C_RPAREN)
+			{
+				--ParenDepth;
+				++i;
+				continue;
+			}
+			if (C == C_LBRACKET)
+			{
+				// lambda intro? peek non-destructively: [captures] (params)? specifiers? '{'
+				const int32 CloseB = FUetkxLexer::FindMatching(Body, i);
+				if (CloseB != -1)
+				{
+					int32 k = SkipWsOnly(Body, CloseB + 1);
+					if (k < N && Body[k] == C_LPAREN)
+					{
+						const int32 CloseP = FUetkxLexer::FindMatching(Body, k);
+						k = CloseP == -1 ? N : SkipWsOnly(Body, CloseP + 1);
+					}
+					int32 Guard = 0;
+					while (k < N && Body[k] != C_LBRACE && Guard++ < 64 &&
+						   (FUetkxLexer::IsIdentCode(Body[k]) || Body[k] == C_SPACE || Body[k] == C_TAB ||
+							Body[k] == C_NL || Body[k] == C_CR || Body[k] == C_DASH || Body[k] == C_GT ||
+							Body[k] == ':' || Body[k] == C_AMP || Body[k] == C_STAR || Body[k] == C_LT ||
+							Body[k] == C_COMMA))
+					{
+						++k;
+					}
+					if (k < N && Body[k] == C_LBRACE)
+					{
+						LambdaBraces.Add(k);
+					}
+				}
+				++i; // walk the capture list normally — init-captures run unconditionally
+				continue;
+			}
+			if (C == C_LBRACE)
+			{
+				EHookBlock Kind = EHookBlock::None;
+				if (LambdaBraces.Contains(i))
+				{
+					Kind = EHookBlock::Callback;
+				}
+				else if (Pending != EHookBlock::None)
+				{
+					Kind = Pending;
+				}
+				Stack.Push(Kind);
+				Pending = EHookBlock::None;
+				++i;
+				continue;
+			}
+			if (C == C_RBRACE)
+			{
+				if (Stack.Num() > 0)
+				{
+					Stack.Pop();
+				}
+				++i;
+				continue;
+			}
+			if (C == ';' && ParenDepth == 0)
+			{
+				Pending = EHookBlock::None; // a brace-less `if (x) stmt;` body ended
+				++i;
+				continue;
+			}
+			if (FUetkxLexer::IsIdentCode(C) && (i == 0 || !FUetkxLexer::IsIdentCode(Body[i - 1])))
+			{
+				const int32 HookLen = HookCallLenAt(Body, i);
+				if (HookLen > 0)
+				{
+					EHookBlock Ctx = Pending;
+					for (int32 S = Stack.Num() - 1; Ctx == EHookBlock::None && S >= 0; --S)
+					{
+						Ctx = Stack[S];
+					}
+					if (Ctx != EHookBlock::None)
+					{
+						AddDiag(Diags, HookBlockCode(Ctx), 0, HookBlockMessage(Ctx), BodyAt + i, HookLen);
+					}
+					i += HookLen;
+					continue;
+				}
+				if (FUetkxLexer::KeywordAt(Body, i, TEXT("if")) || FUetkxLexer::KeywordAt(Body, i, TEXT("else")))
+				{
+					Pending = EHookBlock::Conditional;
+				}
+				else if (FUetkxLexer::KeywordAt(Body, i, TEXT("for")) ||
+						 FUetkxLexer::KeywordAt(Body, i, TEXT("while")) || FUetkxLexer::KeywordAt(Body, i, TEXT("do")))
+				{
+					Pending = EHookBlock::Loop;
+				}
+				else if (FUetkxLexer::KeywordAt(Body, i, TEXT("switch")))
+				{
+					Pending = EHookBlock::Match;
+				}
+				while (i < N && FUetkxLexer::IsIdentCode(Body[i]))
+				{
+					++i;
+				}
+				continue;
+			}
+			++i;
+		}
+	}
+
+	/** §4 rules-of-hooks driver: the code walk (outside markup), then every markup region's
+	 *  parsed tree — return windows use their already-parsed roots; value-markup ranges parse
+	 *  here (tolerantly — the emitter owns parse errors). */
+	void ValidateHookPlacement(const TArray<int32>& Body, const TArray<FUetkxMarkupRange>& JsxRanges,
+							   const TArray<FUetkxReturnSpan>& Returns, int32 BodyAt, TArray<FUetkxDiag>& Diags)
+	{
+		TArray<FUetkxMarkupRange> Skip = JsxRanges;
+		for (const FUetkxReturnSpan& Span : Returns)
+		{
+			FUetkxMarkupRange R;
+			R.Start = Span.MStart;
+			R.End = Span.MEnd;
+			Skip.Add(R); // directive-form windows (`return ( @if … )`) are not jsx ranges
+		}
+		CodeWalkHooks(Body, Skip, BodyAt, Diags);
+		for (const FUetkxReturnSpan& Span : Returns)
+		{
+			if (Span.Root.IsValid())
+			{
+				ValidateMarkupNodeHooks(*Span.Root, BodyAt, BodyAt + Span.MStart, EHookBlock::None, Diags);
+			}
+		}
+		for (const FUetkxMarkupRange& R : JsxRanges)
+		{
+			bool bInWindow = false;
+			for (const FUetkxReturnSpan& Span : Returns)
+			{
+				if (R.Start >= Span.MStart && R.Start < Span.MEnd)
+				{
+					bInWindow = true;
+					break;
+				}
+			}
+			if (bInWindow)
+			{
+				continue;
+			}
+			FUetkxMarkup Parser;
+			FUetkxParseResult Pr = Parser.Parse(Body, R.Start, R.End);
+			if (!Pr.IsOk())
+			{
+				continue;
+			}
+			for (const TSharedPtr<FUetkxNode>& Nd : Pr.Nodes)
+			{
+				if (Nd.IsValid())
+				{
+					ValidateMarkupNodeHooks(*Nd, BodyAt, BodyAt + R.Start, EHookBlock::None, Diags);
+				}
+			}
+		}
 	}
 
 	/** The quoted or angle-bracket header path inside a `#include "X.h"` / `#include <X.h>` line,
@@ -444,6 +1131,20 @@ namespace
 		// FINAL span must be top-level — it anchors the window/setup split (T1.4 last-wins) and
 		// guarantees the emitted impl always ends in a return statement.
 		Decl.Returns = FUetkxFileScan::CollectMarkupReturns(Body);
+		// §4 markup-everywhere: the jsx-range list of record for this body (element-form markup at
+		// every family boundary position — value, argument, ternary, short-circuit, return). Range
+		// coords are body-relative; unbalanced ranges clamp to the body end. Computed before the
+		// no-return early-out so a paren-less `return <Tag/>` gets its precise 0114 instead of a
+		// bare 2101.
+		TArray<FUetkxMarkupRange> JsxRanges = FUetkxJsxScan::FindMarkupRanges(Body, 0, Body.Num());
+		for (FUetkxMarkupRange& R : JsxRanges)
+		{
+			if (R.End == -1)
+			{
+				R.End = Body.Num();
+			}
+		}
+		DiagnoseBareMarkupReturn(Body, JsxRanges, BodyAt, Out.Diags);
 		if (Decl.Returns.IsEmpty())
 		{
 			AddDiag(Out.Diags, TEXT("UETKX2101"), 0, TEXT("component has no `return ( ... )` markup return"), Ci, 9);
@@ -459,7 +1160,8 @@ namespace
 		const FUetkxReturnSpan& Final = Decl.Returns.Last();
 		Decl.Setup = FUetkxLexer::FromCodePoints(Body, 0, Final.ReturnAt);
 		Decl.SetupAt = BodyAt;
-		Decl.HookCalls = ScanHookCalls(FUetkxLexer::ToCodePoints(Decl.Setup));
+		Decl.HookCalls = ScanHookCalls(FUetkxLexer::ToCodePoints(Decl.Setup), &JsxRanges);
+		DiagnoseUnreachableAfterReturn(Body, Decl.Returns, JsxRanges, BodyAt, Out.Diags);
 
 		for (FUetkxReturnSpan& Span : Decl.Returns)
 		{
@@ -492,6 +1194,8 @@ namespace
 				Decl.WindowNodes = Pr.Nodes; // the final window keeps the formatter contract
 			}
 		}
+		// §4 rules of hooks (family 0013-0016) — needs the parsed window roots, so it runs last.
+		ValidateHookPlacement(Body, JsxRanges, Decl.Returns, BodyAt, Out.Diags);
 		Decl.Root = Decl.Returns.Last().Root;
 
 		const int32 Idx = Out.Components.Num();

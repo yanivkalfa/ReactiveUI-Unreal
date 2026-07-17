@@ -1,5 +1,4 @@
 import "@RuiDemoSupport.h"
-
 import { DemoContextPanel } from "./components/DemoContextPanel/DemoContextPanel"
 import { ContextDemoStyle } from "./ContextDemo.style"
 
@@ -9,7 +8,12 @@ export component ContextDemo {
 	ProvideContext(RuiDemo::GDemoThemeCtx, Theme);
 
 	return (
-		<Border Padding="12" BorderImage="WhiteBrush" BorderBackgroundColor={ ContextDemoStyle::PanelBackground } Slot.Padding="0,10,0,0">
+		<Border
+			Padding="12"
+			BorderImage="WhiteBrush"
+			BorderBackgroundColor={ ContextDemoStyle::PanelBackground }
+			Slot.Padding="0,10,0,0"
+		>
 			<VerticalBox>
 				<TextBlock Text="Context Demo (toggle theme to see consumers update)" />
 				<Spacer Size={ FVector2D(1.0f, 6.0f) } />

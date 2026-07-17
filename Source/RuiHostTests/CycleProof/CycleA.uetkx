@@ -5,7 +5,9 @@ export component CycleA(Depth: int32 = 0) {
 		<VerticalBox>
 			<TextBlock Text="A" />
 			@if (Depth > 0) {
-				return ( <CycleB Depth={ Depth - 1 } /> );
+				return (
+					<CycleB Depth={ Depth - 1 } />
+				);
 			}
 		</VerticalBox>
 	);

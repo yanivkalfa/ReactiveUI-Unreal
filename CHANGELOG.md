@@ -7,6 +7,48 @@ resync with `cp CHANGELOG.md Plugins/ReactiveUI/CHANGELOG.md` (CI byte-compares 
 `scripts/verify-mirror.mjs`). The IDE extensions are NOT covered here — they use
 `ide-extensions/changelog.json` (Lane B; see the release-process skill).
 
+## [0.11.0] — 2026-07-17
+
+Markup everywhere: markup is a first-class EXPRESSION now, legal at every boundary position —
+grammar parity with the Godot/Unity siblings' jsx scan, plus the family rules-of-hooks.
+
+### Added
+
+- **Markup as a value** (`auto Card = (<VerticalBox>…</VerticalBox>);`, bare
+  `FRuiNode Chip = <TextBlock … />;`, call arguments, ternary branches, short-circuit
+  `cond && <Chip/>`): detected by the family's position-gated jsx scan (a `<` begins markup
+  only after a boundary token — assignment, `(`, `[`, `,`, `?`, ternary `:`, `&&`, `||`,
+  `return`, `else` — so comparisons like `a < b` can never match) and lowered in place to a
+  self-contained `FRuiNode` expression. `{ X }` children already spliced node values, so the
+  runtime is untouched; a value renders anywhere, including spliced more than once.
+- **Rules of hooks — `UETKX0013`/`0014`/`0015`/`0016`** (the family's Unity/Godot numbers):
+  hooks must run unconditionally at the top level of the component body. A `Use*` call under
+  an `if`/`else` (0013), a loop (0014), a `switch`/`@match` branch (0015), or inside a
+  lambda/event attribute (0016) — and anywhere inside markup (attr/child expressions,
+  directive bodies, by their enclosing kind) — is now a compile error instead of a
+  hook-order landmine.
+- **AcceptanceLab §10** — the markup-as-value section: `FRuiNode` locals (both spellings),
+  the same value spliced twice, short-circuit + ternary value markup inline.
+- **Editor menu**: ReactiveUetkx → **Message Log** — one-click access to the ReactiveUI
+  compile-error page (the clickable jump-to-file rows), which the engine otherwise parks
+  under Window's LOG section.
+
+### Changed
+
+- **`UETKX0114` narrowed**: markup-as-value is no longer an error — what remains illegal is
+  the paren-less statement-level markup return (`return <Tag/>;` → "a markup return must be
+  parenthesized — write `return ( <...> );`").
+- **Hook signatures ignore markup text** (HMR protection): editing a markup value or an
+  early-return window can never perturb the hook signature and spuriously reset live state.
+  This also corrects a latent wart — components with statement-level early returns get a
+  ONE-TIME signature change at upgrade (one HMR state reset on the first swap).
+
+### Fixed
+
+- **Unreachable-code detection (`UETKX0107`) no longer lexes markup as C++**: markup ranges
+  are skipped whole, so a `;`, apostrophe, or bracket inside markup text can no longer
+  corrupt the walk.
+
 ## [0.10.0] — 2026-07-16
 
 Include retirement: `.uetkx` preambles are imports-only now (INCLUDE_RETIREMENT_PLAN.md) —

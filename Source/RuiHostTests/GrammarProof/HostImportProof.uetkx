@@ -6,5 +6,7 @@ export component HostImportProof {
 	// host include (§B) actually emits the #include the setup code needs.
 	const FDateTime Stamp = FDateTime(2026, 1, 1);
 	const FString Label = FString::Printf(TEXT("year=%d"), Stamp.GetYear());
-	return ( <TextBlock Text={ FString(Label) } /> );
+	return (
+		<TextBlock Text={ FString(Label) } />
+	);
 }

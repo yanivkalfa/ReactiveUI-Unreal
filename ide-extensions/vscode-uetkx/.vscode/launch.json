@@ -12,7 +12,7 @@
       "request": "launch",
       "args": [
         "--extensionDevelopmentPath=${workspaceFolder}",
-        "${workspaceFolder}/../.."
+        "--file-uri=file:///C:/Yanivs/GameDev/ReactiveUI/ReactiveUI-Unreal/ide-extensions/vscode-uetkx/uetkx-dev.code-workspace"
       ],
       "outFiles": ["${workspaceFolder}/out/**/*.js"],
       "preLaunchTask": "npm: build"

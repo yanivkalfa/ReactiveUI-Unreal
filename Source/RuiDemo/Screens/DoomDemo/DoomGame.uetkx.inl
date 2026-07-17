@@ -30,8 +30,9 @@ static FRuiNodeArray DoomGame_UetkxImpl(FRuiContext& Ctx, const FDoomGameUetkxPr
 			SetPlayCount([](const int32& N) { return N + 1; });
 			SetInGame(true);
 		});
+	
 		FRuiCallback OnBackToMenu = Ctx.UseStableAction([SetInGame](const FRuiValue&) { SetInGame(false); });
-#line 35 "DoomGame.uetkx.inl"
+#line 36 "DoomGame.uetkx.inl"
 	return { [&]() -> FRuiNode {
 		FRuiBoxProps P;
 		TArray<FRuiNode> Ch;

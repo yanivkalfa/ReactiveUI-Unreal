@@ -47,21 +47,42 @@ export component AcceptanceLab {
 	// loop always terminates at 3 — a SAFE, actually-iterating @while (not the @while(false) guard).
 	int32 WhileI = 0;
 
+	// ── 10 · MARKUP AS A VALUE (§4 markup-everywhere) — markup is first-class at every
+	// expression boundary: assigned to a local (both the parenthesized and bare `=` spellings),
+	// then spliced below with { Badge } / { Chip }. The same FRuiNode splices TWICE — two
+	// mounted instances from one value. Editing THIS markup and saving must HMR without
+	// resetting the counter above (the hook signature ignores markup text).
+	auto Badge = (<TextBlock
+		Text={ RUI::Fmt(TEXT("count is {}"), Count) }
+		ColorAndOpacity={ LabStyle::Accent } />);
+	FRuiNode Chip = <TextBlock Text="   a bare `=` markup value" />;
+
 	return (
-		<Border Padding="12" BorderImage="WhiteBrush" BorderBackgroundColor={ LabStyle::Panel } Slot.Padding="0,10,0,0">
+		<Border
+			Padding="12"
+			BorderImage="WhiteBrush"
+			BorderBackgroundColor={ LabStyle::Panel }
+			Slot.Padding="0,10,0,0"
+		>
 			<ScrollBox>
 				<VerticalBox>
 					<!-- Header: TextBlock + Font.Size + ColorAndOpacity style keys (checklist A render). -->
-					<TextBlock Text="Acceptance Lab — one screen to test them all" Font.Size={ 18.0f } ColorAndOpacity={ LabStyle::Accent } />
+					<TextBlock
+						Text="Acceptance Lab — one screen to test them all"
+						Font.Size={ 18.0f }
+						ColorAndOpacity={ LabStyle::Accent } />
 					<TextBlock Text={ RUI::Fmt(TEXT("UseEffect mounted: {}"), bMounted) } />
 					<Spacer Size={ FVector2D(1.0f, 8.0f) } />
-
 					<!-- 1 · COUNTER — checklist A (counter +) and B (style/structure/hook HMR).
 					     · A: click "+1" a few times; value increments; "Reset" zeroes it.
 					     · B style HMR: change a Button ContentPadding below, save → updates <1s, value survives.
 					     · B structure HMR: add a `<TextBlock Text="hi" />` row here, save → updates, value survives.
 					     · Events: OnClicked runs a captured lambda from the imported hook. -->
-					<Border Padding="8" BorderImage="WhiteBrush" BorderBackgroundColor={ FLinearColor(0.04f, 0.04f, 0.06f, 0.9f) }>
+					<Border
+						Padding="8"
+						BorderImage="WhiteBrush"
+						BorderBackgroundColor={ FLinearColor(0.04f, 0.04f, 0.06f, 0.9f) }
+					>
 						<VerticalBox>
 							<TextBlock Text={ RUI::Fmt(TEXT("1. Counter (hook): {}"), Count) } />
 							<HorizontalBox>
@@ -71,56 +92,88 @@ export component AcceptanceLab {
 						</VerticalBox>
 					</Border>
 					<Spacer Size={ FVector2D(1.0f, 6.0f) } />
-
 					<!-- 2 · TEXT FIELD — checklist A (typing mirrors, caret stays put).
 					     OnTextChanged carries the new text in the Value payload (Value.TextValue). -->
-					<Border Padding="8" BorderImage="WhiteBrush" BorderBackgroundColor={ FLinearColor(0.04f, 0.04f, 0.06f, 0.9f) }>
+					<Border
+						Padding="8"
+						BorderImage="WhiteBrush"
+						BorderBackgroundColor={ FLinearColor(0.04f, 0.04f, 0.06f, 0.9f) }
+					>
 						<VerticalBox>
-							<EditableTextBox Text={ FText::FromString(Name) } HintText="Type here — the mirror below tracks you" OnTextChanged={ SetName(Value.TextValue.ToString()) } />
+							<EditableTextBox
+								Text={ FText::FromString(Name) }
+								HintText="Type here — the mirror below tracks you"
+								OnTextChanged={ SetName(Value.TextValue.ToString()) } />
 							<TextBlock Text={ RUI::Fmt(TEXT("2. You typed: {}"), Name) } />
 						</VerticalBox>
 					</Border>
 					<Spacer Size={ FVector2D(1.0f, 6.0f) } />
-
 					<!-- 3 · WIDGETS + EVENTS — CheckBox (Value.BoolValue), Slider (Value.FloatValue),
 					     ProgressBar mirrors the slider. Exercises three more host widgets + their events. -->
-					<Border Padding="8" BorderImage="WhiteBrush" BorderBackgroundColor={ FLinearColor(0.04f, 0.04f, 0.06f, 0.9f) }>
+					<Border
+						Padding="8"
+						BorderImage="WhiteBrush"
+						BorderBackgroundColor={ FLinearColor(0.04f, 0.04f, 0.06f, 0.9f) }
+					>
 						<VerticalBox>
 							<CheckBox bIsChecked={ bChecked } OnCheckStateChanged={ SetChecked(Value.BoolValue) }>
 								<TextBlock Text="3. dim the label when checked" />
 							</CheckBox>
-							<Slider Value={ Ratio } MinValue={ 0.0f } MaxValue={ 1.0f } StepSize={ 0.01f } OnValueChanged={ SetRatio(static_cast<float>(Value.FloatValue)) } />
+							<Slider
+								Value={ Ratio }
+								MinValue={ 0.0f }
+								MaxValue={ 1.0f }
+								StepSize={ 0.01f }
+								OnValueChanged={ SetRatio(static_cast<float>(Value.FloatValue)) } />
 							<ProgressBar Percent={ Ratio } />
 							<!-- Style CLASS: "rui-demo-dim" (RenderOpacity 0.35) is registered by the gallery
 							     shell; applied only while the box is checked — tests the `classes` attribute. -->
 							@if (bChecked) {
-								return ( <TextBlock Text={ FText::FromString(FString::Printf(TEXT("slider = %.2f (dimmed)"), Ratio)) } classes="rui-demo-dim" /> );
+								return (
+									<TextBlock
+										Text={ FText::FromString(FString::Printf(TEXT("slider = %.2f (dimmed)"), Ratio)) }
+										classes="rui-demo-dim" />
+								);
 							} @else {
-								return ( <TextBlock Text={ FText::FromString(FString::Printf(TEXT("slider = %.2f"), Ratio)) } /> );
+								return (
+									<TextBlock Text={ FText::FromString(FString::Printf(TEXT("slider = %.2f"), Ratio)) } />
+								);
 							}
 						</VerticalBox>
 					</Border>
 					<Spacer Size={ FVector2D(1.0f, 6.0f) } />
-
 					<!-- 4 · @if / @elif / @else — three-way branch off the slider value.
 					     Each branch tints via an imported MODULE color (LabStyle::*). -->
-					<Border Padding="8" BorderImage="WhiteBrush" BorderBackgroundColor={ FLinearColor(0.04f, 0.04f, 0.06f, 0.9f) }>
+					<Border
+						Padding="8"
+						BorderImage="WhiteBrush"
+						BorderBackgroundColor={ FLinearColor(0.04f, 0.04f, 0.06f, 0.9f) }
+					>
 						<VerticalBox>
 							<TextBlock Text="4. @if / @elif / @else (drag the slider above)" />
 							@if (Ratio < 0.33f) {
-								return ( <TextBlock Text="   LOW" ColorAndOpacity={ LabStyle::Warn } /> );
+								return (
+									<TextBlock Text="   LOW" ColorAndOpacity={ LabStyle::Warn } />
+								);
 							} @elif (Ratio < 0.66f) {
-								return ( <TextBlock Text="   MID" ColorAndOpacity={ LabStyle::Accent } /> );
+								return (
+									<TextBlock Text="   MID" ColorAndOpacity={ LabStyle::Accent } />
+								);
 							} @else {
-								return ( <TextBlock Text="   HIGH" ColorAndOpacity={ LabStyle::Good } /> );
+								return (
+									<TextBlock Text="   HIGH" ColorAndOpacity={ LabStyle::Good } />
+								);
 							}
 						</VerticalBox>
 					</Border>
 					<Spacer Size={ FVector2D(1.0f, 6.0f) } />
-
 					<!-- 5 · @for — keyed rows over a fixed list (checklist A "keyed diff" family).
 					     The `key` attribute keeps each row's widget identity stable. -->
-					<Border Padding="8" BorderImage="WhiteBrush" BorderBackgroundColor={ FLinearColor(0.04f, 0.04f, 0.06f, 0.9f) }>
+					<Border
+						Padding="8"
+						BorderImage="WhiteBrush"
+						BorderBackgroundColor={ FLinearColor(0.04f, 0.04f, 0.06f, 0.9f) }
+					>
 						<VerticalBox>
 							<TextBlock Text="5. @for over a keyed list" />
 							@for (int32 i = 0; i < UE_ARRAY_COUNT(Fruits); ++i) {
@@ -133,48 +186,71 @@ export component AcceptanceLab {
 						</VerticalBox>
 					</Border>
 					<Spacer Size={ FVector2D(1.0f, 6.0f) } />
-
 					<!-- 6 · @while — a BOUNDED loop. WhileI starts at 0 each render and the body advances
 					     it, so it always terminates at 3. Proves @while lowers + renders (not @while(false)). -->
-					<Border Padding="8" BorderImage="WhiteBrush" BorderBackgroundColor={ FLinearColor(0.04f, 0.04f, 0.06f, 0.9f) }>
+					<Border
+						Padding="8"
+						BorderImage="WhiteBrush"
+						BorderBackgroundColor={ FLinearColor(0.04f, 0.04f, 0.06f, 0.9f) }
+					>
 						<VerticalBox>
 							<TextBlock Text="6. @while (bounded, 3 rows)" />
 							@while (WhileI < 3) {
 								const int32 Shown = WhileI;
 								++WhileI;
-								return ( <TextBlock Text={ RUI::Fmt(TEXT("   while row {}"), Shown) } key={ FName(*FString::Printf(TEXT("w%d"), Shown)) } /> );
+								return (
+									<TextBlock
+										Text={ RUI::Fmt(TEXT("   while row {}"), Shown) }
+										key={ FName(*FString::Printf(TEXT("w%d"), Shown)) } />
+								);
 							}
 						</VerticalBox>
 					</Border>
 					<Spacer Size={ FVector2D(1.0f, 6.0f) } />
-
 					<!-- 7 · @match / @case / @default — a tab selector; the switch subject is Tab. -->
-					<Border Padding="8" BorderImage="WhiteBrush" BorderBackgroundColor={ FLinearColor(0.04f, 0.04f, 0.06f, 0.9f) }>
+					<Border
+						Padding="8"
+						BorderImage="WhiteBrush"
+						BorderBackgroundColor={ FLinearColor(0.04f, 0.04f, 0.06f, 0.9f) }
+					>
 						<VerticalBox>
 							<HorizontalBox>
-								<Button OnClicked={ SetTab(0) } ContentPadding="10,3" Slot.Padding="0,0,6,0">Overview</Button>
-								<Button OnClicked={ SetTab(1) } ContentPadding="10,3" Slot.Padding="0,0,6,0">Details</Button>
+								<Button OnClicked={ SetTab(0) } ContentPadding="10,3" Slot.Padding="0,0,6,0">
+									Overview
+								</Button>
+								<Button OnClicked={ SetTab(1) } ContentPadding="10,3" Slot.Padding="0,0,6,0">
+									Details
+								</Button>
 								<Button OnClicked={ SetTab(2) } ContentPadding="10,3" Slot.Padding="0,0,6,0">Other</Button>
 							</HorizontalBox>
 							@match (Tab) {
 								@case (0) {
-									return ( <TextBlock Text="7. @match → Overview tab" ColorAndOpacity={ LabStyle::Accent } /> );
+									return (
+										<TextBlock Text="7. @match → Overview tab" ColorAndOpacity={ LabStyle::Accent } />
+									);
 								}
 								@case (1) {
-									return ( <TextBlock Text="7. @match → Details tab" ColorAndOpacity={ LabStyle::Good } /> );
+									return (
+										<TextBlock Text="7. @match → Details tab" ColorAndOpacity={ LabStyle::Good } />
+									);
 								}
 								@default {
-									return ( <TextBlock Text="7. @match → default (Other)" ColorAndOpacity={ LabStyle::Warn } /> );
+									return (
+										<TextBlock Text="7. @match → default (Other)" ColorAndOpacity={ LabStyle::Warn } />
+									);
 								}
 							}
 						</VerticalBox>
 					</Border>
 					<Spacer Size={ FVector2D(1.0f, 6.0f) } />
-
 					<!-- 8 · SUB-COMPONENTS — imported <LabCard> tags with a string prop and an ={ expr }
 					     int prop. Tests component-tag completion (`<Lab` → LabCard), go-to-def (F12 on
 					     LabCard → its file), and prop passing. Laid out side-by-side in a HorizontalBox. -->
-					<Border Padding="8" BorderImage="WhiteBrush" BorderBackgroundColor={ FLinearColor(0.04f, 0.04f, 0.06f, 0.9f) }>
+					<Border
+						Padding="8"
+						BorderImage="WhiteBrush"
+						BorderBackgroundColor={ FLinearColor(0.04f, 0.04f, 0.06f, 0.9f) }
+					>
 						<VerticalBox>
 							<TextBlock Text="8. Imported sub-components (LabCard)" />
 							<HorizontalBox>
@@ -184,12 +260,36 @@ export component AcceptanceLab {
 						</VerticalBox>
 					</Border>
 					<Spacer Size={ FVector2D(1.0f, 6.0f) } />
-
 					<!-- 9 · Ref={ } — the universal reserved prop from markup: the Border hands its host
 					     handle to the callable on attach (React ref lifecycle); the post-commit effect
 					     above flips the flag, so this label reads "attached: true" once mounted. -->
-					<Border Padding="8" BorderImage="WhiteBrush" BorderBackgroundColor={ FLinearColor(0.04f, 0.04f, 0.06f, 0.9f) } Ref={ [RefTarget](const FRuiHostHandle& H) { RefTarget->Current = H; } }>
+					<Border
+						Padding="8"
+						BorderImage="WhiteBrush"
+						BorderBackgroundColor={ FLinearColor(0.04f, 0.04f, 0.06f, 0.9f) }
+						Ref={ [RefTarget](const FRuiHostHandle& H) { RefTarget->Current = H; } }
+					>
 						<TextBlock Text={ RUI::Fmt(TEXT("9. Ref captured this Border - attached: {}"), bRefAttached) } />
+					</Border>
+					<Spacer Size={ FVector2D(1.0f, 6.0f) } />
+					<!-- 10 · MARKUP AS A VALUE — `Badge`/`Chip` are FRuiNode locals built in setup (see
+					     the top of the component). The Badge splices TWICE: both rows track the counter.
+					     Short-circuit + ternary value markup ride along inline. -->
+					<Border
+						Padding="8"
+						BorderImage="WhiteBrush"
+						BorderBackgroundColor={ FLinearColor(0.04f, 0.04f, 0.06f, 0.9f) }
+					>
+						<VerticalBox>
+							<TextBlock Text="10. Markup as a value (FRuiNode locals, spliced below)" />
+							{ Badge }
+							{ Badge }
+							{ Chip }
+							{ bChecked && <TextBlock Text="   short-circuit chip (uncheck 3 to hide me)" /> }
+							{ bMounted
+								? <TextBlock Text="   ternary: mounted" ColorAndOpacity={ LabStyle::Good } />
+								: <TextBlock Text="   ternary: not yet" /> }
+						</VerticalBox>
 					</Border>
 				</VerticalBox>
 			</ScrollBox>

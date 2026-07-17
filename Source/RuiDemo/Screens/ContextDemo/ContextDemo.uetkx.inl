@@ -19,7 +19,7 @@ inline FRuiNode ContextDemo(FContextDemoUetkxProps InProps = FContextDemoUetkxPr
 #else
 static FRuiNodeArray ContextDemo_UetkxImpl(FRuiContext& Ctx, const FContextDemoUetkxProps& Props, const TArray<FRuiNode>& children)
 {
-#line 7 "Source/RuiDemo/Screens/ContextDemo/ContextDemo.uetkx"
+#line 6 "Source/RuiDemo/Screens/ContextDemo/ContextDemo.uetkx"
 	auto [bPrimary, SetPrimary] = Ctx.UseState<bool>(true);
 		const FLinearColor Theme = bPrimary ? ContextDemoStyle::CoolTheme : ContextDemoStyle::WarmTheme;
 		Ctx.ProvideContext(RuiDemo::GDemoThemeCtx, Theme);

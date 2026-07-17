@@ -20,6 +20,7 @@ import {
   getDecls,
   importCursorAt,
   resolveDiagnostics,
+  resolveHostInclude,
   resolveSpecifier,
   suggestSpecifier,
 } from "../uetkxWorkspace";
@@ -177,6 +178,32 @@ test("resolveDiagnostics: 2300 unknown specifier / 2301 not exported / 2302 not 
   assert.deepStrictEqual(only('import { Badge } from "./Nope"\ncomponent App { return ( <Badge /> ); }\n'), ["UETKX2300"]);
   assert.deepStrictEqual(only('import { Private } from "./B"\ncomponent App { return ( <Private /> ); }\n'), ["UETKX2301"]);
   assert.deepStrictEqual(only('import { Ghost } from "./B"\ncomponent App { return ( <Ghost /> ); }\n'), ["UETKX2302"]);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test("resolveDiagnostics: 2316 host include verified against the workspace tree (TB-9)", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "uetkx-hdr-"));
+  fs.writeFileSync(path.join(root, "Demo.uproject"), "{}");
+  const srcDir = path.join(root, "Source", "Demo");
+  fs.mkdirSync(srcDir, { recursive: true });
+  fs.writeFileSync(path.join(srcDir, "DemoSupport.h"), "#pragma once\n");
+  const a = path.join(srcDir, "A.uetkx");
+
+  // A findable project header: no diagnostic (and resolveHostInclude finds it for go-to-def).
+  const good = 'import "@DemoSupport.h"\ncomponent App { return ( <Spacer /> ); }\n';
+  fs.writeFileSync(a, good);
+  assert.deepStrictEqual(resolveDiagnostics(scanFile(good, "A"), a).map((d) => d.code), []);
+  assert.ok(resolveHostInclude(a, "DemoSupport.h")?.endsWith("/DemoSupport.h"));
+
+  // A misspelled slash-less header: UETKX2316 (warning).
+  const bad = 'import "@DemoSuport.h"\ncomponent App { return ( <Spacer /> ); }\n';
+  const diags = resolveDiagnostics(scanFile(bad, "A"), a);
+  assert.deepStrictEqual(diags.map((d) => `${d.code}:${d.severity}`), ["UETKX2316:0"]);
+
+  // A slashed (engine-style) specifier stays undiagnosed — the workspace can't verify it.
+  const engine = 'import "@UObject/SoftObjectPtr.h"\ncomponent App { return ( <Spacer /> ); }\n';
+  assert.deepStrictEqual(resolveDiagnostics(scanFile(engine, "A"), a).map((d) => d.code), []);
+
   fs.rmSync(root, { recursive: true, force: true });
 });
 

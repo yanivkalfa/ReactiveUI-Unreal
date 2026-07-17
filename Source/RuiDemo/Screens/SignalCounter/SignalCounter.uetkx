@@ -1,11 +1,15 @@
 import "@RuiDemoSupport.h"
-
 import { SignalPanel } from "./components/SignalPanel/SignalPanel"
 
 export component SignalCounter {
 	TSharedRef<TRuiSignal<int32>> Signal = RUI::GetOrCreateSignal<int32>(RuiDemo::GDemoCounterSignal, 0);
 	return (
-		<Border Padding="12" BorderImage="WhiteBrush" BorderBackgroundColor={ FLinearColor(0.02f, 0.02f, 0.03f, 0.85f) } Slot.Padding="0,10,0,0">
+		<Border
+			Padding="12"
+			BorderImage="WhiteBrush"
+			BorderBackgroundColor={ FLinearColor(0.02f, 0.02f, 0.03f, 0.85f) }
+			Slot.Padding="0,10,0,0"
+		>
 			<VerticalBox>
 				<TextBlock Text="Signal Counter (shared state)" Font.Size={ 14.0f } />
 				<Spacer Size={ FVector2D(1.0f, 6.0f) } />
@@ -13,9 +17,23 @@ export component SignalCounter {
 				<SignalPanel />
 				<Spacer Size={ FVector2D(1.0f, 6.0f) } />
 				<HorizontalBox>
-					<Button OnClicked={ Signal->Update([](const int32& V) { return V + 1; }) } ContentPadding="12,4" Slot.Padding="0,0,6,0">Increment</Button>
-					<Button OnClicked={ Signal->Update([](const int32& V) { return V - 1; }) } ContentPadding="12,4" Slot.Padding="0,0,6,0">Decrement</Button>
-					<Button OnClicked={ Signal->Set(0) } ContentPadding="12,4" Slot.Padding="0,0,6,0">Reset</Button>
+					<Button
+						OnClicked={ Signal->Update([](const int32& V) { return V + 1; }) }
+						ContentPadding="12,4"
+						Slot.Padding="0,0,6,0"
+					>
+						Increment
+					</Button>
+					<Button
+						OnClicked={ Signal->Update([](const int32& V) { return V - 1; }) }
+						ContentPadding="12,4"
+						Slot.Padding="0,0,6,0"
+					>
+						Decrement
+					</Button>
+					<Button OnClicked={ Signal->Set(0) } ContentPadding="12,4" Slot.Padding="0,0,6,0">
+						Reset
+					</Button>
 				</HorizontalBox>
 			</VerticalBox>
 		</Border>

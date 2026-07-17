@@ -14,6 +14,7 @@ import {
   CompletionItemKind,
   InsertTextFormat,
   DiagnosticSeverity,
+  DiagnosticTag,
   type CompletionItem,
   type CompletionList,
   type Definition,
@@ -38,16 +39,18 @@ import {
   getDecls,
   importCursorAt,
   resolveDiagnostics,
+  resolveHostInclude,
   resolveSpecifier,
   suggestSpecifier,
   sweptUetkxFiles,
   workspaceRootFor,
 } from "./uetkxWorkspace";
-import { ClangdProxy } from "./clangdProxy";
+import { ClangdProxy, findClangd, type ClangdPublishedDiagnostics } from "./clangdProxy";
 import {
   buildEmbeddedView,
   embeddedPositionRequest,
   isEmbeddedOffset,
+  realUriOfVirtual,
   translateEmbeddedCompletion,
   virtualUriOf,
 } from "./embeddedIntel";
@@ -55,29 +58,70 @@ import {
 const connection = createConnection(ProposedFeatures.all);
 const documents = new TextDocuments(TextDocument);
 
+// ── §1 crash-hardening: the server must NEVER die silently ─────────────────────────────────
+// The jsonrpc layer guards request/notification handlers, but OUR event-emitter callbacks and
+// floating promises are outside it — in Node, one uncaught exception or unhandled rejection
+// kills the process and every feature goes dark with zero feedback (the owner's
+// zero-diagnostics session). Last-resort traps: log to the client's output channel, keep
+// serving. Individual boundaries (clangd pump, syncEmbeddedDoc) carry their own guards so
+// these traps are telemetry of a bug, not load-bearing control flow.
+function logServerError(context: string, error: unknown): void {
+  const detail = error instanceof Error ? (error.stack ?? error.message) : String(error);
+  try {
+    connection.console.error(`[uetkx-server] ${context}: ${detail}`);
+  } catch {
+    /* the connection itself is gone — nothing left to tell */
+  }
+}
+process.on("uncaughtException", (e) => logServerError("uncaughtException", e));
+process.on("unhandledRejection", (e) => logServerError("unhandledRejection", e));
+
 // ── embedded-C++ intelligence: one clangd proxy per server, started lazily on the first request
 //    that lands inside a setup/hook/module body. start() is idempotent and resolves false when
 //    clangd is absent — every embedded path then returns null and falls back to the markup baseline
 //    (the family's documented degradation), so the server never hard-depends on clangd.
+//    TB-10: the binary is DISCOVERED (setting → PATH → managed install → LLVM/VS locations), the
+//    degradation is ANNOUNCED once instead of silent, and clangd's diagnostics for the virtual
+//    docs flow back into the real documents (mapped through the source map).
 let clangd: ClangdProxy | null = null;
+let clangdPathSetting: string | undefined;
+let warnedNoClangd = false;
 async function embeddedProxy(doc: TextDocument): Promise<ClangdProxy | null> {
   if (!clangd) {
+    const found = findClangd(clangdPathSetting);
+    if (!found) {
+      if (!warnedNoClangd) {
+        warnedNoClangd = true;
+        connection.window.showWarningMessage(
+          "UETKX: embedded C++ intelligence is OFF — clangd was not found. Set `uetkx.clangd.path`, " +
+            "or install clangd (PATH, %LOCALAPPDATA%\\uetkx\\clangd\\bin, C:\\Program Files\\LLVM, or the " +
+            "VS 2022 'C++ Clang tools' component). Markup intelligence is unaffected.",
+        );
+      }
+      return null;
+    }
     const root = workspaceRootFor(fsPathOf(doc)) ?? path.dirname(fsPathOf(doc));
-    clangd = new ClangdProxy("clangd", root);
+    clangd = new ClangdProxy(found, root);
+    clangd.onPublishDiagnostics = (params) => publishEmbeddedDiagnostics(params);
+    clangd.onError = (context, error) => logServerError(context, error);
   }
   await clangd.start();
   return clangd.isAvailable() ? clangd : null;
 }
 
-connection.onInitialize((_params: InitializeParams) => ({
-  capabilities: {
-    textDocumentSync: TextDocumentSyncKind.Incremental,
-    completionProvider: { triggerCharacters: ["<", "@", ".", " ", "{", '"', "/"] },
-    hoverProvider: true,
-    definitionProvider: true,
-    documentFormattingProvider: true,
-  },
-}));
+connection.onInitialize((params: InitializeParams) => {
+  const opts = (params.initializationOptions ?? {}) as { clangdPath?: string };
+  clangdPathSetting = typeof opts.clangdPath === "string" ? opts.clangdPath : undefined;
+  return {
+    capabilities: {
+      textDocumentSync: TextDocumentSyncKind.Incremental,
+      completionProvider: { triggerCharacters: ["<", "@", ".", " ", "{", '"', "/"] },
+      hoverProvider: true,
+      definitionProvider: true,
+      documentFormattingProvider: true,
+    },
+  };
+});
 
 function fsPathOf(doc: TextDocument): string {
   return URI.toFsPath(doc.uri);
@@ -87,7 +131,78 @@ function schemaOf(doc: TextDocument): UetkxSchema {
   return schemaForFile(path.dirname(fsPathOf(doc)));
 }
 
-// ── diagnostics: live parse + hash-gated sidecar ───────────────────────────────────────────
+// ── diagnostics: live parse + hash-gated sidecar + forwarded clangd (TB-10) ────────────────
+
+/** Last published diagnostics per REAL doc uri, split by producer — published merged so the
+ *  markup pass and the async clangd pass never clobber each other. */
+const markupDiagsByUri = new Map<string, Diagnostic[]>();
+const embeddedDiagsByUri = new Map<string, Diagnostic[]>();
+
+function publishMerged(uri: string): void {
+  const merged = [...(markupDiagsByUri.get(uri) ?? []), ...(embeddedDiagsByUri.get(uri) ?? [])];
+  connection.sendDiagnostics({ uri, diagnostics: merged });
+}
+
+/** clangd's diagnostics for a virtual doc, mapped back into its .uetkx (TB-10): ranges are
+ *  translated through the source map; anything landing in the prelude/scaffolding (missing
+ *  headers, wrapper braces) is DROPPED — those are the virtual doc's problems, not the
+ *  user's. Tags (Unnecessary/Deprecated) pass through, so clangd-detected dead code fades. */
+function publishEmbeddedDiagnostics(params: { uri: string; diagnostics: ClangdPublishedDiagnostics["diagnostics"] }): void {
+  const realUri = realUriOfVirtual(params.uri);
+  if (!realUri) return;
+  // clangd RE-SERIALIZES URIs (drive-letter case, `%3A` vs `:`), so a raw string lookup misses
+  // VS Code's own spelling and every diagnostic silently vanishes (the "I mangled the whole
+  // body and nothing squiggled" bug, round 2 — bughunt LSP-5's lesson applied here too).
+  let doc = documents.get(realUri);
+  if (!doc) {
+    for (const d of documents.all()) {
+      if (URI.sameUri(d.uri, realUri)) {
+        doc = d;
+        break;
+      }
+    }
+  }
+  if (!doc) return;
+  const text = doc.getText();
+  const view = buildEmbeddedView(text, fsPathOf(doc));
+  // Names imported FROM OTHER .uetkx FILES exist only after aggregation — the virtual TU can't
+  // see them, so clangd's "undeclared identifier" for an imported name is OUR gap, not the
+  // user's typo. Drop those; a genuinely misspelled import already gets UETKX2305/2300.
+  const importedNames = new Set<string>();
+  for (const imp of scanFile(text, path.basename(fsPathOf(doc), ".uetkx")).imports) {
+    for (const n of imp.names ?? []) importedNames.add(n);
+  }
+  const undeclaredRe = /undeclared identifier '([A-Za-z_][A-Za-z0-9_]*)'/;
+  const mapped: Diagnostic[] = [];
+  for (const d of params.diagnostics) {
+    const startOff = view.sourceOffsetOf(d.range.start);
+    const endOff = view.sourceOffsetOf(d.range.end);
+    if (startOff === null || endOff === null || endOff < startOff) continue; // prelude/scaffold
+    const undeclared = undeclaredRe.exec(d.message);
+    if (undeclared && importedNames.has(undeclared[1])) continue; // cross-file import, not a typo
+    mapped.push({
+      range: { start: doc.positionAt(startOff), end: doc.positionAt(Math.max(endOff, startOff + 1)) },
+      severity: (d.severity ?? 1) as DiagnosticSeverity,
+      code: d.code,
+      source: "clangd",
+      message: d.message,
+      ...(d.tags && d.tags.length ? { tags: d.tags as Diagnostic["tags"] } : {}),
+    });
+  }
+  embeddedDiagsByUri.set(doc.uri, mapped); // keyed by the CLIENT's uri spelling, not clangd's
+  publishMerged(doc.uri);
+}
+
+/** Push the current virtual doc to clangd so its diagnostics track EDITS, not just position
+ *  requests (the "I mangled the whole body and nothing squiggled" fix). Fire-and-forget; a
+ *  markup-only doc (no embedded regions) is never opened. */
+async function syncEmbeddedDoc(doc: TextDocument): Promise<void> {
+  const text = doc.getText();
+  const view = buildEmbeddedView(text, fsPathOf(doc));
+  if (view.regionCount === 0) return;
+  const proxy = await embeddedProxy(doc);
+  if (proxy) proxy.didOpen(virtualUriOf(doc.uri), view.virtualText);
+}
 
 function validate(doc: TextDocument): void {
   const text = doc.getText();
@@ -101,6 +216,9 @@ function validate(doc: TextDocument): void {
       code,
       source: "uetkx",
       message,
+      // UETKX0107 (TB-5): the Unnecessary tag makes editors FADE the range — the family's
+      // dead-code presentation (Unity styles its uitkxUnreachable semantic token the same way).
+      ...(code === "UETKX0107" ? { tags: [DiagnosticTag.Unnecessary] } : {}),
     });
   };
   const scan = scanFile(text, path.basename(fsPathOf(doc), ".uetkx"));
@@ -124,11 +242,26 @@ function validate(doc: TextDocument): void {
       if (!seen.has(`${d.code}@${d.off}:${d.len}`)) push(d.off, d.len, d.severity, d.code, d.message);
     }
   }
-  connection.sendDiagnostics({ uri: doc.uri, diagnostics: diags });
+  markupDiagsByUri.set(doc.uri, diags);
+  publishMerged(doc.uri);
+  // Async clangd pass republishes merged when its diagnostics arrive. The catch is
+  // load-bearing (§1): a floating rejection is a PROCESS KILL in Node.
+  syncEmbeddedDoc(doc).catch((e) => logServerError("syncEmbeddedDoc", e));
 }
 
-documents.onDidChangeContent((change) => validate(change.document));
-documents.onDidClose((e) => connection.sendDiagnostics({ uri: e.document.uri, diagnostics: [] }));
+documents.onDidChangeContent((change) => {
+  try {
+    validate(change.document);
+  } catch (e) {
+    logServerError("validate", e); // markup diagnostics silently missing = this bug class
+  }
+});
+documents.onDidClose((e) => {
+  markupDiagsByUri.delete(e.document.uri);
+  embeddedDiagsByUri.delete(e.document.uri);
+  clangd?.didClose(virtualUriOf(e.document.uri));
+  connection.sendDiagnostics({ uri: e.document.uri, diagnostics: [] });
+});
 
 // ── completions ────────────────────────────────────────────────────────────────────────────
 
@@ -146,7 +279,7 @@ connection.onCompletion(async (params): Promise<CompletionItem[] | CompletionLis
     const proxy = await embeddedProxy(doc);
     if (proxy) {
       const result = await embeddedPositionRequest(proxy, "textDocument/completion", doc.uri, text, embeddedOffset);
-      const translated = translateEmbeddedCompletion(result, text);
+      const translated = translateEmbeddedCompletion(result, text, fsPathOf(doc));
       if (translated) return translated as CompletionList;
     }
   }
@@ -301,6 +434,7 @@ connection.onHover(async (params) => {
     }
   }
 
+  // ── markup hover (TB-11): everything the schema row knows, context-aware ──────────────────
   let start = offset;
   let end = offset;
   const isWord = (c: string) => /[A-Za-z0-9_.]/.test(c);
@@ -309,23 +443,81 @@ connection.onHover(async (params) => {
   const word = text.slice(start, end);
   if (!word) return null;
   const schema = schemaOf(doc);
+  const md = (value: string) => ({ contents: { kind: "markdown" as const, value } });
+  const KIND_DOC: Record<string, string> = {
+    bool: "`bool` — a bare attribute means true, or `{ expr }`",
+    color: '`FLinearColor` — `"R,G,B,A"` literal or `{ FLinearColor(…) }`',
+    event: "event handler — `{ statements }` run when it fires",
+    expr: "C++ expression — `{ … }`",
+    float: "`float` — number literal or `{ expr }`",
+    int: "`int32` — number literal or `{ expr }`",
+    margin: '`FMargin` — `"All"`, `"H,V"`, `"L,T,R,B"` or `{ FMargin(…) }`',
+    name: "`FName` — string literal or `{ expr }`",
+    text: "`FText`/`FString` — string literal or `{ expr }`",
+    vector2: "`FVector2D` — `{ FVector2D(X, Y) }`",
+  };
+
+  // 1. An element tag: class, container/leaf, engine gate, full attribute surface.
   const el = schema.elements[word];
   if (el) {
-    const attrs = Object.entries(el.attrs)
-      .map(([a, t]) => `${a}: ${t}`)
-      .join(", ");
-    return {
-      contents: {
-        kind: "markdown" as const,
-        value: `**<${word}>** → \`${el.factory}\`\n\n${el.children ? "container" : "leaf"} — attrs: ${attrs || "(none)"}`,
-      },
-    };
+    const entries = Object.entries(el.attrs);
+    const events = entries.filter(([, t]) => t === "event").map(([a]) => a);
+    const props = entries.filter(([, t]) => t !== "event");
+    const slate = el.factory.startsWith("RUI::Slate::") ? ` — \`S${word}\`` : "";
+    const lines = [
+      `**\`<${word}>\`**${slate} · ${el.children ? "container" : "leaf"}${el.sinceUE ? ` · **requires UE ${el.sinceUE}+**` : ""}`,
+      "",
+      `Factory \`${el.factory}\`. Attribute names are 1:1 the Unreal setter/argument names (D-33) — look up \`S${word}\` in the engine source for exact semantics.`,
+    ];
+    if (props.length) lines.push("", props.map(([a, t]) => `\`${a}\` *${t}*`).join(" · "));
+    if (events.length) lines.push("", "**Events:** " + events.map((e) => `\`${e}\``).join(" · "));
+    return md(lines.join("\n"));
   }
+
+  // 2. Context-aware ATTRIBUTE hover — the enclosing tag names the exact schema row.
+  const cursorCtx = classifyCursor(text, utf16ToCodePoint(text, offset));
+  if (cursorCtx.kind === "attr" && schema.elements[cursorCtx.tag]) {
+    const kind = schema.elements[cursorCtx.tag].attrs[word];
+    if (kind !== undefined) {
+      const lines = [
+        `**\`${word}\`** — ${KIND_DOC[kind] ?? `\`${kind}\``}`,
+        "",
+        `On \`<${cursorCtx.tag}>\`: this IS the \`S${cursorCtx.tag}\` setter/argument/delegate name (D-33 loyalty — no aliases).`,
+      ];
+      if (kind === "event" && schema.eventPayloads && schema.eventPayloads[word] !== undefined) {
+        const f = fieldForKind(schema.eventPayloads[word]);
+        lines.push("", f ? `Payload: \`Value.${f.field}\` (\`${f.type}\`).` : "Zero-payload event — ignore `Value`.");
+      }
+      return md(lines.join("\n"));
+    }
+  }
+
+  // 3. Slot keys — set on the CHILD, applied to the parent panel's slot.
+  if (schema.slotKeys.includes(word)) {
+    return md(
+      `**\`${word}\`** — slot key: written on a CHILD, applied to the slot its PARENT panel allocates (in Slate, padding/alignment/fill live on the slot, not the widget). Removing it resets the slot to its default.`,
+    );
+  }
+
   if (schema.hooks.includes(word)) {
-    return { contents: { kind: "markdown" as const, value: `**${word}** — ReactiveUI hook (auto-prefixed to \`Ctx.\` by the compiler)` } };
+    return md(
+      `**\`${word}\`** — ReactiveUI hook (a member of \`FRuiContext\`; markup calls it bare and the compiler prefixes \`Ctx.\`). Hook rules apply: unconditional call order, setup-only.`,
+    );
   }
   if (schema.styleKeys.includes(word)) {
-    return { contents: { kind: "markdown" as const, value: `**${word}** — style key (host-applied; resets on removal)` } };
+    return md(
+      `**\`${word}\`** — style key (host-applied setter, 1:1 the Unreal property name). Unlike plain props, REMOVING a style key resets the widget to its default — family semantics.`,
+    );
+  }
+  if (word === "key") {
+    return md(
+      "**`key`** — reconciler identity among siblings: keyed children MOVE instead of unmount/remount, so their state survives reorder. Value: string literal or `{ expr }` (FName/int).",
+    );
+  }
+  if (word === "classes") {
+    return md(
+      "**`classes`** — style-class list resolved through the registered style registry (`RUI::Slate::RegisterStyleClass`); later classes win on conflicts.",
+    );
   }
   if (word === "Ref") {
     return {
@@ -377,7 +569,7 @@ function translateEmbeddedHover(hover: Hover, doc: TextDocument, source: string)
     range?: { start: { line: number; character: number }; end: { line: number; character: number } };
   };
   if (!h.range) return hover;
-  const view = buildEmbeddedView(source);
+  const view = buildEmbeddedView(source, fsPathOf(doc));
   const startOff = view.sourceOffsetOf(h.range.start);
   const endOff = view.sourceOffsetOf(h.range.end);
   if (startOff === null || endOff === null) {
@@ -392,7 +584,7 @@ function translateEmbeddedHover(hover: Hover, doc: TextDocument, source: string)
 function translateEmbeddedDefinition(result: unknown, doc: TextDocument, source: string): Definition | null {
   if (!result) return null;
   const virtualUri = virtualUriOf(doc.uri);
-  const view = buildEmbeddedView(source);
+  const view = buildEmbeddedView(source, fsPathOf(doc));
   const locs = (Array.isArray(result) ? result : [result]) as Location[];
   const out: Location[] = [];
   for (const loc of locs) {
@@ -434,9 +626,18 @@ function markupDefinition(doc: TextDocument, params: { position: { line: number;
 
   // 1. Cursor on an import: a NAME jumps to its export in the target; the SPECIFIER opens the file.
   for (const impDecl of scan.imports) {
-    // Host includes (`import "@Header.h"`, INCLUDE_RETIREMENT_PLAN.md §B) have no names and
-    // resolve to no .uetkx file — no go-to-def.
-    if (impDecl.hostInclude) continue;
+    // Host includes (`import "@Header.h"`) have no names, but the SPECIFIER can jump to the
+    // header itself when the workspace has it (TB-9 — engine paths simply return null).
+    if (impDecl.hostInclude) {
+      if (cpOff >= impDecl.specifierAt && cpOff <= impDecl.specifierAt + impDecl.specifier.length + 3) {
+        const header = resolveHostInclude(fsPath, impDecl.specifier);
+        if (header) {
+          const zero = { line: 0, character: 0 };
+          return { uri: URI.fromFsPath(header), range: { start: zero, end: zero } };
+        }
+      }
+      continue;
+    }
     for (let n = 0; n < impDecl.names.length; n++) {
       const at = impDecl.nameAts[n];
       if (cpOff >= at && cpOff <= at + impDecl.names[n].length) {

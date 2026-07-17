@@ -1375,14 +1375,15 @@ namespace
 		const int32 MEnd = Split.MEnd;
 		if (!Split.bOk)
 		{
-			// no return -> pure statements (rare; e.g. a guard `continue;`) — splice verbatim
-			Out += Indent + PrefixHooks(BodyMarkup).TrimStartAndEnd() + TEXT("\n");
+			// no return -> pure statements (rare; e.g. a guard `continue;`) — splice via EmitExpr so
+			// markup-as-value inside a directive body lowers too (§4 markup-everywhere).
+			Out += Indent + EmitExpr(BodyMarkup, AbsAt).TrimStartAndEnd() + TEXT("\n");
 			return;
 		}
 		const FString Lead = FUetkxLexer::FromCodePoints(Body, 0, RetAt).TrimStartAndEnd();
 		if (!Lead.IsEmpty())
 		{
-			Out += Indent + PrefixHooks(Lead) + TEXT("\n");
+			Out += Indent + EmitExpr(Lead, AbsAt) + TEXT("\n");
 		}
 		FUetkxMarkup Parser;
 		FUetkxParseResult Pr = Parser.Parse(Body, MStart, MEnd);
@@ -1467,11 +1468,13 @@ namespace
 		}
 		if (Decl.Returns.Num() <= 1)
 		{
-			// Single markup return — the legacy shape (byte-stable goldens).
+			// Single markup return — the legacy shape (byte-stable goldens; EmitExpr degenerates to
+			// PrefixHooks when setup holds no markup). Markup-as-value (§4 markup-everywhere) lowers
+			// in place: `auto X = (<VerticalBox>…);` becomes a plain FRuiNode local.
 			const FString Setup = Decl.Setup.TrimStartAndEnd();
 			if (!Setup.IsEmpty())
 			{
-				Impl += WithLine(TEXT("\t") + IndentRegion(PrefixHooks(Setup)) + TEXT("\n"),
+				Impl += WithLine(TEXT("\t") + IndentRegion(EmitExpr(Setup, Decl.SetupAt)) + TEXT("\n"),
 								 SrcLineOfRegion(Decl.Setup, Decl.SetupAt, Line), Line);
 			}
 			Impl += FString::Printf(TEXT("\treturn { %s };\n}\n"), *EmitNodeExpr(*Decl.Root, Decl.BodyAt));
@@ -1489,7 +1492,7 @@ namespace
 				const FString Segment = Raw.TrimStartAndEnd();
 				if (!Segment.IsEmpty())
 				{
-					Impl += WithLine(TEXT("\t") + IndentRegion(PrefixHooks(Segment)) + TEXT("\n"),
+					Impl += WithLine(TEXT("\t") + IndentRegion(EmitExpr(Segment, Decl.BodyAt + Cursor)) + TEXT("\n"),
 									 SrcLineOfRegion(Raw, Decl.BodyAt + Cursor, Line), Line);
 				}
 				Impl += FString::Printf(TEXT("\treturn { %s };\n"), *EmitNodeExpr(*Span.Root, Decl.BodyAt));
@@ -1509,7 +1512,7 @@ namespace
 			const FString Tail = RawTail.TrimStartAndEnd();
 			if (!Tail.IsEmpty())
 			{
-				Impl += WithLine(TEXT("\t") + IndentRegion(PrefixHooks(Tail)) + TEXT("\n"),
+				Impl += WithLine(TEXT("\t") + IndentRegion(EmitExpr(Tail, Decl.BodyAt + Cursor)) + TEXT("\n"),
 								 SrcLineOfRegion(RawTail, Decl.BodyAt + Cursor, Line), Line);
 			}
 			Impl += TEXT("}\n");

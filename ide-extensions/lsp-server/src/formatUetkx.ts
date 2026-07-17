@@ -365,6 +365,13 @@ function fmtElement(node: UetkxNode, indent: number, state: FmtState): string {
   const single = head + singleClose;
   let wrap = state.o.singleAttributePerLine && attrStrs.length > 1;
   if (!wrap && p.length + single.length > state.o.printWidth && attrStrs.length > 1) wrap = true;
+  // TB-4 (TESTING_BUGS.md): an element whose ONLY child is one raw-text run stays inline —
+  // `<Button …>+</Button>` — when the whole form fits printWidth. C++-identical (FmtElement).
+  if (!wrap && children.length === 1 && children[0].type === "text") {
+    const text = (children[0].value ?? "").trim();
+    const inline = `${head}>${text}</${node.tag}>`;
+    if (text.length && p.length + inline.length <= state.o.printWidth) return p + inline + "\n";
+  }
   let out = "";
   if (!wrap) {
     if (selfClose) return p + single + "\n";

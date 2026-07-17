@@ -71,6 +71,12 @@ if (-not $SkipServerBuild) {
     & (Join-Path $vsixDir 'fetch-node.ps1')
 }
 
+# §5: bundle the pinned clangd (22.1.6, sha256-verified) so embedded-C++ intelligence works
+# with zero machine setup. Cached zip makes repeat runs cheap.
+Write-Step 'Bundling clangd (fetch-clangd.mjs --target vs2022)'
+& node (Join-Path $scriptDir 'fetch-clangd.mjs') --target vs2022
+if ($LASTEXITCODE -ne 0) { throw 'fetch-clangd.mjs failed' }
+
 # ── 2. overview.md ────────────────────────────────────────────────────────────
 Write-Step 'Generating overview.md'
 & node $changelogTool extract-overview --ide vs2022 --template (Join-Path $vsixDir 'overview-template.md') --out (Join-Path $vsixDir 'overview.md')

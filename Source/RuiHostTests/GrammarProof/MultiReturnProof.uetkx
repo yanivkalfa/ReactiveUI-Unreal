@@ -19,9 +19,13 @@ export component MultiReturnProof(Mode: int32 = 0) {
 }
 
 export component MultiReturnProofEarly {
-	return ( <MultiReturnProof Mode={ 1 } /> );
+	return (
+		<MultiReturnProof Mode={ 1 } />
+	);
 }
 
 export component MultiReturnProofBig {
-	return ( <MultiReturnProof Mode={ 20 } /> );
+	return (
+		<MultiReturnProof Mode={ 20 } />
+	);
 }

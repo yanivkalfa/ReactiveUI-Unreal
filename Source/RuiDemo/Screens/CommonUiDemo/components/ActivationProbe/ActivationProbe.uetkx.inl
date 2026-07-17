@@ -22,8 +22,8 @@ static FRuiNodeArray ActivationProbe_UetkxImpl(FRuiContext& Ctx, const FActivati
 	const bool bActive = RUI::CommonUI::UseIsActive(Ctx);
 		const ERuiInputMethod Method = RUI::CommonUI::UseInputMethod(Ctx);
 		const FString MethodStr = Method == ERuiInputMethod::Gamepad ? TEXT("Gamepad")
-								  : Method == ERuiInputMethod::Touch ? TEXT("Touch")
-																	 : TEXT("Mouse & Keyboard");
+										: Method == ERuiInputMethod::Touch ? TEXT("Touch")
+																		: TEXT("Mouse & Keyboard");
 #line 28 "ActivationProbe.uetkx.inl"
 	return { [&]() -> FRuiNode {
 		FRuiVerticalBoxProps P;

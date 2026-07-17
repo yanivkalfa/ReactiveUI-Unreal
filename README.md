@@ -23,7 +23,7 @@ the UI update in under a second, no C++ recompile, no script VM in your shipped 
 > first-class **CommonUI/MVVM citizenship** (activatable screens, MVVM global collection, UMG
 > prop-map bridge), an **in-editor `.uetkx` live preview**, and VS Code/VS2022 language tooling
 > (with embedded-C++ clangd intelligence) are implemented and green under a **100+-test headless
-> automation battery**. The demo gallery's 18 screens all compile from `.uetkx`, and markup text
+> automation battery**. The demo gallery's 19 screens all compile from `.uetkx`, and markup text
 > is **localizable through the stock Localization Dashboard** (with live culture switching). Open
 > `ReactiveUIUnrealDemo.uproject` (UE 5.6+; the battery is verified green on 5.6, 5.7, AND 5.8)
 > and press Play. Remaining before v1: the **docs-site content build-out** — tracked in
@@ -76,7 +76,9 @@ setter-based styling (a style tweak never rebuilds a widget) · the `.uetkx` com
 from "./x"` / `~/` root alias, `export` for cross-file reach with privacy-by-default, mixed
 component/hook/module files, strict resolution enforced by the compiler, and a one-command
 `-run=RUIMigrateImports` codemod to upgrade an existing project) · VS Code + VS2022 extensions on
-the shared family language server · the UMG/CommonUI/MVVM interop above · localization, focus
+the shared family language server (the VS Code one also hides a `.uetkx` file's generated
+companions — `*.uetkx.inl`/`*.uetkx.diags.json`/`*.Uetkx.gen.cpp` — from the Explorer by
+default; flip the `files.exclude` entries to see them) · the UMG/CommonUI/MVVM interop above · localization, focus
 preservation, portals, asset-safe brushes · a demo project (this repo — open and press Play) and
 a docs site, with every performance claim measured before it's printed.
 

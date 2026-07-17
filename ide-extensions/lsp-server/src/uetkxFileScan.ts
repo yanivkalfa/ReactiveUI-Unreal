@@ -3,9 +3,10 @@
 // includes, `component Name(params) {}` declarations, the shared last-top-level-markup-return
 // splitter, hook-call scanning and the FNV hook signature. All offsets are code points.
 
-import { findMatching, findMatchingMarkup, keywordAt, skipNoncode, skipNoncodeMarkup } from "./cppScanner";
-import { fromCodePoints } from "./codePoints";
+import { findMatching, findMatchingMarkup, isIdentCode, keywordAt, skipNoncode, skipNoncodeMarkup } from "./cppScanner";
+import { fromCodePoints, toCodePoints } from "./codePoints";
 import { parseMarkup, UetkxNode } from "./uetkxMarkup";
+import { findMarkupRanges, MarkupRange } from "./jsxScan";
 
 const C_NL = 10,
   C_CR = 13,
@@ -19,6 +20,495 @@ const C_NL = 10,
   C_QUOTE = 34,
   C_APOS = 39,
   C_COMMA = 44;
+
+/** §4 markup-everywhere: if code point `i` lands inside a jsx markup range, the index to jump
+ *  to (the range end); -1 otherwise. Walkers use this to keep CODE lexis off markup text.
+ *  C++-identical (JsxSkipTo). */
+function jsxSkipTo(ranges: readonly MarkupRange[], i: number): number {
+  for (const r of ranges) {
+    if (i >= r.start && i < r.end) return r.end;
+  }
+  return -1;
+}
+
+/** The body's jsx-range list of record (element-form markup at every family boundary position),
+ *  with unbalanced ranges clamped to the body end. */
+function bodyJsxRanges(body: readonly number[]): MarkupRange[] {
+  const ranges = findMarkupRanges(body, 0, body.length);
+  for (const r of ranges) {
+    if (r.end === -1) r.end = body.length;
+  }
+  return ranges;
+}
+
+/** TB-12 / UETKX0114, NARROWED by §4 markup-everywhere: markup-as-value is now first-class
+ *  (`auto X = (<VerticalBox>…);` lowers in place), so the old detector is gone. What stays
+ *  illegal is a PAREN-LESS markup return at statement level (`return <Tag/>;`) — the family
+ *  return spelling is `return ( <markup> );`. Lambda-nested returns (parenDepth > 0, deduced
+ *  return type) lower fine and stay legal. C++-identical (DiagnoseBareMarkupReturn). */
+function diagnoseBareMarkupReturn(
+  body: readonly number[],
+  ranges: readonly MarkupRange[],
+  bodyAt: number,
+  out: UetkxFileScanResult,
+): void {
+  const n = body.length;
+  const isWs = (c: number) => c === C_SPACE || c === C_TAB || c === C_NL || c === C_CR;
+  let parenDepth = 0;
+  let i = 0;
+  while (i < n) {
+    const skip = jsxSkipTo(ranges, i);
+    if (skip !== -1) {
+      i = skip;
+      continue;
+    }
+    const j = skipNoncode(body, i);
+    if (j !== i) {
+      i = j;
+      continue;
+    }
+    const c = body[i];
+    if (c === C_LPAREN || c === 91 /*[*/) {
+      parenDepth++;
+      i++;
+      continue;
+    }
+    if (c === 41 /*)*/ || c === 93 /*]*/) {
+      parenDepth--;
+      i++;
+      continue;
+    }
+    if (parenDepth === 0 && c === 114 /*r*/ && keywordAt(body, i, "return")) {
+      let p = i + 6;
+      while (p < n && isWs(body[p])) p++;
+      if (ranges.some((r) => r.start === p)) {
+        pushDiag(out, "UETKX0114", 0, "a markup return must be parenthesized — write `return ( <...> );`", bodyAt + p);
+        return;
+      }
+      i += 6;
+      continue;
+    }
+    i++;
+  }
+}
+
+// ── §4 rules of hooks — the family port (Unity UITKX0013-0016, Godot T2.5), C++-shaped ──────
+// Hooks must run unconditionally at the top level of the component body: 0013 conditional
+// (if/else — and any hook inside markup, which renders conditionally by construction), 0014
+// loop (for/while/@for/@while), 0015 match branch (switch/@match), 0016 callback/lambda (incl.
+// event attributes). Every violating call is reported. C++-identical (ValidateHookPlacement).
+
+type HookBlock = "none" | "conditional" | "loop" | "match" | "callback" | "markup";
+
+function hookBlockCode(kind: HookBlock): string {
+  switch (kind) {
+    case "loop":
+      return "UETKX0014";
+    case "match":
+      return "UETKX0015";
+    case "callback":
+      return "UETKX0016";
+    default:
+      return "UETKX0013";
+  }
+}
+
+function hookBlockMessage(kind: HookBlock): string {
+  let what = "conditionally (inside an if/else)";
+  if (kind === "loop") what = "inside a loop";
+  else if (kind === "match") what = "inside a switch/match branch";
+  else if (kind === "callback") what = "inside a callback/lambda";
+  else if (kind === "markup") what = "inside markup";
+  return `hook called ${what} — hooks must run unconditionally at the top level of the component body`;
+}
+
+/** Hook-call match at `i` (same rule as scanHookCalls): a known hook name followed by `(` or a
+ *  `<` template-arg list. Returns the name length, or 0. C++-identical (HookCallLenAt). */
+function hookCallLenAt(src: readonly number[], i: number): number {
+  const n = src.length;
+  if (i >= n || (src[i] !== 85 /*U*/ && src[i] !== 80) /*P*/) return 0;
+  for (const hook of HOOK_NAMES) {
+    if (keywordAt(src, i, hook)) {
+      const k = skipWsOnly(src, i + hook.length);
+      if (k < n && (src[k] === C_LPAREN || src[k] === C_LT)) return hook.length;
+    }
+  }
+  return 0;
+}
+
+/** Code embedded in markup (attr/child expressions, directive headers/bodies): flag hook calls
+ *  with `kind`, then recurse into any markup ranges nested in the code (jsx scan). `base` is
+ *  the absolute offset of code[0], or -1 when unknown (diags fall back to fallbackAt).
+ *  C++-identical (ScanMarkupCodeForHooks). */
+function scanMarkupCodeForHooks(
+  code: string,
+  base: number,
+  fallbackAt: number,
+  kind: HookBlock,
+  out: UetkxFileScanResult,
+): void {
+  const src = toCodePoints(code);
+  const ranges = findMarkupRanges(src, 0, src.length);
+  for (const r of ranges) {
+    if (r.end === -1) r.end = src.length;
+  }
+  const n = src.length;
+  let i = 0;
+  while (i < n) {
+    const jump = jsxSkipTo(ranges, i);
+    if (jump !== -1) {
+      i = jump;
+      continue;
+    }
+    const j = skipNoncode(src, i);
+    if (j !== i) {
+      i = j;
+      continue;
+    }
+    const hookLen = hookCallLenAt(src, i);
+    if (hookLen > 0) {
+      pushDiag(out, hookBlockCode(kind), 0, hookBlockMessage(kind), base < 0 ? fallbackAt : base + i, hookLen);
+      i += hookLen;
+      continue;
+    }
+    if (isIdentCode(src[i])) {
+      while (i < n && isIdentCode(src[i])) i++;
+      continue;
+    }
+    i++;
+  }
+  for (const r of ranges) {
+    const parsed = parseMarkup(src, r.start, r.end);
+    if (parsed.errorCode) continue; // the compiler owns markup parse errors
+    for (const nd of parsed.nodes) {
+      validateMarkupNodeHooks(nd, base, base < 0 ? fallbackAt : base + r.start, kind, out);
+    }
+  }
+}
+
+/** A directive body — statements + `return ( <markup> )` (family 0.7): validate the lead code
+ *  (jsx-aware), then every root of the return window. Mirrors the emitter's split exactly.
+ *  C++-identical (ValidateDirectiveBodyHooks). */
+function validateDirectiveBodyHooks(
+  bodyMarkup: string,
+  base: number,
+  fallbackAt: number,
+  enclosing: HookBlock,
+  out: UetkxFileScanResult,
+): void {
+  const body = toCodePoints(bodyMarkup);
+  const split = splitMarkupReturn(body, false);
+  if (!split.ok) {
+    scanMarkupCodeForHooks(bodyMarkup, base, fallbackAt, enclosing, out);
+    return;
+  }
+  scanMarkupCodeForHooks(fromCodePoints(body, 0, split.returnAt), base, fallbackAt, enclosing, out);
+  const parsed = parseMarkup(body, split.mStart, split.mEnd);
+  if (!parsed.errorCode) {
+    for (const nd of parsed.nodes) {
+      validateMarkupNodeHooks(nd, base, base < 0 ? fallbackAt : base + split.mStart, enclosing, out);
+    }
+  }
+}
+
+/** Walk one parsed markup node: attr/child expressions, directive headers and bodies. `base` is
+ *  the absolute anchor of this tree's offset frame (node.at/vat/bodyAt compose on top of it),
+ *  or -1 when detached (diags fall back to fallbackAt). C++-identical (ValidateMarkupNodeHooks)
+ *  — with the TS parser's trim-exact header offsets (condAt/headerAt/subjectAt/valueAt) used
+ *  where the C++ falls back to the directive's `@`. */
+function validateMarkupNodeHooks(
+  node: UetkxNode,
+  base: number,
+  fallbackAt: number,
+  enclosing: HookBlock,
+  out: UetkxFileScanResult,
+): void {
+  const nodeAt = base < 0 ? fallbackAt : base + node.at;
+  const sub = (at: number | undefined) => (base < 0 || at === undefined || at < 0 ? -1 : base + at);
+  switch (node.type) {
+    case "el":
+    case "frag": {
+      for (const attr of node.attrs ?? []) {
+        if (attr.kind !== "expr" && attr.kind !== "spread") continue;
+        let kind: HookBlock = enclosing;
+        if (attr.name.length > 2 && attr.name.startsWith("On")) kind = "callback"; // event attrs run as callbacks
+        else if (kind === "none") kind = "markup";
+        scanMarkupCodeForHooks(attr.value, sub(attr.vat), nodeAt, kind, out);
+      }
+      for (const child of node.children ?? []) {
+        validateMarkupNodeHooks(child, base, nodeAt, enclosing, out);
+      }
+      break;
+    }
+    case "expr":
+      scanMarkupCodeForHooks(node.code ?? "", sub(node.vat), nodeAt, enclosing === "none" ? "markup" : enclosing, out);
+      break;
+    case "if": {
+      for (const branch of node.branches ?? []) {
+        scanMarkupCodeForHooks(branch.cond, sub(branch.condAt), nodeAt, "conditional", out);
+        validateDirectiveBodyHooks(branch.bodyMarkup, sub(branch.bodyAt), nodeAt, "conditional", out);
+      }
+      if (node.elseBody !== undefined) {
+        validateDirectiveBodyHooks(node.elseBody, sub(node.elseBodyAt), nodeAt, "conditional", out);
+      }
+      break;
+    }
+    case "for":
+    case "while":
+      scanMarkupCodeForHooks(node.header ?? "", sub(node.headerAt), nodeAt, "loop", out);
+      validateDirectiveBodyHooks(node.bodyMarkup ?? "", sub(node.bodyAt), nodeAt, "loop", out);
+      break;
+    case "match": {
+      scanMarkupCodeForHooks(node.subject ?? "", sub(node.subjectAt), nodeAt, "match", out);
+      for (const c of node.cases ?? []) {
+        scanMarkupCodeForHooks(c.value, sub(c.valueAt), nodeAt, "match", out);
+        validateDirectiveBodyHooks(c.bodyMarkup, sub(c.bodyAt), nodeAt, "match", out);
+      }
+      if (node.defaultBody !== undefined) {
+        validateDirectiveBodyHooks(node.defaultBody, sub(node.defaultBodyAt), nodeAt, "match", out);
+      }
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+/** The C++ brace-stack walk over the body's CODE (markup regions skipped): flag hook calls
+ *  under if/else/for/while/do/switch blocks (incl. brace-less bodies + headers) and inside
+ *  lambdas. C++-identical (CodeWalkHooks). */
+function codeWalkHooks(
+  body: readonly number[],
+  skip: readonly MarkupRange[],
+  bodyAt: number,
+  out: UetkxFileScanResult,
+): void {
+  const stack: HookBlock[] = []; // one entry per '{'
+  const lambdaBraces = new Set<number>(); // '{' offsets recognized as lambda bodies
+  let pending: HookBlock = "none";
+  let parenDepth = 0;
+  const n = body.length;
+  let i = 0;
+  while (i < n) {
+    const jump = jsxSkipTo(skip, i);
+    if (jump !== -1) {
+      i = jump;
+      continue;
+    }
+    const j = skipNoncode(body, i);
+    if (j !== i) {
+      i = j;
+      continue;
+    }
+    const c = body[i];
+    if (c === C_LPAREN) {
+      parenDepth++;
+      i++;
+      continue;
+    }
+    if (c === 41 /*)*/) {
+      parenDepth--;
+      i++;
+      continue;
+    }
+    if (c === 91 /*[*/) {
+      // lambda intro? peek non-destructively: [captures] (params)? specifiers? '{'
+      const closeB = findMatching(body, i);
+      if (closeB !== -1) {
+        let k = skipWsOnly(body, closeB + 1);
+        if (k < n && body[k] === C_LPAREN) {
+          const closeP = findMatching(body, k);
+          k = closeP === -1 ? n : skipWsOnly(body, closeP + 1);
+        }
+        let guard = 0;
+        const tolerated = (cc: number) =>
+          isIdentCode(cc) ||
+          cc === C_SPACE ||
+          cc === C_TAB ||
+          cc === C_NL ||
+          cc === C_CR ||
+          cc === 45 /*-*/ ||
+          cc === 62 /*>*/ ||
+          cc === 58 /*:*/ ||
+          cc === 38 /*&*/ ||
+          cc === 42 /***/ ||
+          cc === C_LT ||
+          cc === C_COMMA;
+        while (k < n && body[k] !== C_LBRACE && guard++ < 64 && tolerated(body[k])) k++;
+        if (k < n && body[k] === C_LBRACE) lambdaBraces.add(k);
+      }
+      i++; // walk the capture list normally — init-captures run unconditionally
+      continue;
+    }
+    if (c === C_LBRACE) {
+      let kind: HookBlock = "none";
+      if (lambdaBraces.has(i)) kind = "callback";
+      else if (pending !== "none") kind = pending;
+      stack.push(kind);
+      pending = "none";
+      i++;
+      continue;
+    }
+    if (c === 125 /*}*/) {
+      if (stack.length > 0) stack.pop();
+      i++;
+      continue;
+    }
+    if (c === 59 /*;*/ && parenDepth === 0) {
+      pending = "none"; // a brace-less `if (x) stmt;` body ended
+      i++;
+      continue;
+    }
+    if (isIdentCode(c) && (i === 0 || !isIdentCode(body[i - 1]))) {
+      const hookLen = hookCallLenAt(body, i);
+      if (hookLen > 0) {
+        let ctx: HookBlock = pending;
+        for (let s = stack.length - 1; ctx === "none" && s >= 0; s--) ctx = stack[s];
+        if (ctx !== "none") {
+          pushDiag(out, hookBlockCode(ctx), 0, hookBlockMessage(ctx), bodyAt + i, hookLen);
+        }
+        i += hookLen;
+        continue;
+      }
+      if (keywordAt(body, i, "if") || keywordAt(body, i, "else")) pending = "conditional";
+      else if (keywordAt(body, i, "for") || keywordAt(body, i, "while") || keywordAt(body, i, "do")) pending = "loop";
+      else if (keywordAt(body, i, "switch")) pending = "match";
+      while (i < n && isIdentCode(body[i])) i++;
+      continue;
+    }
+    i++;
+  }
+}
+
+/** §4 rules-of-hooks driver: the code walk (outside markup), then every markup region's parsed
+ *  tree — return windows use their already-parsed roots; value-markup ranges parse here
+ *  (tolerantly — the compiler owns parse errors). C++-identical (ValidateHookPlacement). */
+function validateHookPlacement(
+  body: readonly number[],
+  jsxRanges: readonly MarkupRange[],
+  returns: ReadonlyArray<UetkxReturnSpan>,
+  bodyAt: number,
+  out: UetkxFileScanResult,
+): void {
+  const skip: MarkupRange[] = [...jsxRanges];
+  for (const span of returns) {
+    // directive-form windows (`return ( @if … )`) are not jsx ranges
+    skip.push({ start: span.mStart, end: span.mEnd, op: "", opPos: span.mStart });
+  }
+  codeWalkHooks(body, skip, bodyAt, out);
+  for (const span of returns) {
+    if (span.root) validateMarkupNodeHooks(span.root, bodyAt, bodyAt + span.mStart, "none", out);
+  }
+  for (const r of jsxRanges) {
+    if (returns.some((span) => r.start >= span.mStart && r.start < span.mEnd)) continue;
+    const parsed = parseMarkup(body, r.start, r.end);
+    if (parsed.errorCode) continue;
+    for (const nd of parsed.nodes) {
+      validateMarkupNodeHooks(nd, bodyAt, bodyAt + r.start, "none", out);
+    }
+  }
+}
+
+/** TB-5 / UETKX0107 — Unity's UnreachableAfterReturn (UITKX0107), family-numbered: dead code
+ *  after the FIRST top-level `return` statement of a component body. Handles BOTH shapes — a
+ *  top-level markup `return ( … )` before the body's end, and a plain C++ early `return x;`
+ *  in setup (the collector never sees those — no markup). Severity 2 (hint); the server
+ *  attaches the Unnecessary tag so editors FADE the range. Comment-only tails don't count.
+ *  C++-identical (DiagnoseUnreachableAfterReturn). */
+function diagnoseUnreachableAfterReturn(
+  body: readonly number[],
+  returns: ReadonlyArray<{ returnAt: number; afterParen: number }>,
+  ranges: readonly MarkupRange[],
+  bodyAt: number,
+  out: UetkxFileScanResult,
+): void {
+  const n = body.length;
+  let deadStart = -1;
+  let depth = 0;
+  let i = 0;
+  while (i < n) {
+    const skip = jsxSkipTo(ranges, i);
+    if (skip !== -1) {
+      i = skip;
+      continue;
+    }
+    const j = skipNoncode(body, i);
+    if (j !== i) {
+      i = j;
+      continue;
+    }
+    const c = body[i];
+    if (c === C_LBRACE || c === C_LPAREN || c === 91 /*[*/) {
+      depth++;
+      i++;
+      continue;
+    }
+    if (c === 125 /*}*/ || c === 41 /*)*/ || c === 93 /*]*/) {
+      depth--;
+      i++;
+      continue;
+    }
+    if (depth === 0 && c === 114 /*r*/ && keywordAt(body, i, "return")) {
+      const span = returns.find((s) => s.returnAt === i);
+      let end: number;
+      if (span) {
+        end = span.afterParen;
+        while (end < n && (body[end] === C_SPACE || body[end] === C_TAB || body[end] === C_NL || body[end] === C_CR)) end++;
+        if (end < n && body[end] === 59 /*;*/) end++;
+      } else {
+        // A plain C++ `return expr;` — scan to its statement-ending top-level `;`.
+        // Markup ranges jump whole (a `;` inside markup text is not a terminator).
+        let d2 = 0;
+        let k = i + 6;
+        while (k < n) {
+          const skip2 = jsxSkipTo(ranges, k);
+          if (skip2 !== -1) {
+            k = skip2;
+            continue;
+          }
+          const j2 = skipNoncode(body, k);
+          if (j2 !== k) {
+            k = j2;
+            continue;
+          }
+          const c2 = body[k];
+          if (c2 === C_LBRACE || c2 === C_LPAREN || c2 === 91) d2++;
+          else if (c2 === 125 || c2 === 41 || c2 === 93) d2--;
+          else if (c2 === 59 /*;*/ && d2 === 0) {
+            k++;
+            break;
+          }
+          k++;
+        }
+        end = k;
+      }
+      deadStart = end;
+      break;
+    }
+    i++;
+  }
+  if (deadStart < 0) return;
+  let first = -1;
+  i = deadStart;
+  while (i < n) {
+    const j = skipNoncode(body, i);
+    if (j !== i) {
+      i = j;
+      continue;
+    }
+    const c = body[i];
+    if (c === C_SPACE || c === C_TAB || c === C_NL || c === C_CR) {
+      i++;
+      continue;
+    }
+    first = i;
+    break;
+  }
+  if (first < 0) return;
+  let last = n;
+  while (last > first && (body[last - 1] === C_SPACE || body[last - 1] === C_TAB || body[last - 1] === C_NL || body[last - 1] === C_CR)) last--;
+  pushDiag(out, "UETKX0107", 2, "Unreachable code after 'return'.", bodyAt + first, last - first);
+}
 
 export interface UetkxDiag {
   code: string;
@@ -383,11 +873,22 @@ export function parseParams(paramText: string): UetkxParam[] {
   return out;
 }
 
-function scanHookCalls(setup: readonly number[]): string[] {
+/** §4.3 HMR protection: markup ranges are EXCLUDED — hooks are illegal inside markup
+ *  (UETKX0013), so markup text must never perturb the hook signature: editing a value-markup
+ *  child would otherwise flip the signature and spuriously reset live state on a HMR swap.
+ *  C++-identical (ScanHookCalls). */
+function scanHookCalls(setup: readonly number[], skipRanges?: readonly MarkupRange[]): string[] {
   const out: string[] = [];
   const n = setup.length;
   let i = 0;
   while (i < n) {
+    if (skipRanges) {
+      const skip = jsxSkipTo(skipRanges, i);
+      if (skip !== -1) {
+        i = skip;
+        continue;
+      }
+    }
     const j = skipNoncode(setup, i);
     if (j !== i) {
       i = j;
@@ -584,6 +1085,11 @@ function parseComponent(src: number[], ci: number, exported: boolean, out: Uetkx
   // Wave G: collect ALL markup returns (early returns); the FINAL span must be top-level —
   // it anchors the window/setup split (T1.4 last-wins). C++-identical (ParseComponent).
   const returns = collectMarkupReturns(body);
+  // §4 markup-everywhere: the jsx-range list of record for this body. Computed before the
+  // no-return early-out so a paren-less `return <Tag/>` gets its precise 0114 instead of a
+  // bare 2101. C++-identical (ScanComponentBody).
+  const jsxRanges = bodyJsxRanges(body);
+  diagnoseBareMarkupReturn(body, jsxRanges, bodyAt, out);
   if (returns.length === 0) {
     pushDiag(out, "UETKX2101", 0, "component has no `return ( ... )` markup return", ci, 9);
     return -1;
@@ -594,6 +1100,7 @@ function parseComponent(src: number[], ci: number, exported: boolean, out: Uetkx
     return -1;
   }
   const setup = fromCodePoints(body, 0, final.returnAt);
+  diagnoseUnreachableAfterReturn(body, returns, jsxRanges, bodyAt, out);
   let windowNodes: UetkxNode[] = [];
   for (const span of returns) {
     const parsed = parseMarkup(body, span.mStart, span.mEnd);
@@ -609,6 +1116,8 @@ function parseComponent(src: number[], ci: number, exported: boolean, out: Uetkx
     span.root = renderRoots[0];
     if (span === final) windowNodes = parsed.nodes; // the final window keeps the formatter contract
   }
+  // §4 rules of hooks (family 0013-0016) — needs the parsed window roots, so it runs last.
+  validateHookPlacement(body, jsxRanges, returns, bodyAt, out);
   const idx = out.components.length;
   out.components.push({
     name,
@@ -623,7 +1132,7 @@ function parseComponent(src: number[], ci: number, exported: boolean, out: Uetkx
     bodyAt,
     windowNodes,
     returns,
-    hookCalls: scanHookCalls(body.slice(0, final.returnAt)),
+    hookCalls: scanHookCalls(body.slice(0, final.returnAt), jsxRanges),
     next: bclose + 1,
   });
   out.order.push({ kind: "component", index: idx });

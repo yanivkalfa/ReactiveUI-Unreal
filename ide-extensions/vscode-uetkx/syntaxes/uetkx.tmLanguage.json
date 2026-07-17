@@ -15,8 +15,8 @@
     { "include": "#module-decl" },
     { "include": "#control-flow-with-expression" },
     { "include": "#control-flow-keyword" },
+    { "include": "#tag-element" },
     { "include": "#tag-close" },
-    { "include": "#tag-open" },
     { "include": "#code-block-body" }
   ],
   "repository": {
@@ -31,11 +31,20 @@
       "captures": { "1": { "name": "keyword.control.directive.uetkx" } }
     },
     "import-decl": {
-      "match": "\\b(import)\\b(.*?)\\b(from)\\b\\s*(\"[^\"]*\")",
+      "comment": "Imported names color as WHAT THEY ARE at the use site (sibling behavior): Use-hooks get the hook-call scope, everything else the component-tag scope (modules read as types — same color).",
+      "match": "\\b(import)\\s*(\\{)([^}]*)(\\})\\s*(from)\\s*(\"[^\"]*\")",
       "captures": {
         "1": { "name": "keyword.control.import.uetkx" },
-        "3": { "name": "keyword.control.import.uetkx" },
-        "4": { "name": "string.quoted.double.uetkx" }
+        "2": { "name": "punctuation.definition.block.begin.uetkx" },
+        "3": {
+          "patterns": [
+            { "match": "\\b(Use[A-Z][A-Za-z0-9_]*|ProvideContext)\\b", "name": "support.function.hook.uetkx" },
+            { "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b", "name": "support.class.component.uetkx" }
+          ]
+        },
+        "4": { "name": "punctuation.definition.block.end.uetkx" },
+        "5": { "name": "keyword.control.import.uetkx" },
+        "6": { "name": "string.quoted.double.uetkx" }
       }
     },
     "import-host-include": {
@@ -90,26 +99,59 @@
         "2": { "name": "keyword.control.directive.uetkx" }
       }
     },
-    "tag-open": {
-      "name": "meta.tag.open.uetkx",
-      "begin": "(<)(?!/)((?:Border|Box|Button|CheckBox|EditableTextBox|HorizontalBox|Image|Overlay|ProgressBar|RuiCanvas|ScrollBox|Slider|Spacer|TextBlock|VerticalBox)\\b|[A-Za-z_][A-Za-z0-9_]*)?",
-      "end": "(/?>)",
+    "tag-element": {
+      "comment": "One region per ELEMENT — `<Name attrs>` through `</Name>` (or `/>`), the TSX jsx-element shape, so raw-text children get a home (TB-3). The begin is triple-guarded against C++ (TB-1b): no identifier/)/] immediately before `<` (kills `UseMemo<T>` generics), tag name REQUIRED (kills bare `i < 3`), and the name must be followed by tag-ish continuation — attr, `>`, `/>`, or end-of-line (kills `A < B` comparisons).",
+      "name": "meta.tag.element.uetkx",
+      "begin": "(?<![A-Za-z0-9_)\\]])(<)(?!/)((?:Border|Box|Button|CheckBox|EditableTextBox|HorizontalBox|Image|Overlay|ProgressBar|RuiCanvas|ScrollBox|Slider|Spacer|TextBlock|VerticalBox)\\b|[A-Za-z_][A-Za-z0-9_]*)(?=\\s*/?>|\\s+[A-Za-z_{]|\\s*$)",
+      "end": "(/>)|(</)\\s*((?:Border|Box|Button|CheckBox|EditableTextBox|HorizontalBox|Image|Overlay|ProgressBar|RuiCanvas|ScrollBox|Slider|Spacer|TextBlock|VerticalBox)\\b|[A-Za-z_][A-Za-z0-9_]*)?\\s*(>)",
       "beginCaptures": {
         "1": { "name": "punctuation.definition.tag.begin.uetkx" },
         "2": {
           "patterns": [
             {
               "match": "\\b(Border|Box|Button|CheckBox|EditableTextBox|HorizontalBox|Image|Overlay|ProgressBar|RuiCanvas|ScrollBox|Slider|Spacer|TextBlock|VerticalBox)\\b",
-              "name": "entity.name.tag.uetkx"
+              "name": "entity.name.type.element.uetkx"
             },
             { "match": "[A-Za-z_][A-Za-z0-9_]*", "name": "support.class.component.uetkx" }
           ]
         }
       },
-      "endCaptures": { "1": { "name": "punctuation.definition.tag.end.uetkx" } },
-      "patterns": [{ "include": "#tag-attributes" }]
+      "endCaptures": {
+        "1": { "name": "punctuation.definition.tag.end.uetkx" },
+        "2": { "name": "punctuation.definition.tag.begin.uetkx" },
+        "3": {
+          "patterns": [
+            {
+              "match": "\\b(Border|Box|Button|CheckBox|EditableTextBox|HorizontalBox|Image|Overlay|ProgressBar|RuiCanvas|ScrollBox|Slider|Spacer|TextBlock|VerticalBox)\\b",
+              "name": "entity.name.type.element.uetkx"
+            },
+            { "match": "[A-Za-z_][A-Za-z0-9_]*", "name": "support.class.component.uetkx" }
+          ]
+        },
+        "4": { "name": "punctuation.definition.tag.end.uetkx" }
+      },
+      "patterns": [
+        {
+          "comment": "Attributes — anchored at the spot right after `<Name`, ends when the OPEN tag closes (`>` not part of =>/!>/->/`<`) or defers to the outer end for `/>`.",
+          "begin": "\\G",
+          "end": "(?=/>)|((?<![=!<-])>)",
+          "endCaptures": { "1": { "name": "punctuation.definition.tag.end.uetkx" } },
+          "patterns": [{ "include": "#tag-attributes" }]
+        },
+        { "include": "#markup-comment" },
+        { "include": "#control-flow-with-expression" },
+        { "include": "#control-flow-keyword" },
+        { "include": "#tag-element" },
+        { "include": "#markup-brace" },
+        {
+          "comment": "Raw-text children (`+`, `Back home`, `Shuffle(bump RedrawKey)`) — meta scope only, so the theme's DEFAULT foreground applies (TB-3).",
+          "match": "[^<{@]+",
+          "name": "meta.text.children.uetkx"
+        }
+      ]
     },
     "tag-close": {
+      "comment": "Orphan close tags only (a healthy close is consumed by its tag-element's end).",
       "match": "(</)([A-Za-z_][A-Za-z0-9_]*)?\\s*(>)",
       "captures": {
         "1": { "name": "punctuation.definition.tag.begin.uetkx" },
@@ -117,7 +159,7 @@
           "patterns": [
             {
               "match": "\\b(Border|Box|Button|CheckBox|EditableTextBox|HorizontalBox|Image|Overlay|ProgressBar|RuiCanvas|ScrollBox|Slider|Spacer|TextBlock|VerticalBox)\\b",
-              "name": "entity.name.tag.uetkx"
+              "name": "entity.name.type.element.uetkx"
             },
             { "match": "[A-Za-z_][A-Za-z0-9_]*", "name": "support.class.component.uetkx" }
           ]
@@ -132,7 +174,7 @@
         { "include": "#double-quoted-string" },
         {
           "match": "\\b(key|classes)(?=\\s*[={])",
-          "name": "keyword.other.attribute-name.structural.uetkx"
+          "name": "entity.other.attribute-name.structural.uetkx"
         },
         {
           "match": "\\b(On[A-Z][A-Za-z0-9_]*)(?=\\s*[={])",
@@ -172,8 +214,8 @@
         { "include": "#control-flow-with-expression" },
         { "include": "#control-flow-keyword" },
         { "include": "#markup-comment" },
+        { "include": "#tag-element" },
         { "include": "#tag-close" },
-        { "include": "#tag-open" },
         { "include": "#markup-brace" },
         { "include": "#expression-content" }
       ]
@@ -187,8 +229,8 @@
         { "include": "#char-literal" },
         { "include": "#hook-call" },
         { "include": "#cpp-keywords" },
-        { "include": "#function-call" },
         { "include": "#cpp-type-name" },
+        { "include": "#function-call" },
         { "include": "#numeric-literal" },
         { "include": "#cpp-operator" },
         { "include": "#markup-brace" },
@@ -219,7 +261,8 @@
       "name": "keyword.control.uetkx"
     },
     "cpp-type-name": {
-      "match": "\\b[A-Z][A-Za-z0-9_]*\\b",
+      "comment": "Unreal-prefixed types ONLY (F/T/U/S/I/E + PascalCase: FLinearColor, TFunction, URuiHostWidget) plus ALL-CAPS names (RUI, macros). A bare PascalCase identifier is a LOCAL under Unreal naming — the old any-PascalCase rule painted every local green; locals must color as variables like the sibling's camelCase locals do.",
+      "match": "\\b(?:[FTUSIE][A-Z][A-Za-z0-9_]*|[A-Z][A-Z0-9_]+)\\b",
       "name": "entity.name.type.uetkx"
     },
     "numeric-literal": {
@@ -242,7 +285,8 @@
       "name": "entity.name.function.uetkx"
     },
     "identifier": {
-      "match": "\\b[a-z_][A-Za-z0-9_]*\\b",
+      "comment": "Any-case start: Unreal locals are PascalCase (Count, SetCount), not just camelCase.",
+      "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b",
       "name": "variable.other.uetkx"
     }
   }

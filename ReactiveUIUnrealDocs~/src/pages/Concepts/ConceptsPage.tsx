@@ -41,7 +41,12 @@ export const ConceptsPage: FC = () => (
       A <code>.uetkx</code> file is a free sequence of three declaration kinds.{' '}
       <strong>Components</strong> return markup. <strong>Hooks</strong> (PascalCase{' '}
       <code>Use*</code>) encapsulate reusable state and effects. <strong>Modules</strong> hold shared
-      constants and helpers. Companion files keep a component&apos;s logic beside it:
+      constants and helpers. Markup is a first-class <em>expression</em>: besides{' '}
+      <code>return ( … )</code>, you can assign it to a local (
+      <code>auto Card = (&lt;VerticalBox&gt;…&lt;/VerticalBox&gt;);</code> — an{' '}
+      <code>FRuiNode</code> value), pass it as an argument, or branch on it with{' '}
+      <code>?:</code> / <code>&amp;&amp;</code>, then splice it anywhere with{' '}
+      <code>{'{ Card }'}</code>. Companion files keep a component&apos;s logic beside it:
     </Typography>
     <CodeBlock code={COMPANION} language="uetkx" />
     <CodeBlock code={HOOK} language="uetkx" />

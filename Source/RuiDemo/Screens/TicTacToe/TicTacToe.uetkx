@@ -18,7 +18,7 @@ export component TicTacToe {
 
 	auto CheckWinner = [](const TArray<FString>& G) -> FString {
 		static const int32 Lines[8][3] = {{0, 1, 2}, {3, 4, 5}, {6, 7, 8}, {0, 3, 6},
-										  {1, 4, 7}, {2, 5, 8}, {0, 4, 8}, {2, 4, 6}};
+											{1, 4, 7}, {2, 5, 8}, {0, 4, 8}, {2, 4, 6}};
 		for (const int32* L : Lines)
 		{
 			if (!G[L[0]].IsEmpty() && G[L[0]] == G[L[1]] && G[L[0]] == G[L[2]])
@@ -58,9 +58,17 @@ export component TicTacToe {
 	};
 
 	return (
-		<Border Padding="12" BorderImage="WhiteBrush" BorderBackgroundColor={ FLinearColor(0.02f, 0.02f, 0.03f, 0.85f) } Slot.Padding="0,10,0,0">
+		<Border
+			Padding="12"
+			BorderImage="WhiteBrush"
+			BorderBackgroundColor={ FLinearColor(0.02f, 0.02f, 0.03f, 0.85f) }
+			Slot.Padding="0,10,0,0"
+		>
 			<VerticalBox>
-				<TextBlock Text="Welcome to Tic Tac Toe!" Font.Size={ 16.0f } ColorAndOpacity={ FLinearColor(0.4f, 0.8f, 1.0f) } />
+				<TextBlock
+					Text="Welcome to Tic Tac Toe!"
+					Font.Size={ 16.0f }
+					ColorAndOpacity={ FLinearColor(0.4f, 0.8f, 1.0f) } />
 				<Spacer Size={ FVector2D(1.0f, 6.0f) } />
 				<HorizontalBox>
 					<Button OnClicked={ Restart() } ContentPadding="12,4" Slot.Padding="0,0,6,0">
@@ -72,11 +80,23 @@ export component TicTacToe {
 						<VerticalBox>
 							<Spacer Size={ FVector2D(1.0f, 6.0f) } />
 							@if (!Winner.IsEmpty()) {
-								return ( <TextBlock Text={ RUI::Fmt(TEXT("Player {} is the winner"), Winner) } Font.Size={ 14.0f } ColorAndOpacity={ FLinearColor(0.6f, 1.0f, 0.6f) } /> );
+								return (
+									<TextBlock
+										Text={ RUI::Fmt(TEXT("Player {} is the winner"), Winner) }
+										Font.Size={ 14.0f }
+										ColorAndOpacity={ FLinearColor(0.6f, 1.0f, 0.6f) } />
+								);
 							} @elif (MovesLeft == 0) {
-								return ( <TextBlock Text="Draw!" Font.Size={ 14.0f } ColorAndOpacity={ FLinearColor(1.0f, 0.8f, 0.4f) } /> );
+								return (
+									<TextBlock
+										Text="Draw!"
+										Font.Size={ 14.0f }
+										ColorAndOpacity={ FLinearColor(1.0f, 0.8f, 0.4f) } />
+								);
 							} @else {
-								return ( <TextBlock Text={ RUI::Fmt(TEXT("Player turn: {}   (moves left: {})"), Turn, MovesLeft) } /> );
+								return (
+									<TextBlock Text={ RUI::Fmt(TEXT("Player turn: {}   (moves left: {})"), Turn, MovesLeft) } />
+								);
 							}
 							<Spacer Size={ FVector2D(1.0f, 6.0f) } />
 							@for (int32 R = 0; R < 3; ++R) {
@@ -87,7 +107,10 @@ export component TicTacToe {
 											return (
 												<Box key={ Index } WidthOverride={ 44.0f } HeightOverride={ 44.0f }>
 													<Button OnClicked={ PlayCell(Index) } ContentPadding="0">
-														<TextBlock Text={ FText::FromString(Grid[Index].IsEmpty() ? FString(TEXT(" ")) : Grid[Index]) } Font.Size={ 16.0f } ColorAndOpacity={ FLinearColor(1.0f, 0.85f, 0.4f) } />
+														<TextBlock
+															Text={ FText::FromString(Grid[Index].IsEmpty() ? FString(TEXT(" ")) : Grid[Index]) }
+															Font.Size={ 16.0f }
+															ColorAndOpacity={ FLinearColor(1.0f, 0.85f, 0.4f) } />
 													</Button>
 												</Box>
 											);

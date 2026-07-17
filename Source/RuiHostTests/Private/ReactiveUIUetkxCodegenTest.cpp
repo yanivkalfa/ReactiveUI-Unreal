@@ -138,6 +138,109 @@ component RowList(Names: TArray<FString>) {
 		TestTrue(TEXT("0105 code present"), bFound0105);
 	}
 
+	// ── §4 markup everywhere: markup-as-value lowers in place (statement positions) ───────
+	{
+		const FString Source = TEXT(R"UETKX(
+component CardStack(Names: TArray<FString>) {
+	auto [Count, SetCount] = UseState(0);
+	auto Card = (<VerticalBox><TextBlock Text="hi" /></VerticalBox>);
+	FRuiNode Bare = <Spacer />;
+	TArray<FRuiNode> Rows;
+	Rows.Add(<TextBlock Text="row" />);
+	return (
+		<VerticalBox>
+			{ Card }
+			{ Bare }
+			<Button OnClicked={ SetCount(Count + 1) }>go</Button>
+		</VerticalBox>
+	);
+}
+)UETKX");
+		FUetkxCompileOutput Out = FUetkxCodegen::CompileSource(Source, TEXT("CardStack"));
+		for (const FUetkxDiag& Diag : Out.Diags)
+		{
+			AddInfo(FString::Printf(TEXT("diag %s: %s @%d"), *Diag.Code, *Diag.Message, Diag.Offset));
+		}
+		if (TestTrue(TEXT("markup-as-value compiles"), Out.bOk))
+		{
+			TestTrue(TEXT("paren value markup lowered"),
+					 Out.Inl.Contains(TEXT("auto Card = (")) && Out.Inl.Contains(TEXT("RUI::Slate::VerticalBox(")));
+			TestTrue(TEXT("bare `=` value markup lowered"),
+					 Out.Inl.Contains(TEXT("FRuiNode Bare = ")) && !Out.Inl.Contains(TEXT("<Spacer />")));
+			TestTrue(TEXT("call-argument markup lowered"),
+					 Out.Inl.Contains(TEXT("Rows.Add(")) && !Out.Inl.Contains(TEXT("<TextBlock")));
+			TestTrue(TEXT("no raw markup leaks into the emitted C++"), !Out.Inl.Contains(TEXT("<VerticalBox")));
+			TestEqual(TEXT("hook sig only sees the real hook"), Out.HookSig,
+					  FUetkxFileScan::HookSignature({TEXT("UseState")}));
+		}
+
+		// value-markup edits must NOT perturb the hook signature (§4.3 HMR protection)
+		FUetkxCompileOutput Edited = FUetkxCodegen::CompileSource(
+			FString(Source).Replace(TEXT("Text=\"hi\""), TEXT("Text=\"hello there\"")), TEXT("CardStack"));
+		if (TestTrue(TEXT("edited variant compiles"), Edited.bOk))
+		{
+			TestEqual(TEXT("value-markup edit keeps the hook sig"), Edited.HookSig, Out.HookSig);
+		}
+	}
+
+	// ── §4: the narrowed 0114 (paren-less markup return) + rules of hooks 0013-0016 ───────
+	{
+		FUetkxCompileOutput BareRet =
+			FUetkxCodegen::CompileSource(TEXT("component BareRet {\n\treturn <Spacer />;\n}"), TEXT("BareRet"));
+		TestTrue(TEXT("paren-less markup return fails"), !BareRet.bOk);
+		TestTrue(TEXT("0114 narrowed to the paren-less return"),
+				 BareRet.Diags.ContainsByPredicate([](const FUetkxDiag& D) { return D.Code == TEXT("UETKX0114"); }));
+
+		auto HasCode = [](const FUetkxCompileOutput& O, const TCHAR* Code)
+		{ return O.Diags.ContainsByPredicate([Code](const FUetkxDiag& D) { return D.Code == Code; }); };
+		FUetkxCompileOutput HookIf =
+			FUetkxCodegen::CompileSource(TEXT("component HookIf(Flag: bool = false) {\n\tif (Flag) {\n\t\tauto [A, "
+											  "SetA] = UseState(0);\n\t}\n\treturn "
+											  "( <Spacer /> );\n}"),
+										 TEXT("HookIf"));
+		TestTrue(TEXT("0013 hook in if"), !HookIf.bOk && HasCode(HookIf, TEXT("UETKX0013")));
+
+		FUetkxCompileOutput HookFor =
+			FUetkxCodegen::CompileSource(TEXT("component HookFor {\n\tfor (int32 i = 0; i < 3; ++i) {\n\t\tauto [A, "
+											  "SetA] = UseState(i);\n\t}\n\treturn "
+											  "( <Spacer /> );\n}"),
+										 TEXT("HookFor"));
+		TestTrue(TEXT("0014 hook in loop"), !HookFor.bOk && HasCode(HookFor, TEXT("UETKX0014")));
+
+		FUetkxCompileOutput HookLambda = FUetkxCodegen::CompileSource(
+			TEXT("component HookLambda {\n\tauto Fn = [&]() { auto [A, SetA] = UseState(0); };\n\treturn ( <Spacer /> "
+				 ");\n}"),
+			TEXT("HookLambda"));
+		TestTrue(TEXT("0016 hook in lambda"), !HookLambda.bOk && HasCode(HookLambda, TEXT("UETKX0016")));
+
+		FUetkxCompileOutput HookAttr = FUetkxCodegen::CompileSource(
+			TEXT("component HookAttr {\n\treturn ( <TextBlock Text={ FText::AsNumber(UseState(0)) } /> );\n}"),
+			TEXT("HookAttr"));
+		TestTrue(TEXT("0013 hook in a markup attr expression"), HasCode(HookAttr, TEXT("UETKX0013")));
+
+		FUetkxCompileOutput HookEvent = FUetkxCodegen::CompileSource(
+			TEXT("component HookEvent {\n\treturn ( <Button OnClicked={ UseState(0) }>x</Button> );\n}"),
+			TEXT("HookEvent"));
+		TestTrue(TEXT("0016 hook in an event attr"), HasCode(HookEvent, TEXT("UETKX0016")));
+
+		FUetkxCompileOutput HookDirective = FUetkxCodegen::CompileSource(
+			TEXT("component HookDirective {\n\treturn (\n\t\t<VerticalBox>\n\t\t\t@for (int32 i = 0; i < 2; ++i) "
+				 "{\n\t\t\t\tauto [A, SetA] = UseState(i);\n\t\t\t\treturn ( <Spacer key={i} /> )\n\t\t\t}\n\t\t"
+				 "</VerticalBox>\n\t);\n}"),
+			TEXT("HookDirective"));
+		TestTrue(TEXT("0014 hook in an @for body"), HasCode(HookDirective, TEXT("UETKX0014")));
+
+		// unconditional top-level hooks (incl. structured bindings + init-captures) stay clean
+		FUetkxCompileOutput CleanHooks =
+			FUetkxCodegen::CompileSource(TEXT("component CleanHooks {\n\tauto [A, SetA] = "
+											  "UseState(0);\n\tUseEffect([Copy = A]() {}, {});\n\treturn ( "
+											  "<Spacer /> );\n}"),
+										 TEXT("CleanHooks"));
+		TestTrue(TEXT("top-level hooks emit no 0013-0016"),
+				 CleanHooks.bOk && !HasCode(CleanHooks, TEXT("UETKX0013")) && !HasCode(CleanHooks, TEXT("UETKX0014")) &&
+					 !HasCode(CleanHooks, TEXT("UETKX0015")) && !HasCode(CleanHooks, TEXT("UETKX0016")));
+	}
+
 	// ── hook-sig stability: same shape -> same sig; different shape -> different ──────────
 	{
 		const uint32 A = FUetkxFileScan::HookSignature({TEXT("UseState"), TEXT("UseEffect")});
