@@ -4,6 +4,7 @@
 
 #include "Framework/Docking/TabManager.h"
 #include "Logging/LogMacros.h"
+#include "Logging/MessageLog.h"
 #include "RuiReconciler.h"
 #include "ToolMenus.h"
 #include "UetkxHmrController.h"
@@ -48,6 +49,15 @@ namespace
 		Main.AddMenuEntry("Preview", LOCTEXT("Preview", "Preview"),
 						  LOCTEXT("PreviewTip", "Open the read-only .uetkx component preview."), FSlateIcon(),
 						  FUIAction(FExecuteAction::CreateStatic(&InvokeTab, ReactiveUetkxTabs::Preview)));
+		// §3 (MARKUP_EVERYWHERE_PLAN): one-click access to the compile-error page (TB-8's
+		// clickable rows live there) — the engine parks it under Window's LOG section header,
+		// which the owner scrolled straight past.
+		Main.AddMenuEntry(
+			"MessageLog", LOCTEXT("MessageLog", "Message Log"),
+			LOCTEXT("MessageLogTip", "Open the ReactiveUI Message Log page (.uetkx compile errors with jump-to-file links)."),
+			FSlateIcon(),
+			FUIAction(FExecuteAction::CreateLambda(
+				[]() { FMessageLog(TEXT("ReactiveUI")).Open(EMessageSeverity::Info, /*bOpenEvenIfEmpty*/ true); })));
 
 		FToolMenuSection& Debug = Menu->FindOrAddSection("Debug");
 		Debug.AddSubMenu("Debug", LOCTEXT("Debug", "Debug"), LOCTEXT("DebugTip", "ReactiveUetkx diagnostics."),
