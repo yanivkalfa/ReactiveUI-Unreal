@@ -251,6 +251,10 @@ struct REACTIVEUIINTERP_API FUetkxPreambleScan
 	TArray<FUetkxImportDecl> Imports;
 	TArray<FUetkxPreambleDecl> Decls;
 	int32 FirstDeclAt = -1; // offset where the first declaration begins (preamble end); -1 = none
+	// ES-modules (U-08): the file's `export default <Name>` target ("" = none) — the resolver's
+	// export tables carry it (default-import resolution + 2326; part of the export hash so a
+	// default change re-stales importers).
+	FString DefaultExportName;
 };
 
 /** The (last) top-level markup `return ( ... )` inside a body — the ONE splitter shared by

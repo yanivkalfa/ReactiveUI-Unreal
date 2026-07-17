@@ -1821,7 +1821,21 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 		}
 		if (Imp.bDefault)
 		{
-			continue; // M4: resolver fills Rename[DefaultAlias] = target's default-export name
+			// ES-modules (M4): the default alias binds the TARGET file's `export default` symbol —
+			// only the resolver knows its name. Unresolvable here (no resolver / no file / no
+			// default) ⇒ the alias passes through verbatim and Apply reports 2300/2326 after emit
+			// (an error discards the .inl, so unresolved code never lands).
+			if (Resolver != nullptr)
+			{
+				const FString ImporterRel = ProjectRelPath.IsEmpty() ? Basename + TEXT(".uetkx") : ProjectRelPath;
+				const FString Key = Resolver->Resolve(Imp.Specifier, ImporterRel);
+				const FString DefName = Key.IsEmpty() ? FString() : Resolver->DefaultExportOf(Key);
+				if (!DefName.IsEmpty() && DefName != Imp.DefaultAlias)
+				{
+					Aliases.Rename.Add(Imp.DefaultAlias, DefName);
+				}
+			}
+			continue;
 		}
 		for (int32 n = 0; n < Imp.Names.Num(); ++n)
 		{
@@ -1985,6 +1999,7 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 	Out.Uses = Uses.Array();
 	Out.Uses.Sort();
 	Out.bSupportFile = Scan.Components.IsEmpty(); // no markup → HMR rebuild note, not interp swap
+	Out.DefaultExportName = Scan.DefaultExportName; // ES-modules (U-08) — sidecar/export-table marker
 	Out.bOk = true;
 	Out.Inl = MoveTemp(Inl);
 	return Out;

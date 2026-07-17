@@ -273,6 +273,63 @@ bool FRuiUetkxDriverTest::RunTest(const FString&)
 		FUetkxDriver::CompileAll(Scratch);
 	}
 
+	// ── ES-modules (U-06): a NEW-form VALUE-export cycle (A⇄B via value imports) is 2306 too ─────
+	{
+		const FString Dir = Scratch / TEXT("Value2");
+		const FString VA = Dir / TEXT("VA.uetkx");
+		const FString VB = Dir / TEXT("VB.uetkx");
+		FFileHelper::SaveStringToFile(
+			TEXT("import { BVal } from \"./VB\"\nexport int32 AVal = FMath::Max(BVal, 1);\n"), *VA);
+		FFileHelper::SaveStringToFile(
+			TEXT("import { AVal } from \"./VA\"\nexport int32 BVal = FMath::Max(AVal, 1);\n"), *VB);
+		AddExpectedError(TEXT("UETKX2306"), EAutomationExpectedErrorFlags::Contains, 0);
+		const FUetkxSweepResult Sweep = FUetkxDriver::CompileAll(Scratch, /*bForce*/ true);
+		TestTrue(TEXT("value-export<->value-export cycle is a sweep error (2306)"), Sweep.Errors >= 1);
+		FM.Delete(*VA);
+		FM.Delete(*VB);
+		FUetkxDriver::CompileAll(Scratch);
+	}
+
+	// ── ES-modules (M4): export_hash moves on a value edit → importer recompiles in ONE sweep ────
+	{
+		const FString Dir = Scratch / TEXT("ValueDep");
+		const FString PalettePath = Dir / TEXT("Pal.uetkx");
+		const FString UserPath = Dir / TEXT("PalUser.uetkx");
+		FFileHelper::SaveStringToFile(TEXT("export FLinearColor Main = FLinearColor(0.1f, 0.1f, 0.1f, 1.0f);\n"),
+									  *PalettePath);
+		FFileHelper::SaveStringToFile(TEXT("import { Main } from \"./Pal\"\nexport component PalUser {\n\tauto C = ")
+										  TEXT("Main;\n\treturn ( <Spacer /> );\n}\n"),
+									  *UserPath);
+		FUetkxDriver::CompileAll(Scratch);
+		TestTrue(TEXT("value-importing component compiled"), FM.FileExists(*FUetkxDriver::InlPathFor(UserPath)));
+		// Renaming the exported value moves Pal's export_hash; the ONE next sweep must recompile
+		// the importer (whose old import is now 2302-broken) — the TD-025 fixpoint over value deps.
+		FFileHelper::SaveStringToFile(TEXT("export FLinearColor Main2 = FLinearColor(0.1f, 0.1f, 0.1f, 1.0f);\n"),
+									  *PalettePath);
+		AddExpectedError(TEXT("UETKX2302"), EAutomationExpectedErrorFlags::Contains, 0);
+		FUetkxDriver::CompileAll(Scratch);
+		TestFalse(TEXT("importer re-verdicts on the value rename (stale .inl deleted in the same sweep)"),
+				  FM.FileExists(*FUetkxDriver::InlPathFor(UserPath)));
+		FM.Delete(*PalettePath);
+		FM.Delete(*UserPath);
+		FUetkxDriver::CompileAll(Scratch);
+	}
+
+	// ── ES-modules (U-08): the sidecar records the default-export marker ─────────────────────────
+	{
+		const FString DefPath = Scratch / TEXT("Loose/DefScreen.uetkx");
+		FFileHelper::SaveStringToFile(TEXT("export component DefScreen { return ( <Spacer /> ); }\nexport default ")
+										  TEXT("DefScreen;\n"),
+									  *DefPath);
+		TestTrue(TEXT("default-export file compiles"), FUetkxDriver::CompileFile(DefPath, /*bForce*/ true).bOk);
+		FString SidecarJson;
+		FFileHelper::LoadFileToString(SidecarJson, *FUetkxDriver::SidecarPathFor(DefPath));
+		TestTrue(TEXT("sidecar carries the default marker"),
+				 SidecarJson.Contains(TEXT("\"default\":\"DefScreen\"")));
+		FM.Delete(*DefPath);
+		FUetkxDriver::CompileAll(Scratch);
+	}
+
 	FM.DeleteDirectory(*Scratch, false, true);
 	return true;
 }

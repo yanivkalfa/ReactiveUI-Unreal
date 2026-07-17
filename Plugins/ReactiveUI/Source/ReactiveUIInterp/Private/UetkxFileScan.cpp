@@ -2761,17 +2761,23 @@ FUetkxPreambleScan FUetkxFileScan::ScanPreamble(const FString& Source)
 			i = ParseImport(Src, i, Tmp, ImportedFrom);
 			continue;
 		}
-		if (FUetkxLexer::KeywordAt(Src, i, TEXT("export")) || FUetkxLexer::KeywordAt(Src, i, TEXT("component")) ||
-			FUetkxLexer::KeywordAt(Src, i, TEXT("hook")) || FUetkxLexer::KeywordAt(Src, i, TEXT("module")))
+		if (Src[i] == C_SPACE || Src[i] == C_TAB || Src[i] == C_NL || Src[i] == C_CR)
 		{
-			break;
+			++i;
+			continue;
 		}
-		++i;
+		// ES-modules (U-01): the first declaration can start with ANY type identifier — see the
+		// identical fix in Scan()'s preamble loop.
+		break;
 	}
 	Out.Imports = MoveTemp(Tmp.Imports);
 
-	// Declarations: capture [export] component/hook/module Name and SKIP the body (no markup parse).
-	// Best-effort: stop at the first unparseable header (the target's real compile reports it).
+	// Declarations: capture the IDENTITY ([export] name + kind) of every declaration — legacy
+	// wrappers AND new-form typed decls (ES-modules) — and SKIP bodies (no markup parse).
+	// `export { … };` lists and `export default Name;` are recorded and resolved at the end
+	// (a listed name may be declared after the list). Best-effort: stop at the first unparseable
+	// header (the target's real compile reports it).
+	TArray<FUetkxPendingExportName> PendingExports;
 	while (i < N)
 	{
 		const int32 j = FUetkxLexer::SkipNoncode(Src, i);
@@ -2795,6 +2801,26 @@ FUetkxPreambleScan FUetkxFileScan::ScanPreamble(const FString& Source)
 			ExportAt = i;
 			i = SkipWsOnly(Src, i + 6);
 		}
+
+		// ES-modules (U-09): `export { a, b };` — deferred list, resolved below.
+		if (bExported && i < N && Src[i] == C_LBRACE)
+		{
+			FUetkxFileScanResult Sink; // diags discarded — best-effort scan
+			i = ParseExportList(Src, i, Sink, PendingExports);
+			continue;
+		}
+		// ES-modules (U-08): `export default Name;`.
+		if (bExported && FUetkxLexer::KeywordAt(Src, i, TEXT("default")))
+		{
+			FUetkxFileScanResult Sink;
+			i = ParseExportDefault(Src, i, DeclStart, Sink);
+			if (Out.DefaultExportName.IsEmpty())
+			{
+				Out.DefaultExportName = Sink.DefaultExportName;
+			}
+			continue;
+		}
+
 		FUetkxPreambleDecl D;
 		D.bExported = bExported;
 		D.ExportAt = ExportAt;
@@ -2817,7 +2843,65 @@ FUetkxPreambleScan FUetkxFileScan::ScanPreamble(const FString& Source)
 		}
 		else
 		{
-			break; // junk / import-after-decl / export-without-decl
+			// ES-modules (U-02): a NEW-form typed declaration — classify from the head alone and
+			// skip its body/initializer without parsing markup.
+			const FUetkxDeclHead Head = ScanDeclHead(Src, i);
+			if (Head.Trigger == 0 || Head.Trigger == '{' || Head.NameAt == -1)
+			{
+				break; // junk / import-after-decl / export-without-decl
+			}
+			D.Name = FUetkxLexer::FromCodePoints(Src, Head.NameAt, Head.NameLen);
+			const FString Type =
+				FUetkxLexer::FromCodePoints(Src, Head.TypeAt, FMath::Max(0, Head.TypeLen)).TrimStartAndEnd();
+			if (Head.Trigger == '=')
+			{
+				D.Kind = EUetkxDeclKind::Value;
+				const int32 Semi = FindValueEnd(Src, Head.TriggerAt + 1);
+				if (Semi == -1)
+				{
+					break;
+				}
+				if (!D.Name.IsEmpty())
+				{
+					if (Out.FirstDeclAt < 0)
+					{
+						Out.FirstDeclAt = DeclStart;
+					}
+					Out.Decls.Add(MoveTemp(D));
+				}
+				i = Semi + 1;
+				continue;
+			}
+			// Trigger == '(' — component / hook / util by signature (U-02).
+			D.Kind = Type == TEXT("FRuiNode")	 ? EUetkxDeclKind::Component
+					 : LooksLikeHookName(D.Name) ? EUetkxDeclKind::Hook
+												 : EUetkxDeclKind::Util;
+			const int32 Pc = FUetkxLexer::FindMatching(Src, Head.TriggerAt);
+			if (Pc == -1)
+			{
+				break;
+			}
+			const int32 BodyOpen = SkipWsOnly(Src, Pc + 1);
+			if (BodyOpen >= N || Src[BodyOpen] != C_LBRACE)
+			{
+				break;
+			}
+			const int32 Bclose = D.Kind == EUetkxDeclKind::Component ? FUetkxLexer::FindMatchingMarkup(Src, BodyOpen)
+																	 : FUetkxLexer::FindMatching(Src, BodyOpen);
+			if (Bclose == -1)
+			{
+				break;
+			}
+			if (!D.Name.IsEmpty())
+			{
+				if (Out.FirstDeclAt < 0)
+				{
+					Out.FirstDeclAt = DeclStart;
+				}
+				Out.Decls.Add(MoveTemp(D));
+			}
+			i = Bclose + 1;
+			continue;
 		}
 		int32 k = SkipWsOnly(Src, i + KeywordLen);
 		const int32 Ns = k;
@@ -2866,6 +2950,24 @@ FUetkxPreambleScan FUetkxFileScan::ScanPreamble(const FString& Source)
 			Out.Decls.Add(MoveTemp(D));
 		}
 		i = Bclose + 1;
+	}
+
+	// ES-modules (U-09): apply deferred `export { … };` marks now every decl identity is known.
+	// Unknown names are silently ignored here (best-effort — the full Scan reports 2323).
+	for (const FUetkxPendingExportName& E : PendingExports)
+	{
+		for (FUetkxPreambleDecl& D : Out.Decls)
+		{
+			if (D.Name == E.Name && !D.bExported)
+			{
+				D.bExported = true;
+				if (D.ExportAt < 0)
+				{
+					D.ExportAt = E.At;
+				}
+				break;
+			}
+		}
 	}
 	return Out;
 }
