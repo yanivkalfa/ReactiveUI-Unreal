@@ -32,6 +32,12 @@ Editor support for **`.uetkx`**, the JSX-like markup of [ReactiveUI for Unreal](
 
 ## Changelog
 
+### [0.5.0] - 2026-07-17
+- Crash-proof language server: process-level traps, a guarded clangd message pump, and a URI re-serialization fallback (clangd's percent-encoded drive letters silently dropped every diagnostic) — a single bad message or background rejection can no longer take the server down.
+- Embedded C++ intelligence, root-caused clean: every markup expression (attr values, event handlers, expr children, directive headers/bodies) now lifts into the virtual TU with byte-exact source mapping — completion, hover, and diagnostics work inside ALL embedded C++, not just setup. The clangd channel was rebuilt end-to-end: the UBT compile database is sanitized (quote-aware .rsp expansion, MSVC STL + Windows SDK include derivation, SharedPCH force-include dropped, -fmsc-version pinned to the toolchain), clangd is discovered across PATH/LLVM/VS/managed installs, and the demo tree sweeps with ZERO false positives.
+- Markup everywhere (plugin 0.11.0 parity): markup-as-value scans, colors, and analyzes like any body markup — UETKX0114 narrowed to the paren-less markup return, the family rules-of-hooks (UETKX0013-0016) land in the scanner, hook signatures ignore markup text (HMR protection), and the virtual doc neutralizes value markup to a typed placeholder so clangd keeps full intelligence around (and inside) it. The family scanner corpus is reconciled across all three sibling repos (shared hash 917dd8cd).
+- clangd 22.1.6 ships INSIDE the artifacts: the VS Code extension publishes a win32-x64 flavor with clangd bundled (embedded C++ intelligence with zero machine setup) plus a universal flavor that falls back to discovery; the VS2022 VSIX bundles clangd.exe directly. The bundled binary wins over machine discovery; an explicit uetkx.clangd.path still overrides. LLVM license ships beside the binary.
+
 ### [0.4.2] - 2026-07-16
 - Embedded-C++ intelligence now sees the full auto-included prelude: the virtual document's header list gains `CoreMinimal.h`, `RuiSignal.h`, `RuiSlateElements.h`, and `RuiStyle.h`, matching the compiler's 18-header list exactly — clangd-backed completion/hover inside setup bodies now resolves Slate element factories, signals, and style types.
 

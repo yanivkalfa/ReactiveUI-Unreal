@@ -83,8 +83,8 @@
       <IncludeInVSIX>true</IncludeInVSIX>
       <VSIXSubPath>server\%(RecursiveDir)</VSIXSubPath>
     </Content>
-    <!-- §5: the bundled clangd (populate .\clangd via fetch-clangd.mjs --target vs2022 before
-         packaging — pinned 22.1.6, sha256-verified, LLVM license beside the binary). The
+    <!-- §5: the bundled clangd (populate .\clangd via `fetch-clangd.mjs, target vs2022` before
+         packaging; pinned 22.1.6, sha256-verified, LLVM license beside the binary). The
          server's discovery finds it at <install>\clangd\bin\clangd.exe, before any machine
          discovery. -->
     <Content Include="clangd\**\*">

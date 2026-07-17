@@ -203,6 +203,24 @@ ClickCounter experiment (`auto X = (<VerticalBox>…); … { X }`) COMPILES AND 
 a clean machine (no PATH clangd, no LLVM); universal degrades to markup-only with the
 notice; VS2022 VSIX carries clangd and its server finds it.
 
+**DONE (2026-07-17) — execution notes:**
+- `fetch-clangd.mjs`: pin = 22.1.6, sha256 `ce54f16e…`, cached zip; stages both layouts;
+  upstream `LICENSE.TXT` preserved (a same-named note file CLOBBERED it on the
+  case-insensitive FS — the note is `BUNDLED-CLANGD.txt`). Staging dirs gitignored; the
+  header lint's EXCLUDE_DIRS gained `clangd` (LLVM's headers are not ours to stamp).
+- Discovery: bundled dir wins over all MACHINE discovery, but an explicit
+  `uetkx.clangd.path` stays authoritative (the plan's literal "bundled first, then setting"
+  would let the bundle override a user's explicit choice — intent over letter).
+- Packaging scar: vsce packages ANY in-tree dir, dot-named or not — the first universal
+  vsix shipped all 28MB of clangd because the aside dir sat inside the extension root. The
+  gate is physical and the aside dir lives at `ide-extensions/.clangd-staged-aside`.
+- Sizes: win32-x64 28.67MB (555 files) / universal 423KB (224 files). Verified from the
+  extracted vsix: the packaged server discovers ITS OWN clangd (over the machine's
+  LOCALAPPDATA install) and the binary runs.
+- XML scar: the csproj comment naming the fetch flag broke msbuild — `--` is illegal inside
+  XML comments (MSB4025), and the failed build still left a STALE bin/Release vsix behind
+  for the locate step to find; the script's exit code is what catches it.
+
 ## §6 — Release 0.5.0 / 0.11.0
 
 - `bump.mjs vscode 0.5.0` (+ vs2022, lsp lockstep), `bump.mjs plugin 0.11.0`.

@@ -2,7 +2,7 @@ import type { FC } from 'react'
 import { Alert, Box, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from '@mui/material'
 
 const BANDS: Array<[string, string]> = [
-  ['UETKX01xx', 'Structural — name/file mismatch (0103), unknown element (0105), unreachable code after return (0107, hint — the editor fades it), multiple roots (0108), markup-as-value (0114).'],
+  ['UETKX01xx', 'Structural — name/file mismatch (0103), unknown element (0105), rules of hooks (0013 conditional / 0014 loop / 0015 match / 0016 callback — hooks run unconditionally at the top level of the body, never inside directives or markup), unreachable code after return (0107, hint — the editor fades it), multiple roots (0108), a paren-less markup return (0114 — markup-as-value itself is first-class since 0.11.0).'],
   ['UETKX03xx', 'Syntax — bad tag/attribute tokens (0300), unclosed tag (0301), mismatched close (0302), unexpected EOF (0303), unclosed brace/paren/comment (0304), unknown @directive (0305).'],
   ['UETKX21xx', 'Declarations — component not PascalCase (2100), no declaration or no markup return (2101), duplicate export collision (2106).'],
   ['UETKX22xx', 'Hooks & modules — missing hook name (2200) / params (2201) / body (2202), Use* naming (2203), missing module name (2204) / body (2205).'],
@@ -22,7 +22,9 @@ const EXAMPLES: Array<[string, string, string]> = [
   ['UETKX3007', 'err', "the component's final markup `return ( ... )` must be at the top level of the body"],
   ['UETKX2317', 'hint', '`X.h` is auto-included by the generated prelude — this line is redundant'],
   ['UETKX0107', 'hint', "Unreachable code after 'return'. (the editor fades the range)"],
-  ['UETKX0114', 'err', 'markup is only legal in a `return ( ... )` — markup-as-value is not supported; extract a child component instead'],
+  ['UETKX0013', 'err', 'hook called conditionally (inside an if/else) — hooks must run unconditionally at the top level of the component body'],
+  ['UETKX0016', 'err', 'hook called inside a callback/lambda — hooks must run unconditionally at the top level of the component body'],
+  ['UETKX0114', 'err', 'a markup return must be parenthesized — write `return ( <...> );`'],
   ['UETKX2316', 'err', 'header `X.h` not found under this workspace — check the name (IDE-only)'],
 ]
 
