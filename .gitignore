@@ -63,3 +63,6 @@ ide-extensions/visual-studio/UetkxVsix/clangd/
 .vscode/compileCommands_*/
 .vscode/c_cpp_properties.json
 ReactiveUIUnrealDemo.code-workspace
+
+# vs2022 overview.md is GENERATED at publish time from overview-template.md (see release-process)
+ide-extensions/visual-studio/UetkxVsix/overview.md
