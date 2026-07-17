@@ -16,7 +16,78 @@ export interface ClangdPosition {
   character: number;
 }
 
-/** Walk up from `startDir` for a compile_commands.json (the clang tooling DB). Null when none. */
+/** A clangd publishDiagnostics payload (virtual-doc coordinates — the server maps them back). */
+export interface ClangdPublishedDiagnostics {
+  uri: string;
+  diagnostics: Array<{
+    range: { start: ClangdPosition; end: ClangdPosition };
+    severity?: number;
+    code?: string | number;
+    source?: string;
+    message: string;
+    tags?: number[];
+  }>;
+}
+
+/** Locate a clangd binary (TB-10): explicit setting → PATH → the extension's managed install
+ *  (%LOCALAPPDATA%/uetkx/clangd) → common LLVM/VS locations. Returns null when none exists —
+ *  the caller degrades to markup-only AND tells the user what was probed (the silent-darkness
+ *  fix). PATH is probed via existsSync over PATH entries so an absent binary never costs a
+ *  spawn. */
+export function findClangd(explicitPath?: string): string | null {
+  const exe = process.platform === "win32" ? "clangd.exe" : "clangd";
+  if (explicitPath && explicitPath.trim().length > 0) {
+    return fs.existsSync(explicitPath) ? explicitPath : null; // an explicit setting is authoritative
+  }
+  for (const dir of (process.env.PATH ?? "").split(path.delimiter)) {
+    if (dir && fs.existsSync(path.join(dir, exe))) {
+      return path.join(dir, exe);
+    }
+  }
+  const candidates: string[] = [];
+  if (process.env.LOCALAPPDATA) {
+    candidates.push(path.join(process.env.LOCALAPPDATA, "uetkx", "clangd", "bin", exe));
+  }
+  // The official clangd VS Code extension's managed install (@clangd/install → globalStorage):
+  // if the user already has it, reuse its binary — newest version first.
+  const appData = process.env.APPDATA ?? (process.env.HOME ? path.join(process.env.HOME, ".config") : null);
+  if (appData) {
+    for (const product of ["Code", "Code - Insiders", "VSCodium"]) {
+      const store = path.join(appData, product, "User", "globalStorage", "llvm-vs-code-extensions.vscode-clangd", "install");
+      try {
+        const versions = fs.readdirSync(store).sort().reverse();
+        for (const v of versions) {
+          const inner = path.join(store, v);
+          for (const sub of fs.readdirSync(inner)) {
+            candidates.push(path.join(inner, sub, "bin", exe));
+          }
+        }
+      } catch {
+        /* not installed — keep probing */
+      }
+    }
+  }
+  if (process.platform === "win32") {
+    candidates.push("C:\\Program Files\\LLVM\\bin\\clangd.exe");
+    for (const edition of ["Community", "Professional", "Enterprise"]) {
+      candidates.push(
+        `C:\\Program Files\\Microsoft Visual Studio\\2022\\${edition}\\VC\\Tools\\Llvm\\x64\\bin\\clangd.exe`,
+      );
+    }
+  }
+  for (const c of candidates) {
+    if (fs.existsSync(c)) {
+      return c;
+    }
+  }
+  return null;
+}
+
+/** Walk up from `startDir` for a compile database. Checks the canonical name first
+ *  (compile_commands.json at the root or build/), then UBT's VSCODE-GENERATOR OUTPUT
+ *  (.vscode/compileCommands_*.json) — so a stock `-projectfiles -vscode` run works with NO
+ *  manual copy step (TB-10; the project-named file wins over compileCommands_Default). Null
+ *  when none. */
 export function findCompileCommands(startDir: string): string | null {
   let dir = path.resolve(startDir);
   for (;;) {
@@ -27,6 +98,20 @@ export function findCompileCommands(startDir: string): string | null {
     const buildDir = path.join(dir, "build", "compile_commands.json");
     if (fs.existsSync(buildDir)) {
       return buildDir;
+    }
+    const vscodeDir = path.join(dir, ".vscode");
+    if (fs.existsSync(vscodeDir)) {
+      try {
+        const generated = fs
+          .readdirSync(vscodeDir)
+          .filter((f) => f.startsWith("compileCommands_") && f.endsWith(".json"))
+          .sort((a, b) => (a === "compileCommands_Default.json" ? 1 : b === "compileCommands_Default.json" ? -1 : a.localeCompare(b)));
+        if (generated.length > 0) {
+          return path.join(vscodeDir, generated[0]);
+        }
+      } catch {
+        /* unreadable .vscode — keep walking */
+      }
     }
     const parent = path.dirname(dir);
     if (parent === dir) {
@@ -78,6 +163,13 @@ export class ClangdProxy {
   private readonly pending = new Map<number, (result: unknown) => void>();
   private available = false;
   private starting: Promise<boolean> | null = null;
+  /** Open virtual docs → last sent version (didOpen once, didChange after — clangd re-runs
+   *  diagnostics per version; re-sending didOpen would leak duplicate TUs). */
+  private readonly openVersions = new Map<string, number>();
+
+  /** TB-10: clangd's publishDiagnostics for a VIRTUAL doc land here (virtual coordinates —
+   *  the server maps them back through the source map before publishing). */
+  onPublishDiagnostics: ((params: ClangdPublishedDiagnostics) => void) | null = null;
 
   constructor(
     private readonly clangdPath = "clangd",
@@ -99,7 +191,28 @@ export class ClangdProxy {
         const args = ["--log=error"];
         const cc = findCompileCommands(this.rootPath);
         if (cc) {
-          args.push(`--compile-commands-dir=${path.dirname(cc)}`);
+          // clangd only reads the CANONICAL filename from --compile-commands-dir. When the hit
+          // is UBT's .vscode/compileCommands_*.json, mirror it to <root>/compile_commands.json
+          // (refreshed when the source is newer) — no manual copy step for the user (TB-10).
+          let ccDir: string | null = null;
+          if (path.basename(cc) === "compile_commands.json") {
+            ccDir = path.dirname(cc);
+          } else {
+            const target = path.join(path.dirname(path.dirname(cc)), "compile_commands.json");
+            try {
+              const src = fs.statSync(cc);
+              const dst = fs.existsSync(target) ? fs.statSync(target) : null;
+              if (!dst || dst.mtimeMs < src.mtimeMs) {
+                fs.copyFileSync(cc, target);
+              }
+              ccDir = path.dirname(target);
+            } catch {
+              ccDir = null; // unwritable root — clangd falls back to heuristics
+            }
+          }
+          if (ccDir) {
+            args.push(`--compile-commands-dir=${ccDir}`);
+          }
         }
         proc = spawn(this.clangdPath, args, { stdio: "pipe" });
       } catch {
@@ -117,7 +230,13 @@ export class ClangdProxy {
       this.request("initialize", {
         processId: process.pid,
         rootUri: null,
-        capabilities: {},
+        // Advertise diagnostic-tag support so clangd sends Unnecessary/Deprecated tags —
+        // the client renders Unnecessary as faded (TB-10/TB-5 presentation).
+        capabilities: {
+          textDocument: {
+            publishDiagnostics: { relatedInformation: false, tagSupport: { valueSet: [1, 2] } },
+          },
+        },
       })
         .then(() => {
           this.notify("initialized", {});
@@ -132,14 +251,35 @@ export class ClangdProxy {
     return this.starting;
   }
 
-  /** Open the virtual C++ doc so subsequent position requests resolve against it. */
+  /** Sync the virtual C++ doc: didOpen on first sight, versioned didChange after (clangd
+   *  re-diagnoses per version — the TB-10 diagnostics loop rides this). */
   didOpen(uri: string, text: string): void {
     if (!this.available) {
       return;
     }
-    this.notify("textDocument/didOpen", {
-      textDocument: { uri, languageId: "cpp", version: 1, text },
+    const prev = this.openVersions.get(uri);
+    if (prev === undefined) {
+      this.openVersions.set(uri, 1);
+      this.notify("textDocument/didOpen", {
+        textDocument: { uri, languageId: "cpp", version: 1, text },
+      });
+      return;
+    }
+    const version = prev + 1;
+    this.openVersions.set(uri, version);
+    this.notify("textDocument/didChange", {
+      textDocument: { uri, version },
+      contentChanges: [{ text }], // full-sync — the virtual doc is rebuilt per edit anyway
     });
+  }
+
+  /** Close a virtual doc (its .uetkx closed) so clangd drops the TU and clears diagnostics. */
+  didClose(uri: string): void {
+    if (!this.available || !this.openVersions.has(uri)) {
+      return;
+    }
+    this.openVersions.delete(uri);
+    this.notify("textDocument/didClose", { textDocument: { uri } });
   }
 
   /** Forward a position request; null on any degradation (unavailable / timeout / error). */
@@ -170,11 +310,15 @@ export class ClangdProxy {
     const { messages, rest } = drainMessages(this.buffer);
     this.buffer = rest;
     for (const msg of messages) {
-      const m = msg as { id?: number; result?: unknown };
+      const m = msg as { id?: number; result?: unknown; method?: string; params?: unknown };
       if (typeof m.id === "number" && this.pending.has(m.id)) {
         const resolve = this.pending.get(m.id)!;
         this.pending.delete(m.id);
         resolve(m.result ?? null);
+        continue;
+      }
+      if (m.method === "textDocument/publishDiagnostics" && this.onPublishDiagnostics && m.params) {
+        this.onPublishDiagnostics(m.params as ClangdPublishedDiagnostics);
       }
     }
   }

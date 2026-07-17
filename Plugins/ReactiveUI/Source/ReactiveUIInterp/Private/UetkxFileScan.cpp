@@ -21,6 +21,212 @@ namespace
 		Diags.Add(MoveTemp(D));
 	}
 
+	/** TB-12 / UETKX0114 — markup used as a VALUE (`auto X = (<VerticalBox>…);`): the grammar
+	 *  admits markup only in return position; anything else is verbatim C++ handed to MSVC,
+	 *  which would fail with a brutal, misattributed error at build time. Detect the narrow
+	 *  `= (<Tag` / `= <Tag` shape in CODE (collected markup-return spans are skipped; compound
+	 *  operators and comparisons `a = b < c` never match — `<` must directly follow the `=`,
+	 *  modulo whitespace and one `(`). One diagnostic per body. Full support is TD-032. */
+	void DiagnoseMarkupAsValue(const TArray<int32>& Body, const TArray<FUetkxReturnSpan>& Returns, int32 BodyAt,
+							   TArray<FUetkxDiag>& Diags)
+	{
+		using namespace UetkxChars;
+		const int32 N = Body.Num();
+		int32 i = 0;
+		while (i < N)
+		{
+			bool bInSpan = false;
+			for (const FUetkxReturnSpan& S : Returns)
+			{
+				if (i >= S.ReturnAt && i < S.AfterParen)
+				{
+					i = S.AfterParen;
+					bInSpan = true;
+					break;
+				}
+			}
+			if (bInSpan)
+			{
+				continue;
+			}
+			const int32 j = FUetkxLexer::SkipNoncode(Body, i);
+			if (j != i)
+			{
+				i = j;
+				continue;
+			}
+			if (Body[i] == C_EQ)
+			{
+				const bool bCompound = (i > 0 && (Body[i - 1] == C_EQ || Body[i - 1] == C_LT || Body[i - 1] == C_GT ||
+												  Body[i - 1] == C_BANG || Body[i - 1] == C_PLUS || Body[i - 1] == C_DASH ||
+												  Body[i - 1] == C_STAR || Body[i - 1] == C_SLASH || Body[i - 1] == C_PERCENT ||
+												  Body[i - 1] == C_AMP || Body[i - 1] == C_PIPE || Body[i - 1] == C_CARET)) ||
+										 (i + 1 < N && Body[i + 1] == C_EQ);
+				if (!bCompound)
+				{
+					int32 k = i + 1;
+					while (k < N && (Body[k] == C_SPACE || Body[k] == C_TAB || Body[k] == C_NL || Body[k] == C_CR))
+					{
+						++k;
+					}
+					if (k < N && Body[k] == C_LPAREN)
+					{
+						++k;
+						while (k < N && (Body[k] == C_SPACE || Body[k] == C_TAB || Body[k] == C_NL || Body[k] == C_CR))
+						{
+							++k;
+						}
+					}
+					if (k + 1 < N && Body[k] == C_LT && FUetkxLexer::IsIdentCode(Body[k + 1]) && Body[k + 1] != '/')
+					{
+						int32 NameEnd = k + 1;
+						while (NameEnd < N && FUetkxLexer::IsIdentCode(Body[NameEnd]))
+						{
+							++NameEnd;
+						}
+						AddDiag(Diags, TEXT("UETKX0114"), 0,
+								TEXT("markup is only legal in a `return ( ... )` — markup-as-value is not supported; ")
+									TEXT("extract a child component instead (TD-032)"),
+								BodyAt + k, NameEnd - k);
+						return;
+					}
+				}
+			}
+			++i;
+		}
+	}
+
+	/** TB-5 / UETKX0107 — Unity's UnreachableAfterReturn (UITKX0107), family-numbered: dead code
+	 *  after the FIRST top-level `return` statement of a component body. Handles BOTH shapes —
+	 *  a top-level markup `return ( … )` before the end of the body, and a plain C++ early
+	 *  `return x;` in setup (the collector never sees those — they carry no markup). Severity 2
+	 *  (hint); the LSP attaches the Unnecessary tag so editors FADE the range instead of
+	 *  squiggling it. Comment-only tails don't count as content. */
+	void DiagnoseUnreachableAfterReturn(const TArray<int32>& Body, const TArray<FUetkxReturnSpan>& Returns,
+										int32 BodyAt, TArray<FUetkxDiag>& Diags)
+	{
+		using namespace UetkxChars;
+		const int32 N = Body.Num();
+		int32 DeadStart = -1;
+		int32 Depth = 0;
+		int32 i = 0;
+		while (i < N)
+		{
+			const int32 j = FUetkxLexer::SkipNoncode(Body, i);
+			if (j != i)
+			{
+				i = j;
+				continue;
+			}
+			const int32 C = Body[i];
+			if (C == C_LBRACE || C == C_LPAREN || C == C_LBRACKET)
+			{
+				++Depth;
+				++i;
+				continue;
+			}
+			if (C == C_RBRACE || C == C_RPAREN || C == C_RBRACKET)
+			{
+				--Depth;
+				++i;
+				continue;
+			}
+			if (Depth == 0 && FUetkxLexer::KeywordAt(Body, i, TEXT("return")))
+			{
+				const FUetkxReturnSpan* Span = nullptr;
+				for (const FUetkxReturnSpan& S : Returns)
+				{
+					if (S.ReturnAt == i)
+					{
+						Span = &S;
+						break;
+					}
+				}
+				int32 End;
+				if (Span)
+				{
+					End = Span->AfterParen;
+					while (End < N && (Body[End] == C_SPACE || Body[End] == C_TAB || Body[End] == C_NL || Body[End] == C_CR))
+					{
+						++End;
+					}
+					if (End < N && Body[End] == ';')
+					{
+						++End;
+					}
+				}
+				else
+				{
+					// A plain C++ `return expr;` — scan to its statement-ending top-level `;`.
+					int32 D2 = 0;
+					int32 k = i + 6;
+					while (k < N)
+					{
+						const int32 j2 = FUetkxLexer::SkipNoncode(Body, k);
+						if (j2 != k)
+						{
+							k = j2;
+							continue;
+						}
+						const int32 C2 = Body[k];
+						if (C2 == C_LBRACE || C2 == C_LPAREN || C2 == C_LBRACKET)
+						{
+							++D2;
+						}
+						else if (C2 == C_RBRACE || C2 == C_RPAREN || C2 == C_RBRACKET)
+						{
+							--D2;
+						}
+						else if (C2 == ';' && D2 == 0)
+						{
+							++k;
+							break;
+						}
+						++k;
+					}
+					End = k;
+				}
+				DeadStart = End;
+				break;
+			}
+			++i;
+		}
+		if (DeadStart < 0)
+		{
+			return;
+		}
+		int32 First = -1;
+		i = DeadStart;
+		while (i < N)
+		{
+			const int32 j = FUetkxLexer::SkipNoncode(Body, i);
+			if (j != i)
+			{
+				i = j;
+				continue;
+			}
+			const int32 C = Body[i];
+			if (C == C_SPACE || C == C_TAB || C == C_NL || C == C_CR)
+			{
+				++i;
+				continue;
+			}
+			First = i;
+			break;
+		}
+		if (First < 0)
+		{
+			return;
+		}
+		int32 Last = N;
+		while (Last > First &&
+			   (Body[Last - 1] == C_SPACE || Body[Last - 1] == C_TAB || Body[Last - 1] == C_NL || Body[Last - 1] == C_CR))
+		{
+			--Last;
+		}
+		AddDiag(Diags, TEXT("UETKX0107"), 2, TEXT("Unreachable code after 'return'."), BodyAt + First, Last - First);
+	}
+
 	int32 SkipWsOnly(const TArray<int32>& S, int32 i)
 	{
 		while (i < S.Num() && (S[i] == C_SPACE || S[i] == C_TAB || S[i] == C_NL || S[i] == C_CR))
@@ -460,6 +666,8 @@ namespace
 		Decl.Setup = FUetkxLexer::FromCodePoints(Body, 0, Final.ReturnAt);
 		Decl.SetupAt = BodyAt;
 		Decl.HookCalls = ScanHookCalls(FUetkxLexer::ToCodePoints(Decl.Setup));
+		DiagnoseUnreachableAfterReturn(Body, Decl.Returns, BodyAt, Out.Diags);
+		DiagnoseMarkupAsValue(Body, Decl.Returns, BodyAt, Out.Diags);
 
 		for (FUetkxReturnSpan& Span : Decl.Returns)
 		{

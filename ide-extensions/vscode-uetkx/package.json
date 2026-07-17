@@ -35,6 +35,16 @@
         "category": "UETKX"
       }
     ],
+    "configuration": {
+      "title": "UETKX",
+      "properties": {
+        "uetkx.clangd.path": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Path to a `clangd` executable for embedded-C++ intelligence inside `.uetkx` setup/hook/module bodies. Leave empty to auto-discover (PATH → `%LOCALAPPDATA%\\uetkx\\clangd\\bin` → `C:\\Program Files\\LLVM` → the VS 2022 Clang tools component). Requires a restart of the language server."
+        }
+      }
+    },
     "languages": [
       {
         "id": "uetkx",
@@ -54,7 +64,13 @@
         "editor.formatOnSave": true,
         "editor.autoIndent": "full",
         "editor.insertSpaces": false,
-        "editor.detectIndentation": false
+        "editor.detectIndentation": false,
+        "editor.bracketPairColorization.enabled": false
+      },
+      "files.exclude": {
+        "**/*.uetkx.inl": true,
+        "**/*.uetkx.diags.json": true,
+        "**/*.Uetkx.gen.cpp": true
       }
     },
     "grammars": [

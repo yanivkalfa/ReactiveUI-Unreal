@@ -20,6 +20,150 @@ const C_NL = 10,
   C_APOS = 39,
   C_COMMA = 44;
 
+/** TB-12 / UETKX0114 — markup used as a VALUE (`auto X = (<VerticalBox>…);`): the grammar
+ *  admits markup only in return position; anything else is verbatim C++ handed to MSVC, which
+ *  would fail with a brutal, misattributed error at build time. Detects the narrow `= (<Tag` /
+ *  `= <Tag` shape in CODE (markup-return spans skipped; compound operators and comparisons
+ *  `a = b < c` never match). One diagnostic per body. Full support is TD-032. C++-identical
+ *  (DiagnoseMarkupAsValue). */
+function diagnoseMarkupAsValue(
+  body: readonly number[],
+  returns: ReadonlyArray<{ returnAt: number; afterParen: number }>,
+  bodyAt: number,
+  out: UetkxFileScanResult,
+): void {
+  const n = body.length;
+  const isWs = (c: number) => c === C_SPACE || c === C_TAB || c === C_NL || c === C_CR;
+  const compoundPrev = new Set([61, 60, 62, 33, 43, 45, 42, 47, 37, 38, 124, 94]); // = < > ! + - * / % & | ^
+  let i = 0;
+  while (i < n) {
+    const span = returns.find((s) => i >= s.returnAt && i < s.afterParen);
+    if (span) {
+      i = span.afterParen;
+      continue;
+    }
+    const j = skipNoncode(body, i);
+    if (j !== i) {
+      i = j;
+      continue;
+    }
+    if (body[i] === 61 /*=*/) {
+      const compound = (i > 0 && compoundPrev.has(body[i - 1])) || (i + 1 < n && body[i + 1] === 61);
+      if (!compound) {
+        let k = i + 1;
+        while (k < n && isWs(body[k])) k++;
+        if (k < n && body[k] === C_LPAREN) {
+          k++;
+          while (k < n && isWs(body[k])) k++;
+        }
+        if (k + 1 < n && body[k] === C_LT && isIdentCp(body[k + 1])) {
+          let nameEnd = k + 1;
+          while (nameEnd < n && isIdentCp(body[nameEnd])) nameEnd++;
+          pushDiag(
+            out,
+            "UETKX0114",
+            0,
+            "markup is only legal in a `return ( ... )` — markup-as-value is not supported; extract a child component instead (TD-032)",
+            bodyAt + k,
+            nameEnd - k,
+          );
+          return;
+        }
+      }
+    }
+    i++;
+  }
+}
+
+/** TB-5 / UETKX0107 — Unity's UnreachableAfterReturn (UITKX0107), family-numbered: dead code
+ *  after the FIRST top-level `return` statement of a component body. Handles BOTH shapes — a
+ *  top-level markup `return ( … )` before the body's end, and a plain C++ early `return x;`
+ *  in setup (the collector never sees those — no markup). Severity 2 (hint); the server
+ *  attaches the Unnecessary tag so editors FADE the range. Comment-only tails don't count.
+ *  C++-identical (DiagnoseUnreachableAfterReturn). */
+function diagnoseUnreachableAfterReturn(
+  body: readonly number[],
+  returns: ReadonlyArray<{ returnAt: number; afterParen: number }>,
+  bodyAt: number,
+  out: UetkxFileScanResult,
+): void {
+  const n = body.length;
+  let deadStart = -1;
+  let depth = 0;
+  let i = 0;
+  while (i < n) {
+    const j = skipNoncode(body, i);
+    if (j !== i) {
+      i = j;
+      continue;
+    }
+    const c = body[i];
+    if (c === C_LBRACE || c === C_LPAREN || c === 91 /*[*/) {
+      depth++;
+      i++;
+      continue;
+    }
+    if (c === 125 /*}*/ || c === 41 /*)*/ || c === 93 /*]*/) {
+      depth--;
+      i++;
+      continue;
+    }
+    if (depth === 0 && c === 114 /*r*/ && keywordAt(body, i, "return")) {
+      const span = returns.find((s) => s.returnAt === i);
+      let end: number;
+      if (span) {
+        end = span.afterParen;
+        while (end < n && (body[end] === C_SPACE || body[end] === C_TAB || body[end] === C_NL || body[end] === C_CR)) end++;
+        if (end < n && body[end] === 59 /*;*/) end++;
+      } else {
+        // A plain C++ `return expr;` — scan to its statement-ending top-level `;`.
+        let d2 = 0;
+        let k = i + 6;
+        while (k < n) {
+          const j2 = skipNoncode(body, k);
+          if (j2 !== k) {
+            k = j2;
+            continue;
+          }
+          const c2 = body[k];
+          if (c2 === C_LBRACE || c2 === C_LPAREN || c2 === 91) d2++;
+          else if (c2 === 125 || c2 === 41 || c2 === 93) d2--;
+          else if (c2 === 59 /*;*/ && d2 === 0) {
+            k++;
+            break;
+          }
+          k++;
+        }
+        end = k;
+      }
+      deadStart = end;
+      break;
+    }
+    i++;
+  }
+  if (deadStart < 0) return;
+  let first = -1;
+  i = deadStart;
+  while (i < n) {
+    const j = skipNoncode(body, i);
+    if (j !== i) {
+      i = j;
+      continue;
+    }
+    const c = body[i];
+    if (c === C_SPACE || c === C_TAB || c === C_NL || c === C_CR) {
+      i++;
+      continue;
+    }
+    first = i;
+    break;
+  }
+  if (first < 0) return;
+  let last = n;
+  while (last > first && (body[last - 1] === C_SPACE || body[last - 1] === C_TAB || body[last - 1] === C_NL || body[last - 1] === C_CR)) last--;
+  pushDiag(out, "UETKX0107", 2, "Unreachable code after 'return'.", bodyAt + first, last - first);
+}
+
 export interface UetkxDiag {
   code: string;
   severity: number; // 0 err / 1 warn / 2 hint
@@ -594,6 +738,8 @@ function parseComponent(src: number[], ci: number, exported: boolean, out: Uetkx
     return -1;
   }
   const setup = fromCodePoints(body, 0, final.returnAt);
+  diagnoseUnreachableAfterReturn(body, returns, bodyAt, out);
+  diagnoseMarkupAsValue(body, returns, bodyAt, out);
   let windowNodes: UetkxNode[] = [];
   for (const span of returns) {
     const parsed = parseMarkup(body, span.mStart, span.mEnd);

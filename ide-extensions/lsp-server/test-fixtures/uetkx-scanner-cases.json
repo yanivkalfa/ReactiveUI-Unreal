@@ -349,6 +349,41 @@
         "diags": ["UETKX2317"],
         "noError": true
       }
+    },
+    {
+      "name": "TB-5/0107: plain early return dims the rest of the body (hint, not an error)",
+      "input": "export component T {\n\treturn null;\n\tconst int32 N = 5;\n\n\treturn (\n\t\t<Spacer />\n\t);\n}\n",
+      "expect": {
+        "components": [{ "name": "T", "exported": true }],
+        "diags": ["UETKX0107"],
+        "noError": true
+      }
+    },
+    {
+      "name": "TB-5/0107: statements after the final markup return are unreachable",
+      "input": "export component T {\n\treturn (\n\t\t<Spacer />\n\t);\n\tconst int32 Dead = 1;\n}\n",
+      "expect": {
+        "components": [{ "name": "T", "exported": true }],
+        "diags": ["UETKX0107"],
+        "noError": true
+      }
+    },
+    {
+      "name": "TB-5/0107: a CONDITIONAL early return is reachable code -- no diagnostic",
+      "input": "export component T {\n\tif (GIsEditor) { return ( <Spacer /> ); }\n\treturn (\n\t\t<Box />\n\t);\n}\n",
+      "expect": {
+        "components": [{ "name": "T", "exported": true }],
+        "diags": [],
+        "noError": true
+      }
+    },
+    {
+      "name": "TB-12/0114: markup as a VALUE (auto X = (<Tag>...)) is a friendly error, not MSVC soup",
+      "input": "export component T {\n\tauto Some = (<VerticalBox>\n\t\t<Spacer />\n\t</VerticalBox>);\n\treturn (\n\t\t<Border>\n\t\t\t{ Some }\n\t\t</Border>\n\t);\n}\n",
+      "expect": {
+        "components": [{ "name": "T", "exported": true }],
+        "diags": ["UETKX0114"]
+      }
     }
   ]
 }

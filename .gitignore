@@ -51,3 +51,8 @@ ide-extensions/visual-studio/UetkxVsix/server/
 ide-extensions/visual-studio/UetkxVsix/bin/
 ide-extensions/visual-studio/UetkxVsix/obj/
 scripts/diff-reports/
+
+# UBT VSCode-generator compile databases (machine-local absolute paths)
+.vscode/compileCommands_*
+.vscode/compileCommands_*/
+.vscode/c_cpp_properties.json

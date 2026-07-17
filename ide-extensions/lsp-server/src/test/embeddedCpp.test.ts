@@ -4,7 +4,9 @@
 
 import { test } from "node:test";
 import * as assert from "node:assert";
+import * as fs from "node:fs";
 import * as os from "node:os";
+import * as path from "node:path";
 import { SourceMap, offsetToPosition, positionToOffset } from "../sourceMap";
 import { buildVirtualCpp } from "../virtualDoc";
 import { ClangdProxy, findCompileCommands } from "../clangdProxy";
@@ -111,6 +113,50 @@ test("findCompileCommands returns null in an empty temp tree", () => {
   // returns a string-or-null (walk-up terminates at the filesystem root).
   const found = findCompileCommands(os.tmpdir());
   assert.ok(found === null || typeof found === "string");
+});
+
+test("virtual doc emits REAL declarations for cross-file imports (hook signature + module namespace)", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "uetkx-surf-"));
+  fs.writeFileSync(path.join(root, "Demo.uproject"), "{}");
+  const dir = path.join(root, "Source", "Demo");
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, "Counter.hooks.uetkx"),
+    "export hook UseCounter(int32 Start) -> TTuple<int32, TFunction<void()>> {\n\tauto [Count, SetCount] = UseState<int32>(Start);\n\treturn MakeTuple(Count, TFunction<void()>());\n}\nexport module CounterStyle {\n\tinline const int32 Max = 10;\n}\n",
+  );
+  const importer = path.join(dir, "App.uetkx");
+  const src =
+    'import { UseCounter, CounterStyle } from "./Counter.hooks"\nexport component App {\n\tauto [Count, Inc] = UseCounter(CounterStyle::Max);\n\treturn ( <Spacer /> );\n}\n';
+  fs.writeFileSync(importer, src);
+  const { buildEmbeddedView } = require("../embeddedIntel") as typeof import("../embeddedIntel");
+  const view = buildEmbeddedView(src, importer);
+  assert.ok(
+    view.virtualText.includes("TTuple<int32, TFunction<void()>> UseCounter(int32 Start);"),
+    "imported hook declared with its REAL signature",
+  );
+  assert.ok(view.virtualText.includes("namespace CounterStyle {"), "imported module declared as a namespace");
+  assert.ok(view.virtualText.includes("inline const int32 Max = 10;"), "module body verbatim");
+  // Without a path the surfaces are simply omitted (test-mode consistency).
+  const bare = buildEmbeddedView(src);
+  assert.ok(!bare.virtualText.includes("UseCounter(int32 Start);"), "no resolver, no emission");
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test("findCompileCommands picks up UBT's .vscode generator output, project file over Default (TB-10)", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "uetkx-ccdb-"));
+  const vscodeDir = path.join(root, ".vscode");
+  fs.mkdirSync(vscodeDir);
+  fs.writeFileSync(path.join(vscodeDir, "compileCommands_Default.json"), "[]");
+  fs.writeFileSync(path.join(vscodeDir, "compileCommands_MyGame.json"), "[]");
+  const nested = path.join(root, "Source", "MyGame");
+  fs.mkdirSync(nested, { recursive: true });
+  const found = findCompileCommands(nested);
+  assert.ok(found !== null && found.endsWith("compileCommands_MyGame.json"), `project-named DB wins (${found})`);
+  // A canonical file at the root beats the generated ones.
+  fs.writeFileSync(path.join(root, "compile_commands.json"), "[]");
+  const canonical = findCompileCommands(nested);
+  assert.ok(canonical !== null && canonical.endsWith(`${path.sep}compile_commands.json`), `canonical wins (${canonical})`);
+  fs.rmSync(root, { recursive: true, force: true });
 });
 
 test("clangd proxy degrades gracefully when clangd is absent", async () => {

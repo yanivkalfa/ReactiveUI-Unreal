@@ -8,7 +8,7 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { scanFile, UetkxDeclKind, UetkxFileScanResult } from "./uetkxFileScan";
+import { AUTO_INCLUDED_HEADERS, scanFile, UetkxDeclKind, UetkxFileScanResult } from "./uetkxFileScan";
 import { rootAnchorFor } from "./uetkxSchema";
 
 export interface ExportedDecl {
@@ -165,6 +165,96 @@ export function listUetkxFiles(rootDir: string): string[] {
   return out;
 }
 
+// ── imported-surface emission (TB-10 follow-through: real declarations, not suppression) ─────
+
+/** What an importer can EMIT into its virtual C++ TU for one exporter file: hook signatures
+ *  (declaration-only — clangd then types `auto [A,B] = UseX(…)` correctly) and module bodies
+ *  (verbatim namespaces — constants keep their real types). Components are omitted: they are
+ *  markup-position-only (UETKX0114), so code never references them. */
+export interface ImportedSurface {
+  hooks: Array<{ name: string; ret: string; params: string }>;
+  modules: Array<{ name: string; body: string }>;
+}
+
+const surfaceCache = new Map<string, { mtimeMs: number; surface: ImportedSurface }>();
+
+/** The emittable surface of the exporter behind `specifier`, mtime-cached. Null when the
+ *  specifier doesn't resolve or the exporter can't be read (the caller degrades to the
+ *  suppression fallback — never an error). */
+export function importedSurfaceFor(importerFsPath: string, specifier: string): ImportedSurface | null {
+  const key = resolveSpecifier(importerFsPath, specifier);
+  if (!key) return null;
+  let mtimeMs: number;
+  try {
+    mtimeMs = fs.statSync(key).mtimeMs;
+  } catch {
+    return null;
+  }
+  const hit = surfaceCache.get(key);
+  if (hit && hit.mtimeMs === mtimeMs) return hit.surface;
+  let source: string;
+  try {
+    source = fs.readFileSync(key, "utf8");
+  } catch {
+    return null;
+  }
+  const scan = scanFile(source, path.basename(key, ".uetkx"), /*resyncOnBodyError*/ true);
+  const surface: ImportedSurface = {
+    hooks: scan.hooks.map((h) => ({ name: h.name, ret: h.ret, params: h.params })),
+    modules: scan.modules.map((m) => ({ name: m.name, body: m.body })),
+  };
+  surfaceCache.set(key, { mtimeMs, surface });
+  return surface;
+}
+
+// ── host-include header index (TB-9) ─────────────────────────────────────────────────────────
+
+const headerIndexCache = new Map<string, { at: number; headers: string[] }>();
+
+/** Every .h/.hpp under the workspace's Source/ + Plugins/ (normalized, forward slashes), cached
+ *  30s per root. The LSP-side half of UETKX2316: the COMPILER can't see UBT include paths (why
+ *  2316 was long "reserved"), but the workspace tree it CAN see — enough for go-to-definition
+ *  and for catching a misspelled project-local header. */
+export function workspaceHeaders(importerFsPath: string): string[] {
+  const root = workspaceRootFor(importerFsPath);
+  const hit = headerIndexCache.get(root);
+  const now = Date.now();
+  if (hit && now - hit.at < 30_000) return hit.headers;
+  const skip = new Set(["node_modules", "Intermediate", "Saved", "Binaries", "DerivedDataCache", ".git"]);
+  const out: string[] = [];
+  const walk = (dir: string, depth: number) => {
+    if (depth > 32) return;
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) {
+        if (!skip.has(e.name)) walk(full, depth + 1);
+      } else if (e.name.endsWith(".h") || e.name.endsWith(".hpp")) {
+        out.push(normAbs(full));
+      }
+    }
+  };
+  const scanRoots = [path.join(root, "Source"), path.join(root, "Plugins")].filter((p) => fs.existsSync(p));
+  for (const r of scanRoots.length ? scanRoots : [root]) walk(normAbs(r), 0);
+  headerIndexCache.set(root, { at: now, headers: out });
+  return out;
+}
+
+/** Resolve an `import "@X.h"` payload to a workspace header by path-suffix match
+ *  (`RuiDemoSupport.h`, `Doom/DoomTypes.h`), or null when the workspace doesn't have it. */
+export function resolveHostInclude(importerFsPath: string, specifier: string): string | null {
+  const suffix = "/" + specifier.replace(/\\/g, "/");
+  for (const h of workspaceHeaders(importerFsPath)) {
+    if (h.endsWith(suffix)) return h;
+  }
+  return null;
+}
+
 export interface ExporterHit {
   file: string;
   kind: UetkxDeclKind;
@@ -208,10 +298,27 @@ export function resolveDiagnostics(scan: UetkxFileScanResult, importerFsPath: st
   const importerModule = moduleRootFor(importerFsPath);
   for (const imp of scan.imports) {
     // Host includes (`import "@Header.h"`, INCLUDE_RETIREMENT_PLAN.md §B) resolve to no .uetkx
-    // file — imp.specifier is a header path, not a peer-file specifier. Skip; without this a
-    // valid `@` import would live-diagnose as UETKX2300 "unknown import specifier" on every
-    // keystroke (the C++ resolver skips the same way, UetkxResolve.cpp).
-    if (imp.hostInclude) continue;
+    // file — imp.specifier is a header path, not a peer-file specifier. They must never 2300
+    // (the C++ resolver skips the same way, UetkxResolve.cpp) — but the LSP CAN verify a
+    // project-local name against the workspace tree (TB-9 / UETKX2316, LSP-only): slash-less
+    // specifiers are the project-local convention; slashed ones are usually engine paths the
+    // workspace can't see, so they stay undiagnosed. Auto-included names already hint 2317.
+    if (imp.hostInclude) {
+      if (
+        !imp.specifier.includes("/") &&
+        !AUTO_INCLUDED_HEADERS.includes(imp.specifier) &&
+        !resolveHostInclude(importerFsPath, imp.specifier)
+      ) {
+        diags.push({
+          code: "UETKX2316",
+          severity: 0, // error (owner call 2026-07-17): a slash-less name missing from the workspace WILL fail the C++ build
+          message: `header \`${imp.specifier}\` not found under this workspace's Source/ or Plugins/ — check the name (engine headers can't be verified here)`,
+          off: imp.specifierAt,
+          len: Math.max(1, imp.specifier.length + 3),
+        });
+      }
+      continue;
+    }
     const key = resolveSpecifier(importerFsPath, imp.specifier);
     if (!key) {
       diags.push({

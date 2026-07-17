@@ -7,9 +7,19 @@
 // OUTSIDE any embedded region returns null so the caller falls through to the markup baseline; a
 // null is also returned whenever the proxy is unavailable — the family's documented degradation.
 
-import { buildVirtualCpp } from "./virtualDoc";
+import { buildVirtualCpp, ImportSurfaceResolver } from "./virtualDoc";
 import { offsetToPosition, positionToOffset } from "./sourceMap";
+import { importedSurfaceFor } from "./uetkxWorkspace";
+import { URI } from "./uri";
 import type { ClangdPosition } from "./clangdProxy";
+
+/** The workspace-backed import resolver for a document, or undefined when no path is known
+ *  (tests) — CONSISTENCY RULE: every buildEmbeddedView for one didOpen'd doc must use the same
+ *  resolver, or mapped ranges shift against what clangd holds. */
+export function surfaceResolverFor(fsPath: string | undefined): ImportSurfaceResolver | undefined {
+  if (!fsPath) return undefined;
+  return (specifier) => importedSurfaceFor(fsPath, specifier);
+}
 
 /** The minimal position-request surface embeddedIntel needs — ClangdProxy satisfies it, and tests
  *  pass a stub. Keeping it structural means neither a live clangd nor a spawned process is required
@@ -25,13 +35,20 @@ export function virtualUriOf(sourceUri: string): string {
   return `${sourceUri}.__rui_embedded__.cpp`;
 }
 
+/** Inverse of virtualUriOf — the real .uetkx uri behind a virtual one, or null for a uri that
+ *  is not ours (TB-10: routes clangd's publishDiagnostics back to the right document). */
+export function realUriOfVirtual(virtualUri: string): string | null {
+  const suffix = ".__rui_embedded__.cpp";
+  return virtualUri.endsWith(suffix) ? virtualUri.slice(0, -suffix.length) : null;
+}
+
 /**
  * A build-once view over a .uetkx source: the synthesized virtual C++ + bidirectional position
  * mapping. Rebuilding the virtual doc per request is cheap (a single scan), but callers that do
  * several lookups for one document should reuse a view.
  */
-export function buildEmbeddedView(source: string) {
-  const vd = buildVirtualCpp(source);
+export function buildEmbeddedView(source: string, fsPath?: string) {
+  const vd = buildVirtualCpp(source, "doc", surfaceResolverFor(fsPath));
   return {
     /** The synthesized C++ translation unit clangd parses. */
     virtualText: vd.text,
@@ -70,7 +87,13 @@ export async function embeddedPositionRequest(
   sourceOffset: number,
 ): Promise<unknown | null> {
   if (!proxy.isAvailable()) return null;
-  const view = buildEmbeddedView(source);
+  let fsPath: string | undefined;
+  try {
+    fsPath = URI.toFsPath(sourceUri);
+  } catch {
+    fsPath = undefined; // a non-file uri (tests) — the view simply omits imported surfaces
+  }
+  const view = buildEmbeddedView(source, fsPath);
   const virtualPosition = view.positionInVirtual(sourceOffset);
   if (virtualPosition === null) return null; // markup — not our layer
   const uri = virtualUriOf(sourceUri);
@@ -101,6 +124,7 @@ type EmbeddedRange = { start: ClangdPosition; end: ClangdPosition };
 export function translateEmbeddedCompletion(
   result: unknown,
   source: string,
+  fsPath?: string,
 ): { isIncomplete: boolean; items: object[] } | null {
   if (!result) return null;
   const list = Array.isArray(result)
@@ -109,7 +133,7 @@ export function translateEmbeddedCompletion(
   const rawItems = Array.isArray(list.items) ? list.items : [];
   if (rawItems.length === 0) return null;
 
-  const view = buildEmbeddedView(source);
+  const view = buildEmbeddedView(source, fsPath);
   const mapRange = (range: EmbeddedRange): { start: ClangdPosition; end: ClangdPosition } | null => {
     const startOff = view.sourceOffsetOf(range.start);
     const endOff = view.sourceOffsetOf(range.end);
