@@ -10,6 +10,7 @@
 #include "Misc/AutomationTest.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "RuiNode.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "UetkxDriver.h"
@@ -313,6 +314,52 @@ bool FRuiUetkxDriverTest::RunTest(const FString&)
 		FM.Delete(*PalettePath);
 		FM.Delete(*UserPath);
 		FUetkxDriver::CompileAll(Scratch);
+	}
+
+	// ── ES-modules (M5): support-file blast radius — ImportersOf answers from the dep graph ──────
+	{
+		const FString Dir = Scratch / TEXT("Blast");
+		const FString SupPath = Dir / TEXT("Theme.uetkx");
+		const FString ImpPath = Dir / TEXT("ThemeUser.uetkx");
+		FFileHelper::SaveStringToFile(TEXT("export FLinearColor Tone = FLinearColor(0.3f, 0.3f, 0.3f, 1.0f);\n"),
+									  *SupPath);
+		FFileHelper::SaveStringToFile(TEXT("import { Tone } from \"./Theme\"\nexport component ThemeUser {\n\tauto C ")
+										  TEXT("= Tone;\n\treturn ( <Spacer /> );\n}\n"),
+									  *ImpPath);
+		FUetkxDriver::CompileAll(Scratch);
+		const TArray<FString> Importers =
+			FUetkxDriver::ImportersOf(FUetkxDriver::ProjectRelPath(SupPath), {Scratch});
+		TestTrue(TEXT("ImportersOf names the value-importing file"), Importers.Contains(TEXT("ThemeUser")));
+		FM.Delete(*SupPath);
+		FM.Delete(*ImpPath);
+		FUetkxDriver::CompileAll(Scratch);
+	}
+
+	// ── ES-modules (M5/TD-026): private HMR identity is per-FILE — signatures never alias ────────
+	{
+		// The M3 emission keys two files' private `Row`s as RuiPriv_<File>::Row; the HMR maps key
+		// by that FName, so editing one file's private component can never flip the other's
+		// signature (pre-M3 both keyed bare `Row` — last-swap-wins).
+		const FName IdA(TEXT("RuiPriv_HmrPairA::Row"));
+		const FName IdB(TEXT("RuiPriv_HmrPairB::Row"));
+		RUI::RegisterHookSignature(IdA, 0x11111111u);
+		RUI::RegisterHookSignature(IdB, 0x22222222u);
+		RUI::RegisterHookSignature(IdA, 0x33333333u); // "edit" A's file — its signature moves
+		TestEqual(TEXT("A's private signature updated"), RUI::FindHookSignature(IdA), 0x33333333u);
+		TestEqual(TEXT("B's private signature untouched"), RUI::FindHookSignature(IdB), 0x22222222u);
+	}
+
+	// ── ES-modules (M5/G-01): renaming a file renames RuiPriv_<Basename> — privates remount ─────
+	{
+		const FString PairSrc = TEXT("FRuiNode Row() {\n\treturn ( <Spacer /> );\n}\n")
+			TEXT("export FRuiNode RENAMED() {\n\treturn ( <VerticalBox> <Row /> </VerticalBox> );\n}\n");
+		const FUetkxCompileOutput AsA = FUetkxCodegen::CompileSource(
+			PairSrc.Replace(TEXT("RENAMED"), TEXT("RenameA")), TEXT("RenameA"));
+		const FUetkxCompileOutput AsB = FUetkxCodegen::CompileSource(
+			PairSrc.Replace(TEXT("RENAMED"), TEXT("RenameB")), TEXT("RenameB"));
+		TestTrue(TEXT("rename gives the private a FRESH runtime id (remount semantic)"),
+				 AsA.bOk && AsB.bOk && AsA.Inl.Contains(TEXT("RuiPriv_RenameA::Row")) &&
+					 AsB.Inl.Contains(TEXT("RuiPriv_RenameB::Row")));
 	}
 
 	// ── ES-modules (U-08): the sidecar records the default-export marker ─────────────────────────

@@ -513,6 +513,7 @@ FUetkxFileResult FUetkxDriver::CompileFile(const FString& UetkxPath, bool bForce
 	Out.Diags = Compiled.Diags;
 	Out.ComponentNames = Compiled.ComponentNames;
 	Out.ExportedNames = Compiled.ExportedNames;
+	Out.bSupportFile = Compiled.bSupportFile;
 	if (Compiled.bOk)
 	{
 		// Unconditional write: the fresh mtime IS the staleness ledger (see WriteIfChanged).
@@ -910,6 +911,11 @@ FUetkxCheckResult FUetkxDriver::CheckDrift(const TArray<FString>& Roots)
 										 *FString::Join(Cycle, TEXT(" -> "))));
 	}
 	return Out;
+}
+
+FString FUetkxDriver::ProjectRelPath(const FString& UetkxPath)
+{
+	return ProjectRelPathFor(UetkxPath);
 }
 
 TArray<FString> FUetkxDriver::ImportersOf(const FString& ProjRelPath, const TArray<FString>& Roots)
