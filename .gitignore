@@ -52,6 +52,12 @@ ide-extensions/visual-studio/UetkxVsix/bin/
 ide-extensions/visual-studio/UetkxVsix/obj/
 scripts/diff-reports/
 
+# §5: staged clangd bundles (fetch-clangd.mjs output — 28MB of LLVM binaries never enter git;
+# fetched + sha256-verified at package time and in CI)
+ide-extensions/vscode-uetkx/clangd/
+ide-extensions/.clangd-staged-aside/
+ide-extensions/visual-studio/UetkxVsix/clangd/
+
 # UBT VSCode-generator compile databases (machine-local absolute paths)
 .vscode/compileCommands_*
 .vscode/compileCommands_*/

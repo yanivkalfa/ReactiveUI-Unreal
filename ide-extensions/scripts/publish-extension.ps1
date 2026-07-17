@@ -130,20 +130,40 @@ if (-not $SkipBuild) {
     Invoke-InDir $extensionDir 'npm run build'
 }
 
-# ── 3. package ────────────────────────────────────────────────────────────────
-Write-Step 'Packaging extension (vsce package)'
-Invoke-InDir $extensionDir 'npx --yes @vscode/vsce package --no-dependencies -o uetkx.vsix'
-$vsixPath = Join-Path $extensionDir 'uetkx.vsix'
-if (-not (Test-Path $vsixPath)) { Write-Error 'VSIX not found.'; exit 1 }
-Write-Host "  Packaged: $vsixPath" -ForegroundColor Green
+# ── 3. package (BOTH flavors — §5 clangd bundling) ────────────────────────────
+# win32-x64 ships the pinned clangd (embedded C++ intel with zero machine setup); the
+# universal vsix ships without it (discovery chain). vsce has one .vscodeignore, so the
+# flavor gate is physical: the clangd dir is staged for the platform build and moved aside
+# for the universal one.
+Write-Step 'Staging bundled clangd (fetch-clangd.mjs --target vscode)'
+& node (Join-Path $scriptDir 'fetch-clangd.mjs') --target vscode
+if ($LASTEXITCODE -ne 0) { throw 'fetch-clangd.mjs failed' }
 
-# ── 4. local install ──────────────────────────────────────────────────────────
+Write-Step 'Packaging extension (vsce package, both flavors)'
+Invoke-InDir $extensionDir 'npx --yes @vscode/vsce package --no-dependencies --target win32-x64 -o uetkx-win32-x64.vsix'
+$clangdDir = Join-Path $extensionDir 'clangd'
+# OUTSIDE the extension dir — vsce packages any non-ignored folder under the extension root.
+$clangdAside = Join-Path $ideRoot '.clangd-staged-aside'
+if (Test-Path $clangdAside) { Remove-Item $clangdAside -Recurse -Force }
+Move-Item $clangdDir $clangdAside
+try {
+    Invoke-InDir $extensionDir 'npx --yes @vscode/vsce package --no-dependencies -o uetkx.vsix'
+} finally {
+    Move-Item $clangdAside $clangdDir
+}
+$vsixPath = Join-Path $extensionDir 'uetkx.vsix'
+$vsixPlatformPath = Join-Path $extensionDir 'uetkx-win32-x64.vsix'
+if (-not (Test-Path $vsixPath)) { Write-Error 'universal VSIX not found.'; exit 1 }
+if (-not (Test-Path $vsixPlatformPath)) { Write-Error 'win32-x64 VSIX not found.'; exit 1 }
+Write-Host "  Packaged: $vsixPlatformPath (bundled clangd) + $vsixPath (universal)" -ForegroundColor Green
+
+# ── 4. local install (the platform flavor — this machine is win32-x64) ────────
 Write-Step 'Installing locally via the VS Code CLI'
 $codeCli = @(
     "$env:LOCALAPPDATA\Programs\Microsoft VS Code\bin\code.cmd", 'code.cmd', 'code'
 ) | Where-Object { (Get-Command $_ -ErrorAction SilentlyContinue) -or (Test-Path $_) } | Select-Object -First 1
 if ($codeCli) {
-    & cmd.exe /c "`"$codeCli`" --install-extension `"$vsixPath`" --force" | ForEach-Object { Write-Host "  $_" }
+    & cmd.exe /c "`"$codeCli`" --install-extension `"$vsixPlatformPath`" --force" | ForEach-Object { Write-Host "  $_" }
     Write-Host '  Reload the VS Code window to activate.' -ForegroundColor DarkGray
 } else {
     Write-Host '  VS Code CLI not found — install the .vsix manually.' -ForegroundColor Yellow
@@ -157,16 +177,18 @@ if ($LocalOnly) {
     if ([string]::IsNullOrWhiteSpace($vscePat)) {
         Write-Error 'No VS Marketplace PAT. Use -PAT, $env:VSCE_PAT, or publisher-secrets.json { vscePatToken }.'; exit 1
     }
-    Write-Step 'Publishing to VS Marketplace'
+    Write-Step 'Publishing to VS Marketplace (both flavors — the marketplace routes per platform)'
+    Invoke-InDir $extensionDir "npx --yes @vscode/vsce publish --no-dependencies --packagePath uetkx-win32-x64.vsix --pat $vscePat"
     Invoke-InDir $extensionDir "npx --yes @vscode/vsce publish --no-dependencies --packagePath uetkx.vsix --pat $vscePat"
-    Write-Host "  Published v$publishVersion to VS Marketplace." -ForegroundColor Green
+    Write-Host "  Published v$publishVersion (win32-x64 + universal) to VS Marketplace." -ForegroundColor Green
 
     if (-not $SkipOpenVsx) {
         $ovsx = Resolve-Secret $OvsxToken 'OVSX_TOKEN' 'ovsxToken'
         if ([string]::IsNullOrWhiteSpace($ovsx)) {
             Write-Host '  Open VSX token not found — skipping Open VSX (use -OvsxToken / $env:OVSX_TOKEN).' -ForegroundColor Yellow
         } else {
-            Write-Step 'Publishing to Open VSX'
+            Write-Step 'Publishing to Open VSX (both flavors)'
+            Invoke-InDir $extensionDir "npx --yes ovsx publish uetkx-win32-x64.vsix -p $ovsx"
             Invoke-InDir $extensionDir "npx --yes ovsx publish uetkx.vsix -p $ovsx"
             Write-Host "  Published v$publishVersion to Open VSX." -ForegroundColor Green
         }

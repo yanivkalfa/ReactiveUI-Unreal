@@ -39,6 +39,19 @@ export function findClangd(explicitPath?: string): string | null {
   if (explicitPath && explicitPath.trim().length > 0) {
     return fs.existsSync(explicitPath) ? explicitPath : null; // an explicit setting is authoritative
   }
+  // §5: the extension-BUNDLED clangd — before any machine discovery ("completely self
+  // sustained"). The server runs from <ext-root>/server/, so the bundle sits one level up:
+  // the VS Code platform vsix ships clangd/<platform>-<arch>/…, the (single-platform) VS2022
+  // VSIX ships clangd/…. In the dev tree (lsp-server/out/) neither exists — falls through.
+  for (const rel of [
+    ["..", "clangd", `${process.platform}-${process.arch}`, "bin", exe],
+    ["..", "clangd", "bin", exe],
+  ]) {
+    const bundled = path.resolve(__dirname, ...rel);
+    if (fs.existsSync(bundled)) {
+      return bundled;
+    }
+  }
   for (const dir of (process.env.PATH ?? "").split(path.delimiter)) {
     if (dir && fs.existsSync(path.join(dir, exe))) {
       return path.join(dir, exe);

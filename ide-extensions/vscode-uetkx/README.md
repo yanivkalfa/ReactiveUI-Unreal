@@ -22,8 +22,8 @@ Editor support for **`.uetkx`**, the JSX-like markup of [ReactiveUI for Unreal](
 ## Requirements
 
 - Everything is bundled — the language server ships with the extension (a Node runtime is included), so no Node on your PATH and no running Unreal editor are required.
-- **Optional — embedded C++ intelligence** (completion/hover/diagnostics *inside* setup/hook/module bodies) needs two things:
-  1. **clangd** — auto-discovered from PATH, `%LOCALAPPDATA%\uetkx\clangd\bin`, `C:\Program Files\LLVM`, or the VS 2022 "C++ Clang tools" component; or point `uetkx.clangd.path` at one. Without it the extension degrades gracefully to full markup intelligence (a one-time notice tells you).
+- **Embedded C++ intelligence** (completion/hover/diagnostics *inside* setup/hook/module bodies) needs two things:
+  1. **clangd** — **bundled on Windows x64** (clangd 22.1.6, Apache-2.0 w/ LLVM exceptions — nothing to install). On other platforms it is auto-discovered from PATH, `%LOCALAPPDATA%\uetkx\clangd\bin`, `C:\Program Files\LLVM`, or the VS 2022 "C++ Clang tools" component; or point `uetkx.clangd.path` at one (an explicit setting always wins, including over the bundle). Without any clangd the extension degrades gracefully to full markup intelligence (a one-time notice tells you).
   2. **A compile database** — generate once per project with UBT's VS Code generator; the language server finds the `.vscode/compileCommands_<Project>.json` it writes and mirrors it to the canonical `compile_commands.json` automatically (add that name to your `.gitignore` — it holds machine-local paths):
 
      ```
