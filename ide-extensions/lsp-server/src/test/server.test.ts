@@ -16,6 +16,7 @@ import { shippedSchema } from "../uetkxSchema";
 import { scanFile, hasError, hookSignature } from "../uetkxFileScan";
 import { loadUetkxConfig, loadFormatterConfig, rootAnchorFor } from "../uetkxSchema";
 import {
+  defaultExportOf,
   findExporter,
   getDecls,
   importCursorAt,
@@ -87,6 +88,15 @@ test("sidecar diags gate on src_hash", () => {
   );
   assert.strictEqual(readSidecarDiags(file, source).length, 1);
   assert.strictEqual(readSidecarDiags(file, source + "// edited").length, 0, "stale sidecar suppressed");
+  // TD-024 (ES-modules M6): the driver writes v3 — the reader must accept v >= 2, not v === 2
+  // (the strict gate silently dropped EVERY compiler sidecar). v1 stays rejected.
+  fs.writeFileSync(
+    file + ".diags.json",
+    JSON.stringify({ v: 3, src_hash: srcHash(source), export_hash: 1, dep_hashes: {}, diagnostics: [{ code: "UETKX2301", severity: 0, message: "e", off: 0, len: 1 }], refs: {} }),
+  );
+  assert.strictEqual(readSidecarDiags(file, source).length, 1, "v3 sidecar accepted");
+  fs.writeFileSync(file + ".diags.json", JSON.stringify({ v: 1, src_hash: srcHash(source), diagnostics: [{ code: "X", severity: 0, message: "e", off: 0, len: 1 }] }));
+  assert.strictEqual(readSidecarDiags(file, source).length, 0, "pre-v2 sidecar rejected");
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
@@ -178,6 +188,23 @@ test("resolveDiagnostics: 2300 unknown specifier / 2301 not exported / 2302 not 
   assert.deepStrictEqual(only('import { Badge } from "./Nope"\ncomponent App { return ( <Badge /> ); }\n'), ["UETKX2300"]);
   assert.deepStrictEqual(only('import { Private } from "./B"\ncomponent App { return ( <Private /> ); }\n'), ["UETKX2301"]);
   assert.deepStrictEqual(only('import { Ghost } from "./B"\ncomponent App { return ( <Ghost /> ); }\n'), ["UETKX2302"]);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test("ES-modules resolveDiagnostics: rename validates the TARGET; 2326 for a default-less default import", () => {
+  const { root, a, b } = makeImportWorkspace();
+  const only = (src: string) => resolveDiagnostics(scanFile(src, "A"), a).map((d) => d.code);
+  // Rename import: the TARGET name is what the exporter must declare/export.
+  assert.deepStrictEqual(only('import { Badge as Chip } from "./B"\ncomponent App { return ( <Chip /> ); }\n'), [], "clean rename");
+  assert.deepStrictEqual(only('import { Ghost as Chip } from "./B"\ncomponent App { return ( <Chip /> ); }\n'), ["UETKX2302"]);
+  // Namespace import: no name validation at the import line (members validate at use sites).
+  assert.deepStrictEqual(only('import * as B from "./B"\ncomponent App { return ( <Spacer /> ); }\n'), [], "namespace import clean");
+  // Default import: B.uetkx has no `export default` — live 2326.
+  assert.deepStrictEqual(only('import Home from "./B"\ncomponent App { return ( <Home /> ); }\n'), ["UETKX2326"]);
+  // Give B a default export — the same import goes clean, and defaultExportOf reads it.
+  fs.appendFileSync(b, "export default Badge;\n");
+  assert.strictEqual(defaultExportOf(b), "Badge");
+  assert.deepStrictEqual(only('import Home from "./B"\ncomponent App { return ( <Home /> ); }\n'), [], "default import clean");
   fs.rmSync(root, { recursive: true, force: true });
 });
 

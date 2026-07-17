@@ -142,6 +142,60 @@ test("virtual doc emits REAL declarations for cross-file imports (hook signature
   fs.rmSync(root, { recursive: true, force: true });
 });
 
+test("ES-modules: virtual doc declares rename/namespace/default bindings + value/util regions", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "uetkx-esm-"));
+  fs.writeFileSync(path.join(root, "Demo.uproject"), "{}");
+  const dir = path.join(root, "Source", "Demo");
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, "Palette.uetkx"),
+    "export FLinearColor Cool = FLinearColor(0.2f, 0.6f, 0.9f, 1.0f);\nexport FString FmtP(int32 S) {\n\treturn FString::FromInt(S);\n}\n",
+  );
+  fs.writeFileSync(
+    path.join(dir, "Screen.uetkx"),
+    "export FRuiNode Screen() {\n\treturn ( <Spacer /> );\n}\nexport default Screen;\n",
+  );
+  const importer = path.join(dir, "App.uetkx");
+  const src = [
+    'import { Cool as Primary, FmtP } from "./Palette"',
+    'import * as Palette from "./Palette"',
+    'import Home from "./Screen"',
+    "export FRuiNode App() {",
+    "\tauto A = Primary;",
+    "\tauto B = Palette::Cool;",
+    "\tauto C = FmtP(1);",
+    "\treturn ( <Home /> );",
+    "}",
+    "",
+  ].join("\n");
+  fs.writeFileSync(importer, src);
+  const { buildEmbeddedView } = require("../embeddedIntel") as typeof import("../embeddedIntel");
+  const view = buildEmbeddedView(src, importer);
+  assert.ok(view.virtualText.includes("extern const FLinearColor Primary;"), "renamed value declared under the LOCAL alias");
+  assert.ok(view.virtualText.includes("FString FmtP(int32 S);"), "imported util declared with its real signature");
+  assert.ok(view.virtualText.includes("namespace Palette {"), "namespace import declared as a namespace");
+  assert.ok(view.virtualText.includes("FRuiNode Home();"), "default import bound to the target's default component shape");
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test("ES-modules: own value initializers + util bodies are mapped C++ regions", () => {
+  const src = [
+    "export FLinearColor Accent = FLinearColor(0.9f, 0.2f, 0.2f, 1.0f);",
+    "export FString FmtOwn(int32 S) {",
+    "\treturn FString::FromInt(S);",
+    "}",
+    "",
+  ].join("\n");
+  const vd = buildVirtualCpp(src, "Own");
+  assert.ok(vd.text.includes("FLinearColor(0.9f, 0.2f, 0.2f, 1.0f)"), "value initializer present");
+  assert.ok(vd.text.includes("FString FmtOwn(int32 S) {"), "util scaffold present");
+  assert.ok(vd.text.includes("return FString::FromInt(S);"), "util body present");
+  const at = src.indexOf("FString::FromInt");
+  assert.ok(vd.map.sourceToVirtual(at) !== null, "util body offset maps into the virtual doc");
+  const vat = vd.text.indexOf("FLinearColor(0.9f");
+  assert.ok(vd.map.virtualToSource(vat) !== null, "value initializer maps back to the source");
+});
+
 test("§2 lifter: markup expressions become mapped code regions (events, directives, children)", () => {
   const src = [
     "export component Lift {",

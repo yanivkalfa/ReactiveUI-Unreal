@@ -135,6 +135,61 @@
       "name": "S4/markup-everywhere: value markup in setup is setup code — reanchored, never restructured (family parity)",
       "input": "export component CardStack {\n\tint32 Total = 3;\n\tauto Card = (<VerticalBox>\n\t\t<TextBlock Text={ FText::AsNumber(Total) } />\n\t</VerticalBox>);\n\tFRuiNode Bare = <Spacer />;\n\treturn (\n\t\t<Border>\n\t\t\t{ Card }\n\t\t</Border>\n\t);\n}\n",
       "expect": "export component CardStack {\n\tint32 Total = 3;\n\tauto Card = (<VerticalBox>\n\t\t<TextBlock Text={ FText::AsNumber(Total) } />\n\t</VerticalBox>);\n\tFRuiNode Bare = <Spacer />;\n\treturn (\n\t\t<Border>\n\t\t\t{ Card }\n\t\t</Border>\n\t);\n}\n"
+    },
+    {
+      "name": "S5/es-modules: new-form component is form-preserved (never migrated back to a wrapper)",
+      "input": "export FRuiNode Widget() {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n",
+      "expect": "export FRuiNode Widget() {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n"
+    },
+    {
+      "name": "S5/es-modules: new-form params canonicalize spacing (Type Name = Default)",
+      "input": "export FRuiNode Row( FString  Label ,int32 N= 2 ) {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n",
+      "expect": "export FRuiNode Row(FString Label, int32 N = 2) {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n"
+    },
+    {
+      "name": "S5/es-modules: new-form hook keeps its leading return type (no -> migration)",
+      "input": "export int32 UseTick(int32 Start) {\n\treturn Start;\n}\n",
+      "expect": "export int32 UseTick(int32 Start) {\n\treturn Start;\n}\n"
+    },
+    {
+      "name": "S5/es-modules: value export is one canonical line",
+      "input": "export FLinearColor Cool = FLinearColor(0.2f, 0.6f, 0.9f, 1.0f);\n",
+      "expect": "export FLinearColor Cool = FLinearColor(0.2f, 0.6f, 0.9f, 1.0f);\n"
+    },
+    {
+      "name": "S5/es-modules: messy value spacing canonicalizes",
+      "input": "export   FLinearColor   Cool =   FLinearColor(0.2f, 0.6f, 0.9f, 1.0f)  ;\n",
+      "expect": "export FLinearColor Cool = FLinearColor(0.2f, 0.6f, 0.9f, 1.0f);\n"
+    },
+    {
+      "name": "S5/es-modules: util function form-preserved",
+      "input": "export FString FmtScore(int32 S) {\n\treturn FString::FromInt(S);\n}\n",
+      "expect": "export FString FmtScore(int32 S) {\n\treturn FString::FromInt(S);\n}\n"
+    },
+    {
+      "name": "S5/es-modules: mixed legacy + new declarations each keep their own form (G-10)",
+      "input": "component Legacy {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n\nexport FRuiNode Modern() {\n\treturn (\n\t\t<Border />\n\t);\n}\n",
+      "expect": "component Legacy {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n\nexport FRuiNode Modern() {\n\treturn (\n\t\t<Border />\n\t);\n}\n"
+    },
+    {
+      "name": "S5/es-modules: rename + namespace + default import heads canonical in the preamble",
+      "input": "import { StatusChip as Chip } from \"./StatusChip\"\nimport * as Palette from \"./Palette\"\nimport Screen from \"./Screen\"\n\nexport FRuiNode User() {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n",
+      "expect": "import { StatusChip as Chip } from \"./StatusChip\"\nimport * as Palette from \"./Palette\"\nimport Screen from \"./Screen\"\n\nexport FRuiNode User() {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n"
+    },
+    {
+      "name": "S5/es-modules: trailing  statement preserved in place",
+      "input": "export FRuiNode Home() {\n\treturn (\n\t\t<Spacer />\n\t);\n}\nexport default Home;\n",
+      "expect": "export FRuiNode Home() {\n\treturn (\n\t\t<Spacer />\n\t);\n}\nexport default Home;\n"
+    },
+    {
+      "name": "S5/es-modules: a list-exported decl keeps its BARE head (no inline export duplication)",
+      "input": "FLinearColor Cool = FLinearColor(1.0f, 1.0f, 1.0f, 1.0f);\nexport { Cool };\n",
+      "expect": "FLinearColor Cool = FLinearColor(1.0f, 1.0f, 1.0f, 1.0f);\nexport { Cool };\n"
+    },
+    {
+      "name": "S5/es-modules: export list BETWEEN declarations preserved in place",
+      "input": "FRuiNode Alpha() {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n\nexport { Alpha };\n\nexport FRuiNode Beta() {\n\treturn (\n\t\t<Border />\n\t);\n}\n",
+      "expect": "FRuiNode Alpha() {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n\nexport { Alpha };\n\nexport FRuiNode Beta() {\n\treturn (\n\t\t<Border />\n\t);\n}\n"
     }
   ]
 }

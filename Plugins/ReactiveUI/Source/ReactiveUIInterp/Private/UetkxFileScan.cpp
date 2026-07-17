@@ -2566,14 +2566,16 @@ FUetkxFileScanResult FUetkxFileScan::Scan(const FString& Source, const FString& 
 			}
 			return false;
 		};
-		auto MarkExported = [&Out](const FString& Name, int32 At)
+		// ExportAt stays -1 for a LIST-exported decl (U-09) — `bExported && ExportAt < 0` is how
+		// downstream consumers (the formatter's form-preservation) distinguish "exported via
+		// `export { … };`" from an inline `export` prefix on the declaration itself.
+		auto MarkExported = [&Out](const FString& Name)
 		{
 			for (FUetkxComponentDecl& D : Out.Components)
 			{
 				if (D.Name == Name)
 				{
 					D.bExported = true;
-					if (D.ExportAt < 0) { D.ExportAt = At; }
 					return;
 				}
 			}
@@ -2582,7 +2584,6 @@ FUetkxFileScanResult FUetkxFileScan::Scan(const FString& Source, const FString& 
 				if (D.Name == Name)
 				{
 					D.bExported = true;
-					if (D.ExportAt < 0) { D.ExportAt = At; }
 					return;
 				}
 			}
@@ -2591,7 +2592,6 @@ FUetkxFileScanResult FUetkxFileScan::Scan(const FString& Source, const FString& 
 				if (D.Name == Name)
 				{
 					D.bExported = true;
-					if (D.ExportAt < 0) { D.ExportAt = At; }
 					return;
 				}
 			}
@@ -2600,7 +2600,6 @@ FUetkxFileScanResult FUetkxFileScan::Scan(const FString& Source, const FString& 
 				if (D.Name == Name)
 				{
 					D.bExported = true;
-					if (D.ExportAt < 0) { D.ExportAt = At; }
 					return;
 				}
 			}
@@ -2609,7 +2608,6 @@ FUetkxFileScanResult FUetkxFileScan::Scan(const FString& Source, const FString& 
 				if (D.Name == Name)
 				{
 					D.bExported = true;
-					if (D.ExportAt < 0) { D.ExportAt = At; }
 					return;
 				}
 			}
@@ -2634,7 +2632,7 @@ FUetkxFileScanResult FUetkxFileScan::Scan(const FString& Source, const FString& 
 						E.At, E.Name.Len());
 				continue;
 			}
-			MarkExported(E.Name, E.At);
+			MarkExported(E.Name);
 		}
 
 		if (!Out.DefaultExportName.IsEmpty())
@@ -2954,6 +2952,7 @@ FUetkxPreambleScan FUetkxFileScan::ScanPreamble(const FString& Source)
 
 	// ES-modules (U-09): apply deferred `export { … };` marks now every decl identity is known.
 	// Unknown names are silently ignored here (best-effort — the full Scan reports 2323).
+	// ExportAt stays -1 for list exports (same convention as the full Scan).
 	for (const FUetkxPendingExportName& E : PendingExports)
 	{
 		for (FUetkxPreambleDecl& D : Out.Decls)
@@ -2961,10 +2960,6 @@ FUetkxPreambleScan FUetkxFileScan::ScanPreamble(const FString& Source)
 			if (D.Name == E.Name && !D.bExported)
 			{
 				D.bExported = true;
-				if (D.ExportAt < 0)
-				{
-					D.ExportAt = E.At;
-				}
 				break;
 			}
 		}

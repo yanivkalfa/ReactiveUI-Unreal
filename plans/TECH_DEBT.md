@@ -841,3 +841,35 @@ referenced from plans/PRs.
   all three repos (hash 917dd8cd…), and `UETKX0114` narrowed to the paren-less-return
   remainder. Formatter = family parity (reanchored, not restructured — a family-wide
   value-markup formatter remains future work, tracked by the corpus pin).
+
+## TD-033 — LSP rename-symbol handler (ES-modules M6 — deferred, owner call pending)
+- **Where:** `ide-extensions/lsp-server/src/server.ts` (no `onRenameRequest` handler exists)
+- **What/why deferred:** G-12 lists rename among the sync surfaces, but no rename handler has
+  EVER existed in this server — the ES-modules leg (M6) delivered completions / hover /
+  go-to-def THROUGH aliases (rename imports, `* as`, default) and the plan marked a rename
+  handler OPTIONAL scope with a TECH_DEBT entry as the sanctioned alternative
+  (ES_MODULES_EXECUTION_PLAN.md §M6/§11.2). Correct rename needs the full cross-file reference
+  set (tags + code refs + alias bindings + export lists + `export default` targets across the
+  sweep universe) — a workspace-index feature, not an afternoon patch on the current
+  per-request scans.
+- **Production-grade resolution:** a WorkspaceEdit-producing rename over the swept-file index:
+  rename at the DECLARATION renames every importer's binding (or inserts `as` to pin locals);
+  rename at a LOCAL alias edits only the importer. Family-symmetric (the Godot/Unity servers
+  lack rename too — candidate for a family fast-follow).
+- **Status:** OPEN (deferred with the plan's blessing; owner decides v-next vs fast-follow)
+
+## TD-034 — ES-modules accepted caveats: alias/value reference rewriting limits (M2/M4)
+- **Where:** `UetkxCodegen.cpp` (`RewriteAliases`, the generalized private-qualification branch),
+  `UetkxResolve.cpp` (`CollectExternalRefs` Bare/Call kinds)
+- **What:** (a) A body LOCAL VARIABLE that shadows an import alias or a same-file private
+  value/util name is rewritten/qualified too — UETKX2325 polices declared-name collisions, not
+  body locals (family watch-list limit, ES_MODULES_EXECUTION_PLAN.md §11). (b) Strict-usage
+  policing of bare value references (2305) keys on the export table: a local identifier that
+  happens to match a .uetkx-exported VALUE name diagnoses as a missing import. Both are the
+  same accepted family model that hooks/module-quals always had — export-table names are
+  effectively reserved within markup files. (c) Usage accounting (2304) scans setup/bodies but
+  not markup attr expressions — a value used ONLY inside an attr expr may warn unused (warn
+  severity; pre-existing hook behavior, now more visible with values).
+- **Production-grade resolution:** scope-aware reference analysis in the rewrite planes (track
+  local declarations in the brace walk) + jsx-aware attr-expr scanning for usage accounting.
+- **Status:** OPEN (accepted caveat, documented in the migration guide)

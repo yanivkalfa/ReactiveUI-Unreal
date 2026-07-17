@@ -35,6 +35,7 @@ import { formatUetkx, UetkxFormatOptions, DEFAULT_FORMAT_OPTIONS } from "./forma
 import { scanFile } from "./uetkxFileScan";
 import { loadFormatterConfig, schemaForFile, UetkxSchema } from "./uetkxSchema";
 import {
+  defaultExportOf,
   findExporter,
   getDecls,
   importCursorAt,
@@ -270,7 +271,29 @@ connection.onCompletion(async (params): Promise<CompletionItem[] | CompletionLis
   if (!doc) return [];
   const text = doc.getText();
 
-  // Embedded C++ first (the TD-020 tail — hover/definition shipped before completion): inside a
+  // TD-016 typed event payload FIRST — `Value.<field>` inside an event expression completes the
+  // FRuiValue field with the enclosing event's payload field on top. This is MARKUP-domain
+  // knowledge and must beat the embedded-C++ forward: the event expr is a lifted clangd region,
+  // and clangd's generic member list (or, headerless, its identifier fallback) would otherwise
+  // preempt the payload-first ordering (pre-existing smoke flake, fixed in ES-modules M6).
+  const offEarly = doc.offsetAt(params.position);
+  const beforeEarly = text.slice(Math.max(0, offEarly - 48), offEarly);
+  if (/\bValue\.[A-Za-z0-9_]*$/.test(beforeEarly)) {
+    const schemaEarly = schemaOf(doc);
+    const attr = enclosingAttrName(text, offEarly);
+    const want = fieldForKind(attr && schemaEarly.eventPayloads ? schemaEarly.eventPayloads[attr] : undefined);
+    const items: CompletionItem[] = [];
+    if (want) {
+      items.push({ label: want.field, kind: CompletionItemKind.Field, detail: `${want.type} — ${attr} payload`, sortText: "0" });
+    }
+    for (const f of PAYLOAD_FIELDS) {
+      if (want && f.field === want.field) continue;
+      items.push({ label: f.field, kind: CompletionItemKind.Field, detail: f.type, sortText: "1" + f.field });
+    }
+    return items;
+  }
+
+  // Embedded C++ (the TD-020 tail — hover/definition shipped before completion): inside a
   // setup/hook/module body, clangd's completions (locals, engine symbols, members) beat the
   // markup baseline. textEdit ranges come back in VIRTUAL coordinates and are translated;
   // null (not embedded / clangd absent / nothing to offer) falls through to the baseline paths.
@@ -344,23 +367,7 @@ connection.onCompletion(async (params): Promise<CompletionItem[] | CompletionLis
 
   const schema = schemaOf(doc);
 
-  // TD-016: typed event payload — `Value.<field>` inside an event handler expression completes the
-  // FRuiValue field, with the ENCLOSING event's field first (OnTextChanged → Value.TextValue).
-  const off = doc.offsetAt(params.position);
-  const before = text.slice(Math.max(0, off - 48), off);
-  if (/\bValue\.[A-Za-z0-9_]*$/.test(before)) {
-    const attr = enclosingAttrName(text, off);
-    const want = fieldForKind(attr && schema.eventPayloads ? schema.eventPayloads[attr] : undefined);
-    const items: CompletionItem[] = [];
-    if (want) {
-      items.push({ label: want.field, kind: CompletionItemKind.Field, detail: `${want.type} — ${attr} payload`, sortText: "0" });
-    }
-    for (const f of PAYLOAD_FIELDS) {
-      if (want && f.field === want.field) continue;
-      items.push({ label: f.field, kind: CompletionItemKind.Field, detail: f.type, sortText: "1" + f.field });
-    }
-    return items;
-  }
+  // (TD-016 `Value.` payload completion runs FIRST, before the embedded-C++ forward — see top.)
 
   const cp = utf16ToCodePoint(text, doc.offsetAt(params.position));
   const ctx = classifyCursor(text, cp);
@@ -382,14 +389,25 @@ connection.onCompletion(async (params): Promise<CompletionItem[] | CompletionLis
     };
     for (const c of scan.components) addComp(c.name, "component (this file)");
     for (const imp of scan.imports) {
-      if (imp.hostInclude) continue; // no names to offer as tags (INCLUDE_RETIREMENT_PLAN.md §B)
+      if (imp.hostInclude || imp.isNamespace) continue; // no tag names to offer (a `X::` qual is not a tag)
       const key = resolveSpecifier(fsPath, imp.specifier);
       const decls = key ? getDecls(key) : null;
-      for (const nm of imp.names) {
-        // A resolved import: offer it only when it is (or is presumed) a component; a known hook/
-        // module is not a tag. Unresolved (decls null) → offer it, the author knows their intent.
+      // ES-modules (U-08): a default import's LOCAL alias is renderable when the target's default
+      // symbol is (or is presumed) a component.
+      if (imp.isDefault) {
+        const def = key ? defaultExportOf(key) : "";
+        const d = def ? decls?.find((x) => x.name === def) : undefined;
+        if (!d || d.kind === "component") addComp(imp.defaultAlias, "component (default import)");
+        continue;
+      }
+      for (let n = 0; n < imp.names.length; n++) {
+        const nm = imp.names[n];
+        const local = imp.localNames[n] ?? nm;
+        // A resolved import: offer it only when the TARGET is (or is presumed) a component; the
+        // author renders the LOCAL alias (`<Badge/>` for `{ Chip as Badge }`). Unresolved (decls
+        // null) → offer it, the author knows their intent.
         const d = decls?.find((x) => x.name === nm);
-        if (!d || d.kind === "component") addComp(nm, "component (imported)");
+        if (!d || d.kind === "component") addComp(local, local === nm ? "component (imported)" : `component (imported as ${nm})`);
       }
     }
     return items;
@@ -647,6 +665,23 @@ function markupDefinition(doc: TextDocument, params: { position: { line: number;
         return d ? locAtDecl(key, d.nameAt, d.name.length) : null;
       }
     }
+    // ES-modules (G-05): the `* as X` / default aliases jump to their target — the namespace
+    // alias opens the file; a default alias jumps to the target's default-export declaration.
+    if (impDecl.isNamespace && cpOff >= impDecl.namespaceAliasAt && cpOff <= impDecl.namespaceAliasAt + impDecl.namespaceAlias.length) {
+      const key = resolveSpecifier(fsPath, impDecl.specifier);
+      if (!key) return null;
+      const zero = { line: 0, character: 0 };
+      return { uri: URI.fromFsPath(key), range: { start: zero, end: zero } };
+    }
+    if (impDecl.isDefault && cpOff >= impDecl.defaultAliasAt && cpOff <= impDecl.defaultAliasAt + impDecl.defaultAlias.length) {
+      const key = resolveSpecifier(fsPath, impDecl.specifier);
+      if (!key) return null;
+      const def = defaultExportOf(key);
+      const d = def ? (getDecls(key) ?? []).find((x) => x.name === def) : undefined;
+      if (d) return locAtDecl(key, d.nameAt, d.name.length);
+      const zero = { line: 0, character: 0 };
+      return { uri: URI.fromFsPath(key), range: { start: zero, end: zero } };
+    }
     const sq = impDecl.specifierAt; // opening quote; specifier text runs (sq, sq+len]
     if (cpOff > sq && cpOff <= sq + impDecl.specifier.length + 1) {
       const key = resolveSpecifier(fsPath, impDecl.specifier);
@@ -665,10 +700,41 @@ function markupDefinition(doc: TextDocument, params: { position: { line: number;
   while (end < srcCp.length && isIdent(srcCp[end])) end++;
   if (end <= start) return null;
   const word = String.fromCodePoint(...srcCp.slice(start, end));
-  // same-file decl first
+  // same-file decl first (ES-modules: values/utils join the set)
   for (const c of scan.components) if (c.name === word) return locAtDecl(fsPath, c.nameAt, word.length);
   for (const h of scan.hooks) if (h.name === word) return locAtDecl(fsPath, h.nameAt, word.length);
   for (const m of scan.modules) if (m.name === word) return locAtDecl(fsPath, m.nameAt, word.length);
+  for (const v of scan.values) if (v.name === word) return locAtDecl(fsPath, v.nameAt, word.length);
+  for (const u of scan.utils) if (u.name === word) return locAtDecl(fsPath, u.nameAt, word.length);
+  // ES-modules (G-05): a LOCAL alias resolves THROUGH the import — `<Badge/>` (Chip as Badge),
+  // a default alias, or `X` of `* as X` all land on their target, not a same-named exporter.
+  for (const impDecl of scan.imports) {
+    if (impDecl.hostInclude) continue;
+    if (impDecl.isNamespace && impDecl.namespaceAlias === word) {
+      const key = resolveSpecifier(fsPath, impDecl.specifier);
+      if (!key) return null;
+      const zero = { line: 0, character: 0 };
+      return { uri: URI.fromFsPath(key), range: { start: zero, end: zero } };
+    }
+    if (impDecl.isDefault && impDecl.defaultAlias === word) {
+      const key = resolveSpecifier(fsPath, impDecl.specifier);
+      if (!key) return null;
+      const def = defaultExportOf(key);
+      const d = def ? (getDecls(key) ?? []).find((x) => x.name === def) : undefined;
+      if (d) return locAtDecl(key, d.nameAt, d.name.length);
+      const zero = { line: 0, character: 0 };
+      return { uri: URI.fromFsPath(key), range: { start: zero, end: zero } };
+    }
+    for (let n = 0; n < impDecl.names.length; n++) {
+      const local = impDecl.localNames[n] ?? impDecl.names[n];
+      if (local === word) {
+        const key = resolveSpecifier(fsPath, impDecl.specifier);
+        if (!key) return null;
+        const d = (getDecls(key) ?? []).find((x) => x.name === impDecl.names[n]);
+        return d ? locAtDecl(key, d.nameAt, d.name.length) : null;
+      }
+    }
+  }
   const hit = findExporter(word, fsPath);
   return hit ? locAtDecl(hit.file, hit.nameAt, word.length) : null;
 }

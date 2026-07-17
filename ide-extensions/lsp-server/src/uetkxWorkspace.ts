@@ -31,6 +31,7 @@ export interface ResolveDiag {
 interface CacheEntry {
   mtimeMs: number;
   decls: ExportedDecl[];
+  defaultExportName: string; // ES-modules (U-08): `export default <Name>` target ("" = none)
 }
 const scanCache = new Map<string, CacheEntry>();
 
@@ -38,9 +39,7 @@ function normAbs(p: string): string {
   return path.resolve(p).replace(/\\/g, "/");
 }
 
-/** All top-level declarations of a .uetkx file (name -> kind/exported/nameAt), mtime-cached.
- *  Returns null when the file is unreadable. */
-export function getDecls(fsPath: string): ExportedDecl[] | null {
+function cachedScan(fsPath: string): CacheEntry | null {
   const key = normAbs(fsPath);
   let mtimeMs: number;
   try {
@@ -49,7 +48,7 @@ export function getDecls(fsPath: string): ExportedDecl[] | null {
     return null;
   }
   const hit = scanCache.get(key);
-  if (hit && hit.mtimeMs === mtimeMs) return hit.decls;
+  if (hit && hit.mtimeMs === mtimeMs) return hit;
   let source: string;
   try {
     source = fs.readFileSync(key, "utf8");
@@ -63,8 +62,24 @@ export function getDecls(fsPath: string): ExportedDecl[] | null {
   for (const c of scan.components) decls.push({ name: c.name, kind: "component", exported: c.exported, nameAt: c.nameAt });
   for (const h of scan.hooks) decls.push({ name: h.name, kind: "hook", exported: h.exported, nameAt: h.nameAt });
   for (const m of scan.modules) decls.push({ name: m.name, kind: "module", exported: m.exported, nameAt: m.nameAt });
-  scanCache.set(key, { mtimeMs, decls });
-  return decls;
+  // ES-modules (M6): value/util decls join the export index (completions / go-to-def / fix-its).
+  for (const v of scan.values) decls.push({ name: v.name, kind: "value", exported: v.exported, nameAt: v.nameAt });
+  for (const u of scan.utils) decls.push({ name: u.name, kind: "util", exported: u.exported, nameAt: u.nameAt });
+  const entry: CacheEntry = { mtimeMs, decls, defaultExportName: scan.defaultExportName };
+  scanCache.set(key, entry);
+  return entry;
+}
+
+/** All top-level declarations of a .uetkx file (name -> kind/exported/nameAt), mtime-cached.
+ *  Returns null when the file is unreadable. */
+export function getDecls(fsPath: string): ExportedDecl[] | null {
+  return cachedScan(fsPath)?.decls ?? null;
+}
+
+/** ES-modules (U-08): the file's `export default <Name>` target ("" = none / unreadable) —
+ *  mirrors IUetkxImportResolver::DefaultExportOf. */
+export function defaultExportOf(fsPath: string): string {
+  return cachedScan(fsPath)?.defaultExportName ?? "";
 }
 
 // ── module + workspace roots ─────────────────────────────────────────────────────────────────
@@ -177,6 +192,14 @@ export interface ImportedSurface {
   /** Component names — their generated wrappers are fully-defaulted (`FRuiNode Name();` is a
    *  valid call shape), and CODE references them (router tables: `RouterHome()`). */
   components: string[];
+  /** ES-modules (M6): value exports — emitted as `inline const <T> Name = <Init>;` (typed) or
+   *  `= <Init>` under auto (inferred) so clangd types bare references correctly. */
+  values: Array<{ name: string; type: string; init: string }>;
+  /** ES-modules (M6): util functions — declaration-only, like hooks minus Ctx. */
+  utils: Array<{ name: string; retType: string; params: string }>;
+  /** ES-modules (U-08): the exporter's `export default` target ("" = none) — a default import
+   *  binds this symbol. */
+  defaultExportName: string;
 }
 
 const surfaceCache = new Map<string, { mtimeMs: number; surface: ImportedSurface }>();
@@ -206,6 +229,9 @@ export function importedSurfaceFor(importerFsPath: string, specifier: string): I
     hooks: scan.hooks.map((h) => ({ name: h.name, ret: h.ret, params: h.params })),
     modules: scan.modules.map((m) => ({ name: m.name, body: m.body })),
     components: scan.components.map((c) => c.name),
+    values: scan.values.map((v) => ({ name: v.name, type: v.type, init: v.init })),
+    utils: scan.utils.map((u) => ({ name: u.name, retType: u.retType, params: u.params })),
+    defaultExportName: scan.defaultExportName,
   };
   surfaceCache.set(key, { mtimeMs, surface });
   return surface;
@@ -348,8 +374,28 @@ export function resolveDiagnostics(scan: UetkxFileScanResult, importerFsPath: st
       });
       continue;
     }
+    // ES-modules (G-05): a namespace import validates its MEMBERS at use sites (the compiler's
+    // sidecar carries those — they need the code walk); nothing to name-check at the import line.
+    if (imp.isNamespace) {
+      continue;
+    }
+    // ES-modules (U-08): a default import needs the target to HAVE a default export — live 2326.
+    if (imp.isDefault) {
+      if (!defaultExportOf(key)) {
+        diags.push({
+          code: "UETKX2326",
+          severity: 0,
+          message: `${label} has no default export — use a named import: import { ... } from "${imp.specifier}"`,
+          off: imp.defaultAliasAt,
+          len: Math.max(1, imp.defaultAlias.length),
+        });
+      }
+      continue;
+    }
     const decls = getDecls(key) ?? [];
     const byName = new Map(decls.map((d) => [d.name, d]));
+    // Rename imports (`{ A as B }`) validate the TARGET name A — the local alias is the
+    // importer's business (2325 is the scanner's, collisions-wise).
     for (let n = 0; n < imp.names.length; n++) {
       const name = imp.names[n];
       const nameAt = imp.nameAts[n];

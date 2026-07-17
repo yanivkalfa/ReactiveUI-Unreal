@@ -2124,6 +2124,9 @@ export function scanFile(source: string, basename: string, resyncOnBodyError = f
     const allDecls = (): AnyDecl[] => [...out.components, ...out.hooks, ...out.modules, ...out.values, ...out.utils];
     const findDecl = (name: string): AnyDecl | undefined => allDecls().find((d) => d.name === name);
 
+    // exportAt stays -1 for a LIST-exported decl (U-09) — `exported && exportAt < 0` is how the
+    // formatter's form-preservation distinguishes "exported via `export { … };`" from an inline
+    // `export` prefix (C++-identical — MarkExported).
     for (const e of pendingExportList) {
       const decl = findDecl(e.name);
       if (!decl) {
@@ -2142,7 +2145,6 @@ export function scanFile(source: string, basename: string, resyncOnBodyError = f
         continue;
       }
       decl.exported = true;
-      if (decl.exportAt < 0) decl.exportAt = e.at;
     }
 
     if (out.defaultExportName) {
