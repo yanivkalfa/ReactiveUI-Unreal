@@ -58,6 +58,24 @@ import {
 const connection = createConnection(ProposedFeatures.all);
 const documents = new TextDocuments(TextDocument);
 
+// ── §1 crash-hardening: the server must NEVER die silently ─────────────────────────────────
+// The jsonrpc layer guards request/notification handlers, but OUR event-emitter callbacks and
+// floating promises are outside it — in Node, one uncaught exception or unhandled rejection
+// kills the process and every feature goes dark with zero feedback (the owner's
+// zero-diagnostics session). Last-resort traps: log to the client's output channel, keep
+// serving. Individual boundaries (clangd pump, syncEmbeddedDoc) carry their own guards so
+// these traps are telemetry of a bug, not load-bearing control flow.
+function logServerError(context: string, error: unknown): void {
+  const detail = error instanceof Error ? (error.stack ?? error.message) : String(error);
+  try {
+    connection.console.error(`[uetkx-server] ${context}: ${detail}`);
+  } catch {
+    /* the connection itself is gone — nothing left to tell */
+  }
+}
+process.on("uncaughtException", (e) => logServerError("uncaughtException", e));
+process.on("unhandledRejection", (e) => logServerError("unhandledRejection", e));
+
 // ── embedded-C++ intelligence: one clangd proxy per server, started lazily on the first request
 //    that lands inside a setup/hook/module body. start() is idempotent and resolves false when
 //    clangd is absent — every embedded path then returns null and falls back to the markup baseline
@@ -85,6 +103,7 @@ async function embeddedProxy(doc: TextDocument): Promise<ClangdProxy | null> {
     const root = workspaceRootFor(fsPathOf(doc)) ?? path.dirname(fsPathOf(doc));
     clangd = new ClangdProxy(found, root);
     clangd.onPublishDiagnostics = (params) => publishEmbeddedDiagnostics(params);
+    clangd.onError = (context, error) => logServerError(context, error);
   }
   await clangd.start();
   return clangd.isAvailable() ? clangd : null;
@@ -225,10 +244,18 @@ function validate(doc: TextDocument): void {
   }
   markupDiagsByUri.set(doc.uri, diags);
   publishMerged(doc.uri);
-  void syncEmbeddedDoc(doc); // async clangd pass republishes merged when its diagnostics arrive
+  // Async clangd pass republishes merged when its diagnostics arrive. The catch is
+  // load-bearing (§1): a floating rejection is a PROCESS KILL in Node.
+  syncEmbeddedDoc(doc).catch((e) => logServerError("syncEmbeddedDoc", e));
 }
 
-documents.onDidChangeContent((change) => validate(change.document));
+documents.onDidChangeContent((change) => {
+  try {
+    validate(change.document);
+  } catch (e) {
+    logServerError("validate", e); // markup diagnostics silently missing = this bug class
+  }
+});
 documents.onDidClose((e) => {
   markupDiagsByUri.delete(e.document.uri);
   embeddedDiagsByUri.delete(e.document.uri);

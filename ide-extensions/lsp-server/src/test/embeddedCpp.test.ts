@@ -159,6 +159,20 @@ test("findCompileCommands picks up UBT's .vscode generator output, project file 
   fs.rmSync(root, { recursive: true, force: true });
 });
 
+test("clangd pump guard: a throwing diagnostics consumer surfaces via onError, never escapes (§1)", () => {
+  const proxy = new ClangdProxy("unused");
+  const errors: string[] = [];
+  proxy.onError = (context) => errors.push(context);
+  proxy.onPublishDiagnostics = () => {
+    throw new Error("consumer bug");
+  };
+  const frame = JSON.stringify({ jsonrpc: "2.0", method: "textDocument/publishDiagnostics", params: { uri: "x", diagnostics: [] } });
+  const chunk = Buffer.from(`Content-Length: ${Buffer.byteLength(frame)}\r\n\r\n${frame}`);
+  // Reach the private pump the way the process would: via the data path.
+  (proxy as unknown as { onData(c: Buffer): void }).onData(chunk);
+  assert.deepStrictEqual(errors, ["clangd message pump"], "the throw was contained and reported");
+});
+
 test("clangd proxy degrades gracefully when clangd is absent", async () => {
   const proxy = new ClangdProxy("definitely-not-a-real-clangd-binary-xyz");
   const started = await proxy.start();

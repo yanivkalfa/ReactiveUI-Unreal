@@ -171,6 +171,11 @@ export class ClangdProxy {
    *  the server maps them back through the source map before publishing). */
   onPublishDiagnostics: ((params: ClangdPublishedDiagnostics) => void) | null = null;
 
+  /** §1 crash-hardening: errors thrown INSIDE the stdout pump (incl. the publish callback)
+   *  surface here instead of dying as an uncaughtException — the message pump is an
+   *  EventEmitter context, OUTSIDE the jsonrpc layer's handler guards. */
+  onError: ((context: string, error: unknown) => void) | null = null;
+
   constructor(
     private readonly clangdPath = "clangd",
     private readonly rootPath = process.cwd(),
@@ -310,15 +315,21 @@ export class ClangdProxy {
     const { messages, rest } = drainMessages(this.buffer);
     this.buffer = rest;
     for (const msg of messages) {
-      const m = msg as { id?: number; result?: unknown; method?: string; params?: unknown };
-      if (typeof m.id === "number" && this.pending.has(m.id)) {
-        const resolve = this.pending.get(m.id)!;
-        this.pending.delete(m.id);
-        resolve(m.result ?? null);
-        continue;
-      }
-      if (m.method === "textDocument/publishDiagnostics" && this.onPublishDiagnostics && m.params) {
-        this.onPublishDiagnostics(m.params as ClangdPublishedDiagnostics);
+      // Per-message guard (§1): one bad frame or a throwing consumer must never kill the
+      // pump — and DEFINITELY not the server process (an exception here is fatal in Node).
+      try {
+        const m = msg as { id?: number; result?: unknown; method?: string; params?: unknown };
+        if (typeof m.id === "number" && this.pending.has(m.id)) {
+          const resolve = this.pending.get(m.id)!;
+          this.pending.delete(m.id);
+          resolve(m.result ?? null);
+          continue;
+        }
+        if (m.method === "textDocument/publishDiagnostics" && this.onPublishDiagnostics && m.params) {
+          this.onPublishDiagnostics(m.params as ClangdPublishedDiagnostics);
+        }
+      } catch (e) {
+        this.onError?.("clangd message pump", e);
       }
     }
   }
