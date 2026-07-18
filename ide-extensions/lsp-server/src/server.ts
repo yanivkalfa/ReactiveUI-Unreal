@@ -16,6 +16,7 @@ import {
   InsertTextFormat,
   DiagnosticSeverity,
   DiagnosticTag,
+  SemanticTokensBuilder,
   SymbolKind,
   type CodeAction,
   type CompletionItem,
@@ -41,6 +42,7 @@ import { readSidecarDiags } from "./diagsSidecar";
 import { formatUetkx, UetkxFormatOptions, DEFAULT_FORMAT_OPTIONS } from "./formatUetkx";
 import { scanFile } from "./uetkxFileScan";
 import { declStartCpOf, firstDeclStartCp, unusedImportRemoval, wrapperRewriteAt } from "./uetkxActions";
+import { importBindingTokens, SEMANTIC_TOKEN_TYPES } from "./semanticTokens";
 import { loadFormatterConfig, schemaForFile, UetkxSchema } from "./uetkxSchema";
 import {
   defaultExportOf,
@@ -141,8 +143,31 @@ connection.onInitialize((params: InitializeParams) => {
       documentSymbolProvider: true,
       workspaceSymbolProvider: true,
       codeActionProvider: { codeActionKinds: [CodeActionKind.QuickFix] },
+      // Kind-accurate coloring of imported binding names (Unity 0.9.1 field-find parity):
+      // the tokens are import-line-only; everything else stays with the TextMate grammar.
+      semanticTokensProvider: {
+        legend: { tokenTypes: [...SEMANTIC_TOKEN_TYPES], tokenModifiers: [] },
+        full: true,
+        range: false,
+      },
     },
   };
+});
+
+// ── semantic tokens: imported bindings colored by the KIND of the export they bind ─────────
+
+connection.languages.semanticTokens.on((params) => {
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc) return { data: [] };
+  const text = doc.getText();
+  const fsPath = fsPathOf(doc);
+  const scan = scanFile(text, path.basename(fsPath, ".uetkx"), true);
+  const builder = new SemanticTokensBuilder();
+  for (const t of importBindingTokens(scan, fsPath)) {
+    const pos = doc.positionAt(codePointToUtf16(text, t.cpStart));
+    builder.push(pos.line, pos.character, t.length, t.type, 0);
+  }
+  return builder.build();
 });
 
 /** The live-document overlay (TD-033 N-04): index queries for OPEN documents must read the
@@ -415,11 +440,25 @@ connection.onCompletion(async (params): Promise<CompletionItem[] | CompletionLis
     // typed/resolvable, every exported name in the workspace so the author can pick then fix up).
     const key = imp.specifier ? resolveSpecifier(fsPath, imp.specifier) : null;
     const seen = new Set<string>();
+    // Never re-suggest a binding the statement already carries (Unity 0.9.1 field find): the
+    // names/aliases already listed in the braces (minus the token being typed), and — for the
+    // COMBINED form — the default alias plus the member the default already binds.
+    for (const listed of imp.listed) if (listed !== imp.partial) seen.add(listed);
+    if (imp.defaultAlias) {
+      seen.add(imp.defaultAlias);
+      const def = key ? defaultExportOf(key) : "";
+      if (def) seen.add(def);
+    }
     const items: CompletionItem[] = [];
     const add = (name: string, kind: string) => {
       if (seen.has(name)) return;
       seen.add(name);
-      items.push({ label: name, kind: kind === "hook" ? CompletionItemKind.Function : kind === "module" ? CompletionItemKind.Module : CompletionItemKind.Class, detail: kind });
+      const itemKind =
+        kind === "hook" || kind === "util" ? CompletionItemKind.Function
+        : kind === "module" ? CompletionItemKind.Module
+        : kind === "value" ? CompletionItemKind.Variable
+        : CompletionItemKind.Class;
+      items.push({ label: name, kind: itemKind, detail: kind });
     };
     if (key) {
       for (const d of getDecls(key) ?? []) if (d.exported) add(d.name, d.kind);
@@ -456,7 +495,10 @@ connection.onCompletion(async (params): Promise<CompletionItem[] | CompletionLis
     };
     for (const c of scan.components) addComp(c.name, "component (this file)");
     for (const imp of scan.imports) {
-      if (imp.hostInclude || imp.isNamespace) continue; // no tag names to offer (a `X::` qual is not a tag)
+      // A namespace part offers no tag names (a `X::` qual is not a tag), but an ES COMBINED
+      // import (`import Def, { A } from` / `import Def, * as X from`) still offers its
+      // default/named parts — never skip the whole declaration on one part's shape.
+      if (imp.hostInclude) continue;
       const key = resolveSpecifier(fsPath, imp.specifier);
       const decls = key ? getDecls(key) : null;
       // ES-modules (U-08): a default import's LOCAL alias is renderable when the target's default
@@ -465,7 +507,6 @@ connection.onCompletion(async (params): Promise<CompletionItem[] | CompletionLis
         const def = key ? defaultExportOf(key) : "";
         const d = def ? decls?.find((x) => x.name === def) : undefined;
         if (!d || d.kind === "component") addComp(imp.defaultAlias, "component (default import)");
-        continue;
       }
       for (let n = 0; n < imp.names.length; n++) {
         const nm = imp.names[n];
@@ -1065,9 +1106,10 @@ connection.onCodeAction((params): CodeAction[] => {
       if (!m) continue;
       const [, name, spec] = m;
       const scan = scanFile(text, path.basename(fsPath, ".uetkx"), true);
-      // Merge into an existing same-spec named import when one exists; else a new line above
-      // the first declaration (the canonical preamble position).
-      const existing = scan.imports.find((imp) => !imp.hostInclude && !imp.isNamespace && !imp.isDefault && imp.specifier === spec);
+      // Merge into an existing same-spec import that carries a name list (a COMBINED
+      // declaration's braces qualify too) when one exists; else a new line above the first
+      // declaration (the canonical preamble position).
+      const existing = scan.imports.find((imp) => !imp.hostInclude && imp.names.length > 0 && imp.specifier === spec);
       let edit: TextEdit;
       if (existing && existing.names.length > 0) {
         const lastAt = existing.nameAts[existing.nameAts.length - 1];

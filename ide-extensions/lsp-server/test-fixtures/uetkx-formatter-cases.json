@@ -190,6 +190,21 @@
       "name": "S5/es-modules: export list BETWEEN declarations preserved in place",
       "input": "FRuiNode Alpha() {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n\nexport { Alpha };\n\nexport FRuiNode Beta() {\n\treturn (\n\t\t<Border />\n\t);\n}\n",
       "expect": "FRuiNode Alpha() {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n\nexport { Alpha };\n\nexport FRuiNode Beta() {\n\treturn (\n\t\t<Border />\n\t);\n}\n"
+    },
+    {
+      "name": "ES combined: default + named import head is canonical (both parts survive the reprint)",
+      "input": "import Chip, { StatusChip, Cool as Warm } from \"./StatusChip\"\n\nexport FRuiNode User() {\n\treturn (\n\t\t<StatusChip />\n\t);\n}\n",
+      "expect": "import Chip, { StatusChip, Cool as Warm } from \"./StatusChip\"\n\nexport FRuiNode User() {\n\treturn (\n\t\t<StatusChip />\n\t);\n}\n"
+    },
+    {
+      "name": "ES combined: default + star import head is canonical (both parts survive the reprint)",
+      "input": "import Chip, * as Palette from \"./Palette\"\n\nexport FRuiNode User() {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n",
+      "expect": "import Chip, * as Palette from \"./Palette\"\n\nexport FRuiNode User() {\n\treturn (\n\t\t<Spacer />\n\t);\n}\n"
+    },
+    {
+      "name": "ES combined: loose spacing in a combined head canonicalizes without dropping a part",
+      "input": "import  Chip ,  { StatusChip }   from \"./StatusChip\"\n\nexport FRuiNode User() {\n\treturn (\n\t\t<StatusChip />\n\t);\n}\n",
+      "expect": "import Chip, { StatusChip } from \"./StatusChip\"\n\nexport FRuiNode User() {\n\treturn (\n\t\t<StatusChip />\n\t);\n}\n"
     }
   ]
 }

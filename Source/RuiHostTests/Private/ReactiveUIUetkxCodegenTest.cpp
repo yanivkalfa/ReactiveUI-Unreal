@@ -362,6 +362,26 @@ component CardStack(Names: TArray<FString>) {
 					 Priv.ExportedNames.Num() == 1 && Priv.ExportedNames[0] == TEXT("Panel2"));
 		}
 
+		// ES parity (family 0.9.1 field wave): a DEFAULT-exported declaration is PUBLIC — a
+		// default importer binds the bare symbol (same-name) or rewrites to it (renamed), so
+		// it must emit at file scope, not inside the detail namespace, and it joins the 2106
+		// global-name ledger. It stays name-import-private (the resolver's export table never
+		// marks it — `import { FmtD }` still 2301s; pinned in the Resolve suite).
+		const FUetkxCompileOutput DefPriv = FUetkxCodegen::CompileSource(
+			TEXT("FString FmtD(int32 S) {\n\treturn FString::FromInt(S);\n}\n")
+				TEXT("export FRuiNode Panel3() {\n\tauto S = FmtD(1);\n\treturn ( <Spacer /> );\n}\n")
+					TEXT("export default FmtD;\n"),
+			TEXT("Panel3"));
+		if (TestTrue(TEXT("default-exported private util compiles"), DefPriv.bOk))
+		{
+			TestTrue(TEXT("default-exported util emits at file scope"),
+					 DefPriv.Inl.Contains(TEXT("inline FString FmtD(int32 S);")));
+			TestFalse(TEXT("default-exported util is NOT detail-wrapped"),
+					  DefPriv.Inl.Contains(TEXT("namespace RuiPriv_Panel3")));
+			TestFalse(TEXT("same-file references stay bare"), DefPriv.Inl.Contains(TEXT("RuiPriv_Panel3::FmtD")));
+			TestTrue(TEXT("default name joins the 2106 ledger"), DefPriv.ExportedNames.Contains(TEXT("FmtD")));
+		}
+
 		// New-form component + hook feed the EXISTING emitters (props struct + registrations).
 		const FUetkxCompileOutput NewForm = FUetkxCodegen::CompileSource(
 			TEXT("export int32 UseTick(int32 Start) {\n\treturn Start;\n}\n")
@@ -401,6 +421,23 @@ component CardStack(Names: TArray<FString>) {
 			TestTrue(TEXT("namespace qual strips"), Alias.Inl.Contains(TEXT("auto C = Accent;")));
 			TestTrue(TEXT("Uses records the TARGET component"), Alias.Uses.Contains(TEXT("StatusChip")));
 			TestFalse(TEXT("Uses does not record the alias"), Alias.Uses.Contains(TEXT("Chip")));
+		}
+
+		// ES COMBINED forms at the alias plane: ONE declaration carrying default + named/star —
+		// the named renames and the namespace strip must all land even though the declaration
+		// also carries a default binding (exclusive branching dropped them; Unity 0.9.1 parity).
+		const FUetkxCompileOutput Combined = FUetkxCodegen::CompileSource(
+			TEXT("import Def, { Cool as Primary } from \"./Palette2\"\n")
+				TEXT("import Def2, * as Palette from \"./Palette2\"\n") TEXT("export FRuiNode CombinedUser() {\n")
+					TEXT("\tauto B = Primary;\n\tauto C = Palette::Accent;\n\tauto D = Def2(1);\n")
+						TEXT("\treturn ( <Def /> );\n}\n"),
+			TEXT("CombinedUser"));
+		if (TestTrue(TEXT("combined alias sample compiles"), Combined.bOk))
+		{
+			TestTrue(TEXT("combined named rename rewrites beside the default"),
+					 Combined.Inl.Contains(TEXT("auto B = Cool;")));
+			TestTrue(TEXT("combined namespace qual strips beside the default"),
+					 Combined.Inl.Contains(TEXT("auto C = Accent;")));
 		}
 
 		// IMPORT-3 regression at the ALIAS plane (M7 bughunt): a ternary's SECOND arm sits after a

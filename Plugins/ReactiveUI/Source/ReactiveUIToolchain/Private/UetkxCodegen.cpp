@@ -1885,6 +1885,30 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 	}
 	Inl += TEXT("\n");
 
+	// ES parity (family 0.9.1 field wave): a DEFAULT-exported declaration is PUBLIC — a default
+	// importer binds the bare symbol (same-name) or rewrites to it (renamed), so it must emit at
+	// file scope and join the 2106 global-name ledger (ExportedNames below), never the detail
+	// namespace it would be unreachable in. It stays NAME-IMPORT-private: the resolver's export
+	// table is a separate preamble scan that never marks it, so `import { X }` still 2301s.
+	if (!Scan.DefaultExportName.IsEmpty())
+	{
+		auto MarkPublic = [&Scan](auto& Decls)
+		{
+			for (auto& D : Decls)
+			{
+				if (D.Name == Scan.DefaultExportName)
+				{
+					D.bExported = true;
+				}
+			}
+		};
+		MarkPublic(Scan.Components);
+		MarkPublic(Scan.Hooks);
+		MarkPublic(Scan.Modules);
+		MarkPublic(Scan.Values);
+		MarkPublic(Scan.Utils);
+	}
+
 	// Same-file PRIVATE decls (A5e) get a detail-namespace prefix so their same-file references
 	// reach into the wrapper: name -> `RuiPriv_<Basename>::`. Exported decls stay at file scope.
 	const FString PrivNs = PrivNamespaceFor(Basename);
@@ -1937,10 +1961,12 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 		{
 			continue;
 		}
+		// No exclusive branching — an ES COMBINED import (`import Def, { A as B } from` /
+		// `import Def, * as X from`) carries default + named/star parts in one declaration and
+		// EVERY part must land in the alias plane.
 		if (Imp.bNamespace)
 		{
 			Aliases.NamespaceStrip.Add(Imp.NamespaceAlias);
-			continue;
 		}
 		if (Imp.bDefault)
 		{
@@ -1958,7 +1984,6 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 					Aliases.Rename.Add(Imp.DefaultAlias, DefName);
 				}
 			}
-			continue;
 		}
 		for (int32 n = 0; n < Imp.Names.Num(); ++n)
 		{

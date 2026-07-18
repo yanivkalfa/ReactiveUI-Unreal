@@ -171,6 +171,9 @@ function buildPrefix(scan: ReturnType<typeof scanFile>, source: string, resolveI
       if (imp.hostInclude) continue;
       const surface = resolveImport(imp.specifier);
       if (!surface) continue; // unresolved — the server's suppression fallback covers it
+      // No exclusive branching below — an ES COMBINED import (`import Def, { a } from` /
+      // `import Def, * as X from`) carries default + named/star parts in one declaration and
+      // EVERY part must declare its surface.
       // ES-modules (G-05): `* as X` — everything exported becomes reachable as `X::Member`;
       // emit the surface inside `namespace X` so clangd types the quals.
       if (imp.isNamespace) {
@@ -189,7 +192,6 @@ function buildPrefix(scan: ReturnType<typeof scanFile>, source: string, resolveI
           lines.push(`FRuiNode ${c}();`);
         }
         lines.push(`}`);
-        continue;
       }
       // ES-modules (U-08): a default import binds the target's default symbol under the LOCAL
       // alias name — declare the alias with the default symbol's shape.
@@ -210,7 +212,6 @@ function buildPrefix(scan: ReturnType<typeof scanFile>, source: string, resolveI
             lines.push(`FRuiNode ${imp.defaultAlias}();`); // component default (the common case)
           }
         }
-        continue;
       }
       if (imp.names.length === 0) continue;
       // Rename-aware (`{ A as B }`): the surface is looked up by TARGET name, declared under the

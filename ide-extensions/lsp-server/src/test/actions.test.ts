@@ -102,3 +102,31 @@ test("unused-import removal: a tab after the comma is cleaned up too (audit)", (
   const span = unusedImportRemoval(scan, src, src.indexOf("A,"));
   assert.strictEqual(cpSlice(src, span!.start, span!.end), "A,\t", "binding + comma + the tab");
 });
+
+test("unused-import removal: ES COMBINED parts remove alone — never the still-used siblings", () => {
+  // default part of `Def, { a }` removes `Def, ` (the braces stay for the used named binding)
+  const defNamed = 'import Chip, { StatusChip } from "./X"\nexport FRuiNode T() {\n\treturn ( <StatusChip /> );\n}\n';
+  const scan1 = scanFile(defNamed, "T", true);
+  const span1 = unusedImportRemoval(scan1, defNamed, defNamed.indexOf("Chip,"));
+  assert.strictEqual(cpSlice(defNamed, span1!.start, span1!.end), "Chip, ", "default binding + comma only");
+
+  // sole named binding of a combined line removes `, { StatusChip }` (the default stays)
+  const span2 = unusedImportRemoval(scan1, defNamed, defNamed.indexOf("StatusChip }"));
+  assert.strictEqual(cpSlice(defNamed, span2!.start, span2!.end), ", { StatusChip }", "brace group + its comma only");
+
+  // star part of `Def, * as P` removes `, * as P` (the default stays)
+  const defStar = 'import Chip, * as P from "./X"\nexport FRuiNode T() {\n\treturn ( <Chip /> );\n}\n';
+  const scan3 = scanFile(defStar, "T", true);
+  const span3 = unusedImportRemoval(scan3, defStar, defStar.indexOf("P from"));
+  assert.strictEqual(cpSlice(defStar, span3!.start, span3!.end), ", * as P", "star part + its comma only");
+
+  // default part of `Def, * as P` removes `Chip, ` (the star stays)
+  const span4 = unusedImportRemoval(scan3, defStar, defStar.indexOf("Chip,"));
+  assert.strictEqual(cpSlice(defStar, span4!.start, span4!.end), "Chip, ", "default binding + comma only");
+
+  // a middle binding inside combined braces still removes just itself
+  const defMany = 'import Chip, { A, B, C } from "./X"\nexport FRuiNode T() {\n\treturn ( <A /> );\n}\n';
+  const scan5 = scanFile(defMany, "T", true);
+  const span5 = unusedImportRemoval(scan5, defMany, defMany.indexOf("B,"));
+  assert.strictEqual(cpSlice(defMany, span5!.start, span5!.end), "B, ", "binding + its trailing comma");
+});

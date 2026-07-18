@@ -71,7 +71,9 @@ struct REACTIVEUIINTERP_API FUetkxImportDecl
 	bool bHostInclude = false; // `import "@Header.h"` — see the class comment
 	// ES-modules (G-05): `import * as X from "./x"` — Names/LocalNames stay EMPTY; NamespaceAlias
 	// is the local binding "X". `import Y from "./x"` (default) — DefaultAlias is the local binding
-	// "Y". A single import statement is exactly one of: named/renamed list, namespace, or default.
+	// "Y". The ES COMBINED forms (`import Def, { A, B } from` / `import Def, * as X from`) are ONE
+	// declaration carrying the default binding PLUS the named/star surface — consumers must treat
+	// the parts as independent, never mutually exclusive.
 	bool bNamespace = false;
 	FString NamespaceAlias;
 	int32 NamespaceAliasAt = -1;

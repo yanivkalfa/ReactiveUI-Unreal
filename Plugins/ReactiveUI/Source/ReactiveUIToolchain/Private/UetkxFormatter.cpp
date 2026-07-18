@@ -996,26 +996,34 @@ FUetkxFormatResult FUetkxFormatter::Format(const FString& Source, const FUetkxFo
 					Block += FString::Printf(TEXT("import \"@%s\"\n"), *Imp.Specifier);
 					continue;
 				}
-				// ES-modules (G-05): the three new import heads keep their own canonical spellings.
-				if (Imp.bNamespace)
+				// ES-modules (G-05): canonical import heads — named, `* as`, default, and the ES
+				// COMBINED forms (`import Def, { A } from` / `import Def, * as X from`). One
+				// declaration = one line; EVERY part prints (an exclusive-branch reprint would
+				// silently DROP the named part of a combined line — Unity 0.9.1 field find).
+				const bool bDef = Imp.bDefault;
+				const bool bStar = Imp.bNamespace;
+				TArray<FString> Heads;
+				if (bDef)
 				{
-					Block += FString::Printf(TEXT("import * as %s from \"%s\"\n"), *Imp.NamespaceAlias, *Imp.Specifier);
-					continue;
+					Heads.Add(Imp.DefaultAlias);
 				}
-				if (Imp.bDefault)
+				if (bStar)
 				{
-					Block += FString::Printf(TEXT("import %s from \"%s\"\n"), *Imp.DefaultAlias, *Imp.Specifier);
-					continue;
+					Heads.Add(FString::Printf(TEXT("* as %s"), *Imp.NamespaceAlias));
 				}
-				TArray<FString> Pieces;
-				for (int32 n = 0; n < Imp.Names.Num(); ++n)
+				if (Imp.Names.Num() > 0 || (!bDef && !bStar))
 				{
-					const FString& Local = Imp.LocalNames.IsValidIndex(n) ? Imp.LocalNames[n] : Imp.Names[n];
-					Pieces.Add(Local == Imp.Names[n] ? Imp.Names[n]
-													 : FString::Printf(TEXT("%s as %s"), *Imp.Names[n], *Local));
+					TArray<FString> Pieces;
+					for (int32 n = 0; n < Imp.Names.Num(); ++n)
+					{
+						const FString& Local = Imp.LocalNames.IsValidIndex(n) ? Imp.LocalNames[n] : Imp.Names[n];
+						Pieces.Add(Local == Imp.Names[n] ? Imp.Names[n]
+														 : FString::Printf(TEXT("%s as %s"), *Imp.Names[n], *Local));
+					}
+					Heads.Add(FString::Printf(TEXT("{ %s }"), *FString::Join(Pieces, TEXT(", "))));
 				}
-				Block += FString::Printf(TEXT("import { %s } from \"%s\"\n"), *FString::Join(Pieces, TEXT(", ")),
-										 *Imp.Specifier);
+				Block +=
+					FString::Printf(TEXT("import %s from \"%s\"\n"), *FString::Join(Heads, TEXT(", ")), *Imp.Specifier);
 			}
 		}
 		if (!Block.IsEmpty())

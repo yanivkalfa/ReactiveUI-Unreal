@@ -400,23 +400,19 @@ export function resolveDiagnostics(scan: UetkxFileScanResult, importerFsPath: st
       });
       continue;
     }
-    // ES-modules (G-05): a namespace import validates its MEMBERS at use sites (the compiler's
+    // No exclusive branching — an ES COMBINED import (`import Def, { A } from` / `import Def,
+    // * as X from`) carries default + named/star parts in one declaration; every part gets its
+    // own diagnostics. A namespace part validates its MEMBERS at use sites (the compiler's
     // sidecar carries those — they need the code walk); nothing to name-check at the import line.
-    if (imp.isNamespace) {
-      continue;
-    }
-    // ES-modules (U-08): a default import needs the target to HAVE a default export — live 2326.
-    if (imp.isDefault) {
-      if (!defaultExportOf(key)) {
-        diags.push({
-          code: "UETKX2326",
-          severity: 0,
-          message: `${label} has no default export — use a named import: import { ... } from "${imp.specifier}"`,
-          off: imp.defaultAliasAt,
-          len: Math.max(1, imp.defaultAlias.length),
-        });
-      }
-      continue;
+    // ES-modules (U-08): a default part needs the target to HAVE a default export — live 2326.
+    if (imp.isDefault && !defaultExportOf(key)) {
+      diags.push({
+        code: "UETKX2326",
+        severity: 0,
+        message: `${label} has no default export — use a named import: import { ... } from "${imp.specifier}"`,
+        off: imp.defaultAliasAt,
+        len: Math.max(1, imp.defaultAlias.length),
+      });
     }
     const decls = getDecls(key) ?? [];
     const byName = new Map(decls.map((d) => [d.name, d]));
@@ -452,7 +448,11 @@ export function workspaceRelLabel(importerFsPath: string, targetFsPath: string):
 // ── import cursor classification (completions / go-to-def) ────────────────────────────────────
 
 export type ImportCursor =
-  | { kind: "import-name"; specifier: string | null; partial: string }
+  // `listed` = identifier tokens already inside this statement's braces (names AND aliases);
+  // `defaultAlias` = the default binding of a COMBINED form (`import Def, { … } from`) or null.
+  // Both feed the completion exclusion set — a listed binding (or the member the default
+  // already binds) must not be re-suggested (family parity, Unity 0.9.1 field find).
+  | { kind: "import-name"; specifier: string | null; partial: string; listed: string[]; defaultAlias: string | null }
   | { kind: "import-specifier"; partial: string }
   | { kind: "import-keyword" };
 
@@ -501,12 +501,30 @@ export function importCursorAt(text: string, off: number): ImportCursor | null {
     return null;
   }
   // inside the `{ … }` name list (open brace with no matching close before the cursor)?
-  if (before.lastIndexOf("{") > before.lastIndexOf("}")) {
+  // The ES COMBINED form (`import Def, { … } from`) reaches here too — the check is
+  // brace-balance-based, not prefix-shaped.
+  const braceOpen = before.lastIndexOf("{");
+  if (braceOpen > before.lastIndexOf("}")) {
     // The specifier may be on a LATER line — search the whole statement, not just `before`.
     const stmt = text.slice(start, Math.min(text.length, off + 400));
     const specMatch = /from\s*"([^"]*)"/.exec(stmt);
     const partMatch = /([A-Za-z0-9_]*)$/.exec(before);
-    return { kind: "import-name", specifier: specMatch ? specMatch[1] : null, partial: partMatch ? partMatch[1] : "" };
+    // Everything already listed in the braces (this statement only): identifier tokens between
+    // the `{` and its `}` (or the statement window's end while still being typed), `as` dropped —
+    // both the imported names and their aliases are taken bindings.
+    const braceAbs = start + braceOpen;
+    const braceClose = stmt.indexOf("}", braceOpen);
+    const listText = stmt.slice(braceOpen + 1, braceClose < 0 ? undefined : braceClose);
+    const listed = (listText.match(/[A-Za-z_][A-Za-z0-9_]*/g) ?? []).filter((t) => t !== "as");
+    // A COMBINED statement's default binding: `import Def ,` before the `{`.
+    const defMatch = /^\s*import\s+([A-Za-z_][A-Za-z0-9_]*)\s*,\s*$/.exec(text.slice(start, braceAbs));
+    return {
+      kind: "import-name",
+      specifier: specMatch ? specMatch[1] : null,
+      partial: partMatch ? partMatch[1] : "",
+      listed,
+      defaultAlias: defMatch ? defMatch[1] : null,
+    };
   }
   return null;
 }
@@ -659,26 +677,29 @@ export function findReferencesTo(symbol: UetkxSymbol, originFsPath: string, over
     if (samePath(fileNorm, targetFile)) continue;
     const index = getFileIndex(file, overlay);
     if (!index) continue;
-    // which of this file's imports point at the declaring file?
-    const pointing = new Map<number, "named-plain" | "named-renamed" | "namespace" | "default">();
+    // which of this file's imports point at the declaring file? An ES COMBINED import
+    // (`import Def, { A } from` / `import Def, * as X from`) contributes EVERY part it
+    // carries, never just one (exclusive branching dropped the named part of a combined line).
+    const pointing = new Map<number, { namespace: boolean; namedPlain: boolean; named: boolean }>();
     index.scan.imports.forEach((imp, idx) => {
       if (imp.hostInclude) return;
       const key = resolveSpecifier(file, imp.specifier);
       if (!key || !samePath(normAbsPath(key), targetFile)) return;
-      if (imp.isNamespace) pointing.set(idx, "namespace");
-      else if (imp.isDefault) pointing.set(idx, "default");
-      else {
-        const n = imp.names.indexOf(name);
-        if (n >= 0) pointing.set(idx, (imp.localNames[n] ?? imp.names[n]) === imp.names[n] ? "named-plain" : "named-renamed");
-      }
+      const n = imp.names.indexOf(name);
+      const entry = {
+        namespace: imp.isNamespace,
+        namedPlain: n >= 0 && (imp.localNames[n] ?? imp.names[n]) === imp.names[n],
+        named: n >= 0,
+      };
+      if (entry.namespace || entry.named || imp.isDefault) pointing.set(idx, entry);
     });
     if (pointing.size === 0) continue;
     let plainlyBound = false;
-    for (const kind of pointing.values()) if (kind === "named-plain") plainlyBound = true;
+    for (const kind of pointing.values()) if (kind.namedPlain) plainlyBound = true;
     for (const r of index.refs) {
       if (r.name !== name) continue;
       if (r.kind === "import-target" && r.importIndex !== undefined && pointing.has(r.importIndex)) push(file, r);
-      else if (r.kind === "qual-member" && r.importIndex !== undefined && pointing.get(r.importIndex) === "namespace") push(file, r);
+      else if (r.kind === "qual-member" && r.importIndex !== undefined && pointing.get(r.importIndex)?.namespace) push(file, r);
       else if ((r.kind === "tag" || r.kind === "code") && plainlyBound) push(file, r);
     }
   }

@@ -32,8 +32,10 @@ export function declStartCpOf(scan: ReturnType<typeof scanFile>, name: string): 
 }
 
 /** The cp span to delete for an unused-import fix at `diagCp` (the local binding token):
- *  the binding (with its comma) — or the WHOLE import line when it is the only binding /
- *  a namespace / a default import. */
+ *  the binding (with its comma) — or the WHOLE import line when it is the statement's only
+ *  binding. An ES COMBINED declaration (`import Def, { a } from` / `import Def, * as X from`)
+ *  removes only the PART the diagnostic sits on (whole-line removal would delete the still-used
+ *  sibling parts). */
 export function unusedImportRemoval(scan: ReturnType<typeof scanFile>, text: string, diagCp: number): { start: number; end: number } | null {
   const cps = [...text].map((c) => c.codePointAt(0)!);
   // The whole-import span: from the `import` keyword's line start to the end of the line the
@@ -47,13 +49,33 @@ export function unusedImportRemoval(scan: ReturnType<typeof scanFile>, text: str
     if (e < cps.length) e++;
     return { start: s, end: e };
   };
+  const isWs = (c: number) => c === 32 || c === 9 || c === 10 || c === 13;
   for (const imp of scan.imports) {
     if (imp.hostInclude) continue;
+    const partCount = (imp.isDefault ? 1 : 0) + (imp.isNamespace ? 1 : 0) + (imp.names.length > 0 ? 1 : 0);
     if (imp.isNamespace && diagCp >= imp.namespaceAliasAt && diagCp <= imp.namespaceAliasAt + imp.namespaceAlias.length) {
-      return wholeImportSpan(imp);
+      if (partCount === 1) return wholeImportSpan(imp);
+      // combined `Def, * as X`: remove `, * as X` (the star part always FOLLOWS the default) —
+      // walk back from the alias over `as`, `*`, and the comma.
+      let s = imp.namespaceAliasAt;
+      while (s > 0 && isWs(cps[s - 1])) s--;
+      s -= 2; // `as`
+      while (s > 0 && isWs(cps[s - 1])) s--;
+      if (s > 0 && cps[s - 1] === 42) s--; // `*`
+      while (s > 0 && isWs(cps[s - 1])) s--;
+      if (s > 0 && cps[s - 1] === 44) s--; // `,`
+      return { start: s, end: imp.namespaceAliasAt + imp.namespaceAlias.length };
     }
     if (imp.isDefault && diagCp >= imp.defaultAliasAt && diagCp <= imp.defaultAliasAt + imp.defaultAlias.length) {
-      return wholeImportSpan(imp);
+      if (partCount === 1) return wholeImportSpan(imp);
+      // combined: the default binding leads — remove `Def, ` (alias, its comma, trailing space).
+      let e = imp.defaultAliasAt + imp.defaultAlias.length;
+      while (e < cps.length && isWs(cps[e])) e++;
+      if (e < cps.length && cps[e] === 44) {
+        e++;
+        while (e < cps.length && (cps[e] === 32 || cps[e] === 9)) e++;
+      }
+      return { start: imp.defaultAliasAt, end: e };
     }
     for (let n = 0; n < imp.names.length; n++) {
       const localAt = imp.localNameAts[n] ?? imp.nameAts[n];
@@ -61,7 +83,19 @@ export function unusedImportRemoval(scan: ReturnType<typeof scanFile>, text: str
       const onName = diagCp >= imp.nameAts[n] && diagCp <= imp.nameAts[n] + imp.names[n].length;
       const onLocal = diagCp >= localAt && diagCp <= localAt + local.length;
       if (!onName && !onLocal) continue;
-      if (imp.names.length === 1) return wholeImportSpan(imp);
+      if (imp.names.length === 1 && partCount === 1) return wholeImportSpan(imp);
+      if (imp.names.length === 1) {
+        // combined `Def, { a }`: remove `, { a }` whole — the braces go with their sole binding.
+        let s = imp.nameAts[n];
+        while (s > 0 && cps[s - 1] !== 123) s--; // back to `{`
+        s--;
+        while (s > 0 && isWs(cps[s - 1])) s--;
+        if (s > 0 && cps[s - 1] === 44) s--; // `,`
+        let e = localAt + local.length;
+        while (e < cps.length && cps[e] !== 125) e++; // forward to `}`
+        if (e < cps.length) e++;
+        return { start: s, end: e };
+      }
       // remove `Name[ as Local]` plus one adjacent comma
       const startCp = imp.nameAts[n];
       const endCp = localAt + local.length;

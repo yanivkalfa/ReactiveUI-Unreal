@@ -677,13 +677,9 @@ void FUetkxResolve::Apply(const FUetkxFileScanResult& Scan, const TMap<FString, 
 		}
 		TMap<FString, FUetkxTargetDecl> Decls;
 		Resolver.GetDecls(Key, Decls);
-		if (Imp.bNamespace)
-		{
-			ImportedNames.Add(Imp.NamespaceAlias);
-			NamespaceLabels.Add(Imp.NamespaceAlias, Label);
-			NamespaceTargets.Add(Imp.NamespaceAlias, MoveTemp(Decls));
-			continue;
-		}
+		// No exclusive branching — an ES COMBINED import (`import Def, { A } from` / `import Def,
+		// * as X from`) carries default + named/star parts in one declaration; every part yields
+		// its bindings and its diagnostics. The namespace part runs LAST (it MoveTemps Decls).
 		if (Imp.bDefault)
 		{
 			ImportedNames.Add(Imp.DefaultAlias);
@@ -694,7 +690,6 @@ void FUetkxResolve::Apply(const FUetkxFileScanResult& Scan, const TMap<FString, 
 									*Label, *Imp.Specifier),
 					Imp.DefaultAliasAt, Imp.DefaultAlias.Len());
 			}
-			continue;
 		}
 		for (int32 n = 0; n < Imp.Names.Num(); ++n)
 		{
@@ -714,6 +709,12 @@ void FUetkxResolve::Apply(const FUetkxFileScanResult& Scan, const TMap<FString, 
 									*Label),
 					NameAt, Name.Len());
 			}
+		}
+		if (Imp.bNamespace)
+		{
+			ImportedNames.Add(Imp.NamespaceAlias);
+			NamespaceLabels.Add(Imp.NamespaceAlias, Label);
+			NamespaceTargets.Add(Imp.NamespaceAlias, MoveTemp(Decls));
 		}
 	}
 
@@ -853,39 +854,84 @@ void FUetkxResolve::Apply(const FUetkxFileScanResult& Scan, const TMap<FString, 
 		Emit2305(R.Name, Owner, R.At);
 	}
 
-	// 3. Unused imports (2304, warn): an imported LOCAL binding never referenced (ES-modules M4:
-	// usage counts the local alias — what the author actually spells in tags/code).
+	// Error-tier safety (family f130cbbb): the "used" scan must OVER-approximate so a firing
+	// 2304 is always real. Param DEFAULTS are real uses that live OUTSIDE the scanned bodies —
+	// a component's typed param defaults and the raw hook/util param lists both emit into the
+	// generated code — so their identifiers join the reference universe. They deliberately do
+	// NOT join the 2305-policed Refs: a param NAME matching some file's export must never draw
+	// a "not imported" error.
+	auto CollectBareIdents = [&Referenced](const FString& Text)
+	{
+		const TArray<int32> Cp = FUetkxLexer::ToCodePoints(Text);
+		const int32 M = Cp.Num();
+		int32 i = 0;
+		while (i < M)
+		{
+			const int32 nc = FUetkxLexer::SkipNoncode(Cp, i);
+			if (nc != i)
+			{
+				i = nc;
+				continue;
+			}
+			if (FUetkxLexer::IsIdentCode(Cp[i]) && !(Cp[i] >= '0' && Cp[i] <= '9'))
+			{
+				const int32 s = i;
+				while (i < M && FUetkxLexer::IsIdentCode(Cp[i]))
+				{
+					++i;
+				}
+				Referenced.Add(FUetkxLexer::FromCodePoints(Cp, s, i - s));
+				continue;
+			}
+			++i;
+		}
+	};
+	for (const FUetkxComponentDecl& D : Scan.Components)
+	{
+		for (const FUetkxParam& P : D.Params)
+		{
+			CollectBareIdents(P.Default);
+		}
+	}
+	for (const FUetkxHookDecl& D : Scan.Hooks)
+	{
+		CollectBareIdents(D.Params);
+	}
+	for (const FUetkxUtilDecl& D : Scan.Utils)
+	{
+		CollectBareIdents(D.Params);
+	}
+
+	// 3. Unused imports (2304, ERROR — family f130cbbb, owner decision, consistent with the
+	// other import diagnostics): an imported LOCAL binding never referenced (ES-modules M4:
+	// usage counts the local alias — what the author actually spells in tags/code). The
+	// over-approximated reference universe above makes the error tier safe: a firing 2304
+	// means the binding truly appears nowhere. No exclusive branching — a COMBINED import's
+	// default, star, and named bindings are independently used or unused. Findings span the
+	// WHOLE binding token; a renamed entry anchors its LOCAL alias (the token to delete).
 	for (const FUetkxImportDecl& Imp : Scan.Imports)
 	{
 		if (Imp.bHostInclude)
 		{
 			continue;
 		}
-		if (Imp.bNamespace)
+		if (Imp.bDefault && !Referenced.Contains(Imp.DefaultAlias))
 		{
-			if (!Referenced.Contains(Imp.NamespaceAlias))
-			{
-				Add(TEXT("UETKX2304"), 1, FString::Printf(TEXT("unused import `%s`"), *Imp.NamespaceAlias),
-					Imp.NamespaceAliasAt, Imp.NamespaceAlias.Len());
-			}
-			continue;
+			Add(TEXT("UETKX2304"), 0, FString::Printf(TEXT("unused import `%s`"), *Imp.DefaultAlias),
+				Imp.DefaultAliasAt, Imp.DefaultAlias.Len());
 		}
-		if (Imp.bDefault)
+		if (Imp.bNamespace && !Referenced.Contains(Imp.NamespaceAlias))
 		{
-			if (!Referenced.Contains(Imp.DefaultAlias))
-			{
-				Add(TEXT("UETKX2304"), 1, FString::Printf(TEXT("unused import `%s`"), *Imp.DefaultAlias),
-					Imp.DefaultAliasAt, Imp.DefaultAlias.Len());
-			}
-			continue;
+			Add(TEXT("UETKX2304"), 0, FString::Printf(TEXT("unused import `%s`"), *Imp.NamespaceAlias),
+				Imp.NamespaceAliasAt, Imp.NamespaceAlias.Len());
 		}
 		for (int32 n = 0; n < Imp.Names.Num(); ++n)
 		{
 			const FString& Local = Imp.LocalNames.IsValidIndex(n) ? Imp.LocalNames[n] : Imp.Names[n];
 			if (!Referenced.Contains(Local))
 			{
-				Add(TEXT("UETKX2304"), 1, FString::Printf(TEXT("unused import `%s`"), *Local), Imp.NameAts[n],
-					Local.Len());
+				const int32 LocalAt = Imp.LocalNameAts.IsValidIndex(n) ? Imp.LocalNameAts[n] : Imp.NameAts[n];
+				Add(TEXT("UETKX2304"), 0, FString::Printf(TEXT("unused import `%s`"), *Local), LocalAt, Local.Len());
 			}
 		}
 	}

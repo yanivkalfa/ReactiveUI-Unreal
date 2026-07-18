@@ -158,6 +158,8 @@ namespace
 			return K == EUetkxDeclKind::Hook || K == EUetkxDeclKind::Module || K == EUetkxDeclKind::Value ||
 				   K == EUetkxDeclKind::Util;
 		};
+		// No exclusive branching — an ES COMBINED import's parts each contribute eager edges
+		// (`import Def, { UseX } from` is eager through its named part even when Def is lazy).
 		if (Imp.bNamespace)
 		{
 			for (const TPair<FString, FUetkxTargetDecl>& D : Decls)
@@ -167,12 +169,14 @@ namespace
 					return true;
 				}
 			}
-			return false;
 		}
 		if (Imp.bDefault)
 		{
 			const FUetkxTargetDecl* T = TargetDefaultName.IsEmpty() ? nullptr : Decls.Find(TargetDefaultName);
-			return T != nullptr && IsEager(T->Kind);
+			if (T != nullptr && IsEager(T->Kind))
+			{
+				return true;
+			}
 		}
 		for (const FString& Name : Imp.Names)
 		{

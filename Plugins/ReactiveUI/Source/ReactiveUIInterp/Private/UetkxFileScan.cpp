@@ -1167,6 +1167,129 @@ namespace
 		return true;
 	}
 
+	/** ES-modules: parse a braced import name list at `BraceAt` (the `{`) into Imp.Names/NameAts/
+	 *  LocalNames/LocalNameAts (rename-aware; comments between names tolerated — bughunt SCAN-2).
+	 *  Returns the index past the closing `}` on success; on failure emits the diag itself and
+	 *  returns the bitwise-NOT of the resync index (callers `return ~R` — 0 stays valid). Shared
+	 *  by the plain named form and the ES COMBINED form (`import Def, { A, B } from`). */
+	int32 ParseImportNameList(const TArray<int32>& Src, int32 BraceAt, FUetkxImportDecl& Imp, FUetkxFileScanResult& Out)
+	{
+		const int32 Bclose = FUetkxLexer::FindMatching(Src, BraceAt);
+		if (Bclose == -1)
+		{
+			AddDiag(Out.Diags, TEXT("UETKX0304"), 0, TEXT("unclosed `{` in import list"), BraceAt);
+			return ~Src.Num();
+		}
+		// Skip whitespace AND comments between names — a `//`/`/* */` inside the brace list must not be
+		// misread as a bad specifier that drops the whole import (bughunt SCAN-2).
+		auto SkipWsAndComments = [&Src](int32 p)
+		{
+			for (;;)
+			{
+				p = SkipWsOnly(Src, p);
+				const int32 nc = FUetkxLexer::SkipNoncode(Src, p);
+				if (nc == p)
+				{
+					return p;
+				}
+				p = nc;
+			}
+		};
+		for (int32 p = BraceAt + 1; p < Bclose;)
+		{
+			p = SkipWsAndComments(p);
+			if (p >= Bclose)
+			{
+				break;
+			}
+			if (Src[p] == C_COMMA)
+			{
+				++p;
+				continue;
+			}
+			const int32 s = p;
+			while (p < Bclose && FUetkxLexer::IsIdentCode(Src[p]))
+			{
+				++p;
+			}
+			if (p == s)
+			{
+				AddDiag(Out.Diags, TEXT("UETKX0300"), 0,
+						TEXT("import list expects bare names, optionally renamed (`Name as Alias`)"), s);
+				return ~AdvancePastLine(Src, Bclose);
+			}
+			const FString ImportedName = FUetkxLexer::FromCodePoints(Src, s, p - s);
+			Imp.Names.Add(ImportedName);
+			Imp.NameAts.Add(s);
+			// ES-modules (G-05): `{ A as B }` — rename-on-import. LocalNames stays 1:1 with Names;
+			// no `as` means the local binding is the imported name itself (alias token == name
+			// token — LocalNameAts mirrors that for the LSP index, TD-033).
+			FString LocalName = ImportedName;
+			int32 LocalNameAt = s;
+			const int32 AfterName = SkipWsAndComments(p);
+			if (AfterName < Bclose && FUetkxLexer::KeywordAt(Src, AfterName, TEXT("as")))
+			{
+				const int32 AliasStart = SkipWsAndComments(AfterName + 2);
+				int32 ap = AliasStart;
+				while (ap < Bclose && FUetkxLexer::IsIdentCode(Src[ap]))
+				{
+					++ap;
+				}
+				if (ap == AliasStart)
+				{
+					AddDiag(Out.Diags, TEXT("UETKX0300"), 0, TEXT("missing local alias after `as`"), AliasStart);
+					return ~AdvancePastLine(Src, Bclose);
+				}
+				LocalName = FUetkxLexer::FromCodePoints(Src, AliasStart, ap - AliasStart);
+				LocalNameAt = AliasStart;
+				p = ap;
+			}
+			Imp.LocalNames.Add(LocalName);
+			Imp.LocalNameAts.Add(LocalNameAt);
+		}
+		if (Imp.Names.IsEmpty())
+		{
+			AddDiag(Out.Diags, TEXT("UETKX0303"), 0,
+					TEXT("import must name at least one binding: `import { Name } from \"...\"`"), BraceAt);
+		}
+		return Bclose + 1;
+	}
+
+	/** Duplicate-import diagnostics (2303) for a parsed name list: a name already imported earlier
+	 *  in this file, or repeated within this same import's braces; records the names into
+	 *  ImportedFrom. Shared by the plain named form and the ES COMBINED form. */
+	void RecordNamedImportDups(const FUetkxImportDecl& Imp, TMap<FString, FString>& ImportedFrom,
+							   FUetkxFileScanResult& Out)
+	{
+		TSet<FString> ThisImport;
+		for (int32 idx = 0; idx < Imp.Names.Num(); ++idx)
+		{
+			const FString& Name = Imp.Names[idx];
+			const int32 NameAt = Imp.NameAts[idx];
+			if (const FString* Prev = ImportedFrom.Find(Name))
+			{
+				AddDiag(Out.Diags, TEXT("UETKX2303"), 0,
+						FString::Printf(TEXT("duplicate import of `%s` (already imported from %s)"), *Name, **Prev),
+						NameAt, Name.Len());
+			}
+			else if (ThisImport.Contains(Name))
+			{
+				AddDiag(
+					Out.Diags, TEXT("UETKX2303"), 0,
+					FString::Printf(TEXT("duplicate import of `%s` (already imported from %s)"), *Name, *Imp.Specifier),
+					NameAt, Name.Len());
+			}
+			else
+			{
+				ThisImport.Add(Name);
+			}
+		}
+		for (const FString& Name : ThisImport)
+		{
+			ImportedFrom.Add(Name, Imp.Specifier);
+		}
+	}
+
 	int32 ParseImport(const TArray<int32>& Src, int32 Start, FUetkxFileScanResult& Out,
 					  TMap<FString, FString>& ImportedFrom)
 	{
@@ -1276,6 +1399,55 @@ namespace
 			DefImp.bDefault = true;
 			DefImp.DefaultAlias = FUetkxLexer::FromCodePoints(Src, s, p - s);
 			DefImp.DefaultAliasAt = s;
+			// ES COMBINED forms (family parity, Unity 0.9.1 field find): `import Def, { A, B } from`
+			// and `import Def, * as X from` — ONE declaration carrying the default binding PLUS the
+			// named/star surface (the record models the parts independently).
+			int32 c = SkipWsOnly(Src, p);
+			if (c < N && Src[c] == C_COMMA)
+			{
+				c = SkipWsOnly(Src, c + 1);
+				if (c < N && Src[c] == C_LBRACE)
+				{
+					const int32 AfterList = ParseImportNameList(Src, c, DefImp, Out);
+					if (AfterList < 0)
+					{
+						return ~AfterList;
+					}
+					p = AfterList;
+				}
+				else if (c < N && Src[c] == '*')
+				{
+					int32 q = SkipWsOnly(Src, c + 1);
+					if (!FUetkxLexer::KeywordAt(Src, q, TEXT("as")))
+					{
+						AddDiag(Out.Diags, TEXT("UETKX0303"), 0,
+								TEXT("namespace import expects `* as Name from \"...\"`"), FMath::Min(q, N - 1));
+						return AdvancePastLine(Src, q);
+					}
+					q = SkipWsOnly(Src, q + 2);
+					const int32 s2 = q;
+					while (q < N && FUetkxLexer::IsIdentCode(Src[q]))
+					{
+						++q;
+					}
+					if (q == s2)
+					{
+						AddDiag(Out.Diags, TEXT("UETKX0300"), 0, TEXT("missing namespace import alias after `as`"), q);
+						return AdvancePastLine(Src, q);
+					}
+					DefImp.bNamespace = true;
+					DefImp.NamespaceAlias = FUetkxLexer::FromCodePoints(Src, s2, q - s2);
+					DefImp.NamespaceAliasAt = s2;
+					p = q;
+				}
+				else
+				{
+					AddDiag(Out.Diags, TEXT("UETKX0303"), 0,
+							TEXT("combined import expects `{ Name, ... }` or `* as Name` after the default binding"),
+							FMath::Min(c, N - 1));
+					return AdvancePastLine(Src, c);
+				}
+			}
 			FString Spec;
 			int32 SpecAt = -1, End = -1;
 			if (!ParseFromSpecifier(Src, p, Out, Spec, SpecAt, End))
@@ -1284,7 +1456,9 @@ namespace
 			}
 			DefImp.Specifier = Spec;
 			DefImp.SpecifierAt = SpecAt;
-			// Local-alias collisions resolved in the end-of-scan pass (UETKX2325) — see below.
+			// Named-part duplicate diagnostics (2303) apply to a combined name list too; the
+			// default/star aliases resolve collisions in the end-of-scan pass (UETKX2325).
+			RecordNamedImportDups(DefImp, ImportedFrom, Out);
 			Out.Imports.Add(MoveTemp(DefImp));
 			return End;
 		}
@@ -1296,141 +1470,20 @@ namespace
 					FMath::Min(k, N - 1));
 			return AdvancePastLine(Src, k);
 		}
-		const int32 Bclose = FUetkxLexer::FindMatching(Src, k);
-		if (Bclose == -1)
+		const int32 AfterList = ParseImportNameList(Src, k, Imp, Out);
+		if (AfterList < 0)
 		{
-			AddDiag(Out.Diags, TEXT("UETKX0304"), 0, TEXT("unclosed `{` in import list"), k);
-			return N;
+			return ~AfterList;
 		}
-		// Skip whitespace AND comments between names — a `//`/`/* */` inside the brace list must not be
-		// misread as a bad specifier that drops the whole import (bughunt SCAN-2).
-		auto SkipWsAndComments = [&Src](int32 p)
+		FString Spec;
+		int32 SpecAt = -1, End = -1;
+		if (!ParseFromSpecifier(Src, AfterList, Out, Spec, SpecAt, End))
 		{
-			for (;;)
-			{
-				p = SkipWsOnly(Src, p);
-				const int32 nc = FUetkxLexer::SkipNoncode(Src, p);
-				if (nc == p)
-				{
-					return p;
-				}
-				p = nc;
-			}
-		};
-		for (int32 p = k + 1; p < Bclose;)
-		{
-			p = SkipWsAndComments(p);
-			if (p >= Bclose)
-			{
-				break;
-			}
-			if (Src[p] == C_COMMA)
-			{
-				++p;
-				continue;
-			}
-			const int32 s = p;
-			while (p < Bclose && FUetkxLexer::IsIdentCode(Src[p]))
-			{
-				++p;
-			}
-			if (p == s)
-			{
-				AddDiag(Out.Diags, TEXT("UETKX0300"), 0,
-						TEXT("import list expects bare names, optionally renamed (`Name as Alias`)"), s);
-				return AdvancePastLine(Src, Bclose);
-			}
-			const FString ImportedName = FUetkxLexer::FromCodePoints(Src, s, p - s);
-			Imp.Names.Add(ImportedName);
-			Imp.NameAts.Add(s);
-			// ES-modules (G-05): `{ A as B }` — rename-on-import. LocalNames stays 1:1 with Names;
-			// no `as` means the local binding is the imported name itself (alias token == name
-			// token — LocalNameAts mirrors that for the LSP index, TD-033).
-			FString LocalName = ImportedName;
-			int32 LocalNameAt = s;
-			const int32 AfterName = SkipWsAndComments(p);
-			if (AfterName < Bclose && FUetkxLexer::KeywordAt(Src, AfterName, TEXT("as")))
-			{
-				const int32 AliasStart = SkipWsAndComments(AfterName + 2);
-				int32 ap = AliasStart;
-				while (ap < Bclose && FUetkxLexer::IsIdentCode(Src[ap]))
-				{
-					++ap;
-				}
-				if (ap == AliasStart)
-				{
-					AddDiag(Out.Diags, TEXT("UETKX0300"), 0, TEXT("missing local alias after `as`"), AliasStart);
-					return AdvancePastLine(Src, Bclose);
-				}
-				LocalName = FUetkxLexer::FromCodePoints(Src, AliasStart, ap - AliasStart);
-				LocalNameAt = AliasStart;
-				p = ap;
-			}
-			Imp.LocalNames.Add(LocalName);
-			Imp.LocalNameAts.Add(LocalNameAt);
+			return End;
 		}
-		if (Imp.Names.IsEmpty())
-		{
-			AddDiag(Out.Diags, TEXT("UETKX0303"), 0,
-					TEXT("import must name at least one binding: `import { Name } from \"...\"`"), k);
-		}
-		int32 f = SkipWsOnly(Src, Bclose + 1);
-		if (!FUetkxLexer::KeywordAt(Src, f, TEXT("from")))
-		{
-			AddDiag(Out.Diags, TEXT("UETKX0303"), 0, TEXT("import expects `from \"specifier\"`"), FMath::Min(f, N - 1));
-			return AdvancePastLine(Src, f);
-		}
-		f = SkipWsOnly(Src, f + 4);
-		if (f >= N || (Src[f] != C_QUOTE && Src[f] != C_APOS))
-		{
-			AddDiag(Out.Diags, TEXT("UETKX0303"), 0, TEXT("import specifier must be a quoted path, e.g. `\"./Foo\"`"),
-					FMath::Min(f, N - 1));
-			return AdvancePastLine(Src, f);
-		}
-		const int32 Quote = Src[f];
-		Imp.SpecifierAt = f;
-		int32 q = f + 1;
-		while (q < N && Src[q] != Quote && Src[q] != C_NL)
-		{
-			++q;
-		}
-		if (q >= N || Src[q] != Quote)
-		{
-			AddDiag(Out.Diags, TEXT("UETKX0300"), 0, TEXT("unterminated import specifier string"), f);
-			return AdvancePastLine(Src, f);
-		}
-		Imp.Specifier = FUetkxLexer::FromCodePoints(Src, f + 1, q - (f + 1));
-		const int32 End = q + 1;
-
-		// Duplicate-import diagnostics (2303): a name already imported earlier in this file, or
-		// repeated within this same import's braces.
-		TSet<FString> ThisImport;
-		for (int32 idx = 0; idx < Imp.Names.Num(); ++idx)
-		{
-			const FString& Name = Imp.Names[idx];
-			const int32 NameAt = Imp.NameAts[idx];
-			if (const FString* Prev = ImportedFrom.Find(Name))
-			{
-				AddDiag(Out.Diags, TEXT("UETKX2303"), 0,
-						FString::Printf(TEXT("duplicate import of `%s` (already imported from %s)"), *Name, **Prev),
-						NameAt, Name.Len());
-			}
-			else if (ThisImport.Contains(Name))
-			{
-				AddDiag(
-					Out.Diags, TEXT("UETKX2303"), 0,
-					FString::Printf(TEXT("duplicate import of `%s` (already imported from %s)"), *Name, *Imp.Specifier),
-					NameAt, Name.Len());
-			}
-			else
-			{
-				ThisImport.Add(Name);
-			}
-		}
-		for (const FString& Name : ThisImport)
-		{
-			ImportedFrom.Add(Name, Imp.Specifier);
-		}
+		Imp.Specifier = Spec;
+		Imp.SpecifierAt = SpecAt;
+		RecordNamedImportDups(Imp, ImportedFrom, Out);
 		Out.Imports.Add(MoveTemp(Imp));
 		return End;
 	}
@@ -2682,21 +2735,22 @@ FUetkxFileScanResult FUetkxFileScan::Scan(const FString& Source, const FString& 
 				LocalAliasSeen.Add(Local, bPlain);
 			}
 		};
+		// No exclusive branching — an ES COMBINED import (`import Def, { A } from` / `import Def,
+		// * as X from`) carries default + named/star parts in one declaration, and EVERY part's
+		// local binding joins the collision space (`import a, { b as a }` must 2325).
 		for (const FUetkxImportDecl& Imp : Out.Imports)
 		{
 			if (Imp.bHostInclude)
 			{
 				continue;
 			}
-			if (Imp.bNamespace)
-			{
-				CheckAlias(Imp.NamespaceAlias, Imp.NamespaceAliasAt, /*bPlain=*/false);
-				continue;
-			}
 			if (Imp.bDefault)
 			{
 				CheckAlias(Imp.DefaultAlias, Imp.DefaultAliasAt, /*bPlain=*/false);
-				continue;
+			}
+			if (Imp.bNamespace)
+			{
+				CheckAlias(Imp.NamespaceAlias, Imp.NamespaceAliasAt, /*bPlain=*/false);
 			}
 			for (int32 n = 0; n < Imp.LocalNames.Num(); ++n)
 			{

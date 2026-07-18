@@ -53,6 +53,28 @@ test("index collector: tags (open + close), code refs, decl names, export marker
   }
 });
 
+test("index collector: an ES COMBINED import indexes EVERY part's tokens", () => {
+  const src = [
+    'import Chip, { StatusChip, Cool as Warm } from "./StatusChip"',
+    'import Def2, * as P from "./Palette"',
+    "export FRuiNode T() {",
+    "\treturn ( <Spacer /> );",
+    "}",
+    "",
+  ].join("\n");
+  const refs = refsOf(src, "T");
+  const byKind = (k: string) => refs.filter((r) => r.kind === k);
+  const aliases = byKind("import-alias").map((r) => r.name).sort();
+  assert.deepStrictEqual(aliases, ["Chip", "Def2", "P", "Warm"], "default + star + rename aliases all indexed");
+  const targets = byKind("import-target").map((r) => r.name).sort();
+  assert.deepStrictEqual(targets, ["Cool", "StatusChip"], "the combined braces' target tokens indexed");
+  for (const r of refs) {
+    if (r.kind === "import-alias" || r.kind === "import-target") {
+      assert.strictEqual([...src].slice(r.start, r.start + r.len).join(""), r.name, `${r.kind} ${r.name} span`);
+    }
+  }
+});
+
 test("index collector: scope tracking suppresses locals (params, auto, typed, bindings)", () => {
   const src = [
     "export FRuiNode Scoped(int32 Count) {",

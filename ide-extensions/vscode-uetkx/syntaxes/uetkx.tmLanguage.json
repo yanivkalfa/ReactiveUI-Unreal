@@ -66,13 +66,25 @@
       }
     },
     "import-default-decl": {
-      "comment": "ES-modules (G-05): `import X from \"./x\"` — a default import binds the target's `export default` symbol (usually a component). Listed AFTER import-decl/import-host-include so the braced/quoted heads win.",
-      "match": "\\b(import)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s+(from)\\s*(\"[^\"]*\")",
+      "comment": "ES-modules (G-05): `import X from \"./x\"` — a default import binds the target's `export default` symbol (usually a component) — plus the ES COMBINED forms `import X, { a as b } from` and `import X, * as NS from` (one declaration carrying the default binding and the named/star surface). Listed AFTER import-decl/import-host-include so the braced/quoted heads win.",
+      "match": "\\b(import)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(?:,\\s*(?:(\\{)([^}]*)(\\})|(\\*)\\s*(as)\\s+([A-Za-z_][A-Za-z0-9_]*)))?\\s+(from)\\s*(\"[^\"]*\")",
       "captures": {
         "1": { "name": "keyword.control.import.uetkx" },
         "2": { "name": "support.class.component.uetkx" },
-        "3": { "name": "keyword.control.import.uetkx" },
-        "4": { "name": "string.quoted.double.uetkx" }
+        "3": { "name": "punctuation.definition.block.begin.uetkx" },
+        "4": {
+          "patterns": [
+            { "match": "\\b(as)\\b", "name": "keyword.control.import.uetkx" },
+            { "match": "\\b(Use[A-Z][A-Za-z0-9_]*|ProvideContext)\\b", "name": "support.function.hook.uetkx" },
+            { "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b", "name": "support.class.component.uetkx" }
+          ]
+        },
+        "5": { "name": "punctuation.definition.block.end.uetkx" },
+        "6": { "name": "keyword.operator.uetkx" },
+        "7": { "name": "keyword.control.import.uetkx" },
+        "8": { "name": "entity.name.type.module.uetkx" },
+        "9": { "name": "keyword.control.import.uetkx" },
+        "10": { "name": "string.quoted.double.uetkx" }
       }
     },
     "import-host-include": {

@@ -116,26 +116,29 @@ export function formatUetkx(source: string, opts?: Partial<UetkxFormatOptions>):
     if (scan.imports.length > 0) {
       if (block) block += "\n";
       // `import "@Header.h"` (INCLUDE_RETIREMENT_PLAN.md §B) — a nameless host include, spelled
-      // with its own shape rather than the named `{ ... } from` block. ES-modules (G-05): the
-      // three new import heads keep their own canonical spellings (mirrors the C++ loop).
+      // with its own shape rather than the named `{ ... } from` block. ES-modules (G-05):
+      // canonical import heads — named, `* as`, default, and the ES COMBINED forms
+      // (`import Def, { A } from` / `import Def, * as X from`). One declaration = one line;
+      // EVERY part prints (an exclusive-branch reprint would silently DROP the named part of a
+      // combined line — Unity 0.9.1 field find). Mirrors the C++ loop.
       for (const imp of scan.imports) {
         if (imp.hostInclude) {
           block += `import "@${imp.specifier}"\n`;
           continue;
         }
-        if (imp.isNamespace) {
-          block += `import * as ${imp.namespaceAlias} from "${imp.specifier}"\n`;
-          continue;
+        const isDef = imp.isDefault;
+        const isStar = imp.isNamespace;
+        const heads: string[] = [];
+        if (isDef) heads.push(imp.defaultAlias);
+        if (isStar) heads.push(`* as ${imp.namespaceAlias}`);
+        if (imp.names.length > 0 || (!isDef && !isStar)) {
+          const pieces = imp.names.map((name, n) => {
+            const local = imp.localNames[n] ?? name;
+            return local === name ? name : `${name} as ${local}`;
+          });
+          heads.push(`{ ${pieces.join(", ")} }`);
         }
-        if (imp.isDefault) {
-          block += `import ${imp.defaultAlias} from "${imp.specifier}"\n`;
-          continue;
-        }
-        const pieces = imp.names.map((name, n) => {
-          const local = imp.localNames[n] ?? name;
-          return local === name ? name : `${name} as ${local}`;
-        });
-        block += `import { ${pieces.join(", ")} } from "${imp.specifier}"\n`;
+        block += `import ${heads.join(", ")} from "${imp.specifier}"\n`;
       }
     }
     if (block) out += block + "\n";
