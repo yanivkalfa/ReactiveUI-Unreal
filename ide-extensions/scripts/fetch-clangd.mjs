@@ -19,7 +19,7 @@
 
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, cpSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync, rmSync, cpSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -73,11 +73,25 @@ async function ensureZip() {
 function stage(zip, destDir) {
   rmSync(destDir, { recursive: true, force: true });
   mkdirSync(destDir, { recursive: true });
-  // Windows' bsdtar (System32) handles zip; the ABSOLUTE path matters — a Git-Bash GNU tar
-  // earlier on PATH can't read zip and parses `C:` as a remote host.
-  const tar =
-    process.platform === "win32" ? join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe") : "tar";
-  execFileSync(tar, ["-xf", zip, "-C", destDir, "--strip-components", "1"], { stdio: "inherit" });
+  if (process.platform === "win32") {
+    // Windows' bsdtar (System32) handles zip; the ABSOLUTE path matters — a Git-Bash GNU tar
+    // earlier on PATH can't read zip and parses `C:` as a remote host.
+    const tar = join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe");
+    execFileSync(tar, ["-xf", zip, "-C", destDir, "--strip-components", "1"], { stdio: "inherit" });
+  } else {
+    // Linux/mac: GNU tar cannot read zip ("This does not look like a tar archive" — the first
+    // ARMED publish run caught this), and bsdtar is not preinstalled on the GitHub runners;
+    // `unzip` is. Emulate `--strip-components 1` by hand: the clangd release zips hold one
+    // top-level `clangd_<ver>/` directory.
+    const tmp = join(tmpdir(), `clangd-extract-${process.pid}`);
+    rmSync(tmp, { recursive: true, force: true });
+    mkdirSync(tmp, { recursive: true });
+    execFileSync("unzip", ["-q", zip, "-d", tmp], { stdio: "inherit" });
+    const roots = readdirSync(tmp).map((e) => join(tmp, e));
+    const src = roots.length === 1 && statSync(roots[0]).isDirectory() ? roots[0] : tmp;
+    cpSync(src, destDir, { recursive: true });
+    rmSync(tmp, { recursive: true, force: true });
+  }
   const exe = join(destDir, "bin", "clangd.exe");
   if (!existsSync(exe)) throw new Error(`staging failed — ${exe} missing after extract`);
   writeFileSync(join(destDir, "BUNDLED-CLANGD.txt"), LICENSE_NOTE);
