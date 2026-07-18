@@ -9,7 +9,7 @@ no script VM in your shipped game.
 The Unreal sibling of [ReactiveUIToolKit](https://github.com/yanivkalfa/ReactiveUIToolKit)
 (Unity) and [ReactiveUI-Godot](https://github.com/yanivkalfa/ReactiveUI-Godot) (Godot).
 
-> **Status: beta — built end to end.** 23 core hooks, 35+ wrapped Slate widgets (including
+> **Status: beta — built end to end.** 23 core hooks, 65+ wrapped Slate widgets (including
 > virtualized `ListView`/`TileView`), the `.uetkx` compiler with committed codegen and a CI
 > drift gate, live hot reload in PIE (Unreal Live Coding — Windows editor; the library itself
 > builds and runs on every UE platform), the 17-hook router, `@theme`/`.uss` stylesheets,
@@ -37,4 +37,6 @@ Discord: <https://discord.gg/Knedqu4Wyv> (`#unreal`)
 
 ## License
 
-MIT (see `LICENSE`). Code generated from **your** `.uetkx` files belongs to **your** project.
+PolyForm Shield 1.0.0 (see `LICENSE`) — free to use, modify, and ship inside your games and
+projects (commercial included); not to be redistributed or sold as a competing product. Code
+generated from **your** `.uetkx` files belongs to **your** project.

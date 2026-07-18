@@ -2,7 +2,7 @@ import type { FC } from 'react'
 import { Alert, Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../components/CodeBlock/CodeBlock'
 
-const DRAW = `export component Chart {
+const DRAW = `export FRuiNode Chart() {
 	auto [Sides, SetSides] = UseState<int32>(3);
 
 	// The draw fn's IDENTITY tracks its inputs via UseMemo deps, so the canvas

@@ -13,4 +13,4 @@ Editor support for **`.uetkx`**, the JSX-like markup of [ReactiveUI for Unreal](
 ## Requirements
 
 - Everything is bundled — the language server ships with the extension (a Node runtime is included), so no Node on your PATH and no running Unreal editor are required.
-- **clangd 22.1.6 is bundled too** (Apache-2.0 w/ LLVM exceptions): embedded C++ intelligence inside setup/hook/module bodies works with zero machine setup once your project has a compile database (UBT `-mode=GenerateClangDatabase` or the VS Code generator).
+- **clangd 22.1.6 is bundled too** (Apache-2.0 w/ LLVM exceptions): embedded C++ intelligence inside component/hook/util bodies and value initializers works with zero machine setup once your project has a compile database (UBT `-mode=GenerateClangDatabase` or the VS Code generator).

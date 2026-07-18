@@ -561,7 +561,7 @@ export const ROUTER_HOOKS: HookEntry[] = [
     cppSignature: 'FRuiNode UseOutlet(FRuiContext& Ctx)',
     returns: 'the nested matched child element as an FRuiNode (an empty Fragment when there is none)',
     description: 'The nested matched child element — a layout route\'s Element calls this to decide where its matched child renders. When the route chain has no deeper match (you are at the leaf, or the layout\'s own index position), it returns an empty Fragment, so embedding it unconditionally is always safe.',
-    example: `export component SettingsLayout {\n\treturn (\n\t\t<VerticalBox>\n\t\t\t<TextBlock Text="Settings" />\n\t\t\t{ UseOutlet() }\n\t\t</VerticalBox>\n\t);\n}`,
+    example: `export FRuiNode SettingsLayout() {\n\treturn (\n\t\t<VerticalBox>\n\t\t\t<TextBlock Text="Settings" />\n\t\t\t{ UseOutlet() }\n\t\t</VerticalBox>\n\t);\n}`,
     gotchas: [
       'Only meaningful inside an element rendered by Routes/UseRoutes — elsewhere the route context is the default and you get an empty Fragment.',
     ],

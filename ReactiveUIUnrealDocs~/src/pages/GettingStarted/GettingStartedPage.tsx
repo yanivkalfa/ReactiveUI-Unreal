@@ -11,8 +11,8 @@ PublicDependencyModuleNames.AddRange(new[]
 	"ReactiveUISlate",  // the Slate host + per-widget adapters
 });`
 
-const HELLO = `// HelloWorld.uetkx — one component per file; the file name matches the component.
-export component HelloWorld {
+const HELLO = `// HelloWorld.uetkx — the primary component's name matches the file.
+export FRuiNode HelloWorld() {
 	auto [Count, SetCount] = UseState<int32>(0);
 	return (
 		<VerticalBox>

@@ -3,11 +3,11 @@ import { Box, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, 
 import { CodeBlock } from '../../components/CodeBlock/CodeBlock'
 
 const COMPANION = `SimpleCounter.uetkx          // the component (returns markup)
-SimpleCounter.hooks.uetkx    // export hook UseCounter(...) -> ...   (reusable state logic)
-SimpleCounter.style.uetkx    // export module Styles { ... }         (shared constants)`
+SimpleCounter.hooks.uetkx    // reusable Use* hooks (state logic)
+SimpleCounter.style.uetkx    // shared value exports (constants)`
 
-const HOOK = `// SimpleCounter.hooks.uetkx — a hook is just a function whose name is Use*.
-export hook UseCounter(int32 Start) -> TTuple<int32, TFunction<void()>> {
+const HOOK = `// SimpleCounter.hooks.uetkx — a hook is just a Use-prefixed function.
+export TTuple<int32, TFunction<void()>> UseCounter(int32 Start) {
 	auto [Count, SetCount] = UseState<int32>(Start);
 	TFunction<void()> Increment = [SetCount, Count]() { SetCount(Count + 1); };
 	return MakeTuple(Count, Increment);
@@ -35,13 +35,17 @@ export const ConceptsPage: FC = () => (
     </Typography>
 
     <Typography variant="h5" component="h2" gutterBottom sx={{ mt: 3 }}>
-      Components, hooks, modules
+      Components, hooks, values, utils
     </Typography>
     <Typography variant="body1" paragraph>
-      A <code>.uetkx</code> file is a free sequence of three declaration kinds.{' '}
-      <strong>Components</strong> return markup. <strong>Hooks</strong> (PascalCase{' '}
-      <code>Use*</code>) encapsulate reusable state and effects. <strong>Modules</strong> hold shared
-      constants and helpers. Markup is a first-class <em>expression</em>: besides{' '}
+      A <code>.uetkx</code> file <strong>is a module</strong>: a preamble of imports followed by
+      plain typed declarations, and the signature alone decides the kind. A function returning{' '}
+      <code>FRuiNode</code> is a <strong>component</strong> (returns markup); a{' '}
+      <code>Use</code>-prefixed function is a <strong>hook</strong> (reusable state and effects);
+      a name followed by <code>=</code> is a <strong>value export</strong> (shared constants);
+      anything else callable is a <strong>util function</strong>. Prefix with <code>export</code>{' '}
+      to make one importable — see <strong>Imports &amp; exports</strong>. Markup is a
+      first-class <em>expression</em>: besides{' '}
       <code>return ( … )</code>, you can assign it to a local (
       <code>auto Card = (&lt;VerticalBox&gt;…&lt;/VerticalBox&gt;);</code> — an{' '}
       <code>FRuiNode</code> value), pass it as an argument, or branch on it with{' '}
