@@ -322,6 +322,21 @@ int32 FUetkxWatcher::Sweep(const TCHAR* Reason)
 				}
 			}
 			ReportDiags(File.UetkxPath, FileErrors, &FileErrorDiags);
+			// ES-modules (M5): a recompiled SUPPORT file (values/hooks/modules/utils — no markup of
+			// its own) patches THROUGH its importers; name them so the author knows the HMR blast
+			// radius. Sidecar dep graph = the sweep that just ran, so the answer is current.
+			if (File.bOk && File.bSupportFile)
+			{
+				const TArray<FString> Importers =
+					FUetkxDriver::ImportersOf(FUetkxDriver::ProjectRelPath(File.UetkxPath), Roots);
+				if (Importers.Num() > 0)
+				{
+					UE_LOG(LogUetkxWatcher, Display,
+						   TEXT("[RUI] hmr: %s is a support file — the rebuild patches its "
+								"importer(s): %s"),
+						   *FPaths::GetCleanFilename(File.UetkxPath), *FString::Join(Importers, TEXT(", ")));
+				}
+			}
 		}
 	}
 	// HMR v2: codegen regenerated the committed .inl (keeps the tree fresh regardless of HMR). Hand the

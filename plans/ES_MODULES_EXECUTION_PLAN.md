@@ -1,5 +1,18 @@
 # .uetkx ES-Modules Redesign — Unreal leg EXECUTION PLAN (leg 1 of 3)
 
+> **✅ DONE 2026-07-18 (M0–M9 executed on `feat/es-modules`, commits 0e1cb48..HEAD).** Final
+> evidence: full battery **128/128** · LSP **49/49** + smoke PASSED · `RUICompile -full`/`-check`
+> 42 files 0 drift · codemod run ×2 idempotent (40 components + 2 hooks rewritten, 2 modules
+> hoisted, 3 imports → `* as`, 0 errors, zero-2320 gate) · 31 contract goldens · corpus hash
+> **f8ae9961…6cd47** pinned (tri-repo match = the RELEASE gate, owner-coordinated sibling PRs) ·
+> plugin **0.12.0** / extensions **0.6.0** + all changelog lanes · both vscode vsix flavors +
+> the vs2022 vsix rebuilt at 0.6.0. Deviations from this plan, all sanctioned in-place: the
+> fixture re-pin used the "second deliberate window" (M8) option; the LSP rename handler took
+> the TECH_DEBT route (TD-033 — owner call pending, §11.2); TD-034 records the accepted
+> alias/value rewrite caveats; M7's bughunt fixed a ternary-`:`-vs-`::` scan-back bug (the
+> IMPORT-3 rule) in THREE sites incl. one latent legacy one. Owner-side remainder: sibling
+> corpus PRs (G-13), merge + Publish, HMR field-verification (`field-test-editor`).
+>
 > **Status:** EXECUTION-GRADE, authored 2026-07-17 against the owner-approved family contract
 > [plans/ES_MODULES_GENERAL_PLAN.md](ES_MODULES_GENERAL_PLAN.md) (locked G-01..G-13 — this file may
 > ADD Unreal detail, never contradict; a conflict = STOP AND ASK the owner). Direct prior art:
@@ -606,23 +619,23 @@ named imports parse unchanged.
 
 ## §9 — Full sync-surface checklist (G-12 — every box is a merge/release gate)
 
-- [ ] Scanner C++ + TS mirror (corpus-locked) — M1/M6
-- [ ] Codegen (values/utils/alias plane) + TD-026 keys + CodegenVersion 3 re-pin — M2/M3
-- [ ] Resolver + driver (full ES surface, eager value edges, export_hash) — M4
-- [ ] HMR identity + rename-remount doc + ImportersOf wiring (or TECH_DEBT entry) + preview
+- [x] Scanner C++ + TS mirror (corpus-locked) — M1/M6
+- [x] Codegen (values/utils/alias plane) + TD-026 keys + CodegenVersion 3 re-pin — M2/M3
+- [x] Resolver + driver (full ES surface, eager value edges, export_hash) — M4
+- [x] HMR identity + rename-remount doc + ImportersOf wiring (or TECH_DEBT entry) + preview
       private-component message — M3/M5
-- [ ] Formatter C++ + TS (form-preserving; all THREE kind-switches per side) — M6
-- [ ] TextMate grammar + VS Code + VS2022 vsix rebuild — M6
-- [ ] LSP completions / hover / go-to-def through aliases (rename handler: owner call) +
+- [x] Formatter C++ + TS (form-preserving; all THREE kind-switches per side) — M6
+- [x] TextMate grammar + VS Code + VS2022 vsix rebuild — M6
+- [x] LSP completions / hover / go-to-def through aliases (rename handler: owner call) +
       embedded-C++ virtual doc (value/util regions, alias bindings) — M6
-- [ ] Codemod `-run=RUIMigrateEsModules` + gallery/templates/skills migrated — M7
-- [ ] ContractFixtures + new fixtures + goldens — M3/M8
-- [ ] Corpus cases + `family-corpus.hash` TRI-REPO lockstep — M0.4/M8 (release gate)
-- [ ] Docs: ImportsPage rewrite, CompanionFilesPage rewrite, migration guide, README, CLAUDE.md — M8
-- [ ] Changelogs: Lane A (root + plugin mirror), Lane B (changelog.json 0.6.0), Lane C (Discord ≤2000), PENDING drained — M8
-- [ ] Versions: plugin 0.12.0, extensions 0.6.0 via `bump.mjs` — M8
-- [ ] TECH_DEBT: TD-026/TD-024 resolved; new caveat entries — M8
-- [ ] `plans/archive/IMPORT_EXPORT_PLAN.md` G-05 supersede banner — M0.3
+- [x] Codemod `-run=RUIMigrateEsModules` + gallery/templates/skills migrated — M7
+- [x] ContractFixtures + new fixtures + goldens — M3/M8
+- [x] Corpus cases + `family-corpus.hash` TRI-REPO lockstep — M0.4/M8 (release gate)
+- [x] Docs: ImportsPage rewrite, CompanionFilesPage rewrite, migration guide, README, CLAUDE.md — M8
+- [x] Changelogs: Lane A (root + plugin mirror), Lane B (changelog.json 0.6.0), Lane C (Discord ≤2000), PENDING drained — M8
+- [x] Versions: plugin 0.12.0, extensions 0.6.0 via `bump.mjs` — M8
+- [x] TECH_DEBT: TD-026/TD-024 resolved; new caveat entries — M8
+- [x] `plans/archive/IMPORT_EXPORT_PLAN.md` G-05 supersede banner — M0.3
 
 ## §10 — Guardrails (what NOT to do) + error-signature table
 

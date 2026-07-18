@@ -1,0 +1,11 @@
+// Pins the G-10 deprecation window: the legacy wrapper grammar still parses + compiles
+// (each wrapper warns UETKX2320 — warnings never fail a compile) and its emission is
+// byte-stable. Removal is a later minor, owner-triggered; this fixture dies with it.
+export component LegacyWrappers(Label: FString = FString(TEXT("old"))) {
+	return (
+		<TextBlock Text={ FText::FromString(Label) } />
+	);
+}
+export hook UseLegacyTick(int32 Start) -> int32 {
+	return Start;
+}

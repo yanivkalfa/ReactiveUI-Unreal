@@ -8,7 +8,7 @@ import { ActivationProbe } from "./components/ActivationProbe/ActivationProbe"
 //     hooks are demoable headless, no CommonUI required;
 //   · the REAL half (audit G2): a live UCommonActivatableWidgetStack whose pushed screen is a
 //     URuiActivatableScreen hosting the SAME probe — real (de)activation, CommonUI's rules.
-export component CommonUiDemo {
+export FRuiNode CommonUiDemo() {
 	auto [bActive, SetActive] = UseState<bool>(true);
 	UWorld* World = RuiDemo::GetDemoWorld();
 

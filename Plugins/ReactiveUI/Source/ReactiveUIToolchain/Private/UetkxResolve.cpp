@@ -6,7 +6,10 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "UetkxConfig.h"
+#include "UetkxJsxScan.h"
 #include "UetkxLexer.h"
+#include "UetkxMarkup.h"
+#include "UetkxScopedLocals.h"
 
 namespace
 {
@@ -30,9 +33,20 @@ namespace
 
 	const TCHAR* KindWord(EUetkxDeclKind K)
 	{
-		return K == EUetkxDeclKind::Component ? TEXT("component")
-			   : K == EUetkxDeclKind::Hook	  ? TEXT("hook")
-											  : TEXT("module");
+		switch (K)
+		{
+		case EUetkxDeclKind::Component:
+			return TEXT("component");
+		case EUetkxDeclKind::Hook:
+			return TEXT("hook");
+		case EUetkxDeclKind::Module:
+			return TEXT("module");
+		case EUetkxDeclKind::Value:
+			return TEXT("value");
+		case EUetkxDeclKind::Util:
+			return TEXT("util");
+		}
+		return TEXT("module");
 	}
 
 	bool IsIdentStart(int32 C)
@@ -40,31 +54,74 @@ namespace
 		return C == '_' || (C >= 'a' && C <= 'z') || (C >= 'A' && C <= 'Z');
 	}
 
-	/** External-reference kinds a verbatim region can carry (setup / hook / module bodies). */
+	/** External-reference kinds a verbatim region can carry (setup / hook / module bodies).
+	 *  ES-modules (M4): Call (any non-Use plain call — a UTIL reference candidate) and Bare (a
+	 *  plain identifier — a VALUE reference candidate) join the set; both are only ever policed
+	 *  against the export table (a name no .uetkx exports stays ambient, exactly like hooks/
+	 *  modules — A4), so ordinary locals/engine names never diagnose. Module refs additionally
+	 *  carry the MEMBER after `::` so a namespace-alias member (`X::Cool`) can validate against
+	 *  the target's export table. */
 	struct FExtRef
 	{
 		enum class EKind
 		{
 			Hook,
-			Module
+			Module,
+			Call,
+			Bare
 		};
 		FString Name;
+		FString Member; // Module refs only: the identifier after `::` ("" when absent)
 		int32 At = -1;
 		EKind Kind = EKind::Hook;
 	};
+
+	void CollectMarkupNodeRefs(const FUetkxNode& Node, int32 Base, int32 FallbackAt, const TArray<FString>& IslandSeed,
+							   TArray<FExtRef>& Out);
 
 	/** Scan a verbatim C++ region for bare `Use<Upper>(` calls (user hooks) and leftmost `Ident::`
 	 *  scope quals (module references), respecting comments/strings and member/scope prefixes — the
 	 *  PrefixHookCalls classification (so hand-header namespaces like `RuiDemo::X` are found here as
 	 *  Module refs but filtered out later when no file exports the name). BaseAt = the region's
-	 *  absolute offset in the original source. */
-	void CollectExternalRefs(const FString& Region, int32 BaseAt, TArray<FExtRef>& Out)
+	 *  absolute offset in the original source; when it is UNKNOWN pass `bExactBase = false` and a
+	 *  fallback position — every ref then lands at BaseAt itself (the hook validator's fallback
+	 *  semantics). TD-034 #2 (N4): `ParamSeed` seeds the scope tracker — a NAME with a local
+	 *  declaration in scope is a body local, never an external reference. TD-034 #3 (N5): the
+	 *  region is markup-aware — value-markup ranges are CODE ISLANDS skipped by the C++ scan and
+	 *  walked as parsed trees (attr/child expressions and directive code join the reference set;
+	 *  text children never do, N-08); `IslandSeed` is the conservative locals union those islands
+	 *  see (null = reuse ParamSeed). */
+	void CollectExternalRefs(const FString& Region, int32 BaseAt, const TArray<FString>& ParamSeed,
+							 TArray<FExtRef>& Out, bool bExactBase = true, const TArray<FString>* IslandSeed = nullptr)
 	{
 		const TArray<int32> Src = FUetkxLexer::ToCodePoints(Region);
+		TArray<FUetkxMarkupRange> Ranges = FUetkxJsxScan::FindMarkupRanges(Src, 0, Src.Num());
+		for (FUetkxMarkupRange& R : Ranges)
+		{
+			if (R.End == -1)
+			{
+				R.End = Src.Num();
+			}
+		}
+		const FUetkxScopedLocals Locals(Src, ParamSeed);
 		const int32 N = Src.Num();
 		int32 i = 0;
 		while (i < N)
 		{
+			bool bInRange = false;
+			for (const FUetkxMarkupRange& R : Ranges)
+			{
+				if (i >= R.Start && i < R.End)
+				{
+					i = R.End;
+					bInRange = true;
+					break;
+				}
+			}
+			if (bInRange)
+			{
+				continue;
+			}
 			const int32 j = FUetkxLexer::SkipNoncode(Src, i);
 			if (j != i)
 			{
@@ -103,7 +160,13 @@ namespace
 			{
 				continue;
 			}
-			// following non-ws: `::` (module qual) or `(` (call).
+			// TD-034 #2 (N4): a body local (param, `Type Name = …`, structured binding) shadowing an
+			// exported name is NOT an external reference — no 2305, no codemod import.
+			if (Locals.IsLocal(Ident, s))
+			{
+				continue;
+			}
+			// following non-ws: `::` (module qual) or `(` (call); anything else is a bare reference.
 			int32 p = i;
 			while (p < N && (Src[p] == ' ' || Src[p] == '\t'))
 			{
@@ -113,13 +176,167 @@ namespace
 			const bool bFollowParen = (p < N && Src[p] == '(');
 			if (bFollowScope)
 			{
-				Out.Add({Ident, BaseAt + s, FExtRef::EKind::Module});
+				// ES-modules (M4): capture the member after `::` for namespace-alias validation.
+				int32 m = p + 2;
+				while (m < N && (Src[m] == ' ' || Src[m] == '\t'))
+				{
+					++m;
+				}
+				const int32 Ms = m;
+				while (m < N && FUetkxLexer::IsIdentCode(Src[m]))
+				{
+					++m;
+				}
+				Out.Add({Ident, FUetkxLexer::FromCodePoints(Src, Ms, m - Ms), bExactBase ? BaseAt + s : BaseAt,
+						 FExtRef::EKind::Module});
 			}
 			else if (bFollowParen && Ident.StartsWith(TEXT("Use")) && Ident.Len() >= 4 && FChar::IsUpper(Ident[3]) &&
 					 !FUetkxFileScan::HookNames().Contains(Ident))
 			{
-				Out.Add({Ident, BaseAt + s, FExtRef::EKind::Hook});
+				Out.Add({Ident, FString(), bExactBase ? BaseAt + s : BaseAt, FExtRef::EKind::Hook});
 			}
+			else if (bFollowParen)
+			{
+				Out.Add({Ident, FString(), bExactBase ? BaseAt + s : BaseAt, FExtRef::EKind::Call});
+			}
+			else
+			{
+				Out.Add({Ident, FString(), bExactBase ? BaseAt + s : BaseAt, FExtRef::EKind::Bare});
+			}
+		}
+		// N5: the skipped markup ranges are parsed and walked as trees (parse errors are the
+		// emitter's business — UETKX2508 family; a broken window contributes no references).
+		const TArray<FString>& Islands = IslandSeed ? *IslandSeed : ParamSeed;
+		for (const FUetkxMarkupRange& R : Ranges)
+		{
+			FUetkxMarkup Parser;
+			FUetkxParseResult Pr = Parser.Parse(Src, R.Start, R.End);
+			if (!Pr.IsOk())
+			{
+				continue;
+			}
+			for (const TSharedPtr<FUetkxNode>& Nd : Pr.Nodes)
+			{
+				// Node.At/Vat are REGION-buffer offsets (Parse ran over Src whole) — the frame
+				// anchor is the region's own base, exactly like ScanMarkupCodeForHooks.
+				if (Nd.IsValid())
+				{
+					CollectMarkupNodeRefs(*Nd, bExactBase ? BaseAt : -1, BaseAt, Islands, Out);
+				}
+			}
+		}
+	}
+
+	/** A directive body — statements + `return ( <markup> )` (family 0.7): collect from the lead
+	 *  code (markup-aware), then every root of the return window. Mirrors
+	 *  ValidateDirectiveBodyHooks (UetkxFileScan.cpp) exactly. */
+	void CollectDirectiveBodyRefs(const FString& BodyMarkup, int32 Base, int32 FallbackAt,
+								  const TArray<FString>& IslandSeed, TArray<FExtRef>& Out)
+	{
+		const TArray<int32> Body = FUetkxLexer::ToCodePoints(BodyMarkup);
+		const FUetkxSplitReturn Split = FUetkxFileScan::SplitMarkupReturn(Body, /*bRequireMarkupPeek*/ false);
+		if (!Split.bOk)
+		{
+			CollectExternalRefs(BodyMarkup, Base < 0 ? FallbackAt : Base, IslandSeed, Out, Base >= 0, &IslandSeed);
+			return;
+		}
+		CollectExternalRefs(FUetkxLexer::FromCodePoints(Body, 0, Split.ReturnAt), Base < 0 ? FallbackAt : Base,
+							IslandSeed, Out, Base >= 0, &IslandSeed);
+		FUetkxMarkup Parser;
+		FUetkxParseResult Pr = Parser.Parse(Body, Split.MStart, Split.MEnd);
+		if (Pr.IsOk())
+		{
+			for (const TSharedPtr<FUetkxNode>& Nd : Pr.Nodes)
+			{
+				if (Nd.IsValid())
+				{
+					CollectMarkupNodeRefs(*Nd, Base < 0 ? -1 : Base, Base < 0 ? FallbackAt : Base, IslandSeed, Out);
+				}
+			}
+		}
+	}
+
+	/** Walk one parsed markup node for external references (N5, TD-034 #3): attr/spread
+	 *  expressions, expression children, directive headers and bodies — the exact recursion of
+	 *  ValidateMarkupNodeHooks (UetkxFileScan.cpp), emitting FExtRefs instead of diags. Tags are
+	 *  NOT emitted here (the Tags set polices them); text/comment children are never scanned
+	 *  (N-08). `Base` = the absolute anchor of this tree's offset frame (Node.At/Vat/BodyAt
+	 *  compose on top), or -1 when detached (refs fall back to FallbackAt). */
+	void CollectMarkupNodeRefs(const FUetkxNode& Node, int32 Base, int32 FallbackAt, const TArray<FString>& IslandSeed,
+							   TArray<FExtRef>& Out)
+	{
+		const int32 NodeAt = Base < 0 ? FallbackAt : Base + Node.At;
+		switch (Node.Type)
+		{
+		case EUetkxNodeType::El:
+		case EUetkxNodeType::Frag:
+			for (const FUetkxAttr& Attr : Node.Attrs)
+			{
+				if (Attr.Kind != EUetkxAttrKind::Expr && Attr.Kind != EUetkxAttrKind::Spread)
+				{
+					continue;
+				}
+				const bool bExact = Base >= 0 && Attr.Vat >= 0;
+				CollectExternalRefs(Attr.Value, bExact ? Base + Attr.Vat : NodeAt, IslandSeed, Out, bExact,
+									&IslandSeed);
+			}
+			for (const TSharedPtr<FUetkxNode>& Child : Node.Children)
+			{
+				if (Child.IsValid())
+				{
+					CollectMarkupNodeRefs(*Child, Base, NodeAt, IslandSeed, Out);
+				}
+			}
+			break;
+		case EUetkxNodeType::Expr:
+		{
+			const bool bExact = Base >= 0 && Node.Vat >= 0;
+			CollectExternalRefs(Node.Code, bExact ? Base + Node.Vat : NodeAt, IslandSeed, Out, bExact, &IslandSeed);
+			break;
+		}
+		case EUetkxNodeType::If:
+			for (const FUetkxIfBranch& Branch : Node.Branches)
+			{
+				CollectExternalRefs(Branch.Cond, NodeAt, IslandSeed, Out, /*bExactBase*/ false, &IslandSeed);
+				CollectDirectiveBodyRefs(Branch.BodyMarkup, Base < 0 || Branch.BodyAt < 0 ? -1 : Base + Branch.BodyAt,
+										 NodeAt, IslandSeed, Out);
+			}
+			if (Node.ElseBody.IsSet())
+			{
+				CollectDirectiveBodyRefs(Node.ElseBody.GetValue(),
+										 Base < 0 || Node.ElseBodyAt < 0 ? -1 : Base + Node.ElseBodyAt, NodeAt,
+										 IslandSeed, Out);
+			}
+			break;
+		case EUetkxNodeType::For:
+		case EUetkxNodeType::While:
+		{
+			CollectExternalRefs(Node.Header, NodeAt, IslandSeed, Out, /*bExactBase*/ false, &IslandSeed);
+			// The header's own declarations (`@for (int32 i = 0; …)`) are live inside the
+			// body — append them to the body's island seed (the N5 loop-var pin).
+			const FUetkxScopedLocals HeaderLocals(FUetkxLexer::ToCodePoints(Node.Header), IslandSeed);
+			const TArray<FString> BodySeed = HeaderLocals.AllDeclNames();
+			CollectDirectiveBodyRefs(Node.BodyMarkup, Base < 0 || Node.BodyAt < 0 ? -1 : Base + Node.BodyAt, NodeAt,
+									 BodySeed, Out);
+			break;
+		}
+		case EUetkxNodeType::Match:
+			CollectExternalRefs(Node.Subject, NodeAt, IslandSeed, Out, /*bExactBase*/ false, &IslandSeed);
+			for (const FUetkxMatchCase& Case : Node.Cases)
+			{
+				CollectExternalRefs(Case.Value, NodeAt, IslandSeed, Out, /*bExactBase*/ false, &IslandSeed);
+				CollectDirectiveBodyRefs(Case.BodyMarkup, Base < 0 || Case.BodyAt < 0 ? -1 : Base + Case.BodyAt, NodeAt,
+										 IslandSeed, Out);
+			}
+			if (Node.DefaultBody.IsSet())
+			{
+				CollectDirectiveBodyRefs(Node.DefaultBody.GetValue(),
+										 Base < 0 || Node.DefaultBodyAt < 0 ? -1 : Base + Node.DefaultBodyAt, NodeAt,
+										 IslandSeed, Out);
+			}
+			break;
+		default:
+			break;
 		}
 	}
 } // namespace
@@ -130,6 +347,12 @@ uint32 FUetkxResolve::ExportHash(const FUetkxPreambleScan& Scan)
 	for (const FUetkxPreambleDecl& D : Scan.Decls)
 	{
 		Lines.Add(FString::Printf(TEXT("%s|%s|%d"), *D.Name, KindWord(D.Kind), D.bExported ? 1 : 0));
+	}
+	// ES-modules (U-08): the default-export marker is part of the export shape — changing or
+	// re-targeting `export default` re-stales every importer (their default aliases re-bind).
+	if (!Scan.DefaultExportName.IsEmpty())
+	{
+		Lines.Add(FString::Printf(TEXT("%s|default|1"), *Scan.DefaultExportName));
 	}
 	Lines.Sort();
 	uint32 H = 2166136261u;
@@ -235,6 +458,12 @@ bool FUetkxFsResolver::GetDecls(const FString& Key, TMap<FString, FUetkxTargetDe
 		Out.Add(D.Name, FUetkxTargetDecl{D.Kind, D.bExported});
 	}
 	return true;
+}
+
+FString FUetkxFsResolver::DefaultExportOf(const FString& Key) const
+{
+	const FUetkxPreambleScan* Scan = CachedScan(Key);
+	return Scan ? Scan->DefaultExportName : FString();
 }
 
 bool FUetkxFsResolver::CrossesModuleBoundary(const FString& ImporterPath, const FString& Key) const
@@ -372,9 +601,24 @@ void FUetkxResolve::Apply(const FUetkxFileScanResult& Scan, const TMap<FString, 
 	{
 		SameFile.Add(D.Name);
 	}
+	for (const FUetkxValueDecl& D : Scan.Values)
+	{
+		SameFile.Add(D.Name);
+	}
+	for (const FUetkxUtilDecl& D : Scan.Utils)
+	{
+		SameFile.Add(D.Name);
+	}
 
-	// 1. Resolve imports → the imported-name table + per-name diagnostics.
+	// 1. Resolve imports → the imported-binding table + per-name diagnostics. ImportedNames holds
+	// LOCAL bindings (what tags/code are spelled with — a renamed import binds its alias, `* as`
+	// binds the namespace alias, default binds the default alias); the 2301/2302 validation loop
+	// checks TARGET names (what the target file must export) — the ES-modules split (G-05/M4).
 	TSet<FString> ImportedNames;
+	// ES-modules (G-05): `* as X` targets — alias -> the target's decl table + label, so `X::M`
+	// member references validate against the real export surface.
+	TMap<FString, TMap<FString, FUetkxTargetDecl>> NamespaceTargets;
+	TMap<FString, FString> NamespaceLabels;
 	for (const FUetkxImportDecl& Imp : Scan.Imports)
 	{
 		// Host includes (`import "@Header.h"`, INCLUDE_RETIREMENT_PLAN.md §B) resolve to no
@@ -410,22 +654,49 @@ void FUetkxResolve::Apply(const FUetkxFileScanResult& Scan, const TMap<FString, 
 					TEXT("import crosses a module/root boundary (%s -> %s) — imports are module-scoped in v1"),
 					*ImporterPath, *Label),
 				Imp.At);
-			// These names ARE imported (2308 is the resolution to fix), so mark them imported — otherwise
-			// the strict-usage pass ALSO emits a contradictory 2305 "not imported, add this import" for the
-			// exact binding that is already imported (bughunt IMPORT-2).
-			for (const FString& Name : Imp.Names)
+			// These bindings ARE imported (2308 is the resolution to fix), so mark them imported —
+			// otherwise the strict-usage pass ALSO emits a contradictory 2305 "not imported, add this
+			// import" for the exact binding that is already imported (bughunt IMPORT-2).
+			for (int32 n = 0; n < Imp.Names.Num(); ++n)
 			{
-				ImportedNames.Add(Name);
+				ImportedNames.Add(Imp.LocalNames.IsValidIndex(n) ? Imp.LocalNames[n] : Imp.Names[n]);
+			}
+			if (Imp.bNamespace)
+			{
+				ImportedNames.Add(Imp.NamespaceAlias);
+			}
+			if (Imp.bDefault)
+			{
+				ImportedNames.Add(Imp.DefaultAlias);
 			}
 			continue;
 		}
 		TMap<FString, FUetkxTargetDecl> Decls;
 		Resolver.GetDecls(Key, Decls);
+		if (Imp.bNamespace)
+		{
+			ImportedNames.Add(Imp.NamespaceAlias);
+			NamespaceLabels.Add(Imp.NamespaceAlias, Label);
+			NamespaceTargets.Add(Imp.NamespaceAlias, MoveTemp(Decls));
+			continue;
+		}
+		if (Imp.bDefault)
+		{
+			ImportedNames.Add(Imp.DefaultAlias);
+			if (Resolver.DefaultExportOf(Key).IsEmpty())
+			{
+				Add(TEXT("UETKX2326"), 0,
+					FString::Printf(TEXT("%s has no default export — use a named import: import { ... } from \"%s\""),
+									*Label, *Imp.Specifier),
+					Imp.DefaultAliasAt, Imp.DefaultAlias.Len());
+			}
+			continue;
+		}
 		for (int32 n = 0; n < Imp.Names.Num(); ++n)
 		{
 			const FString& Name = Imp.Names[n];
 			const int32 NameAt = Imp.NameAts[n];
-			ImportedNames.Add(Name);
+			ImportedNames.Add(Imp.LocalNames.IsValidIndex(n) ? Imp.LocalNames[n] : Name);
 			const FUetkxTargetDecl* T = Decls.Find(Name);
 			if (!T)
 			{
@@ -476,35 +747,95 @@ void FUetkxResolve::Apply(const FUetkxFileScanResult& Scan, const TMap<FString, 
 				Tag.Value, Tag.Key.Len());
 		}
 	}
-	// User hook calls + module quals police EXPORT-TABLE names only (A4): a `Use<Upper>(` call or
-	// `Ident::` qual whose name is exported by a .uetkx file but not imported here is 2305; a name
-	// exported by NO file is ambient (a hand-written header hook / engine namespace) and never
-	// diagnoses — imports address .uetkx targets only.
+	// User hook calls + module quals + plain calls (utils) + bare identifiers (values) police
+	// EXPORT-TABLE names only (A4): a reference whose name is exported by a .uetkx file (with the
+	// MATCHING kind) but not imported here is 2305; a name exported by NO file is ambient (a
+	// hand-written header hook / engine namespace / a body local) and never diagnoses — imports
+	// address .uetkx targets only. ES-modules (M4): value initializers + util bodies join the
+	// scanned regions; `X::M` refs through a namespace alias validate the MEMBER against the
+	// target's export table (2301/2302, qualified spelling).
 	TArray<FExtRef> Refs;
 	for (const FUetkxComponentDecl& D : Scan.Components)
 	{
-		CollectExternalRefs(D.Setup, D.SetupAt, Refs);
+		TArray<FString> Seed;
+		for (const FUetkxParam& P : D.Params)
+		{
+			Seed.Add(P.Name);
+		}
+		// N5 (TD-034 #3): scan the WHOLE body, markup-aware — return windows and value-markup
+		// ranges are parsed and their attr/child expressions + directive code join the reference
+		// set. Islands see the conservative locals union (setup locals are live inside markup).
+		const FUetkxScopedLocals BodyLocals(FUetkxLexer::ToCodePoints(D.Body), Seed);
+		const TArray<FString> IslandSeed = BodyLocals.AllDeclNames();
+		CollectExternalRefs(D.Body, D.BodyAt, Seed, Refs, /*bExactBase*/ true, &IslandSeed);
 	}
 	for (const FUetkxHookDecl& D : Scan.Hooks)
 	{
-		CollectExternalRefs(D.Body, D.BodyAt, Refs);
+		CollectExternalRefs(D.Body, D.BodyAt, FUetkxScopedLocals::ParamNamesOf(D.Params), Refs);
 	}
 	for (const FUetkxModuleDecl& D : Scan.Modules)
 	{
-		CollectExternalRefs(D.Body, D.BodyAt, Refs);
+		CollectExternalRefs(D.Body, D.BodyAt, {}, Refs);
+	}
+	for (const FUetkxValueDecl& D : Scan.Values)
+	{
+		CollectExternalRefs(D.Init, D.InitAt, {}, Refs);
+	}
+	for (const FUetkxUtilDecl& D : Scan.Utils)
+	{
+		CollectExternalRefs(D.Body, D.BodyAt, FUetkxScopedLocals::ParamNamesOf(D.Params), Refs);
 	}
 	for (const FExtRef& R : Refs)
 	{
 		// A referenced name is USED (for 2304) regardless of whether it resolves — an imported
 		// name that appears here is not unused even if it turns out private/ambient.
 		Referenced.Add(R.Name);
+		// ES-modules (G-05): `X::M` through a namespace alias — validate the member against the
+		// target's export table with the qualified spelling in the message.
+		if (R.Kind == FExtRef::EKind::Module)
+		{
+			if (const TMap<FString, FUetkxTargetDecl>* Targets = NamespaceTargets.Find(R.Name))
+			{
+				const FString& Label = NamespaceLabels[R.Name];
+				const FString Qualified = R.Name + TEXT("::") + R.Member;
+				const FUetkxTargetDecl* T = R.Member.IsEmpty() ? nullptr : Targets->Find(R.Member);
+				if (!T)
+				{
+					Add(TEXT("UETKX2302"), 0, FString::Printf(TEXT("`%s` is not declared in %s"), *Qualified, *Label),
+						R.At, Qualified.Len());
+				}
+				else if (!T->bExported)
+				{
+					Add(TEXT("UETKX2301"), 0,
+						FString::Printf(TEXT("`%s` is not exported by %s — add `export` to its declaration"),
+										*Qualified, *Label),
+						R.At, Qualified.Len());
+				}
+				continue;
+			}
+		}
 		EUetkxDeclKind Kind;
 		const FString Owner = Resolver.FindExporter(R.Name, Kind);
 		if (Owner.IsEmpty())
 		{
 			continue; // exported by no file → ambient (hand-written), not policed
 		}
-		const EUetkxDeclKind Want = R.Kind == FExtRef::EKind::Hook ? EUetkxDeclKind::Hook : EUetkxDeclKind::Module;
+		EUetkxDeclKind Want;
+		switch (R.Kind)
+		{
+		case FExtRef::EKind::Hook:
+			Want = EUetkxDeclKind::Hook;
+			break;
+		case FExtRef::EKind::Module:
+			Want = EUetkxDeclKind::Module;
+			break;
+		case FExtRef::EKind::Call:
+			Want = EUetkxDeclKind::Util;
+			break;
+		default:
+			Want = EUetkxDeclKind::Value;
+			break;
+		}
 		if (Kind != Want)
 		{
 			continue; // shape mismatch (e.g. Ident:: that names a component) → not this reference
@@ -516,15 +847,39 @@ void FUetkxResolve::Apply(const FUetkxFileScanResult& Scan, const TMap<FString, 
 		Emit2305(R.Name, Owner, R.At);
 	}
 
-	// 3. Unused imports (2304, warn): an imported name never referenced.
+	// 3. Unused imports (2304, warn): an imported LOCAL binding never referenced (ES-modules M4:
+	// usage counts the local alias — what the author actually spells in tags/code).
 	for (const FUetkxImportDecl& Imp : Scan.Imports)
 	{
+		if (Imp.bHostInclude)
+		{
+			continue;
+		}
+		if (Imp.bNamespace)
+		{
+			if (!Referenced.Contains(Imp.NamespaceAlias))
+			{
+				Add(TEXT("UETKX2304"), 1, FString::Printf(TEXT("unused import `%s`"), *Imp.NamespaceAlias),
+					Imp.NamespaceAliasAt, Imp.NamespaceAlias.Len());
+			}
+			continue;
+		}
+		if (Imp.bDefault)
+		{
+			if (!Referenced.Contains(Imp.DefaultAlias))
+			{
+				Add(TEXT("UETKX2304"), 1, FString::Printf(TEXT("unused import `%s`"), *Imp.DefaultAlias),
+					Imp.DefaultAliasAt, Imp.DefaultAlias.Len());
+			}
+			continue;
+		}
 		for (int32 n = 0; n < Imp.Names.Num(); ++n)
 		{
-			if (!Referenced.Contains(Imp.Names[n]))
+			const FString& Local = Imp.LocalNames.IsValidIndex(n) ? Imp.LocalNames[n] : Imp.Names[n];
+			if (!Referenced.Contains(Local))
 			{
-				Add(TEXT("UETKX2304"), 1, FString::Printf(TEXT("unused import `%s`"), *Imp.Names[n]), Imp.NameAts[n],
-					Imp.Names[n].Len());
+				Add(TEXT("UETKX2304"), 1, FString::Printf(TEXT("unused import `%s`"), *Local), Imp.NameAts[n],
+					Local.Len());
 			}
 		}
 	}
@@ -547,16 +902,36 @@ void FUetkxResolve::MissingImports(const FUetkxFileScanResult& Scan, const TSet<
 	{
 		SameFile.Add(D.Name);
 	}
+	for (const FUetkxValueDecl& D : Scan.Values)
+	{
+		SameFile.Add(D.Name);
+	}
+	for (const FUetkxUtilDecl& D : Scan.Utils)
+	{
+		SameFile.Add(D.Name);
+	}
+	// Local bindings (ES-modules M4): a renamed import binds its alias; `* as`/default bind their
+	// aliases — all suppress "missing import" for references spelled with them.
 	TSet<FString> AlreadyImported;
 	for (const FUetkxImportDecl& Imp : Scan.Imports)
 	{
-		for (const FString& Name : Imp.Names)
+		for (int32 n = 0; n < Imp.Names.Num(); ++n)
 		{
-			AlreadyImported.Add(Name);
+			AlreadyImported.Add(Imp.LocalNames.IsValidIndex(n) ? Imp.LocalNames[n] : Imp.Names[n]);
+		}
+		if (Imp.bNamespace)
+		{
+			AlreadyImported.Add(Imp.NamespaceAlias);
+		}
+		if (Imp.bDefault)
+		{
+			AlreadyImported.Add(Imp.DefaultAlias);
 		}
 	}
 	TSet<FString> Handled;
-	auto Consider = [&](const FString& Name, bool bModuleQual)
+	// RequiredKind: the export kind this reference shape can target (Component for tags via
+	// INDEX_NONE sentinel — any kind was the historical tag behavior, kept).
+	auto Consider = [&](const FString& Name, TOptional<EUetkxDeclKind> RequiredKind)
 	{
 		if (SameFile.Contains(Name) || AlreadyImported.Contains(Name) || Handled.Contains(Name))
 		{
@@ -568,9 +943,9 @@ void FUetkxResolve::MissingImports(const FUetkxFileScanResult& Scan, const TSet<
 		{
 			return; // exported by no file — the codemod cannot fix it (2307 stays for the author)
 		}
-		if (bModuleQual && Kind != EUetkxDeclKind::Module)
+		if (RequiredKind.IsSet() && Kind != RequiredKind.GetValue())
 		{
-			return; // a hand-written C++ namespace qual, not a module — ambient (A4)
+			return; // shape mismatch (e.g. a hand-written C++ namespace qual) — ambient (A4)
 		}
 		Handled.Add(Name);
 		if (Resolver.CrossesModuleBoundary(ImporterPath, Owner))
@@ -582,24 +957,56 @@ void FUetkxResolve::MissingImports(const FUetkxFileScanResult& Scan, const TSet<
 	};
 	for (const FString& Tag : Tags)
 	{
-		Consider(Tag, false);
+		Consider(Tag, TOptional<EUetkxDeclKind>());
 	}
 	TArray<FExtRef> Refs;
 	for (const FUetkxComponentDecl& D : Scan.Components)
 	{
-		CollectExternalRefs(D.Setup, D.SetupAt, Refs);
+		TArray<FString> Seed;
+		for (const FUetkxParam& P : D.Params)
+		{
+			Seed.Add(P.Name);
+		}
+		// N5 (TD-034 #3): scan the WHOLE body, markup-aware — return windows and value-markup
+		// ranges are parsed and their attr/child expressions + directive code join the reference
+		// set. Islands see the conservative locals union (setup locals are live inside markup).
+		const FUetkxScopedLocals BodyLocals(FUetkxLexer::ToCodePoints(D.Body), Seed);
+		const TArray<FString> IslandSeed = BodyLocals.AllDeclNames();
+		CollectExternalRefs(D.Body, D.BodyAt, Seed, Refs, /*bExactBase*/ true, &IslandSeed);
 	}
 	for (const FUetkxHookDecl& D : Scan.Hooks)
 	{
-		CollectExternalRefs(D.Body, D.BodyAt, Refs);
+		CollectExternalRefs(D.Body, D.BodyAt, FUetkxScopedLocals::ParamNamesOf(D.Params), Refs);
 	}
 	for (const FUetkxModuleDecl& D : Scan.Modules)
 	{
-		CollectExternalRefs(D.Body, D.BodyAt, Refs);
+		CollectExternalRefs(D.Body, D.BodyAt, {}, Refs);
+	}
+	for (const FUetkxValueDecl& D : Scan.Values)
+	{
+		CollectExternalRefs(D.Init, D.InitAt, {}, Refs);
+	}
+	for (const FUetkxUtilDecl& D : Scan.Utils)
+	{
+		CollectExternalRefs(D.Body, D.BodyAt, FUetkxScopedLocals::ParamNamesOf(D.Params), Refs);
 	}
 	for (const FExtRef& R : Refs)
 	{
-		Consider(R.Name, R.Kind == FExtRef::EKind::Module);
+		switch (R.Kind)
+		{
+		case FExtRef::EKind::Hook:
+			Consider(R.Name, EUetkxDeclKind::Hook);
+			break;
+		case FExtRef::EKind::Module:
+			Consider(R.Name, EUetkxDeclKind::Module);
+			break;
+		case FExtRef::EKind::Call:
+			Consider(R.Name, EUetkxDeclKind::Util);
+			break;
+		case FExtRef::EKind::Bare:
+			Consider(R.Name, EUetkxDeclKind::Value);
+			break;
+		}
 	}
 	for (TPair<FString, TArray<FString>>& Pair : OutBySpecifier)
 	{

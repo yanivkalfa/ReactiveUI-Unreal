@@ -5,7 +5,7 @@ import { ShowcaseProbe } from "./components/ShowcaseProbe/ShowcaseProbe"
 
 // All four pillars in one screen, authored in .uetkx:
 //   Slate (this whole tree) · UMG (a UUserWidget hosted inside) · MVVM (UseField) · CommonUI (activation).
-export component InteropShowcase {
+export FRuiNode InteropShowcase() {
 	// MVVM pillar — a viewmodel we own; UseField re-renders on its broadcast.
 	const TStrongObjectPtr<URuiSignalViewModel>& VmPtr = UseMemo<TStrongObjectPtr<URuiSignalViewModel>>(
 		[]() { return TStrongObjectPtr<URuiSignalViewModel>(NewObject<URuiSignalViewModel>()); }, RUI::Deps());

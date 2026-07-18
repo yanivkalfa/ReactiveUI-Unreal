@@ -1,0 +1,8 @@
+import * as Vals from "./ValueExports"
+
+export FRuiNode NamespaceImport() {
+	const FLinearColor Tint = Vals::Cool;
+	return (
+		<TextBlock Text={ FText::FromString(Vals::FormatScore(3)) } ColorAndOpacity={ Tint } />
+	);
+}

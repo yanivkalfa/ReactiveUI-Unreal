@@ -1,4 +1,4 @@
-export component TicTacToe {
+export FRuiNode TicTacToe() {
 	auto EmptyGrid = []() {
 		TArray<FString> G;
 		G.SetNum(9);

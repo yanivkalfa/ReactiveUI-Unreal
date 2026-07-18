@@ -26,6 +26,8 @@ struct REACTIVEUITOOLCHAIN_API FUetkxFileResult
 	TArray<FUetkxDiag> Diags;
 	TArray<FString> ComponentNames; // compiled: from codegen; skipped: from the sidecar refs
 	TArray<FString> ExportedNames;	// EXPORTED names only — the 2106 ledger key (A5e)
+	bool bSupportFile = false;		// no components (values/hooks/modules/utils only) — ES-modules M5:
+									// the watcher names this file's IMPORTERS in the sweep note
 };
 
 struct REACTIVEUITOOLCHAIN_API FUetkxSweepResult
@@ -52,8 +54,10 @@ class REACTIVEUITOOLCHAIN_API FUetkxDriver
 {
 public:
 	/** Bump when generated-code SHAPE changes — the fingerprint that re-stales everything.
-	 *  v2: two-phase (`RUI_UETKX_DECL_PHASE`) aggregator + fwd-decl emit + `#line` directives (M6/M7). */
-	static constexpr int32 CodegenVersion = 2;
+	 *  v2: two-phase (`RUI_UETKX_DECL_PHASE`) aggregator + fwd-decl emit + `#line` directives (M6/M7).
+	 *  v3: ES-modules (U-10) — value/util emission, the import-alias rewrite plane, and the TD-026
+	 *  file-qualified runtime identity for private components (RuiPriv_<Basename>::<Name> keys). */
+	static constexpr int32 CodegenVersion = 3;
 
 	static FString InlPathFor(const FString& UetkxPath) { return UetkxPath + TEXT(".inl"); }
 	static FString SidecarPathFor(const FString& UetkxPath) { return UetkxPath + TEXT(".diags.json"); }
@@ -105,8 +109,12 @@ public:
 
 	/** The import blast radius (M9): the basenames of files under Roots whose recorded dep graph
 	 *  (sidecar v3 dep_hashes) points at ProjRelPath — i.e. the files that import it. Sorted; the
-	 *  watcher names these in the HMR hook/module rebuild note. */
+	 *  watcher names these in the HMR support-file rebuild note (wired in ES-modules M5). */
 	static TArray<FString> ImportersOf(const FString& ProjRelPath, const TArray<FString>& Roots);
+
+	/** A .uetkx source path relative to the project dir, forward-slashed — the stable form the
+	 *  `#line` directives and sidecar dep labels use; the ImportersOf key space (ES-modules M5). */
+	static FString ProjectRelPath(const FString& UetkxPath);
 
 	/** Fingerprint file check: mismatch/absent -> everything stale (returns true). Call
 	 *  RefreshFingerprint after a clean sweep. */

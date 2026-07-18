@@ -4,7 +4,7 @@ import { DoomGameScreen } from "./DoomGameScreen"
 // The Doom demo's root: a plain @if screen switch (menu ↔ game) — deliberately NOT the
 // router, matching both siblings (plan §0). The game screen is keyed by a play counter so
 // every START is a clean remount (hook state, mouse capture, session — all fresh).
-export component DoomGame {
+export FRuiNode DoomGame() {
 	auto [bInGame, SetInGame] = UseState<bool>(false);
 	auto [Level, SetLevel] = UseState<int32>(1);
 	auto [Diff, SetDiff] = UseState<int32>(1);

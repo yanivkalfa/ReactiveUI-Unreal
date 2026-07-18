@@ -185,13 +185,58 @@ const settle = (ms = 300) => new Promise((r) => setTimeout(r, ms));
   if (!tagWsItems.some((i) => i.label === "VerticalBox")) fail("tag completion dropped host elements when folding in components");
   console.log("tag completion OK (imported component Badge + host elements)");
 
+  // TD-033: find-all-references on `Badge` (the import binding, line 0 char 10) — must find the
+  // decl in B.uetkx plus A's binding + tag.
+  const refRes = await request("textDocument/references", {
+    textDocument: { uri: aUri },
+    position: { line: 0, character: 10 },
+    context: { includeDeclaration: true },
+  });
+  const refLocs = refRes.result || [];
+  if (!refLocs.some((l) => l.uri.endsWith("B.uetkx"))) fail("references missing the declaration in B.uetkx: " + JSON.stringify(refLocs));
+  if (refLocs.filter((l) => l.uri.endsWith("A.uetkx")).length < 2) fail("references missing A's binding + tag: " + JSON.stringify(refLocs));
+  console.log(`find-all-references OK (${refLocs.length} locations across both files)`);
+
+  // TD-033: prepareRename + rename `Badge` → `Crest` (cursor on the tag, line 2 char 12)
+  const prep = await request("textDocument/prepareRename", { textDocument: { uri: aUri }, position: { line: 2, character: 12 } });
+  if (!prep.result || !prep.result.placeholder) fail("prepareRename refused a renameable tag: " + JSON.stringify(prep));
+  const ren = await request("textDocument/rename", { textDocument: { uri: aUri }, position: { line: 2, character: 12 }, newName: "Crest" });
+  const changes = (ren.result && ren.result.changes) || {};
+  const changedUris = Object.keys(changes);
+  if (!changedUris.some((u) => u.endsWith("B.uetkx")) || !changedUris.some((u) => u.endsWith("A.uetkx")))
+    fail("rename must edit BOTH files: " + JSON.stringify(changedUris));
+  if (!Object.values(changes).flat().every((e) => e.newText === "Crest")) fail("rename edits wrong: " + JSON.stringify(changes));
+  console.log(`rename OK (WorkspaceEdit across ${changedUris.length} files)`);
+
+  // TD-033: document symbols for A.uetkx
+  const symRes = await request("textDocument/documentSymbol", { textDocument: { uri: aUri } });
+  if (!(symRes.result || []).some((s) => s.name === "App")) fail("documentSymbol missing App: " + JSON.stringify(symRes.result));
+  console.log("document symbols OK");
+
+  // TD-033: workspace symbols find Badge by partial query
+  const wsSym = await request("workspace/symbol", { query: "bad" });
+  if (!(wsSym.result || []).some((s) => s.name === "Badge")) fail("workspace symbol missing Badge: " + JSON.stringify(wsSym.result));
+  console.log("workspace symbols OK");
+
   // live resolution diagnostic: importing a NON-exported name flags UETKX2301
   const aBadText = 'import { Hidden } from "./B"\ncomponent App {\n\treturn ( <Hidden /> );\n}\n';
   notify("textDocument/didChange", { textDocument: { uri: aUri, version: 2 }, contentChanges: [{ text: aBadText }] });
   await settle();
-  if (!(diagnostics[aUri] || []).some((d) => String(d.code) === "UETKX2301"))
-    fail("live 2301 (not-exported) missing: " + JSON.stringify(diagnostics[aUri]));
+  const d2301 = (diagnostics[aUri] || []).find((d) => String(d.code) === "UETKX2301");
+  if (!d2301) fail("live 2301 (not-exported) missing: " + JSON.stringify(diagnostics[aUri]));
   console.log("live import diagnostic OK (2301 not-exported)");
+
+  // TD-033 N3: the 2301 code action offers the cross-file `export ` insertion into B.uetkx
+  const caRes = await request("textDocument/codeAction", {
+    textDocument: { uri: aUri },
+    range: d2301.range,
+    context: { diagnostics: [d2301] },
+  });
+  const exportAction = (caRes.result || []).find((a) => /Add export/.test(a.title));
+  if (!exportAction) fail("2301 code action missing: " + JSON.stringify((caRes.result || []).map((a) => a.title)));
+  const caUris = Object.keys((exportAction.edit && exportAction.edit.changes) || {});
+  if (!caUris.some((u) => u.endsWith("B.uetkx"))) fail("2301 action must edit the TARGET file: " + JSON.stringify(caUris));
+  console.log("code action OK (2301 → cross-file export insertion)");
   fs.rmSync(ws, { recursive: true, force: true });
 
   await request("shutdown", null);

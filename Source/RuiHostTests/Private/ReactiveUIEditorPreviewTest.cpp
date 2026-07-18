@@ -94,14 +94,24 @@ bool FRuiEditorPreviewTest::RunTest(const FString&)
 		TestTrue(TEXT("mounted the real compiled render"), AnyText(Preview->GetWidget().Get(), TEXT("HELLO_RAN_LIVE")));
 	}
 
-	// ── an uncompiled component reports "not compiled yet", it does NOT approximate ──────────────
+	// ── an uncompiled EXPORTED component reports "not compiled yet", it does NOT approximate ─────
 	{
-		const FString Source = TEXT("component NeverCompiled {\n\treturn ( <VerticalBox></VerticalBox> );\n}\n");
+		const FString Source = TEXT("export component NeverCompiled {\n\treturn ( <VerticalBox></VerticalBox> );\n}\n");
 		TSharedRef<FUetkxPreview> Preview = FUetkxPreview::FromSource(Source, TEXT("NeverCompiled"));
 		TestFalse(TEXT("uncompiled component does not mount"), Preview->IsValid());
 		TestTrue(TEXT("explains it is not compiled yet"),
 				 AnyMessageContains(Preview->GetMessages(), TEXT("not compiled")));
 		Preview->GetWidget(); // placeholder, no crash
+	}
+
+	// ── a PRIVATE component explains privacy, not a bogus "not compiled yet" (TD-026/M3) ─────────
+	{
+		const FString Source = TEXT("component PrivOnly {\n\treturn ( <VerticalBox></VerticalBox> );\n}\n");
+		TSharedRef<FUetkxPreview> Preview = FUetkxPreview::FromSource(Source, TEXT("PrivOnly"));
+		TestFalse(TEXT("private component does not mount"), Preview->IsValid());
+		TestTrue(TEXT("explains it is private"), AnyMessageContains(Preview->GetMessages(), TEXT("private")));
+		TestFalse(TEXT("no misleading not-compiled hint"),
+				  AnyMessageContains(Preview->GetMessages(), TEXT("not compiled")));
 	}
 
 	// ── choosing a named component among several (the named one is compiled) ─────────────────────

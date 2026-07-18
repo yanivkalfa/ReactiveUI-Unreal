@@ -12,9 +12,9 @@
 // Component params use the family `Name: Type = Default` grammar (NOT verbatim C++ like hook
 // params). A component returns a single markup tree.
 
-import { LabStyle } from "../../AcceptanceLab.style"
+import * as LabStyle from "../../AcceptanceLab.style"
 
-export component LabCard(Label: FString = FString(TEXT("Card")), Count: int32 = 0) {
+export FRuiNode LabCard(FString Label = FString(TEXT("Card")), int32 Count = 0) {
 	// Simple derived value from a prop — exercises reading component props in the setup block.
 	const FLinearColor Tint = Count > 0 ? LabStyle::Good : LabStyle::Warn;
 

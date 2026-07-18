@@ -7,6 +7,79 @@ resync with `cp CHANGELOG.md Plugins/ReactiveUI/CHANGELOG.md` (CI byte-compares 
 `scripts/verify-mirror.mjs`). The IDE extensions are NOT covered here — they use
 `ide-extensions/changelog.json` (Lane B; see the release-process skill).
 
+## [0.12.0] — 2026-07-18
+
+ES modules: a `.uetkx` file IS a module. Plain C++-typed declarations replace the wrapper
+keywords, the full ES import surface lands, and privacy becomes real at runtime — the family
+redesign (locked G-01..G-13), Unreal leg first.
+
+### Added
+
+- **Signature-classified declarations** (the wrapper keywords retire): `export FRuiNode
+  Name(T P = D, ...) { … }` is a component (PascalCase enforced), `export <T> UseName(...)` a
+  hook (return type leads; `void` explicit), `export <T> Name = init;` a **value export**
+  (`export Name = T(...);` inference sugar — the initializer must name its type, else
+  `UETKX2322`), any other callable a **util function**. Values emit decl-phase-only
+  `inline const`; utils are hook-shaped minus the `Ctx` injection.
+- **The full ES import surface**: rename-on-import (`import { A as B }` — every `B` reference
+  rewrites to `A` at emit, tags included), namespace imports (`import * as X` — `X::Member`
+  quals strip to the real symbols), default imports (`import D from "./x"` binding the
+  target's `export default`), deferred `export { a, b };` lists (mixable with inline
+  `export`), and `export default X;` (one per file; does NOT name-export X — ES parity).
+- **New diagnostics `UETKX2320`–`2327`** (family band): 2320 wrapper-deprecation warn; 2321
+  Use-prefixed-but-FRuiNode cross-guard; 2322 failed value-type inference; 2323 export of an
+  undeclared name; 2324 duplicate export; 2325 import-alias collision; 2326 default-importing
+  a file with no default; 2327 duplicate `export default`.
+- **`-run=RUIMigrateEsModules`** — the idempotent, record-driven codemod: tidies preambles,
+  exports everything, flips wrappers to plain declarations (param colon-flip from parsed
+  records), hoists `module` members to value/util exports (importers' `{ M }` flip to
+  `import * as M` with zero body edits), inserts missing imports, and gates on a
+  zero-diagnostics compile including zero 2320 outside explicitly-reported skips. The demo
+  tree ships fully migrated; the "New Component" template scaffolds the new grammar.
+- **HMR blast radius**: recompiling a support file (values/hooks/utils) logs its importers
+  (`[RUI] hmr: X is a support file — the rebuild patches its importer(s): …`) from the
+  sidecar dependency graph.
+
+### Changed
+
+- **Runtime privacy is real (TD-026 fixed)**: a PRIVATE component's runtime identity is now
+  file-qualified (`RuiPriv_<File>::<Name>`) — two files' private same-named components can no
+  longer collide last-swap-wins in the HMR registries. Exported components keep their short
+  names. Documented consequence: renaming a file remounts its private members (state reset);
+  exported members keep identity. CodegenVersion 2→3.
+- **Eager-edge staleness widens**: the `UETKX2306` value-cycle check and the aggregator's
+  ordering now treat value/util/namespace/default bindings as eager edges (hooks/modules
+  already were); component-only imports stay lazy (cycles legal).
+- **The legacy wrapper grammar still parses for this one minor** — each `component`/`hook`/
+  `module` keyword warns `UETKX2320`; removal comes in a later minor, announced per the
+  deprecation policy. The formatter is form-preserving both ways (it never migrates syntax —
+  that is the codemod's job).
+- **Preview message**: a PRIVATE component now explains "add `export` to preview it" instead
+  of the misleading "not compiled yet" (privates never register a factory by design).
+
+### Fixed
+
+- **A ternary's second arm broke alias/private qualification** (`? A::X : B::Y` — the lone
+  `:` was mis-read as a `::` scope qual, so the second reference kept its alias and emitted
+  broken C++; the same latent bug skipped `RuiPriv_::` qualification after a ternary).
+  Region-scanned with the IMPORT-3 rule everywhere (only a real `::` blocks).
+- **Local variables shadowing an import alias / private name / exported value are locals now
+  (TD-034)**: a new scope tracker (`FUetkxScopedLocals` — brace scopes; params, `Type Name =`,
+  `auto`, structured bindings) runs under every rewrite plane and the reference collector, so
+  a shadowing local is no longer alias-rewritten, `RuiPriv_::`-qualified, `Ctx`-injected as a
+  hook, or false-2305'd — while references BEFORE the shadowing declaration still are. The
+  tracker is a pinned heuristic (contract fixture `ShadowedNames.uetkx`); an exotic
+  declaration shape it misses keeps the old behavior (documented residual). Its type-ish
+  lookbehind applies the ternary lone-`:` rule too — `U = a ? B : B;` no longer mis-reads
+  the second arm as a declaration.
+- **Usage policing now sees markup expressions (TD-034)**: attr/spread expressions, `@if`
+  conditions and bodies, `@for`/`@while` headers and bodies, and `@match` subjects/cases join
+  the external-reference walk (text children never scanned). A value/util/hook used ONLY
+  inside markup no longer warns `UETKX2304` unused, and using one WITHOUT its import now
+  diagnoses `UETKX2305` at edit time instead of failing later in the C++ compile.
+  `RUIMigrateEsModules` inherits both through the shared collector. An `@for` loop variable
+  named like an exported value stays a local (its header declarations scope into the body).
+
 ## [0.11.0] — 2026-07-17
 
 Markup everywhere: markup is a first-class EXPRESSION now, legal at every boundary position —

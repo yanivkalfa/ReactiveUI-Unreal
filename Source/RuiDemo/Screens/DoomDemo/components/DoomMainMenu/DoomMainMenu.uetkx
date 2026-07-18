@@ -5,7 +5,7 @@ import "@Doom/DoomMaps.h"
 // `doom_main_menu.guitkx`): level select + difficulty select + start, all through the
 // passed-in callbacks. Selection renders as a Border wrapper tinted with the selected
 // color (v1 has no per-Button background styling).
-export component DoomMainMenu(Level: int32 = 1, Diff: int32 = 1, OnLevelChange: FRuiCallback = FRuiCallback(), OnDifficultyChange: FRuiCallback = FRuiCallback(), OnStart: FRuiCallback = FRuiCallback()) {
+export FRuiNode DoomMainMenu(int32 Level = 1, int32 Diff = 1, FRuiCallback OnLevelChange = FRuiCallback(), FRuiCallback OnDifficultyChange = FRuiCallback(), FRuiCallback OnStart = FRuiCallback()) {
 	const FLinearColor Bg(0.06f, 0.05f, 0.05f, 1.0f);
 	const FLinearColor TitleClr(0.95f, 0.20f, 0.15f, 1.0f);
 	const FLinearColor SubtitleClr(0.85f, 0.70f, 0.40f, 1.0f);

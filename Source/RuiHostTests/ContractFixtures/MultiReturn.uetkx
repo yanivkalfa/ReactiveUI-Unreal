@@ -1,4 +1,4 @@
-export component MultiReturn(Mode: int32 = 0) {
+export FRuiNode MultiReturn(int32 Mode = 0) {
 	auto [Count, SetCount] = UseState(Mode);
 	if (Count < 0) {
 		return ( <TextBlock Text="negative" /> );

@@ -1,0 +1,10 @@
+FRuiNode Row() {
+	return ( <Spacer /> );
+}
+export FRuiNode PrivPairB() {
+	return (
+		<VerticalBox>
+			<Row />
+		</VerticalBox>
+	);
+}

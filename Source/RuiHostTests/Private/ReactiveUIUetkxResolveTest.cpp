@@ -77,16 +77,17 @@ bool FRuiUetkxResolveTest::RunTest(const FString&)
 
 	// ── strict diagnostics, one per case (rel = Screens/T.uetkx so ./ anchors in Screens) ─────
 	const FString Rel = TEXT("Screens/T.uetkx");
-	{ // clean: import a used component
+	{ // clean: import a used component (the `component`/`hook` wrapper keywords are still legal —
+	  // ES-modules 2320 is the one expected deprecation warning, not an error)
 		const TArray<FString> C =
 			Codes(TEXT("import { Chip } from \"./Chip\"\ncomponent T {\n\treturn ( <Chip /> );\n}\n"), Rel, R);
-		TestEqual(TEXT("clean import has no diags"), C.Num(), 0);
+		TestEqual(TEXT("clean import has only the 2320 deprecation warning"), C.Num(), 1);
 	}
 	{ // clean: ~/ hook import + use
 		const TArray<FString> C = Codes(TEXT("import { UseThing } from \"~/hooks/Thing\"\ncomponent T "
 											 "{\n\tUseThing();\n\treturn ( <Spacer /> );\n}\n"),
 										Rel, R);
-		TestEqual(TEXT("~/ hook import + use is clean"), C.Num(), 0);
+		TestEqual(TEXT("~/ hook import + use has only the 2320 deprecation warning"), C.Num(), 1);
 	}
 	Has(Codes(TEXT("import { Chip } from \"./Nope\"\ncomponent T {\n\treturn ( <Spacer /> );\n}\n"), Rel, R),
 		TEXT("UETKX2300")); // unknown specifier
@@ -121,6 +122,147 @@ bool FRuiUetkxResolveTest::RunTest(const FString&)
 			Codes(TEXT("component T {\n\tint32 X = RuiDemo::Value;\n\treturn ( <Spacer /> );\n}\n"), Rel, R);
 		HasNot(C, TEXT("UETKX2305"));
 		HasNot(C, TEXT("UETKX2307"));
+	}
+
+	// ── ES-modules (M4): rename / `* as` / default resolution matrix + 2326 + value/util refs ────
+	{
+		// Fixtures live BESIDE the importer (Screens/T.uetkx — every specifier is ./-relative), and
+		// a FRESH resolver is constructed after writing them: the exporter index is built once per
+		// resolver (by design — the driver makes one per sweep), so R's index predates these files.
+		Write(Root / TEXT("Screens/Palette.uetkx"),
+			  TEXT("export FLinearColor Cool = FLinearColor(0.2f, 0.6f, 0.9f, 1.0f);\n")
+				  TEXT("FLinearColor Hidden = FLinearColor(0.0f, 0.0f, 0.0f, 1.0f);\n")
+					  TEXT("export FString FmtP(int32 S) {\n\treturn FString::FromInt(S);\n}\n"));
+		Write(Root / TEXT("Screens/Screen.uetkx"),
+			  TEXT("export FRuiNode Screen() {\n\treturn ( <Spacer /> );\n}\n") TEXT("export default Screen;\n"));
+		const FUetkxFsResolver R3(Root, {Root}, /*bFixtureMode*/ true);
+
+		// Rename import: TARGET validated, LOCAL used — clean modulo the legacy-wrapper 2320.
+		{
+			const TArray<FString> C = Codes(TEXT("import { Chip as Badge } from \"./Chip\"\ncomponent T {\n\treturn ( "
+												 "<Badge /> );\n}\n"),
+											Rel, R3);
+			HasNot(C, TEXT("UETKX2301"));
+			HasNot(C, TEXT("UETKX2302"));
+			HasNot(C, TEXT("UETKX2304"));
+			HasNot(C, TEXT("UETKX2305"));
+			HasNot(C, TEXT("UETKX2307"));
+		}
+		// Rename import validates the TARGET name, not the alias.
+		Has(Codes(TEXT("import { Ghost as Badge } from \"./Chip\"\ncomponent T {\n\treturn ( <Badge /> );\n}\n"), Rel,
+				  R3),
+			TEXT("UETKX2302"));
+		// Unused rename import warns on the LOCAL alias.
+		Has(Codes(TEXT("import { Chip as Badge } from \"./Chip\"\ncomponent T {\n\treturn ( <Spacer /> );\n}\n"), Rel,
+				  R3),
+			TEXT("UETKX2304"));
+
+		// Namespace import: member validated against the target's export surface.
+		{
+			const TArray<FString> C = Codes(TEXT("import * as P from \"./Palette\"\ncomponent T {\n\tauto X = "
+												 "P::Cool;\n\treturn ( <Spacer /> );\n}\n"),
+											Rel, R3);
+			HasNot(C, TEXT("UETKX2301"));
+			HasNot(C, TEXT("UETKX2302"));
+			HasNot(C, TEXT("UETKX2304"));
+		}
+		Has(Codes(TEXT("import * as P from \"./Palette\"\ncomponent T {\n\tauto X = P::Ghost;\n\treturn ( <Spacer /> "
+					   ");\n}\n"),
+				  Rel, R3),
+			TEXT("UETKX2302")); // member not declared
+		Has(Codes(TEXT("import * as P from \"./Palette\"\ncomponent T {\n\tauto X = P::Hidden;\n\treturn ( <Spacer /> "
+					   ");\n}\n"),
+				  Rel, R3),
+			TEXT("UETKX2301")); // member declared, not exported
+		Has(Codes(TEXT("import * as P from \"./Palette\"\ncomponent T {\n\treturn ( <Spacer /> );\n}\n"), Rel, R3),
+			TEXT("UETKX2304")); // namespace alias never used
+
+		// Default import: resolves through `export default`; 2326 when the target has none.
+		{
+			const TArray<FString> C =
+				Codes(TEXT("import Home from \"./Screen\"\ncomponent T {\n\treturn ( <Home /> );\n}\n"), Rel, R3);
+			HasNot(C, TEXT("UETKX2326"));
+			HasNot(C, TEXT("UETKX2305"));
+			HasNot(C, TEXT("UETKX2307"));
+		}
+		Has(Codes(TEXT("import Home from \"./Chip\"\ncomponent T {\n\treturn ( <Home /> );\n}\n"), Rel, R3),
+			TEXT("UETKX2326")); // Chip.uetkx has no default export
+
+		// Value/util strict usage: an exported value/util referenced WITHOUT an import is 2305.
+		Has(Codes(TEXT("component T {\n\tauto X = Cool;\n\treturn ( <Spacer /> );\n}\n"), Rel, R3), TEXT("UETKX2305"));
+		Has(Codes(TEXT("component T {\n\tauto X = FmtP(1);\n\treturn ( <Spacer /> );\n}\n"), Rel, R3),
+			TEXT("UETKX2305"));
+		{
+			const TArray<FString> C = Codes(TEXT("import { Cool, FmtP } from \"./Palette\"\ncomponent T {\n\tauto X = ")
+												TEXT("Cool;\n\tauto Y = FmtP(1);\n\treturn ( <Spacer /> );\n}\n"),
+											Rel, R3);
+			HasNot(C, TEXT("UETKX2304"));
+			HasNot(C, TEXT("UETKX2305"));
+		}
+
+		// TD-034 #2 (N4): a body LOCAL shadowing an exported name is not an external reference —
+		// no 2305 (and no codemod import). A param shadow behaves the same; the un-shadowed
+		// spelling (a reference BEFORE the local declaration) still diagnoses.
+		{
+			const TArray<FString> C =
+				Codes(TEXT("export FRuiNode T() {\n\tFLinearColor Cool = FLinearColor(0.1f, 0.1f, 0.1f, 1.0f);\n")
+						  TEXT("\tauto X = Cool;\n\treturn ( <Spacer /> );\n}\n"),
+					  Rel, R3);
+			HasNot(C, TEXT("UETKX2305"));
+		}
+		{
+			const TArray<FString> C =
+				Codes(TEXT("export FRuiNode T(FLinearColor Cool) {\n\tauto X = Cool;\n\treturn ( <Spacer /> );\n}\n"),
+					  Rel, R3);
+			HasNot(C, TEXT("UETKX2305"));
+		}
+		{ // the reference sits BEFORE the shadowing declaration → still an external ref → 2305
+			const TArray<FString> C = Codes(TEXT("export FRuiNode T() {\n\tauto X = Cool;\n")
+												TEXT("\tFLinearColor Cool = FLinearColor(0.1f, 0.1f, 0.1f, 1.0f);\n")
+													TEXT("\treturn ( <Spacer /> );\n}\n"),
+											Rel, R3);
+			Has(C, TEXT("UETKX2305"));
+		}
+
+		// N5 (TD-034 #3): markup-window usage joins the reference set — attr expressions,
+		// directive headers/bodies. Text children never count (N-08).
+		{ // a value used ONLY in an attr expression: its import is USED (no false 2304)
+			const TArray<FString> C = Codes(TEXT("import { Cool } from \"./Palette\"\nexport FRuiNode T() {\n")
+												TEXT("\treturn ( <Border BorderBackgroundColor={ Cool } /> );\n}\n"),
+											Rel, R3);
+			HasNot(C, TEXT("UETKX2304"));
+			HasNot(C, TEXT("UETKX2305"));
+		}
+		{ // …and WITHOUT the import, the attr-expr use is 2305 (silent before N5)
+			const TArray<FString> C = Codes(TEXT("export FRuiNode T() {\n")
+												TEXT("\treturn ( <Border BorderBackgroundColor={ Cool } /> );\n}\n"),
+											Rel, R3);
+			Has(C, TEXT("UETKX2305"));
+		}
+		{ // a util called inside an @if directive body → 2305 without the import
+			const TArray<FString> C =
+				Codes(TEXT("export FRuiNode T() {\n\treturn (\n\t\t<VerticalBox>\n")
+						  TEXT("\t\t\t@if (true) {\n\t\t\t\treturn ( <TextBlock Text={ FText::FromString(FmtP(1)) } /> "
+							   ")\n\t\t\t}\n") TEXT("\t\t</VerticalBox>\n\t);\n}\n"),
+					  Rel, R3);
+			Has(C, TEXT("UETKX2305"));
+		}
+		{ // an @for loop var named like an exported value is a LOCAL — never a false 2305
+			const TArray<FString> C =
+				Codes(TEXT("export FRuiNode T() {\n\treturn (\n\t\t<VerticalBox>\n")
+						  TEXT("\t\t\t@for (int32 Cool = 0; Cool < 3; ++Cool) {\n")
+							  TEXT("\t\t\t\treturn ( <TextBlock Text={ FText::AsNumber(Cool) } /> )\n\t\t\t}\n")
+								  TEXT("\t\t</VerticalBox>\n\t);\n}\n"),
+					  Rel, R3);
+			HasNot(C, TEXT("UETKX2305"));
+		}
+		{ // a setup local is live inside markup islands (the conservative union seed)
+			const TArray<FString> C = Codes(
+				TEXT("export FRuiNode T() {\n") TEXT("\tFLinearColor Cool = FLinearColor(0.1f, 0.1f, 0.1f, 1.0f);\n")
+					TEXT("\treturn ( <Border BorderBackgroundColor={ Cool } /> );\n}\n"),
+				Rel, R3);
+			HasNot(C, TEXT("UETKX2305"));
+		}
 	}
 
 	// ── 2308: module boundary (real-mode resolver with *.Build.cs module roots) ────────────────

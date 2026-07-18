@@ -27,6 +27,7 @@ struct REACTIVEUITOOLCHAIN_API FUetkxCompileOutput
 	uint32 HookSig = 0;				 // first component's hook signature (interp swap key)
 	uint32 ExportHash = 0;			 // FNV over this file's exported decl shapes — reverse staleness (M8)
 	TMap<FString, uint32> DepHashes; // resolved import label -> its export_hash (staleness graph, M8)
+	FString DefaultExportName;		 // ES-modules (U-08): `export default <Name>` target ("" = none)
 };
 
 class REACTIVEUITOOLCHAIN_API FUetkxCodegen

@@ -1,6 +1,6 @@
 import "@RuiDemoSupport.h"
 
-export component SignalPanel {
+export FRuiNode SignalPanel() {
 	const int32 Count = RUI::UseSignalKey<int32>(Ctx, RuiDemo::GDemoCounterSignal, 0);
 	return (
 		<TextBlock Text={ RUI::Fmt(TEXT("Count: {}"), Count) } />

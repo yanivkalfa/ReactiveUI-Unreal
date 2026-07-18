@@ -34,6 +34,18 @@ const guarded = (h: string): string => `#if __has_include("${h}")\n#include "${h
 const PRELUDE = [
   "// GENERATED virtual C++ for .uetkx embedded-code intelligence (TD-020). Do not edit.",
   '#include "CoreMinimal.h"',
+  // HEADERLESS fallback (N6): without a compile database CoreMinimal.h does not resolve and
+  // UE's numeric typedefs are unknown types — clang's recovery then DROPS whole statements
+  // from the AST, so clangd's rename returns partial edit sets (bughunt: `int32 X` renamed
+  // only its declaration). Native typedefs keep those statements parsing; deliberately NO
+  // class stubs (a fake FString would poison overload resolution the moment real headers
+  // appear) — statements over unresolved class types stay broken and the rename guard
+  // refuses them instead.
+  '#if !__has_include("CoreMinimal.h")',
+  "typedef signed char int8; typedef short int16; typedef int int32; typedef long long int64;",
+  "typedef unsigned char uint8; typedef unsigned short uint16; typedef unsigned int uint32; typedef unsigned long long uint64;",
+  "typedef wchar_t TCHAR;",
+  "#endif",
   '#include "RuiContext.h"',
   '#include "RuiCoreElements.h"',
   '#include "RuiSignal.h"',
@@ -76,11 +88,15 @@ const CTX_MEMBER_HOOKS = [
 ];
 
 /** Resolves an import specifier to the exporter's emittable surface (hook signatures + module
- *  bodies) — the server wires uetkxWorkspace.importedSurfaceFor; tests may pass nothing. */
+ *  bodies + ES-modules value/util decls + the default-export marker) — the server wires
+ *  uetkxWorkspace.importedSurfaceFor; tests may pass nothing. */
 export type ImportSurfaceResolver = (specifier: string) => {
   hooks: Array<{ name: string; ret: string; params: string }>;
   modules: Array<{ name: string; body: string }>;
   components: string[];
+  values?: Array<{ name: string; type: string; init: string }>;
+  utils?: Array<{ name: string; retType: string; params: string }>;
+  defaultExportName?: string;
 } | null;
 
 /** Qualified real-header hook calls (`RuiDoom::UseDoomGame(A, B, C)`): codegen inserts `Ctx`
@@ -152,24 +168,84 @@ function buildPrefix(scan: ReturnType<typeof scanFile>, source: string, resolveI
   lines.push("extern FRuiNode __rui_rn;");
   if (resolveImport) {
     for (const imp of scan.imports) {
-      if (imp.hostInclude || imp.names.length === 0) continue;
+      if (imp.hostInclude) continue;
       const surface = resolveImport(imp.specifier);
       if (!surface) continue; // unresolved — the server's suppression fallback covers it
-      const wanted = new Set(imp.names);
-      for (const h of surface.hooks) {
-        if (wanted.has(h.name)) {
+      // ES-modules (G-05): `* as X` — everything exported becomes reachable as `X::Member`;
+      // emit the surface inside `namespace X` so clangd types the quals.
+      if (imp.isNamespace) {
+        lines.push(`namespace ${imp.namespaceAlias} {`);
+        for (const h of surface.hooks) {
           const ret = h.ret.trim().length > 0 ? h.ret.trim() : "void";
           lines.push(`${ret} ${h.name}(${h.params.trim()});`);
         }
+        for (const v of surface.values ?? []) {
+          lines.push(v.type.trim() ? `extern const ${v.type.trim()} ${v.name};` : `inline const auto ${v.name} = ${v.init};`);
+        }
+        for (const u of surface.utils ?? []) {
+          lines.push(`${u.retType.trim()} ${u.name}(${u.params.trim()});`);
+        }
+        for (const c of surface.components) {
+          lines.push(`FRuiNode ${c}();`);
+        }
+        lines.push(`}`);
+        continue;
+      }
+      // ES-modules (U-08): a default import binds the target's default symbol under the LOCAL
+      // alias name — declare the alias with the default symbol's shape.
+      if (imp.isDefault) {
+        const def = surface.defaultExportName ?? "";
+        if (def) {
+          const hook = surface.hooks.find((h) => h.name === def);
+          const util = (surface.utils ?? []).find((u) => u.name === def);
+          const value = (surface.values ?? []).find((v) => v.name === def);
+          if (hook) {
+            const ret = hook.ret.trim().length > 0 ? hook.ret.trim() : "void";
+            lines.push(`${ret} ${imp.defaultAlias}(${hook.params.trim()});`);
+          } else if (util) {
+            lines.push(`${util.retType.trim()} ${imp.defaultAlias}(${util.params.trim()});`);
+          } else if (value) {
+            lines.push(value.type.trim() ? `extern const ${value.type.trim()} ${imp.defaultAlias};` : `extern const FRuiNode ${imp.defaultAlias};`);
+          } else {
+            lines.push(`FRuiNode ${imp.defaultAlias}();`); // component default (the common case)
+          }
+        }
+        continue;
+      }
+      if (imp.names.length === 0) continue;
+      // Rename-aware (`{ A as B }`): the surface is looked up by TARGET name, declared under the
+      // LOCAL name — exactly what the codegen alias plane does at emit.
+      const localOf = new Map<string, string>();
+      imp.names.forEach((name, n) => localOf.set(name, imp.localNames[n] ?? name));
+      for (const h of surface.hooks) {
+        const local = localOf.get(h.name);
+        if (local) {
+          const ret = h.ret.trim().length > 0 ? h.ret.trim() : "void";
+          lines.push(`${ret} ${local}(${h.params.trim()});`);
+        }
       }
       for (const m of surface.modules) {
-        if (wanted.has(m.name)) {
-          lines.push(`namespace ${m.name} {`, m.body, `}`);
+        const local = localOf.get(m.name);
+        if (local) {
+          lines.push(`namespace ${local} {`, m.body, `}`);
+        }
+      }
+      for (const v of surface.values ?? []) {
+        const local = localOf.get(v.name);
+        if (local) {
+          lines.push(v.type.trim() ? `extern const ${v.type.trim()} ${local};` : `inline const auto ${local} = ${v.init};`);
+        }
+      }
+      for (const u of surface.utils ?? []) {
+        const local = localOf.get(u.name);
+        if (local) {
+          lines.push(`${u.retType.trim()} ${local}(${u.params.trim()});`);
         }
       }
       for (const c of surface.components) {
-        if (wanted.has(c)) {
-          lines.push(`FRuiNode ${c}();`); // the generated wrapper is fully-defaulted
+        const local = localOf.get(c);
+        if (local) {
+          lines.push(`FRuiNode ${local}();`); // the generated wrapper is fully-defaulted
         }
       }
     }
@@ -421,6 +497,17 @@ export function buildVirtualCpp(source: string, basename = "doc", resolveImport?
   }
   for (const mod of scan.modules as UetkxModuleDecl[]) {
     emit(mod.body, mod.bodyAt, `\nnamespace ${mod.name} {\n`, "\n}\n");
+  }
+  // ES-modules (M6): value initializers + util bodies are REAL mapped C++ regions — clangd
+  // types them (completion/hover/diagnostics) exactly like setup/hook bodies.
+  for (const value of scan.values) {
+    const type = value.type.trim() || "auto";
+    emit(value.init, value.initAt, `\nconst ${type} ${value.name} =\n`, ";\n");
+  }
+  for (const util of scan.utils) {
+    raw(`\n${util.retType.trim()} ${util.name}(${util.params.trim()}) {\n`);
+    flushDeferred(emitCode(util.body, util.bodyAt, "", "\n"));
+    raw("}\n");
   }
 
   return { text: parts.join(""), map: new SourceMap(spans), regionCount: spans.length };

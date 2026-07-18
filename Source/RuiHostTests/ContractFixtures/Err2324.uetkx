@@ -1,0 +1,6 @@
+export FRuiNode Err2324() {
+	return (
+		<Spacer />
+	);
+}
+export { Err2324 };

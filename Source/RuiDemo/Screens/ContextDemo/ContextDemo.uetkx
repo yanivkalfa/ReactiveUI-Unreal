@@ -1,8 +1,8 @@
 import "@RuiDemoSupport.h"
 import { DemoContextPanel } from "./components/DemoContextPanel/DemoContextPanel"
-import { ContextDemoStyle } from "./ContextDemo.style"
+import * as ContextDemoStyle from "./ContextDemo.style"
 
-export component ContextDemo {
+export FRuiNode ContextDemo() {
 	auto [bPrimary, SetPrimary] = UseState<bool>(true);
 	const FLinearColor Theme = bPrimary ? ContextDemoStyle::CoolTheme : ContextDemoStyle::WarmTheme;
 	ProvideContext(RuiDemo::GDemoThemeCtx, Theme);

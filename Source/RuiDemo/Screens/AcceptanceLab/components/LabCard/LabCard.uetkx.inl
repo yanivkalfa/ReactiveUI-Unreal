@@ -26,7 +26,7 @@ static FRuiNodeArray LabCard_UetkxImpl(FRuiContext& Ctx, const FLabCardUetkxProp
 	const auto& Count = Props.Count;
 #line 18 "Source/RuiDemo/Screens/AcceptanceLab/components/LabCard/LabCard.uetkx"
 	// Simple derived value from a prop — exercises reading component props in the setup block.
-		const FLinearColor Tint = Count > 0 ? LabStyle::Good : LabStyle::Warn;
+		const FLinearColor Tint = Count > 0 ? Good : Warn;
 #line 31 "LabCard.uetkx.inl"
 	return { [&]() -> FRuiNode {
 		FRuiBorderProps P;
@@ -48,7 +48,7 @@ static FRuiNodeArray LabCard_UetkxImpl(FRuiContext& Ctx, const FLabCardUetkxProp
 		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
 		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
 		__Style->Add(FName(TEXT("Font.Size")), FRuiValue(12.0f));
-		__Style->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(LabStyle::Accent));
+		__Style->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(Accent));
 		if (!__Style->IsEmpty()) { __P->Style = __Style; }
 		if (!__Slot->IsEmpty()) { __P->SlotProps = __Slot; }
 		__N.Props = __P;

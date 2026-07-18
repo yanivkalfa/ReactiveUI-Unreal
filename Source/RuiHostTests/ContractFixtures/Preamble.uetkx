@@ -1,6 +1,6 @@
 #include "CoreMinimal.h"
 
-export component Preamble {
+export FRuiNode Preamble() {
 	return (
 		<TextBlock Text="préamble with non-ASCII → and non-BMP 🎮" />
 	);

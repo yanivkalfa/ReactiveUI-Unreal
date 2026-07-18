@@ -1,4 +1,4 @@
-export component SimpleUseEffect {
+export FRuiNode SimpleUseEffect() {
 	auto [Message, SetMessage] = UseState<FString>(FString(TEXT("Waiting...")));
 	UseEffect([SetMessage]() { SetMessage(FString(TEXT("Effect ran!"))); }, RUI::Deps());
 

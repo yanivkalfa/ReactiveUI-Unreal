@@ -3,12 +3,11 @@
 
 
 #if defined(RUI_UETKX_DECL_PHASE)
-namespace ChipStyle
-{
-#line 7 "ChipSupport.uetkx"
-	inline const float Padding = 4.0f;
-#line 11 "ChipSupport.uetkx.inl"
-} // namespace ChipStyle
+inline const float Padding =
+#line 6 "ChipSupport.uetkx"
+4.0f
+#line 10 "ChipSupport.uetkx.inl"
+;
 
 inline int32 UseChipCount(FRuiContext& Ctx, int32 Start);
 
@@ -18,7 +17,7 @@ inline int32 UseChipCount(FRuiContext& Ctx, int32 Start)
 #line 2 "ChipSupport.uetkx"
 	auto [Count, SetCount] = Ctx.UseState<int32>(Start);
 		return Count;
-#line 22 "ChipSupport.uetkx.inl"
+#line 21 "ChipSupport.uetkx.inl"
 }
 
 #endif

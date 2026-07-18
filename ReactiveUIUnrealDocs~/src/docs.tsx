@@ -10,6 +10,7 @@ import { GettingStartedPage } from './pages/GettingStarted/GettingStartedPage'
 import { ConceptsPage } from './pages/Concepts/ConceptsPage'
 import { MigrationPage } from './pages/Migration/MigrationPage'
 import { ImportsPage } from './pages/Uetkx/ImportsPage'
+import { EsModulesMigrationPage } from './pages/Uetkx/EsModulesMigrationPage'
 import { HooksGuidePage } from './pages/Hooks/HooksGuidePage'
 import { StylingPage } from './pages/Styling/StylingPage'
 import { DifferencesPage } from './pages/Differences/DifferencesPage'
@@ -141,6 +142,16 @@ export const sections: DocSection[] = [
         searchContent:
           'uetkx imports exports static import export module strict resolution codemod RUIMigrateImports ~/ root alias specifier relative extensionless named export privacy tree-shaken UETKX2106 2300 2301 2302 2303 2304 2305 2306 2307 2308 2309 duplicate export binding unknown specifier not exported not declared duplicate unused used not imported value cycle module boundary preamble uetkx.config.json root key',
         element: () => <ImportsPage />,
+      },
+      {
+        id: 'uetkx-es-modules-migration',
+        canonicalId: 'uetkx-es-modules-migration',
+        title: 'Migrating to ES modules',
+        path: '/uetkx/migration-es-modules',
+        keywords: ['es modules', 'migration', 'codemod', 'wrapper', 'deprecated', '2320', 'RUIMigrateEsModules'],
+        searchContent:
+          'es modules migration wrapper component hook module deprecated UETKX2320 2321 2322 2323 2324 2325 2326 2327 codemod RUIMigrateEsModules plain declarations signature classification FRuiNode Use prefix value export inference sugar util function export default export list rename import namespace import star as default import hoist module members import * as file rename private remount state reset deprecation timeline removal minor',
+        element: () => <EsModulesMigrationPage />,
       },
       {
         id: 'companion-files',

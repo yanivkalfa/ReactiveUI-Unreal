@@ -36,11 +36,13 @@ TSharedRef<FUetkxPreview> FUetkxPreview::FromSource(const FString& Source, const
 	// Pick the requested component, else the first declared.
 	FString Wanted = InComponentName.IsNone() ? Scan.Components[0].Name : InComponentName.ToString();
 	bool bDeclared = false;
+	bool bWantedExported = false;
 	for (const FUetkxComponentDecl& Candidate : Scan.Components)
 	{
 		if (Candidate.Name == Wanted)
 		{
 			bDeclared = true;
+			bWantedExported = Candidate.bExported;
 			break;
 		}
 	}
@@ -53,6 +55,16 @@ TSharedRef<FUetkxPreview> FUetkxPreview::FromSource(const FString& Source, const
 	const FName ComponentId(*Wanted);
 	if (!RUI::HasNamedFactory(ComponentId))
 	{
+		// TD-026 (ES-modules M3): a PRIVATE component never registers a named factory (tree-shaken
+		// by design) — "not compiled yet" would be a lie; say what actually unlocks the preview.
+		if (!bWantedExported)
+		{
+			Preview->Messages.Add(FString::Printf(
+				TEXT("[preview] component '%s' is private (file-local) — add `export` to its declaration to "
+					 "preview it. Private components never register a factory."),
+				*Wanted));
+			return Preview;
+		}
 		Preview->Messages.Add(FString::Printf(
 			TEXT("[preview] component '%s' is not compiled yet — save the file (or run RUICompile) so it registers, "
 				 "then reopen the preview. The preview mounts the COMPILED component."),

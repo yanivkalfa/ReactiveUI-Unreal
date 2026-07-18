@@ -1,4 +1,4 @@
-export component MultiReturnProof(Mode: int32 = 0) {
+export FRuiNode MultiReturnProof(int32 Mode = 0) {
 	if (Mode == 1) {
 		return ( <TextBlock Text="early-one" /> );
 	}
@@ -18,13 +18,13 @@ export component MultiReturnProof(Mode: int32 = 0) {
 	);
 }
 
-export component MultiReturnProofEarly {
+export FRuiNode MultiReturnProofEarly() {
 	return (
 		<MultiReturnProof Mode={ 1 } />
 	);
 }
 
-export component MultiReturnProofBig {
+export FRuiNode MultiReturnProofBig() {
 	return (
 		<MultiReturnProof Mode={ 20 } />
 	);

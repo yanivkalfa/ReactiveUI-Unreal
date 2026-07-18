@@ -1,5 +1,5 @@
 // The "/users/:id" route — reads its :id segment via UseParams, navigates back.
-export component RouterUser {
+export FRuiNode RouterUser() {
 	const TMap<FString, FString>& Params = UseParams();
 	auto Navigate = UseNavigate();
 

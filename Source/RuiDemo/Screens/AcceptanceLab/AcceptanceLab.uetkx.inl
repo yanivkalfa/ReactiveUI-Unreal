@@ -59,7 +59,7 @@ static FRuiNodeArray AcceptanceLab_UetkxImpl(FRuiContext& Ctx, const FAcceptance
 			TSharedRef<FRuiTextBlockProps> __P = MakeShared<FRuiTextBlockProps>(static_cast<const FRuiTextBlockProps&>(*__N.Props));
 			TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
 			TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
-			__Style->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(LabStyle::Accent));
+			__Style->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(Accent));
 			if (!__Style->IsEmpty()) { __P->Style = __Style; }
 			if (!__Slot->IsEmpty()) { __P->SlotProps = __Slot; }
 			__N.Props = __P;
@@ -71,7 +71,7 @@ static FRuiNodeArray AcceptanceLab_UetkxImpl(FRuiContext& Ctx, const FAcceptance
 		FRuiBorderProps P;
 		P.SetPadding(FMargin(12));
 		P.SetBorderImage(FName(TEXT("WhiteBrush")));
-		P.SetBorderBackgroundColor((LabStyle::Panel));
+		P.SetBorderBackgroundColor((Panel));
 		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
 		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
 		__Slot->Add(FName(TEXT("Slot.Padding")), FRuiValue(TEXT("0,10,0,0")));
@@ -90,7 +90,7 @@ static FRuiNodeArray AcceptanceLab_UetkxImpl(FRuiContext& Ctx, const FAcceptance
 		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
 		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
 		__Style->Add(FName(TEXT("Font.Size")), FRuiValue(18.0f));
-		__Style->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(LabStyle::Accent));
+		__Style->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(Accent));
 		if (!__Style->IsEmpty()) { __P->Style = __Style; }
 		if (!__Slot->IsEmpty()) { __P->SlotProps = __Slot; }
 		__N.Props = __P;
@@ -253,7 +253,7 @@ static FRuiNodeArray AcceptanceLab_UetkxImpl(FRuiContext& Ctx, const FAcceptance
 		TSharedRef<FRuiTextBlockProps> __P = MakeShared<FRuiTextBlockProps>(static_cast<const FRuiTextBlockProps&>(*__N.Props));
 		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
 		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
-		__Style->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(LabStyle::Warn));
+		__Style->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(Warn));
 		if (!__Style->IsEmpty()) { __P->Style = __Style; }
 		if (!__Slot->IsEmpty()) { __P->SlotProps = __Slot; }
 		__N.Props = __P;
@@ -267,7 +267,7 @@ static FRuiNodeArray AcceptanceLab_UetkxImpl(FRuiContext& Ctx, const FAcceptance
 		TSharedRef<FRuiTextBlockProps> __P = MakeShared<FRuiTextBlockProps>(static_cast<const FRuiTextBlockProps&>(*__N.Props));
 		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
 		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
-		__Style->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(LabStyle::Accent));
+		__Style->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(Accent));
 		if (!__Style->IsEmpty()) { __P->Style = __Style; }
 		if (!__Slot->IsEmpty()) { __P->SlotProps = __Slot; }
 		__N.Props = __P;
@@ -281,7 +281,7 @@ static FRuiNodeArray AcceptanceLab_UetkxImpl(FRuiContext& Ctx, const FAcceptance
 		TSharedRef<FRuiTextBlockProps> __P = MakeShared<FRuiTextBlockProps>(static_cast<const FRuiTextBlockProps&>(*__N.Props));
 		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
 		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
-		__Style->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(LabStyle::Good));
+		__Style->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(Good));
 		if (!__Style->IsEmpty()) { __P->Style = __Style; }
 		if (!__Slot->IsEmpty()) { __P->SlotProps = __Slot; }
 		__N.Props = __P;
@@ -412,7 +412,7 @@ static FRuiNodeArray AcceptanceLab_UetkxImpl(FRuiContext& Ctx, const FAcceptance
 		TSharedRef<FRuiTextBlockProps> __P = MakeShared<FRuiTextBlockProps>(static_cast<const FRuiTextBlockProps&>(*__N.Props));
 		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
 		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
-		__Style->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(LabStyle::Accent));
+		__Style->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(Accent));
 		if (!__Style->IsEmpty()) { __P->Style = __Style; }
 		if (!__Slot->IsEmpty()) { __P->SlotProps = __Slot; }
 		__N.Props = __P;
@@ -427,7 +427,7 @@ static FRuiNodeArray AcceptanceLab_UetkxImpl(FRuiContext& Ctx, const FAcceptance
 		TSharedRef<FRuiTextBlockProps> __P = MakeShared<FRuiTextBlockProps>(static_cast<const FRuiTextBlockProps&>(*__N.Props));
 		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
 		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
-		__Style->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(LabStyle::Good));
+		__Style->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(Good));
 		if (!__Style->IsEmpty()) { __P->Style = __Style; }
 		if (!__Slot->IsEmpty()) { __P->SlotProps = __Slot; }
 		__N.Props = __P;
@@ -442,7 +442,7 @@ static FRuiNodeArray AcceptanceLab_UetkxImpl(FRuiContext& Ctx, const FAcceptance
 		TSharedRef<FRuiTextBlockProps> __P = MakeShared<FRuiTextBlockProps>(static_cast<const FRuiTextBlockProps&>(*__N.Props));
 		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
 		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
-		__Style->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(LabStyle::Warn));
+		__Style->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(Warn));
 		if (!__Style->IsEmpty()) { __P->Style = __Style; }
 		if (!__Slot->IsEmpty()) { __P->SlotProps = __Slot; }
 		__N.Props = __P;
@@ -533,7 +533,7 @@ static FRuiNodeArray AcceptanceLab_UetkxImpl(FRuiContext& Ctx, const FAcceptance
 		TSharedRef<FRuiTextBlockProps> __P = MakeShared<FRuiTextBlockProps>(static_cast<const FRuiTextBlockProps&>(*__N.Props));
 		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
 		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
-		__Style->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(LabStyle::Good));
+		__Style->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(Good));
 		if (!__Style->IsEmpty()) { __P->Style = __Style; }
 		if (!__Slot->IsEmpty()) { __P->SlotProps = __Slot; }
 		__N.Props = __P;

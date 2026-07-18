@@ -33,7 +33,7 @@ the UI update in under a second, no C++ recompile, no script VM in your shipped 
 committed sibling `.inl`; edit it while the editor runs and the screen hot-swaps in place):
 
 ```jsx
-component SimpleCounter {
+export FRuiNode SimpleCounter() {
 	auto [Count, SetCount] = UseState<int32>(0);
 
 	return (
@@ -72,10 +72,10 @@ demo** — a playable software-raycast FPS whose entire framebuffer is the widge
 The reconciler with all 23 family hooks · 65+ wrapped Slate widgets including virtualized
 `ListView`/`TileView` ·
 setter-based styling (a style tweak never rebuilds a widget) · the `.uetkx` compiler
-(compile-to-C++ for shipping, Live-Coding hot reload for dev) · **static imports/exports** (`import { A }
-from "./x"` / `~/` root alias, `export` for cross-file reach with privacy-by-default, mixed
-component/hook/module files, strict resolution enforced by the compiler, and a one-command
-`-run=RUIMigrateImports` codemod to upgrade an existing project) · VS Code + VS2022 extensions on
+(compile-to-C++ for shipping, Live-Coding hot reload for dev) · **true ES modules** (a file IS a module: named / `as`-renamed / `* as` / default imports,
+value + util exports, `export { … };` lists + `export default`, privacy-by-default with
+file-qualified runtime identity, strict resolution enforced by the compiler, and a one-command
+`-run=RUIMigrateEsModules` codemod to upgrade an existing project) · VS Code + VS2022 extensions on
 the shared family language server (the VS Code one also hides a `.uetkx` file's generated
 companions — `*.uetkx.inl`/`*.uetkx.diags.json`/`*.Uetkx.gen.cpp` — from the Explorer by
 default; flip the `files.exclude` entries to see them) · the UMG/CommonUI/MVVM interop above · localization, focus

@@ -168,3 +168,93 @@ test("translateEmbeddedCompletion: empty or absent results fall through to the b
   assert.strictEqual(translateEmbeddedCompletion([], SOURCE), null);
   assert.strictEqual(translateEmbeddedCompletion({ isIncomplete: false, items: [] }, SOURCE), null);
 });
+
+// ── embedded rename translation (LSP_COMPLETION_PLAN N6, decision N-10) ─────────────────────
+
+test("translateEmbeddedRename: clangd edits over the virtual doc map back to .uetkx, all occurrences", async () => {
+  const { translateEmbeddedRename } = await import("../embeddedIntel");
+  const uri = "file:///a.uetkx";
+  // Rename the local `Doubled` (decl + return use) — two virtual-range edits, as clangd sends.
+  const declOff = SOURCE.indexOf("Doubled = Start");
+  const useOff = SOURCE.indexOf("Doubled;", declOff);
+  const result = translateEmbeddedRename(
+    {
+      changes: {
+        [virtualUriOf(uri)]: [
+          { range: virtualRangeAt(declOff, "Doubled".length), newText: "Tripled" },
+          { range: virtualRangeAt(useOff, "Doubled".length), newText: "Tripled" },
+        ],
+      },
+    },
+    uri,
+    SOURCE,
+  );
+  assert.ok(result && result.kind === "edits", "translated to edits");
+  assert.strictEqual(result.edits.length, 2);
+  // The translated ranges point at the .uetkx occurrences (line/char of the source text).
+  const lineOfDecl = SOURCE.slice(0, declOff).split("\n").length - 1;
+  assert.strictEqual(result.edits[0].range.start.line, lineOfDecl);
+  assert.strictEqual(result.edits.every((e) => e.newText === "Tripled"), true);
+});
+
+test("translateEmbeddedRename: an edit in another file (engine header) refuses the WHOLE rename", async () => {
+  const { translateEmbeddedRename } = await import("../embeddedIntel");
+  const uri = "file:///a.uetkx";
+  const declOff = SOURCE.indexOf("Doubled = Start");
+  const result = translateEmbeddedRename(
+    {
+      changes: {
+        [virtualUriOf(uri)]: [{ range: virtualRangeAt(declOff, 7), newText: "X" }],
+        "file:///C:/Engine/Source/Runtime/Core/Public/Math/Color.h": [
+          { range: { start: { line: 0, character: 0 }, end: { line: 0, character: 1 } }, newText: "X" },
+        ],
+      },
+    },
+    uri,
+    SOURCE,
+  );
+  assert.ok(result && result.kind === "refused", "refused, not partially applied");
+  assert.match(result.reason, /outside this file/);
+});
+
+test("translateEmbeddedRename: an edit landing in generated glue refuses the WHOLE rename", async () => {
+  const { translateEmbeddedRename } = await import("../embeddedIntel");
+  const uri = "file:///a.uetkx";
+  const declOff = SOURCE.indexOf("Doubled = Start");
+  const result = translateEmbeddedRename(
+    {
+      changes: {
+        [virtualUriOf(uri)]: [
+          { range: virtualRangeAt(declOff, 7), newText: "X" },
+          // {0,0} in the virtual doc is prelude scaffolding — unmapped by the source map.
+          { range: { start: { line: 0, character: 0 }, end: { line: 0, character: 1 } }, newText: "X" },
+        ],
+      },
+    },
+    uri,
+    SOURCE,
+  );
+  assert.ok(result && result.kind === "refused");
+  assert.match(result.reason, /generated glue/);
+});
+
+test("translateEmbeddedRename: null result / empty edit set degrade to null (no crash, no edit)", async () => {
+  const { translateEmbeddedRename } = await import("../embeddedIntel");
+  assert.strictEqual(translateEmbeddedRename(null, "file:///a.uetkx", SOURCE), null);
+  assert.strictEqual(translateEmbeddedRename({}, "file:///a.uetkx", SOURCE), null);
+  assert.strictEqual(translateEmbeddedRename({ changes: {} }, "file:///a.uetkx", SOURCE), null);
+});
+
+test("embeddedPositionRequest: rename's newName rides the extra params to the proxy", async () => {
+  class ExtraRecorder extends StubResponder {
+    extras: unknown[] = [];
+    async positionRequest(method: string, uri: string, position: ClangdPosition, extra?: object): Promise<unknown | null> {
+      this.extras.push(extra);
+      return super.positionRequest(method, uri, position);
+    }
+  }
+  const proxy = new ExtraRecorder(true, { changes: {} });
+  const off = SOURCE.indexOf("Doubled = Start");
+  await embeddedPositionRequest(proxy, "textDocument/rename", "file:///a.uetkx", SOURCE, off, { newName: "Tripled" });
+  assert.deepStrictEqual(proxy.extras, [{ newName: "Tripled" }]);
+});

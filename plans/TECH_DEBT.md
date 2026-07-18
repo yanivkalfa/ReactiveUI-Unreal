@@ -660,7 +660,15 @@ referenced from plans/PRs.
   reach and the aggregator TU still fences symbol collisions; only the live-reload registry is flat.
 - **Production-grade resolution:** file-scoped runtime component identity (qualified ids in the
   registry) so private names never alias across files at runtime.
-- **Status:** OPEN (accepted caveat, documented in M5/M9)
+- **Status:** **RESOLVED** (ES-modules M3, CodegenVersion 3). The interpreter half died with HMR v2
+  (interp deleted, TD-027). The registry half: a PRIVATE component's `RegisterComponentId` key is now
+  the FILE-QUALIFIED emitted name `RuiPriv_<Basename>::<Name>` (built from `PrivNamespaceFor` — one
+  source of truth), so two files' private same-named components hold distinct registry + HMR-map
+  identities; exported components keep the short name (2106 ledger guarantees uniqueness). Pinned by
+  `ContractFixtures/PrivPairA/B.uetkx` goldens + the TD-026 block in `ReactiveUIUetkxCodegenTest.cpp`.
+  G-01 documented semantic: renaming a file renames `RuiPriv_<Basename>` ⇒ private members remount
+  (state reset) on the next sweep. The preview's misleading "not compiled yet" hint for private
+  components was fixed in the same window (`UetkxPreview.cpp` — "private — add `export` to preview").
 
 ## TD-027 — HMR v2: Live-Coding-driven whole-project HMR + `ReactiveUetkx` menu/window
 - **Where:** `ReactiveUIInterp` (the interpreter executor), `RuiHmr.*`, `UetkxWatcher.cpp`,
@@ -833,3 +841,56 @@ referenced from plans/PRs.
   all three repos (hash 917dd8cd…), and `UETKX0114` narrowed to the paren-less-return
   remainder. Formatter = family parity (reanchored, not restructured — a family-wide
   value-markup formatter remains future work, tracked by the corpus pin).
+
+## TD-033 — LSP rename-symbol handler (ES-modules M6 — deferred, owner call pending)
+- **Where:** `ide-extensions/lsp-server/src/server.ts` (no `onRenameRequest` handler exists)
+- **What/why deferred:** G-12 lists rename among the sync surfaces, but no rename handler has
+  EVER existed in this server — the ES-modules leg (M6) delivered completions / hover /
+  go-to-def THROUGH aliases (rename imports, `* as`, default) and the plan marked a rename
+  handler OPTIONAL scope with a TECH_DEBT entry as the sanctioned alternative
+  (ES_MODULES_EXECUTION_PLAN.md §M6/§11.2). Correct rename needs the full cross-file reference
+  set (tags + code refs + alias bindings + export lists + `export default` targets across the
+  sweep universe) — a workspace-index feature, not an afternoon patch on the current
+  per-request scans.
+- **Production-grade resolution:** a WorkspaceEdit-producing rename over the swept-file index:
+  rename at the DECLARATION renames every importer's binding (or inserts `as` to pin locals);
+  rename at a LOCAL alias edits only the importer. Family-symmetric (the Godot/Unity servers
+  lack rename too — candidate for a family fast-follow).
+- **Status:** **RESOLVED (2026-07-18)** — shipped by the LSP-completion campaign
+  (`plans/LSP_COMPLETION_PLAN.md`, N0–N3 + N6, same branch as ES-modules): a workspace
+  reference index (`uetkxIndex.ts` — tags incl. close tags, code refs via the N-07 scope
+  tracker, import/alias/export-list tokens) feeds find-all-references, prepareRename + rename
+  with the N-04 semantics (decl rename edits every importer incl. `as`-target spellings;
+  local-alias rename stays importer-local; plain-binding rename inserts `A as New`), refusal
+  validation (N-05), document/workspace symbols, and four quickfix code actions
+  (2305/2304/2301/2320 — the 2320 rewrite byte-matches the codemod). The N6 stretch landed
+  too: embedded-C++ LOCALS rename through clangd over the virtual doc, all-or-nothing
+  (cross-file/glue edits and partial-AST shapes refuse with a reason). The rename surfaces are
+  family-firsts — the Godot/Unity servers remain candidates for the fast-follow port.
+
+## TD-034 — ES-modules accepted caveats: alias/value reference rewriting limits (M2/M4)
+- **Where:** `UetkxCodegen.cpp` (`RewriteAliases`, the generalized private-qualification branch),
+  `UetkxResolve.cpp` (`CollectExternalRefs` Bare/Call kinds)
+- **What:** (a) A body LOCAL VARIABLE that shadows an import alias or a same-file private
+  value/util name is rewritten/qualified too — UETKX2325 polices declared-name collisions, not
+  body locals (family watch-list limit, ES_MODULES_EXECUTION_PLAN.md §11). (b) Strict-usage
+  policing of bare value references (2305) keys on the export table: a local identifier that
+  happens to match a .uetkx-exported VALUE name diagnoses as a missing import. Both are the
+  same accepted family model that hooks/module-quals always had — export-table names are
+  effectively reserved within markup files. (c) Usage accounting (2304) scans setup/bodies but
+  not markup attr expressions — a value used ONLY inside an attr expr may warn unused (warn
+  severity; pre-existing hook behavior, now more visible with values).
+- **Production-grade resolution:** scope-aware reference analysis in the rewrite planes (track
+  local declarations in the brace walk) + jsx-aware attr-expr scanning for usage accounting.
+- **Status:** **RESOLVED (2026-07-18, with a documented residual)** — the LSP-completion
+  campaign (`plans/LSP_COMPLETION_PLAN.md` N4/N5) shipped exactly that resolution:
+  (a)+(b) `FUetkxScopedLocals` (N-07; TS twin in `uetkxIndex.ts`, behaviorally identical and
+  twin-pinned) tracks brace scopes + local declarations (params, `Type Name =/;/{`, `auto`,
+  structured bindings) — locals shadowing an alias/private/exported name are no longer
+  rewritten, qualified, Ctx-injected, or 2305'd (pre-declaration references still are);
+  (c) `CollectExternalRefs` is markup-aware (N-08): attr/directive expressions join the
+  reference set, so markup-only usage marks imports USED and missing imports diagnose 2305.
+  **Residual (accepted):** the tracker is a heuristic, not a C++ parser — an unrecognized
+  declaration shape stays invisible (its shadow still rewrites), and markup islands see a
+  conservative locals-union seed (over-suppression = a silently missed diagnostic, never a
+  false one). Contract-pinned by `ShadowedNames.uetkx`; corpus untouched.

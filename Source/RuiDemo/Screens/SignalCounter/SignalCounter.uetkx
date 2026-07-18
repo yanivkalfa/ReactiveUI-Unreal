@@ -1,7 +1,7 @@
 import "@RuiDemoSupport.h"
 import { SignalPanel } from "./components/SignalPanel/SignalPanel"
 
-export component SignalCounter {
+export FRuiNode SignalCounter() {
 	TSharedRef<TRuiSignal<int32>> Signal = RUI::GetOrCreateSignal<int32>(RuiDemo::GDemoCounterSignal, 0);
 	return (
 		<Border

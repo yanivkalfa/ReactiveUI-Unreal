@@ -7,7 +7,7 @@ import { DoomFace } from "../DoomFace/DoomFace"
 // read off state.Player / state at the call site and passed in as VALUE props, so plain
 // props equality re-renders exactly when a number changes. Panel proportions carry the
 // Unity flex-grow weights via Slot.Fill.
-export component DoomHUD(Health: int32 = 100, Armor: int32 = 0, ArmorClass: int32 = 0, Weapon: RuiDoom::EWeaponType = RuiDoom::EWeaponType::Pistol, Ammo: TArray<int32> = TArray<int32>(), OwnedWeapons: TArray<bool> = TArray<bool>(), Keys: RuiDoom::EKeyCard = RuiDoom::EKeyCard::None, Score: int32 = 0, KillCount: int32 = 0, KillTotal: int32 = 0, MapName: FString = FString(), FaceState: int32 = 0) {
+export FRuiNode DoomHUD(int32 Health = 100, int32 Armor = 0, int32 ArmorClass = 0, RuiDoom::EWeaponType Weapon = RuiDoom::EWeaponType::Pistol, TArray<int32> Ammo = TArray<int32>(), TArray<bool> OwnedWeapons = TArray<bool>(), RuiDoom::EKeyCard Keys = RuiDoom::EKeyCard::None, int32 Score = 0, int32 KillCount = 0, int32 KillTotal = 0, FString MapName = FString(), int32 FaceState = 0) {
 	const FLinearColor BarBg(0.12f, 0.10f, 0.08f, 1.0f);
 	const FLinearColor PanelBg(0.20f, 0.16f, 0.10f, 1.0f);
 	const FLinearColor TopBorder(0.85f, 0.55f, 0.20f, 1.0f);

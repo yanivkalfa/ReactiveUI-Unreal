@@ -13,10 +13,10 @@
 // ============================================================================================
 
 import { UseLabState } from "./AcceptanceLab.hooks"
-import { LabStyle } from "./AcceptanceLab.style"
+import * as LabStyle from "./AcceptanceLab.style"
 import { LabCard } from "./components/LabCard/LabCard"
 
-export component AcceptanceLab {
+export FRuiNode AcceptanceLab() {
 	// ── state (checklist B — HMR keeps these VALUES across style/structure saves) ──────────────
 	// Imported hook: destructured from a 3-tuple. F12 on UseLabState jumps to AcceptanceLab.hooks.
 	auto [Count, Increment, Reset] = UseLabState(0);

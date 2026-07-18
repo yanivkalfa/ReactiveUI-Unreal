@@ -10,10 +10,14 @@ Two invariants, one mechanism.
 **Invariant 1 — in-repo lockstep:** the **C++ compiler is the grammar of record**; the TS
 language server reproduces it, never the reverse. Both run the SAME corpus.
 
-**Invariant 2 — family byte-compat (D-22e):** markup structure, declaration kinds
-(`component`/`hook`/`module`), directives, reserved props parse identically across Unity, Godot,
-and this repo. Only the embedded-language LEXIS differs per host (C# / GDScript / C++) — corpus
-cases pin BEHAVIOR, not code.
+**Invariant 2 — family byte-compat (D-22e, ES-modules revision):** markup structure, the import/
+export SURFACE (named / rename-`as` / `* as` / default imports, `export { … };` lists, `export
+default`), directives, and reserved props parse identically across Unity, Godot, and this repo.
+Declaration kinds (component / hook / value / util) are classified from the SIGNATURE alone
+(G-03) — uniform CONCEPTS, but each engine spells declarations in its own native idiom (C# /
+GDScript / C++), so the new decl HEAD grammar lives in the per-leg corpus tier, not familyCore.
+The legacy `component`/`hook`/`module` wrappers parse family-wide for one deprecation minor
+(2320). Only the embedded-language LEXIS differs per host — corpus cases pin BEHAVIOR, not code.
 
 ## The rule for every grammar-touching change
 

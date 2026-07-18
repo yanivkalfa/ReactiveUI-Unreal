@@ -1,4 +1,4 @@
-export component ValueMarkup(bShow: bool = false) {
+export FRuiNode ValueMarkup(bool bShow = false) {
 	auto [Count, SetCount] = UseState(0);
 	auto Card = (<VerticalBox>
 		<TextBlock Text={ FText::AsNumber(Count) } />

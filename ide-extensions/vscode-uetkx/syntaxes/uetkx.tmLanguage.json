@@ -7,12 +7,17 @@
   "patterns": [
     { "include": "#markup-comment" },
     { "include": "#preprocessor" },
+    { "include": "#import-namespace-decl" },
     { "include": "#import-decl" },
     { "include": "#import-host-include" },
+    { "include": "#import-default-decl" },
+    { "include": "#export-default-stmt" },
+    { "include": "#export-list-stmt" },
     { "include": "#export-keyword" },
     { "include": "#component-decl" },
     { "include": "#hook-decl" },
     { "include": "#module-decl" },
+    { "include": "#new-component-decl" },
     { "include": "#control-flow-with-expression" },
     { "include": "#control-flow-keyword" },
     { "include": "#tag-element" },
@@ -31,13 +36,14 @@
       "captures": { "1": { "name": "keyword.control.directive.uetkx" } }
     },
     "import-decl": {
-      "comment": "Imported names color as WHAT THEY ARE at the use site (sibling behavior): Use-hooks get the hook-call scope, everything else the component-tag scope (modules read as types — same color).",
+      "comment": "Imported names color as WHAT THEY ARE at the use site (sibling behavior): Use-hooks get the hook-call scope, everything else the component-tag scope (modules read as types — same color). ES-modules (G-05): the `as` rename keyword colors as a keyword; both sides of a rename keep their kind scopes.",
       "match": "\\b(import)\\s*(\\{)([^}]*)(\\})\\s*(from)\\s*(\"[^\"]*\")",
       "captures": {
         "1": { "name": "keyword.control.import.uetkx" },
         "2": { "name": "punctuation.definition.block.begin.uetkx" },
         "3": {
           "patterns": [
+            { "match": "\\b(as)\\b", "name": "keyword.control.import.uetkx" },
             { "match": "\\b(Use[A-Z][A-Za-z0-9_]*|ProvideContext)\\b", "name": "support.function.hook.uetkx" },
             { "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b", "name": "support.class.component.uetkx" }
           ]
@@ -45,6 +51,28 @@
         "4": { "name": "punctuation.definition.block.end.uetkx" },
         "5": { "name": "keyword.control.import.uetkx" },
         "6": { "name": "string.quoted.double.uetkx" }
+      }
+    },
+    "import-namespace-decl": {
+      "comment": "ES-modules (G-05): `import * as X from \"./x\"` — the namespace alias reads as a type (a `X::Member` qual looks like a C++ namespace at use sites).",
+      "match": "\\b(import)\\s*(\\*)\\s*(as)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s+(from)\\s*(\"[^\"]*\")",
+      "captures": {
+        "1": { "name": "keyword.control.import.uetkx" },
+        "2": { "name": "keyword.operator.uetkx" },
+        "3": { "name": "keyword.control.import.uetkx" },
+        "4": { "name": "entity.name.type.module.uetkx" },
+        "5": { "name": "keyword.control.import.uetkx" },
+        "6": { "name": "string.quoted.double.uetkx" }
+      }
+    },
+    "import-default-decl": {
+      "comment": "ES-modules (G-05): `import X from \"./x\"` — a default import binds the target's `export default` symbol (usually a component). Listed AFTER import-decl/import-host-include so the braced/quoted heads win.",
+      "match": "\\b(import)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s+(from)\\s*(\"[^\"]*\")",
+      "captures": {
+        "1": { "name": "keyword.control.import.uetkx" },
+        "2": { "name": "support.class.component.uetkx" },
+        "3": { "name": "keyword.control.import.uetkx" },
+        "4": { "name": "string.quoted.double.uetkx" }
       }
     },
     "import-host-include": {
@@ -55,9 +83,42 @@
         "2": { "name": "string.quoted.double.uetkx" }
       }
     },
+    "export-default-stmt": {
+      "comment": "ES-modules (U-08): `export default Name;` — a statement, one per file.",
+      "match": "\\b(export)\\s+(default)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+      "captures": {
+        "1": { "name": "keyword.control.export.uetkx" },
+        "2": { "name": "keyword.control.export.uetkx" },
+        "3": { "name": "support.class.component.uetkx" }
+      }
+    },
+    "export-list-stmt": {
+      "comment": "ES-modules (U-09): `export { a, b };` — a deferred export list.",
+      "match": "\\b(export)\\s*(\\{)([^}]*)(\\})",
+      "captures": {
+        "1": { "name": "keyword.control.export.uetkx" },
+        "2": { "name": "punctuation.definition.block.begin.uetkx" },
+        "3": {
+          "patterns": [
+            { "match": "\\b(Use[A-Z][A-Za-z0-9_]*|ProvideContext)\\b", "name": "support.function.hook.uetkx" },
+            { "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b", "name": "support.class.component.uetkx" }
+          ]
+        },
+        "4": { "name": "punctuation.definition.block.end.uetkx" }
+      }
+    },
     "export-keyword": {
-      "match": "\\b(export)\\s+(?=component|hook|module)",
+      "comment": "ES-modules (G-10): `export` now also precedes plain typed declarations — the lookahead widened from the wrapper-keyword list to any identifier head.",
+      "match": "\\b(export)\\s+(?=[A-Za-z_])",
       "captures": { "1": { "name": "keyword.control.export.uetkx" } }
+    },
+    "new-component-decl": {
+      "comment": "ES-modules (U-01): the new plain component head `FRuiNode Name(...)` — the name gets the same component scope the wrapper form gave it.",
+      "match": "\\b(FRuiNode)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(?=\\()",
+      "captures": {
+        "1": { "name": "entity.name.type.uetkx" },
+        "2": { "name": "entity.name.type.component.uetkx" }
+      }
     },
     "component-decl": {
       "match": "\\b(component)\\s+([A-Za-z_][A-Za-z0-9_]*)",
