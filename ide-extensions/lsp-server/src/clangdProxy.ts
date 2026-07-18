@@ -337,6 +337,9 @@ export class ClangdProxy {
   private readonly openTextHashes = new Map<string, number>();
   /** The last ~2KB of clangd's stderr — drained continuously (B5) and surfaced on exit. */
   private stderrTail = "";
+  /** clangd's semantic-token legend (from its initialize result) — needed to decode
+   *  semanticTokens/full payloads (R5: embedded-C++ coloring). */
+  private tokenLegend: { tokenTypes: string[]; tokenModifiers: string[] } | null = null;
 
   /** TB-10: clangd's publishDiagnostics for a VIRTUAL doc land here (virtual coordinates —
    *  the server maps them back through the source map before publishing). */
@@ -436,10 +439,23 @@ export class ClangdProxy {
         capabilities: {
           textDocument: {
             publishDiagnostics: { relatedInformation: false, tagSupport: { valueSet: [1, 2] } },
+            // R5 embedded coloring: without this clangd never enables its token provider.
+            semanticTokens: {
+              requests: { full: true },
+              tokenTypes: [
+                "namespace", "type", "class", "enum", "interface", "struct", "typeParameter",
+                "parameter", "variable", "property", "enumMember", "function", "method", "macro",
+                "keyword", "modifier", "comment", "string", "number", "regexp", "operator",
+              ],
+              tokenModifiers: [],
+              formats: ["relative"],
+            },
           },
         },
       })
-        .then(() => {
+        .then((initResult: unknown) => {
+          const caps = (initResult as { capabilities?: { semanticTokensProvider?: { legend?: { tokenTypes: string[]; tokenModifiers: string[] } } } })?.capabilities;
+          this.tokenLegend = caps?.semanticTokensProvider?.legend ?? null;
           this.notify("initialized", {});
           this.available = true;
           resolve(true);
@@ -514,6 +530,25 @@ export class ClangdProxy {
     }
     try {
       return await this.request(method, { textDocument: { uri }, position, ...(extra ?? {}) });
+    } catch {
+      return null;
+    }
+  }
+
+  /** clangd's semantic-token legend, or null before initialize / when unsupported. */
+  semanticLegend(): { tokenTypes: string[]; tokenModifiers: string[] } | null {
+    return this.tokenLegend;
+  }
+
+  /** textDocument/semanticTokens/full for a virtual doc — null on degradation. Long timeout:
+   *  the first request per TU waits behind the initial parse. */
+  async semanticTokensFull(uri: string): Promise<{ data: number[] } | null> {
+    if (!this.available) {
+      return null;
+    }
+    try {
+      const res = (await this.request("textDocument/semanticTokens/full", { textDocument: { uri } })) as { data?: number[] } | null;
+      return res && Array.isArray(res.data) ? { data: res.data } : null;
     } catch {
       return null;
     }

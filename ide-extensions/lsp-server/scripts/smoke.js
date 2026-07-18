@@ -171,6 +171,21 @@ const settle = (ms = 300) => new Promise((r) => setTimeout(r, ms));
     fail("broken parse must still flag the unknown attribute (B2): " + JSON.stringify(brokenDiags.map((d) => d.code)));
   console.log("parse-error-resilient markup validation OK (2307 + 0105 on a broken tree)");
 
+  // R5-4: component-prop validation — an unknown prop on a USER component 0105s
+  const cpDir = fs.mkdtempSync(path.join(os.tmpdir(), "uetkx-props-"));
+  fs.writeFileSync(path.join(cpDir, "Demo.uproject"), "{}");
+  fs.writeFileSync(path.join(cpDir, "Card.uetkx"), 'export FRuiNode Card(FString Label = FString()) {\n\treturn ( <Spacer /> );\n}\n');
+  const userPath = path.join(cpDir, "User.uetkx").replace(/\\/g, "/");
+  const userUri = "file:///" + userPath;
+  notify("textDocument/didOpen", { textDocument: { uri: userUri, languageId: "uetkx", version: 1,
+    text: 'import { Card } from "./Card"\nexport FRuiNode User() {\n\treturn ( <Card Labsssel="x" /> );\n}\n' } });
+  await settle();
+  const propDiags = diagnostics[userUri] || [];
+  if (!propDiags.some((d) => String(d.code) === "UETKX0105" && /Labsssel/.test(d.message)))
+    fail("unknown component prop must 0105: " + JSON.stringify(propDiags.map((d) => d.code)));
+  console.log("component-prop validation OK (0105 on an unknown prop)");
+  fs.rmSync(cpDir, { recursive: true, force: true });
+
   // import intelligence: a real on-disk workspace (.uproject root + exporter B + importer A) —
   // name completion inside `import { | }`, go-to-definition on the name, and a live 2301 diag.
   const ws = fs.mkdtempSync(path.join(os.tmpdir(), "uetkx-smoke-ws-"));

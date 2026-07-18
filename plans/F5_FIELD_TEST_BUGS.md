@@ -144,3 +144,42 @@ function for call to 'UseSsstate'".
 5 clean diagnostics — UseSsstate, FLinearsColor (+fix), Theme/Thesme, ProvideContssssssext
 — no fatal, TU alive, coloring restored. Pinned: the guard rides every adapter; the
 unguarded shape is asserted ABSENT.
+
+---
+
+# Round 5 (2026-07-19): coloring by type, component props, hole completion
+
+## R5-1 — `SetPriamsary` silent when the binding's INITIALIZER is also broken — B8 CASCADE
+
+Same upstream clang recovery as B8: `auto [bPrimary, SetPrimary] = UseaState<…>` (typo'd
+initializer) gives the bindings error-types, and a call through an error-typed arg
+(`SetPriamsary(!bPrimary)`) suppresses the callee error. The owner's own screenshots prove
+the control: with a VALID decl the same typo IS flagged. No server-layer fix.
+
+## R5-2 — embedded C++ now has REAL semantic coloring — SHIPPED
+
+Coloring inside setup/hook bodies was pure TextMate (semantic tokens covered import lines
+only). clangd's semantic tokens are now forwarded for the virtual doc, translated through
+the source map, merged with the import-binding tokens: types color as classes, hooks as
+functions (built-ins reach clangd as macros — mapped to function deliberately), variables
+as variables. **The owner's color-by-type rule for callables:** clangd calls a TFunction
+variable a "variable" (and hovers structured bindings over TTuple as NULL TYPE), so two
+overlays re-type them as functions: a hover-based check for plain variables
+(TFunction/FRuiCallback/TDelegate in the type), and the FAMILY RULE for bindings — the
+second name of `auto [X, SetX] = Use…()` is the setter callable. Probe-verified:
+`SetPrimary` → function, `UseState` → function, `FLinearColor` → class, `Theme` → variable.
+
+## R5-3 — attr-expr hole completion offers the attr's TYPE first — SHIPPED
+
+`Size={ | }` + ctrl-space listed generic hooks. The schema speaks in kinds ("vector2"), so
+a kind→constructor map now puts `FVector2D(…)` (snippet) first for Size holes — likewise
+color→FLinearColor, margin→FMargin, text→FText::FromString, name→FName. clangd items follow
+when the cursor is inside the lifted span. Probe: first item `FVector2D(…)`.
+
+## R5-4 — unknown props on USER COMPONENT tags now diagnose — SHIPPED
+
+`<DemoContextPanel Labsssssssssel="…" />` was silent (the sweep skipped component tags).
+Component tags now validate attrs against the component's PARAMS — same-file or resolved
+through the import (default imports included) — plus the pass-through set (style keys, slot
+keys, key/classes/Ref). Unresolvable targets skip (never guess). Verified on the owner's
+actual saved file: `unknown prop 'Labsssssssssel' on <DemoContextPanel>`; smoke pin added.

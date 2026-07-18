@@ -158,17 +158,117 @@ connection.onInitialize((params: InitializeParams) => {
 
 // ── semantic tokens: imported bindings colored by the KIND of the export they bind ─────────
 
-connection.languages.semanticTokens.on((params) => {
+/** clangd token-type name → OUR 4-type legend (class/function/variable/namespace). Macros map
+ *  to FUNCTION — our built-in hooks reach clangd as object-like #defines, and they ARE
+ *  functions to the author. Unlisted kinds (keyword/comment/…) stay with the TextMate tint. */
+const CLANGD_TYPE_MAP: Record<string, number> = {
+  namespace: 3,
+  type: 0, class: 0, enum: 0, interface: 0, struct: 0, typeParameter: 0, concept: 0,
+  function: 1, method: 1, macro: 1,
+  parameter: 2, variable: 2, property: 2, enumMember: 2,
+};
+
+/** Callable-typed VARIABLES color as functions (owner rule, R5: `SetPrimary` from UseState is
+ *  a TFunction — "it should always be colored by its type"). clangd calls it a variable (it
+ *  is one), so we hover each distinct variable name once per doc version and re-type the ones
+ *  whose type spells callable. */
+const callableVarCache = new Map<string, { version: number; callable: Set<string>; checked: Set<string> }>();
+const CALLABLE_TYPE_RE = /TFunction<|FRuiCallback|TDelegate<|TUniqueFunction</;
+
+connection.languages.semanticTokens.on(async (params) => {
   const doc = documents.get(params.textDocument.uri);
   if (!doc) return { data: [] };
   const text = doc.getText();
   const fsPath = fsPathOf(doc);
   const scan = scanFile(text, path.basename(fsPath, ".uetkx"), true);
-  const builder = new SemanticTokensBuilder();
-  for (const t of importBindingTokens(scan, fsPath)) {
-    const pos = doc.positionAt(codePointToUtf16(text, t.cpStart));
-    builder.push(pos.line, pos.character, t.length, t.type, 0);
+  const tokens: Array<{ line: number; char: number; len: number; type: number }> = [];
+  for (const tk of importBindingTokens(scan, fsPath)) {
+    const pos = doc.positionAt(codePointToUtf16(text, tk.cpStart));
+    tokens.push({ line: pos.line, char: pos.character, len: tk.length, type: tk.type });
   }
+
+  // Embedded C++ (R5): forward clangd's tokens over the virtual doc, translated back through
+  // the source map. Degrades to import-only tokens whenever clangd/legend/TU is not ready —
+  // the client re-requests after edits, so tokens appear once the TU is parsed.
+  try {
+    const view = buildEmbeddedView(text, fsPath);
+    if (view.regionCount > 0) {
+      const proxy = await embeddedProxy(doc);
+      const legend = proxy?.semanticLegend();
+      if (proxy && legend) {
+        const vuri = virtualUriOf(doc.uri);
+        proxy.didOpen(vuri, view.virtualText);
+        const res = await proxy.semanticTokensFull(vuri);
+        if (res) {
+          // decode the delta stream over the VIRTUAL text
+          const decoded: Array<{ vline: number; vchar: number; len: number; typeName: string }> = [];
+          let vline = 0;
+          let vchar = 0;
+          for (let i = 0; i + 4 < res.data.length + 1; i += 5) {
+            const [dl, dc, len, typeIdx] = [res.data[i], res.data[i + 1], res.data[i + 2], res.data[i + 3]];
+            vline += dl;
+            vchar = dl === 0 ? vchar + dc : dc;
+            const typeName = legend.tokenTypes[typeIdx];
+            if (typeName) decoded.push({ vline, vchar, len, typeName });
+          }
+          // callable-variable overlay cache for this doc version
+          let cache = callableVarCache.get(doc.uri);
+          if (!cache || cache.version !== doc.version) {
+            cache = { version: doc.version, callable: new Set(), checked: new Set() };
+            // FAMILY RULE (R5): the SECOND binding of `auto [X, SetX] = Use…()` is the setter
+            // callable — clangd hovers these as "NULL TYPE" (structured bindings over TTuple),
+            // so the domain convention decides where clang cannot.
+            for (const m of text.matchAll(/auto\s*\[\s*\w+\s*,\s*(\w+)\s*\]\s*=\s*Use\w+/g)) {
+              cache.callable.add(m[1]);
+              cache.checked.add(m[1]);
+            }
+            callableVarCache.set(doc.uri, cache);
+          }
+          const mapped: Array<{ srcStart: number; len: number; type: number; typeName: string; vpos: { line: number; character: number } }> = [];
+          for (const d of decoded) {
+            const ourType = CLANGD_TYPE_MAP[d.typeName];
+            if (ourType === undefined) continue;
+            const startOff = view.sourceOffsetOf({ line: d.vline, character: d.vchar });
+            const endOff = view.sourceOffsetOf({ line: d.vline, character: d.vchar + d.len });
+            if (startOff === null || endOff === null || endOff - startOff !== d.len) continue; // glue
+            mapped.push({ srcStart: startOff, len: d.len, type: ourType, typeName: d.typeName, vpos: { line: d.vline, character: d.vchar } });
+          }
+          // hover the distinct unchecked variable names (cap keeps the pass cheap)
+          const byName = new Map<string, Array<(typeof mapped)[number]>>();
+          for (const m of mapped) {
+            if (m.typeName !== "variable" && m.typeName !== "parameter") continue;
+            const name = text.slice(m.srcStart, m.srcStart + m.len);
+            if (!/^[A-Za-z_]/.test(name)) continue;
+            if (!byName.has(name)) byName.set(name, []);
+            byName.get(name)!.push(m);
+          }
+          let budget = 16;
+          for (const [name, occurrences] of byName) {
+            if (cache.checked.has(name)) continue;
+            if (budget-- <= 0) break;
+            cache.checked.add(name);
+            const hov = (await proxy.positionRequest("textDocument/hover", vuri, occurrences[0].vpos)) as {
+              contents?: { value?: string } | string;
+            } | null;
+            const hovText = typeof hov?.contents === "string" ? hov.contents : hov?.contents?.value ?? "";
+            if (CALLABLE_TYPE_RE.test(hovText)) cache.callable.add(name);
+          }
+          for (const m of mapped) {
+            const name = text.slice(m.srcStart, m.srcStart + m.len);
+            const type = (m.typeName === "variable" || m.typeName === "parameter") && cache.callable.has(name) ? 1 : m.type;
+            const pos = doc.positionAt(m.srcStart);
+            tokens.push({ line: pos.line, char: pos.character, len: m.len, type });
+          }
+        }
+      }
+    }
+  } catch (e) {
+    logServerError("semanticTokens embedded forward", e);
+  }
+
+  tokens.sort((a, b) => a.line - b.line || a.char - b.char);
+  const builder = new SemanticTokensBuilder();
+  for (const tk of tokens) builder.push(tk.line, tk.char, tk.len, tk.type, 0);
   return builder.build();
 });
 
@@ -336,6 +436,34 @@ function validate(doc: TextDocument): void {
       if (imp.isDefault && imp.defaultAlias) validTags.add(imp.defaultAlias);
     }
     const universal = new Set<string>(["key", "classes", "Ref", ...schema.styleKeys, ...schema.slotKeys]);
+    const compParamsCache = new Map<string, string[] | null>();
+    const componentParamsFor = (tag: string): string[] | null => {
+      if (compParamsCache.has(tag)) return compParamsCache.get(tag)!;
+      let names: string[] | null = null;
+      const own = scan.components.find((c) => c.name === tag);
+      if (own) {
+        names = own.params.map((p) => p.name);
+      } else {
+        for (const imp of scan.imports) {
+          if (imp.hostInclude) continue;
+          let targetName: string | null = null;
+          if (imp.isDefault && imp.defaultAlias === tag) targetName = "__default__";
+          const n = imp.localNames.indexOf(tag);
+          if (n >= 0) targetName = imp.names[n];
+          if (!targetName) continue;
+          const key = resolveSpecifier(fsPathOf(doc), imp.specifier);
+          if (!key) break;
+          const idx = getFileIndex(key);
+          if (!idx) break;
+          const real = targetName === "__default__" ? idx.scan.defaultExportName : targetName;
+          const comp = idx.scan.components.find((c) => c.name === real);
+          if (comp) names = comp.params.map((p) => p.name);
+          break;
+        }
+      }
+      compParamsCache.set(tag, names);
+      return names;
+    };
     const sweepSpans = (bodyCp: readonly number[], baseAt: number, merged: Array<[number, number]>) => {
       for (const [s, e] of merged) {
         for (const el of sweepMarkupElements(bodyCp, s, e)) {
@@ -351,7 +479,24 @@ function validate(doc: TextDocument): void {
             continue; // a component tag — its attrs are that component's params, not schema keys
           }
           const schemaEl = schema.elements[el.tag];
-          if (!schemaEl) continue;
+          if (!schemaEl) {
+            // R5-4: a COMPONENT tag — its props are the component's params (same-file or
+            // resolved through the import); style/slot/key/classes/Ref pass through like the
+            // emitter routes them. Unresolvable targets skip validation (never guess).
+            const params = componentParamsFor(el.tag);
+            if (params) {
+              for (const a of el.attrs) {
+                if (params.includes(a.name) || universal.has(a.name)) continue;
+                const attrOff = baseAt + a.at;
+                const key = `UETKX0105@${attrOff}:${a.name.length}`;
+                if (!seen.has(key)) {
+                  seen.add(key);
+                  push(attrOff, a.name.length, 0, "UETKX0105", `unknown prop '${a.name}' on <${el.tag}> — not a param of the component`);
+                }
+              }
+            }
+            continue;
+          }
           for (const a of el.attrs) {
             if (a.name in schemaEl.attrs || universal.has(a.name)) continue;
             const attrOff = baseAt + a.at;
@@ -480,6 +625,43 @@ connection.onCompletion(async (params): Promise<CompletionItem[] | CompletionLis
     return items;
   }
 
+  // R5-3: inside an ATTR-EXPR HOLE (`Size={ | }`) the attr's SCHEMA TYPE leads the list —
+  // the author is constructing that type ("ctrl+space gives some other stuff, not FVector").
+  // Constructible F-types only; clangd's items still follow via the embedded forward below.
+  const holeTypeItems: CompletionItem[] = [];
+  {
+    // schema attr KINDS → the C++ expression shape the hole expects (the schema speaks in
+    // abstract kinds — "vector2", not "FVector2D")
+    const KIND_SNIPPETS: Record<string, { label: string; insert: string }> = {
+      vector2: { label: "FVector2D(…)", insert: "FVector2D($0)" },
+      color: { label: "FLinearColor(…)", insert: "FLinearColor($0)" },
+      margin: { label: "FMargin(…)", insert: "FMargin($0)" },
+      text: { label: "FText::FromString(…)", insert: "FText::FromString($0)" },
+      name: { label: "FName(…)", insert: 'FName(TEXT("$0"))' },
+    };
+    const holeAttr = enclosingAttrName(text, offEarly);
+    if (holeAttr && !/^On[A-Z]/.test(holeAttr)) {
+      const schemaHole = schemaOf(doc);
+      const kinds = new Set<string>();
+      for (const el of Object.values(schemaHole.elements)) {
+        const ty = (el.attrs as Record<string, string>)[holeAttr];
+        if (ty) kinds.add(ty);
+      }
+      for (const kind of kinds) {
+        const snip = KIND_SNIPPETS[kind];
+        if (!snip) continue;
+        holeTypeItems.push({
+          label: snip.label,
+          kind: CompletionItemKind.Constructor,
+          detail: `${holeAttr} expects ${kind}`,
+          insertText: snip.insert,
+          insertTextFormat: InsertTextFormat.Snippet,
+          sortText: "0" + snip.label,
+        });
+      }
+    }
+  }
+
   // Embedded C++ (the TD-020 tail — hover/definition shipped before completion): inside a
   // setup/hook/module body, clangd's completions (locals, engine symbols, members) beat the
   // markup baseline. textEdit ranges come back in VIRTUAL coordinates and are translated;
@@ -490,9 +672,19 @@ connection.onCompletion(async (params): Promise<CompletionItem[] | CompletionLis
     if (proxy) {
       const result = await embeddedPositionRequest(proxy, "textDocument/completion", doc.uri, text, embeddedOffset);
       const translated = translateEmbeddedCompletion(result, text, fsPathOf(doc));
-      if (translated) return translated as CompletionList;
+      if (translated) {
+        // the hole's expected type leads; clangd's list follows (R5-3)
+        if (holeTypeItems.length > 0) {
+          return { isIncomplete: translated.isIncomplete, items: [...holeTypeItems, ...translated.items] } as CompletionList;
+        }
+        return translated as CompletionList;
+      }
     }
   }
+  // The hole's expected type still leads even when the cursor sits on the hole BOUNDARY
+  // (one char before the lifted span) or clangd had nothing — never fall through to the
+  // generic hook list inside an attr-expr hole (R5-3).
+  if (holeTypeItems.length > 0) return holeTypeItems;
 
   // Import intelligence takes precedence in the preamble: a `import { … } from "…"` cursor
   // completes exported NAMES of the resolved target, or workspace-relative SPECIFIER paths.
