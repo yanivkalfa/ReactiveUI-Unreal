@@ -653,3 +653,87 @@ export function collectFileReferences(scan: UetkxFileScanResult, srcText: string
   out.sort((a, b) => a.start - b.start);
   return out;
 }
+
+// ── live schema sweep (F5 field-test B2): tags + attr names, PARSE-ERROR RESILIENT ──────────
+
+export interface UetkxSweptElement {
+  tag: string;
+  at: number; // code points, span-buffer-relative
+  attrs: Array<{ name: string; at: number }>;
+}
+
+/** Sweep ONE markup span for OPEN tags and their attribute-name tokens — markup-lexis- and
+ *  hole-aware like collectTagRefs, but purely textual: it works on spans whose TREE parse
+ *  failed (the B2 masking bug — a single mismatched close tag silenced every unknown-tag/attr
+ *  diagnostic). Close tags are skipped (0302 owns mismatches); attr VALUES are skipped whole
+ *  (strings by markup lexis, `{ … }` holes by matching). */
+export function sweepMarkupElements(bodyCp: readonly number[], spanStart: number, spanEnd: number): UetkxSweptElement[] {
+  const out: UetkxSweptElement[] = [];
+  const isAttrChar = (c: number) => isIdentCp(c) || c === 46; /* . */
+  let i = spanStart;
+  while (i < spanEnd) {
+    const j = skipNoncodeMarkup(bodyCp, i);
+    if (j !== i) {
+      i = j;
+      continue;
+    }
+    const c = bodyCp[i];
+    if (c === 123 /* { */ || c === 40 /* ( */) {
+      const close = findMatching(bodyCp, i);
+      if (close === -1 || close >= spanEnd) {
+        i++;
+        continue;
+      }
+      i = close + 1;
+      continue;
+    }
+    if (c !== 60 /* < */) {
+      i++;
+      continue;
+    }
+    if (i + 1 < spanEnd && bodyCp[i + 1] === 47 /* / */) {
+      // close tag — skip to `>`
+      let k = i + 2;
+      while (k < spanEnd && bodyCp[k] !== 62 /* > */) k++;
+      i = k + 1;
+      continue;
+    }
+    if (i + 1 >= spanEnd || !isIdentStartCp(bodyCp[i + 1])) {
+      i++;
+      continue;
+    }
+    const ts = i + 1;
+    let k = ts;
+    while (k < spanEnd && isIdentCp(bodyCp[k])) k++;
+    const el: UetkxSweptElement = { tag: fromCodePoints(bodyCp, ts, k - ts), at: ts, attrs: [] };
+    // attr scan until the tag bracket closes
+    while (k < spanEnd) {
+      const nk = skipNoncodeMarkup(bodyCp, k);
+      if (nk !== k) {
+        k = nk;
+        continue;
+      }
+      const ck = bodyCp[k];
+      if (ck === 123 /* { */) {
+        const close = findMatching(bodyCp, k);
+        if (close === -1 || close >= spanEnd) break;
+        k = close + 1;
+        continue;
+      }
+      if (ck === 62 /* > */ || (ck === 47 /* / */ && k + 1 < spanEnd && bodyCp[k + 1] === 62)) {
+        k += ck === 47 ? 2 : 1;
+        break;
+      }
+      if (isIdentStartCp(ck)) {
+        const as = k;
+        while (k < spanEnd && isAttrChar(bodyCp[k])) k++;
+        el.attrs.push({ name: fromCodePoints(bodyCp, as, k - as), at: as });
+        continue;
+      }
+      k++;
+    }
+    out.push(el);
+    i = k;
+  }
+  return out;
+}

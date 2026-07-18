@@ -151,6 +151,26 @@ const settle = (ms = 300) => new Promise((r) => setTimeout(r, ms));
   fs.unlinkSync(scFsPath + ".diags.json");
   console.log("compiler sidecar OK (surfaced on hash match, suppressed when stale)");
 
+  // ── F5 round-2 pins (B1/B2): no basename nudge; broken parses still validate markup ──────
+  const mmUri = "file:///tmp/LabCard.uetkx";
+  notify("textDocument/didOpen", { textDocument: { uri: mmUri, languageId: "uetkx", version: 1,
+    text: "export FRuiNode LasCard() {\n\treturn ( <Spacer /> );\n}\n" } });
+  await settle();
+  if ((diagnostics[mmUri] || []).some((d) => String(d.code) === "UETKX0103"))
+    fail("0103 basename nudge must be GONE under ES modules");
+  console.log("no 0103 basename nudge OK");
+
+  const brokenUri = "file:///tmp/Broken.uetkx";
+  notify("textDocument/didOpen", { textDocument: { uri: brokenUri, languageId: "uetkx", version: 1,
+    text: 'export FRuiNode Broken() {\n\treturn ( <Bosrder>\n\t\t<Button ContesntPadding="12,4" />\n\t</Border> );\n}\n' } });
+  await settle();
+  const brokenDiags = diagnostics[brokenUri] || [];
+  if (!brokenDiags.some((d) => String(d.code) === "UETKX2307"))
+    fail("broken parse must still flag the unknown element (B2): " + JSON.stringify(brokenDiags.map((d) => d.code)));
+  if (!brokenDiags.some((d) => String(d.code) === "UETKX0105"))
+    fail("broken parse must still flag the unknown attribute (B2): " + JSON.stringify(brokenDiags.map((d) => d.code)));
+  console.log("parse-error-resilient markup validation OK (2307 + 0105 on a broken tree)");
+
   // import intelligence: a real on-disk workspace (.uproject root + exporter B + importer A) —
   // name completion inside `import { | }`, go-to-definition on the name, and a live 2301 diag.
   const ws = fs.mkdtempSync(path.join(os.tmpdir(), "uetkx-smoke-ws-"));

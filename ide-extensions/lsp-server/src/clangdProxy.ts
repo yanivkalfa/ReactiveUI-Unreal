@@ -362,7 +362,12 @@ export class ClangdProxy {
     this.starting = new Promise<boolean>((resolve) => {
       let proc: ChildProcessWithoutNullStreams;
       try {
-        const args = ["--log=error"];
+        // --background-index=false is LOAD-BEARING (F5 field test B3): with a UE compile
+        // database present, clangd's default background indexer starts parsing the ENTIRE
+        // project's TUs (thousands of engine-header compiles) and pegs every core for hours —
+        // the whole server "barely moves". We only ever query our per-file virtual docs;
+        // a cross-TU index of the engine buys nothing.
+        const args = ["--log=error", "--background-index=false"];
         const cc = findCompileCommands(this.rootPath);
         if (cc) {
           // clangd only reads the CANONICAL filename from --compile-commands-dir. When the hit

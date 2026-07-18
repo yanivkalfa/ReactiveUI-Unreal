@@ -2760,26 +2760,6 @@ FUetkxFileScanResult FUetkxFileScan::Scan(const FString& Source, const FString& 
 		}
 	}
 
-	// Component/file-name nudge (0103) — kept for the one-component ergonomic. Companion suffixes
-	// (`X.style.uetkx`) compare against the first dot-segment; multi-component files are flagged by
-	// the convention warn (2105) instead, not by name churn.
-	if (Out.Components.Num() == 1)
-	{
-		FString BaseCmp = Basename;
-		int32 DotAt = -1;
-		if (BaseCmp.FindChar(TEXT('.'), DotAt))
-		{
-			BaseCmp = BaseCmp.Left(DotAt);
-		}
-		const FUetkxComponentDecl& Only = Out.Components[0];
-		if (Only.Name != BaseCmp && !BaseCmp.IsEmpty())
-		{
-			AddDiag(Out.Diags, TEXT("UETKX0103"), 1,
-					FString::Printf(TEXT("component `%s` differs from file name `%s`"), *Only.Name, *BaseCmp),
-					Only.NameAt, Only.Name.Len());
-		}
-	}
-
 	// ONE component per file is now a CONVENTION (A3): >1 component is a LINT warn (sev 1), not a
 	// hard error — the file still compiles (React parity: eslint-plugin-react-refresh).
 	if (Out.Components.Num() > 1)

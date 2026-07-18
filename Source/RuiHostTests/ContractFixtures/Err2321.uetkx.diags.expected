@@ -1,2 +1,1 @@
 UETKX2321 0 @16+11: `UseBadShape` is `Use`-prefixed but returns FRuiNode — did you mean a component? (hooks must not return markup nodes)
-UETKX0103 1 @16+11: component `UseBadShape` differs from file name `Err2321`

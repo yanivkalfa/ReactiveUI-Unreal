@@ -2276,16 +2276,6 @@ export function scanFile(source: string, basename: string, resyncOnBodyError = f
     }
   }
 
-  // component/file-name nudge (0103) — kept for the one-component ergonomic; multi-component
-  // files are flagged by the convention warn (2105) instead.
-  if (out.components.length === 1) {
-    const baseCmp = basename.includes(".") ? basename.slice(0, basename.indexOf(".")) : basename;
-    const only = out.components[0];
-    if (only.name !== baseCmp && baseCmp) {
-      pushDiag(out, "UETKX0103", 1, `component \`${only.name}\` differs from file name \`${baseCmp}\``, only.nameAt, only.name.length);
-    }
-  }
-
   // ONE component per file is now a CONVENTION (A3): >1 component is a LINT warn, not an error.
   if (out.components.length > 1) {
     pushDiag(

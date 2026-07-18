@@ -35,7 +35,9 @@ import { TextDocument } from "vscode-languageserver-textdocument";
 import { URI } from "./uri";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { codePointToUtf16, utf16ToCodePoint } from "./codePoints";
+import { codePointToUtf16, toCodePoints, utf16ToCodePoint } from "./codePoints";
+import { findMarkupRanges } from "./jsxScan";
+import { sweepMarkupElements } from "./uetkxIndex";
 import { classifyCursor, DIRECTIVES } from "./context";
 import { enclosingAttrName, fieldForKind, PAYLOAD_FIELDS } from "./eventPayload";
 import { readSidecarDiags } from "./diagsSidecar";
@@ -318,6 +320,78 @@ function validate(doc: TextDocument): void {
   for (const d of scan.diags) {
     seen.add(`${d.code}@${d.offset}:${d.length}`);
     push(d.offset, d.length, d.severity, d.code, d.message);
+  }
+  // B2 (F5 field test): live tag/attr validation against the schema, PARSE-ERROR RESILIENT —
+  // previously unknown tags/attrs only ever surfaced via the hash-gated compiler sidecar, so a
+  // dirty mangled buffer showed nothing but the first parse error. The sweep is textual
+  // (markup-lexis + hole-aware), so a broken tree cannot mask it; `seen` dedupes against the
+  // resolver's 2307 on clean parses.
+  {
+    const schema = schemaOf(doc);
+    const validTags = new Set<string>(Object.keys(schema.elements));
+    for (const c of scan.components) validTags.add(c.name);
+    for (const imp of scan.imports) {
+      if (imp.hostInclude) continue;
+      for (const local of imp.localNames) validTags.add(local);
+      if (imp.isDefault && imp.defaultAlias) validTags.add(imp.defaultAlias);
+    }
+    const universal = new Set<string>(["key", "classes", "Ref", ...schema.styleKeys, ...schema.slotKeys]);
+    const sweepSpans = (bodyCp: readonly number[], baseAt: number, merged: Array<[number, number]>) => {
+      for (const [s, e] of merged) {
+        for (const el of sweepMarkupElements(bodyCp, s, e)) {
+          const tagOff = baseAt + el.at;
+          if (!validTags.has(el.tag)) {
+            if (!findExporter(el.tag, fsPathOf(doc))) {
+              const key = `UETKX2307@${tagOff}:${el.tag.length}`;
+              if (!seen.has(key)) {
+                seen.add(key);
+                push(tagOff, el.tag.length, 0, "UETKX2307", `\`${el.tag}\` is used like a uetkx component/hook but no file exports it`);
+              }
+            }
+            continue; // a component tag — its attrs are that component's params, not schema keys
+          }
+          const schemaEl = schema.elements[el.tag];
+          if (!schemaEl) continue;
+          for (const a of el.attrs) {
+            if (a.name in schemaEl.attrs || universal.has(a.name)) continue;
+            const attrOff = baseAt + a.at;
+            const key = `UETKX0105@${attrOff}:${a.name.length}`;
+            if (!seen.has(key)) {
+              seen.add(key);
+              push(attrOff, a.name.length, 0, "UETKX0105", `unknown attribute '${a.name}' on <${el.tag}>`);
+            }
+          }
+        }
+      }
+    };
+    if (scan.components.length === 0 && scan.diags.some((d) => d.severity === 0)) {
+      // a BROKEN parse drops the component records entirely — sweep the whole file's markup
+      // ranges instead, so the typos that broke the parse still surface (the B2 masking bug)
+      const fileCp = toCodePoints(text);
+      const spans: Array<[number, number]> = [];
+      for (const r of findMarkupRanges(fileCp, 0, fileCp.length)) {
+        spans.push([r.start, r.end === -1 ? fileCp.length : r.end]);
+      }
+      sweepSpans(fileCp, 0, spans);
+    }
+    for (const comp of scan.components) {
+      const bodyCp = toCodePoints(comp.body);
+      const spans: Array<[number, number]> = [];
+      for (const sp of comp.returns ?? []) {
+        if (sp.mStart >= 0 && sp.mEnd >= 0) spans.push([sp.mStart, sp.mEnd]);
+      }
+      for (const r of findMarkupRanges(bodyCp, 0, bodyCp.length)) {
+        spans.push([r.start, r.end === -1 ? bodyCp.length : r.end]);
+      }
+      spans.sort((a, b) => a[0] - b[0]);
+      const merged: Array<[number, number]> = [];
+      for (const s of spans) {
+        const last = merged[merged.length - 1];
+        if (last && s[0] <= last[1]) last[1] = Math.max(last[1], s[1]);
+        else merged.push([s[0], s[1]]);
+      }
+      sweepSpans(bodyCp, comp.bodyAt, merged);
+    }
   }
   if (!scan.diags.some((d) => d.severity === 0)) {
     // clean parse: live import resolution (2300/2301/2302/2308) off the workspace, then the
