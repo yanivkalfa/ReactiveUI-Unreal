@@ -28,7 +28,7 @@ jobs:
         run: |
           if [ -f "ReactiveUIUnrealDocs~/package.json" ]; then echo "armed=true" >> "$GITHUB_OUTPUT"; else
             echo "docs not present yet — skipping deploy."; echo "armed=false" >> "$GITHUB_OUTPUT"; fi
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         if: steps.guard.outputs.armed == 'true'
         with:
           node-version: 22
@@ -165,7 +165,7 @@ jobs:
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         if: steps.check.outputs.skip == 'false'
         with:
           node-version: 22
@@ -257,7 +257,7 @@ jobs:
           } else {
             echo "skip=false" >> $env:GITHUB_OUTPUT
           }
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         if: steps.check.outputs.skip == 'false'
         with:
           node-version: 22
