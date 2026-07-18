@@ -139,6 +139,10 @@ bool FRuiUetkxResolveTest::RunTest(const FString&)
 			  TEXT("export FRuiNode Card() {\n\treturn ( <Spacer /> );\n}\n")
 				  TEXT("export FLinearColor Tint = FLinearColor(0.1f, 0.2f, 0.3f, 1.0f);\n")
 					  TEXT("export default Card;\n"));
+		Write(Root / TEXT("Screens/Deck2.uetkx"),
+			  TEXT("export FLinearColor Hue = FLinearColor(0.5f, 0.5f, 0.5f, 1.0f);\n")
+				  TEXT("FString FmtD(int32 S) {\n\treturn FString::FromInt(S);\n}\n")
+					  TEXT("export default FmtD;\n"));
 		const FUetkxFsResolver R3(Root, {Root}, /*bFixtureMode*/ true);
 
 		// Rename import: TARGET validated, LOCAL used — clean modulo the legacy-wrapper 2320.
@@ -249,6 +253,37 @@ bool FRuiUetkxResolveTest::RunTest(const FString&)
 		// duplicate binding across the parts (`import a, { b as a }`) is a 2325 collision
 		Has(Codes(TEXT("import a, { b as a } from \"./Deck\"\ncomponent T {\n\treturn ( <Spacer /> );\n}\n"), Rel, R3),
 			TEXT("UETKX2325"));
+
+		// Same-name MEMBER default (Unity 0.9.1 CS0121 repro shape): `import FmtD, { Hue }` where
+		// FmtD IS the target's default-export name. This dialect lowers imports as a RENAME PLANE —
+		// no consumer-side declaration exists to collide with, and a same-name default adds no
+		// rename at all: the .inl carries the bare reference and NO declaration of the binding.
+		{
+			const FString Src = TEXT("import FmtD, { Hue } from \"./Deck2\"\nexport FRuiNode T() {\n")
+									TEXT("\tauto X = Hue;\n\tauto S = FmtD(1);\n\treturn ( <Spacer /> );\n}\n");
+			const FUetkxCompileOutput Out2 = FUetkxCodegen::CompileSource(Src, TEXT("T"), Rel, &R3);
+			TArray<FString> C;
+			for (const FUetkxDiag& D : Out2.Diags)
+			{
+				C.Add(D.Code);
+			}
+			HasNot(C, TEXT("UETKX2302"));
+			HasNot(C, TEXT("UETKX2304"));
+			HasNot(C, TEXT("UETKX2305"));
+			HasNot(C, TEXT("UETKX2326"));
+			TestTrue(TEXT("same-name default emits the bare reference"), Out2.Inl.Contains(TEXT("FmtD(1)")));
+			TestFalse(TEXT("no consumer-side declaration of the default binding (single lowering)"),
+					  Out2.Inl.Contains(TEXT("FString FmtD")));
+		}
+		// The default-exported name stays NAME-IMPORT-private (ES parity): `import { FmtD }` is 2301.
+		Has(Codes(TEXT("import { FmtD } from \"./Deck2\"\ncomponent T {\n\tauto S = FmtD(1);\n\treturn ( <Spacer /> ")
+					  TEXT(");\n}\n"),
+				  Rel, R3),
+			TEXT("UETKX2301"));
+		// Unused PLAIN default binding warns — and pins that a binding never self-counts: the
+		// reference walk scans declaration bodies only, never the preamble's import lines.
+		Has(Codes(TEXT("import Home from \"./Screen\"\ncomponent T {\n\treturn ( <Spacer /> );\n}\n"), Rel, R3),
+			TEXT("UETKX2304"));
 
 		// Value/util strict usage: an exported value/util referenced WITHOUT an import is 2305.
 		Has(Codes(TEXT("component T {\n\tauto X = Cool;\n\treturn ( <Spacer /> );\n}\n"), Rel, R3), TEXT("UETKX2305"));

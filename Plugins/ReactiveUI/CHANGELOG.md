@@ -20,6 +20,20 @@ resync with `cp CHANGELOG.md Plugins/ReactiveUI/CHANGELOG.md` (CI byte-compares 
   independently), colored, and duplicate-checked across all parts
   (`import a, { b as a }` is UETKX2325).
 
+### Fixed
+
+- **A default-exported declaration now emits publicly.** `export default X;` on an
+  otherwise-private declaration wrapped X in the file's detail namespace
+  (`RuiPriv_<Basename>`) while importers' default bindings lower to the BARE symbol — the
+  generated aggregate could never resolve it. A default-exported declaration now emits at
+  file scope and joins the UETKX2106 global-name ledger, matching the family's
+  "default-exported, hence public" rule; it stays name-import-private (`import { X }` is
+  still UETKX2301 — ES parity). The same-name default shape
+  (`import FmtD, { Hue } from …` where `FmtD` IS the default-export name) was verified
+  single-lowering on every surface: this dialect's rename-plane imports emit no
+  consumer-side declarations, so the sibling repos' duplicate-exposure ambiguity cannot
+  occur here (pinned in the Resolve/Codegen suites and the LSP virtual TU).
+
 ## [0.12.0] — 2026-07-18
 
 ES modules: a `.uetkx` file IS a module. Plain C++-typed declarations replace the wrapper
