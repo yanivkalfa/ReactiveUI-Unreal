@@ -6,7 +6,9 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "UetkxConfig.h"
+#include "UetkxJsxScan.h"
 #include "UetkxLexer.h"
+#include "UetkxMarkup.h"
 #include "UetkxScopedLocals.h"
 
 namespace
@@ -74,21 +76,52 @@ namespace
 		EKind Kind = EKind::Hook;
 	};
 
+	void CollectMarkupNodeRefs(const FUetkxNode& Node, int32 Base, int32 FallbackAt, const TArray<FString>& IslandSeed,
+							   TArray<FExtRef>& Out);
+
 	/** Scan a verbatim C++ region for bare `Use<Upper>(` calls (user hooks) and leftmost `Ident::`
 	 *  scope quals (module references), respecting comments/strings and member/scope prefixes — the
 	 *  PrefixHookCalls classification (so hand-header namespaces like `RuiDemo::X` are found here as
 	 *  Module refs but filtered out later when no file exports the name). BaseAt = the region's
-	 *  absolute offset in the original source. TD-034 #2 (N4): `ParamSeed` seeds the scope tracker —
-	 *  a NAME with a local declaration in scope is a body local, never an external reference. */
+	 *  absolute offset in the original source; when it is UNKNOWN pass `bExactBase = false` and a
+	 *  fallback position — every ref then lands at BaseAt itself (the hook validator's fallback
+	 *  semantics). TD-034 #2 (N4): `ParamSeed` seeds the scope tracker — a NAME with a local
+	 *  declaration in scope is a body local, never an external reference. TD-034 #3 (N5): the
+	 *  region is markup-aware — value-markup ranges are CODE ISLANDS skipped by the C++ scan and
+	 *  walked as parsed trees (attr/child expressions and directive code join the reference set;
+	 *  text children never do, N-08); `IslandSeed` is the conservative locals union those islands
+	 *  see (null = reuse ParamSeed). */
 	void CollectExternalRefs(const FString& Region, int32 BaseAt, const TArray<FString>& ParamSeed,
-							 TArray<FExtRef>& Out)
+							 TArray<FExtRef>& Out, bool bExactBase = true, const TArray<FString>* IslandSeed = nullptr)
 	{
 		const TArray<int32> Src = FUetkxLexer::ToCodePoints(Region);
+		TArray<FUetkxMarkupRange> Ranges = FUetkxJsxScan::FindMarkupRanges(Src, 0, Src.Num());
+		for (FUetkxMarkupRange& R : Ranges)
+		{
+			if (R.End == -1)
+			{
+				R.End = Src.Num();
+			}
+		}
 		const FUetkxScopedLocals Locals(Src, ParamSeed);
 		const int32 N = Src.Num();
 		int32 i = 0;
 		while (i < N)
 		{
+			bool bInRange = false;
+			for (const FUetkxMarkupRange& R : Ranges)
+			{
+				if (i >= R.Start && i < R.End)
+				{
+					i = R.End;
+					bInRange = true;
+					break;
+				}
+			}
+			if (bInRange)
+			{
+				continue;
+			}
 			const int32 j = FUetkxLexer::SkipNoncode(Src, i);
 			if (j != i)
 			{
@@ -154,21 +187,155 @@ namespace
 				{
 					++m;
 				}
-				Out.Add({Ident, FUetkxLexer::FromCodePoints(Src, Ms, m - Ms), BaseAt + s, FExtRef::EKind::Module});
+				Out.Add({Ident, FUetkxLexer::FromCodePoints(Src, Ms, m - Ms), bExactBase ? BaseAt + s : BaseAt, FExtRef::EKind::Module});
 			}
 			else if (bFollowParen && Ident.StartsWith(TEXT("Use")) && Ident.Len() >= 4 && FChar::IsUpper(Ident[3]) &&
 					 !FUetkxFileScan::HookNames().Contains(Ident))
 			{
-				Out.Add({Ident, FString(), BaseAt + s, FExtRef::EKind::Hook});
+				Out.Add({Ident, FString(), bExactBase ? BaseAt + s : BaseAt, FExtRef::EKind::Hook});
 			}
 			else if (bFollowParen)
 			{
-				Out.Add({Ident, FString(), BaseAt + s, FExtRef::EKind::Call});
+				Out.Add({Ident, FString(), bExactBase ? BaseAt + s : BaseAt, FExtRef::EKind::Call});
 			}
 			else
 			{
-				Out.Add({Ident, FString(), BaseAt + s, FExtRef::EKind::Bare});
+				Out.Add({Ident, FString(), bExactBase ? BaseAt + s : BaseAt, FExtRef::EKind::Bare});
 			}
+		}
+		// N5: the skipped markup ranges are parsed and walked as trees (parse errors are the
+		// emitter's business — UETKX2508 family; a broken window contributes no references).
+		const TArray<FString>& Islands = IslandSeed ? *IslandSeed : ParamSeed;
+		for (const FUetkxMarkupRange& R : Ranges)
+		{
+			FUetkxMarkup Parser;
+			FUetkxParseResult Pr = Parser.Parse(Src, R.Start, R.End);
+			if (!Pr.IsOk())
+			{
+				continue;
+			}
+			for (const TSharedPtr<FUetkxNode>& Nd : Pr.Nodes)
+			{
+				// Node.At/Vat are REGION-buffer offsets (Parse ran over Src whole) — the frame
+				// anchor is the region's own base, exactly like ScanMarkupCodeForHooks.
+				if (Nd.IsValid())
+				{
+					CollectMarkupNodeRefs(*Nd, bExactBase ? BaseAt : -1, BaseAt, Islands, Out);
+				}
+			}
+		}
+	}
+
+	/** A directive body — statements + `return ( <markup> )` (family 0.7): collect from the lead
+	 *  code (markup-aware), then every root of the return window. Mirrors
+	 *  ValidateDirectiveBodyHooks (UetkxFileScan.cpp) exactly. */
+	void CollectDirectiveBodyRefs(const FString& BodyMarkup, int32 Base, int32 FallbackAt,
+								  const TArray<FString>& IslandSeed, TArray<FExtRef>& Out)
+	{
+		const TArray<int32> Body = FUetkxLexer::ToCodePoints(BodyMarkup);
+		const FUetkxSplitReturn Split = FUetkxFileScan::SplitMarkupReturn(Body, /*bRequireMarkupPeek*/ false);
+		if (!Split.bOk)
+		{
+			CollectExternalRefs(BodyMarkup, Base < 0 ? FallbackAt : Base, IslandSeed, Out, Base >= 0, &IslandSeed);
+			return;
+		}
+		CollectExternalRefs(FUetkxLexer::FromCodePoints(Body, 0, Split.ReturnAt), Base < 0 ? FallbackAt : Base,
+							IslandSeed, Out, Base >= 0, &IslandSeed);
+		FUetkxMarkup Parser;
+		FUetkxParseResult Pr = Parser.Parse(Body, Split.MStart, Split.MEnd);
+		if (Pr.IsOk())
+		{
+			for (const TSharedPtr<FUetkxNode>& Nd : Pr.Nodes)
+			{
+				if (Nd.IsValid())
+				{
+					CollectMarkupNodeRefs(*Nd, Base < 0 ? -1 : Base, Base < 0 ? FallbackAt : Base, IslandSeed, Out);
+				}
+			}
+		}
+	}
+
+	/** Walk one parsed markup node for external references (N5, TD-034 #3): attr/spread
+	 *  expressions, expression children, directive headers and bodies — the exact recursion of
+	 *  ValidateMarkupNodeHooks (UetkxFileScan.cpp), emitting FExtRefs instead of diags. Tags are
+	 *  NOT emitted here (the Tags set polices them); text/comment children are never scanned
+	 *  (N-08). `Base` = the absolute anchor of this tree's offset frame (Node.At/Vat/BodyAt
+	 *  compose on top), or -1 when detached (refs fall back to FallbackAt). */
+	void CollectMarkupNodeRefs(const FUetkxNode& Node, int32 Base, int32 FallbackAt, const TArray<FString>& IslandSeed,
+							   TArray<FExtRef>& Out)
+	{
+		const int32 NodeAt = Base < 0 ? FallbackAt : Base + Node.At;
+		switch (Node.Type)
+		{
+			case EUetkxNodeType::El:
+			case EUetkxNodeType::Frag:
+				for (const FUetkxAttr& Attr : Node.Attrs)
+				{
+					if (Attr.Kind != EUetkxAttrKind::Expr && Attr.Kind != EUetkxAttrKind::Spread)
+					{
+						continue;
+					}
+					const bool bExact = Base >= 0 && Attr.Vat >= 0;
+					CollectExternalRefs(Attr.Value, bExact ? Base + Attr.Vat : NodeAt, IslandSeed, Out, bExact,
+										&IslandSeed);
+				}
+				for (const TSharedPtr<FUetkxNode>& Child : Node.Children)
+				{
+					if (Child.IsValid())
+					{
+						CollectMarkupNodeRefs(*Child, Base, NodeAt, IslandSeed, Out);
+					}
+				}
+				break;
+			case EUetkxNodeType::Expr:
+			{
+				const bool bExact = Base >= 0 && Node.Vat >= 0;
+				CollectExternalRefs(Node.Code, bExact ? Base + Node.Vat : NodeAt, IslandSeed, Out, bExact, &IslandSeed);
+				break;
+			}
+			case EUetkxNodeType::If:
+				for (const FUetkxIfBranch& Branch : Node.Branches)
+				{
+					CollectExternalRefs(Branch.Cond, NodeAt, IslandSeed, Out, /*bExactBase*/ false, &IslandSeed);
+					CollectDirectiveBodyRefs(Branch.BodyMarkup, Base < 0 || Branch.BodyAt < 0 ? -1 : Base + Branch.BodyAt,
+											 NodeAt, IslandSeed, Out);
+				}
+				if (Node.ElseBody.IsSet())
+				{
+					CollectDirectiveBodyRefs(Node.ElseBody.GetValue(),
+											 Base < 0 || Node.ElseBodyAt < 0 ? -1 : Base + Node.ElseBodyAt, NodeAt,
+											 IslandSeed, Out);
+				}
+				break;
+			case EUetkxNodeType::For:
+			case EUetkxNodeType::While:
+			{
+				CollectExternalRefs(Node.Header, NodeAt, IslandSeed, Out, /*bExactBase*/ false, &IslandSeed);
+				// The header's own declarations (`@for (int32 i = 0; …)`) are live inside the
+				// body — append them to the body's island seed (the N5 loop-var pin).
+				const FUetkxScopedLocals HeaderLocals(FUetkxLexer::ToCodePoints(Node.Header), IslandSeed);
+				const TArray<FString> BodySeed = HeaderLocals.AllDeclNames();
+				CollectDirectiveBodyRefs(Node.BodyMarkup, Base < 0 || Node.BodyAt < 0 ? -1 : Base + Node.BodyAt, NodeAt,
+										 BodySeed, Out);
+				break;
+			}
+			case EUetkxNodeType::Match:
+				CollectExternalRefs(Node.Subject, NodeAt, IslandSeed, Out, /*bExactBase*/ false, &IslandSeed);
+				for (const FUetkxMatchCase& Case : Node.Cases)
+				{
+					CollectExternalRefs(Case.Value, NodeAt, IslandSeed, Out, /*bExactBase*/ false, &IslandSeed);
+					CollectDirectiveBodyRefs(Case.BodyMarkup, Base < 0 || Case.BodyAt < 0 ? -1 : Base + Case.BodyAt,
+											 NodeAt, IslandSeed, Out);
+				}
+				if (Node.DefaultBody.IsSet())
+				{
+					CollectDirectiveBodyRefs(Node.DefaultBody.GetValue(),
+											 Base < 0 || Node.DefaultBodyAt < 0 ? -1 : Base + Node.DefaultBodyAt, NodeAt,
+											 IslandSeed, Out);
+				}
+				break;
+			default:
+				break;
 		}
 	}
 } // namespace
@@ -594,7 +761,12 @@ void FUetkxResolve::Apply(const FUetkxFileScanResult& Scan, const TMap<FString, 
 		{
 			Seed.Add(P.Name);
 		}
-		CollectExternalRefs(D.Setup, D.SetupAt, Seed, Refs);
+		// N5 (TD-034 #3): scan the WHOLE body, markup-aware — return windows and value-markup
+		// ranges are parsed and their attr/child expressions + directive code join the reference
+		// set. Islands see the conservative locals union (setup locals are live inside markup).
+		const FUetkxScopedLocals BodyLocals(FUetkxLexer::ToCodePoints(D.Body), Seed);
+		const TArray<FString> IslandSeed = BodyLocals.AllDeclNames();
+		CollectExternalRefs(D.Body, D.BodyAt, Seed, Refs, /*bExactBase*/ true, &IslandSeed);
 	}
 	for (const FUetkxHookDecl& D : Scan.Hooks)
 	{
@@ -795,7 +967,12 @@ void FUetkxResolve::MissingImports(const FUetkxFileScanResult& Scan, const TSet<
 		{
 			Seed.Add(P.Name);
 		}
-		CollectExternalRefs(D.Setup, D.SetupAt, Seed, Refs);
+		// N5 (TD-034 #3): scan the WHOLE body, markup-aware — return windows and value-markup
+		// ranges are parsed and their attr/child expressions + directive code join the reference
+		// set. Islands see the conservative locals union (setup locals are live inside markup).
+		const FUetkxScopedLocals BodyLocals(FUetkxLexer::ToCodePoints(D.Body), Seed);
+		const TArray<FString> IslandSeed = BodyLocals.AllDeclNames();
+		CollectExternalRefs(D.Body, D.BodyAt, Seed, Refs, /*bExactBase*/ true, &IslandSeed);
 	}
 	for (const FUetkxHookDecl& D : Scan.Hooks)
 	{

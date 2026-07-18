@@ -52,6 +52,21 @@ public:
 		return false;
 	}
 
+	/** Every declared local name, scope/offset-agnostic (union incl. the param seed) — the
+	 *  CONSERVATIVE visibility seed for markup-embedded expression islands (N5): an island runs
+	 *  inside the impl body where the setup's locals are live, but the island's own tracker can't
+	 *  see across regions, so the union suppresses instead (over-suppression = a silently missed
+	 *  diagnostic, never a false one — the documented TD-034 residual direction). */
+	TArray<FString> AllDeclNames() const
+	{
+		TSet<FString> Names;
+		for (const FDeclRec& D : Decls)
+		{
+			Names.Add(D.Name);
+		}
+		return Names.Array();
+	}
+
 	/** The parameter NAMES of a verbatim C++ parameter list (`int32 Start, const FString& S = X`):
 	 *  the last identifier of each top-level comma piece before that piece's `=` — the scope seed
 	 *  for hook/util bodies (mirrors the TS paramNamesOf). */

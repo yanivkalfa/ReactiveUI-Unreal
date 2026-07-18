@@ -224,6 +224,49 @@ bool FRuiUetkxResolveTest::RunTest(const FString&)
 					  Rel, R3);
 			Has(C, TEXT("UETKX2305"));
 		}
+
+		// N5 (TD-034 #3): markup-window usage joins the reference set — attr expressions,
+		// directive headers/bodies. Text children never count (N-08).
+		{ // a value used ONLY in an attr expression: its import is USED (no false 2304)
+			const TArray<FString> C =
+				Codes(TEXT("import { Cool } from \"./Palette\"\nexport FRuiNode T() {\n")
+						  TEXT("\treturn ( <Border BorderBackgroundColor={ Cool } /> );\n}\n"),
+					  Rel, R3);
+			HasNot(C, TEXT("UETKX2304"));
+			HasNot(C, TEXT("UETKX2305"));
+		}
+		{ // …and WITHOUT the import, the attr-expr use is 2305 (silent before N5)
+			const TArray<FString> C =
+				Codes(TEXT("export FRuiNode T() {\n")
+						  TEXT("\treturn ( <Border BorderBackgroundColor={ Cool } /> );\n}\n"),
+					  Rel, R3);
+			Has(C, TEXT("UETKX2305"));
+		}
+		{ // a util called inside an @if directive body → 2305 without the import
+			const TArray<FString> C =
+				Codes(TEXT("export FRuiNode T() {\n\treturn (\n\t\t<VerticalBox>\n")
+						  TEXT("\t\t\t@if (true) {\n\t\t\t\treturn ( <TextBlock Text={ FText::FromString(FmtP(1)) } /> )\n\t\t\t}\n")
+							  TEXT("\t\t</VerticalBox>\n\t);\n}\n"),
+					  Rel, R3);
+			Has(C, TEXT("UETKX2305"));
+		}
+		{ // an @for loop var named like an exported value is a LOCAL — never a false 2305
+			const TArray<FString> C =
+				Codes(TEXT("export FRuiNode T() {\n\treturn (\n\t\t<VerticalBox>\n")
+						  TEXT("\t\t\t@for (int32 Cool = 0; Cool < 3; ++Cool) {\n")
+							  TEXT("\t\t\t\treturn ( <TextBlock Text={ FText::AsNumber(Cool) } /> )\n\t\t\t}\n")
+								  TEXT("\t\t</VerticalBox>\n\t);\n}\n"),
+					  Rel, R3);
+			HasNot(C, TEXT("UETKX2305"));
+		}
+		{ // a setup local is live inside markup islands (the conservative union seed)
+			const TArray<FString> C =
+				Codes(TEXT("export FRuiNode T() {\n")
+						  TEXT("\tFLinearColor Cool = FLinearColor(0.1f, 0.1f, 0.1f, 1.0f);\n")
+							  TEXT("\treturn ( <Border BorderBackgroundColor={ Cool } /> );\n}\n"),
+					  Rel, R3);
+			HasNot(C, TEXT("UETKX2305"));
+		}
 	}
 
 	// ── 2308: module boundary (real-mode resolver with *.Build.cs module roots) ────────────────
