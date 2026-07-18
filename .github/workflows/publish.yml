@@ -223,7 +223,7 @@ jobs:
           git push origin "vscode-v${{ steps.check.outputs.version }}"
       - name: Upload VSIX artifacts (both flavors)
         if: steps.check.outputs.skip == 'false'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: uetkx-vscode-${{ steps.check.outputs.version }}
           path: |
@@ -360,7 +360,7 @@ jobs:
           git push origin "vs2022-v${{ steps.check.outputs.version }}"
       - name: Upload VSIX artifact
         if: steps.check.outputs.skip == 'false'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: uetkx-vs2022-${{ steps.check.outputs.version }}
           path: ${{ steps.find_vsix.outputs.VSIX_PATH }}
