@@ -296,11 +296,20 @@ function buildPrefix(scan: ReturnType<typeof scanFile>, source: string, resolveI
       }
     }
   }
+  lines.push("class FRuiContext;");
+  lines.push("template <typename T> struct __rui_strip { using type = T; };");
+  lines.push("template <typename T> struct __rui_strip<T&> { using type = T; };");
+  lines.push("template <typename T> struct __rui_strip<T&&> { using type = T; };");
+  lines.push("template <typename T> struct __rui_strip<const T> { using type = T; };");
+  lines.push("template <bool B> struct __rui_enable_if {};");
+  lines.push("template <> struct __rui_enable_if<true> { using type = void; };");
+  lines.push("template <typename... T> inline constexpr bool __rui_ctx_first = false;");
+  lines.push("template <typename T0, typename... T> inline constexpr bool __rui_ctx_first<T0, T...> = __is_same(typename __rui_strip<typename __rui_strip<T0>::type>::type, FRuiContext);");
   for (const q of scanQualifiedHookCalls(source)) {
     const open = q.namespaces.map((ns) => `namespace ${ns} { `).join("");
     const close = q.namespaces.map(() => "}").join(" ");
     lines.push(
-      `${open}template <typename... TArgs> auto ${q.name}(TArgs&&... Args) -> decltype(${q.name}(Ctx, static_cast<TArgs&&>(Args)...)); ${close}`,
+      `${open}template <typename... TArgs, typename = typename __rui_enable_if<!__rui_ctx_first<TArgs...>>::type> auto ${q.name}(TArgs&&... Args) -> decltype(${q.name}(Ctx, static_cast<TArgs&&>(Args)...)); ${close}`,
     );
   }
   // Bare hand-header hooks (RuiRouter.h et al: free functions taking Ctx first) — codegen
@@ -309,7 +318,7 @@ function buildPrefix(scan: ReturnType<typeof scanFile>, source: string, resolveI
   const bareExcluded = new Set<string>([...CTX_MEMBER_HOOKS, "UseSignal", "UseSignalKey", ...scan.hooks.map((h) => h.name), ...declaredHookShims]);
   for (const name of scanBareHookCalls(source)) {
     if (bareExcluded.has(name)) continue;
-    lines.push(`template <typename... TArgs> auto ${name}(TArgs&&... Args) -> decltype(${name}(Ctx, static_cast<TArgs&&>(Args)...));`);
+    lines.push(`template <typename... TArgs, typename = typename __rui_enable_if<!__rui_ctx_first<TArgs...>>::type> auto ${name}(TArgs&&... Args) -> decltype(${name}(Ctx, static_cast<TArgs&&>(Args)...));`);
   }
   for (const hook of CTX_MEMBER_HOOKS) {
     lines.push(`#define ${hook} Ctx.${hook}`);

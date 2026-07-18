@@ -114,3 +114,33 @@ not something the server layer can fix without degrading recovery elsewhere.
 
 ## Verify (owner): reload the dev host → type freely in a big file — squiggles/hovers should
 track within ~⅓s of pausing, and nothing should degrade or die over a long session.
+
+---
+
+# Round 4 (2026-07-19): intermittent everything + wrong coloring
+
+Report: "sometimes diagnostics work, sometimes not; when they work it's much faster;
+structured-binding coloring wrong."
+
+## B9 — the hook ADAPTERS recursed on typo'd hook names (THE intermittency) — FIXED
+
+The round-2 bare-hook adapter (and the older qualified one) declared
+`auto UseX(...) -> decltype(UseX(Ctx, ...))`. For a hook that EXISTS the decltype resolves
+the real function — but for a TYPO'D name (`UseSsstate`) the unqualified lookup found the
+ADAPTER ITSELF: infinite template instantiation → `fatal error: recursive template
+instantiation exceeded maximum depth of 1024` → a FATAL kills every other diagnostic in
+the TU and burns seconds per rebuild. That is exactly the observed pattern: typos matching
+`Use[A-Z]` nuked the file's diagnostics AND slowed it; typos like `UsssseState` (lowercase
+4th char → no adapter) left everything working and fast. Semantic-token coloring rides the
+same TU, so a fatally-dead TU also uncolors the file.
+
+**Fix:** both adapter kinds gain a recursion guard — a `__rui_ctx_first<TArgs...>`
+detector (clang's `__is_same` builtin + hand-rolled strip/enable_if; no std includes, so
+headerless mode still parses) SFINAEs the adapter out the moment the decltype re-enters
+with Ctx as the first argument. A missing hook is now a plain, finite "No matching
+function for call to 'UseSsstate'".
+
+**Field-verified** (the exact screenshot-2 mangles through the real server + clangd):
+5 clean diagnostics — UseSsstate, FLinearsColor (+fix), Theme/Thesme, ProvideContssssssext
+— no fatal, TU alive, coloring restored. Pinned: the guard rides every adapter; the
+unguarded shape is asserted ABSENT.

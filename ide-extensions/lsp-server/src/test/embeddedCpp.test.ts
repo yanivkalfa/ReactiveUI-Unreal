@@ -271,7 +271,7 @@ test("§2 prefix: qualified real-header hooks get decltype adapters; imported co
   ].join("\n");
   const vd = buildVirtualCpp(src, "Q");
   assert.ok(
-    vd.text.includes("namespace RuiDoom { template <typename... TArgs> auto UseDoomGame(TArgs&&... Args) -> decltype(UseDoomGame(Ctx, static_cast<TArgs&&>(Args)...)); }"),
+    vd.text.includes("namespace RuiDoom { template <typename... TArgs, typename = typename __rui_enable_if<!__rui_ctx_first<TArgs...>>::type> auto UseDoomGame(TArgs&&... Args) -> decltype(UseDoomGame(Ctx, static_cast<TArgs&&>(Args)...)); }"),
     "qualified-hook adapter emitted inside its namespace",
   );
   // A comment mentioning a qualified hook must NOT produce an adapter (code-aware scan).
