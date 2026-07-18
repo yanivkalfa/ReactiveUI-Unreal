@@ -9,6 +9,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { AUTO_INCLUDED_HEADERS, scanFile, UetkxDeclKind, UetkxFileScanResult } from "./uetkxFileScan";
+import { collectFileReferences, UetkxFileRef } from "./uetkxIndex";
 import { rootAnchorFor } from "./uetkxSchema";
 
 export interface ExportedDecl {
@@ -32,6 +33,9 @@ interface CacheEntry {
   mtimeMs: number;
   decls: ExportedDecl[];
   defaultExportName: string; // ES-modules (U-08): `export default <Name>` target ("" = none)
+  scan: UetkxFileScanResult; // the full scan — imports/refs queries (TD-033 index)
+  refs: UetkxFileRef[]; // the reference index (collectFileReferences)
+  text: string; // the exact text scan/refs were produced from
 }
 const scanCache = new Map<string, CacheEntry>();
 
@@ -39,8 +43,31 @@ function normAbs(p: string): string {
   return path.resolve(p).replace(/\\/g, "/");
 }
 
-function cachedScan(fsPath: string): CacheEntry | null {
+function buildEntry(source: string, key: string, mtimeMs: number): CacheEntry {
+  // Signature-list mode: keep listing exported decls even if one body is mid-edit / malformed, so the
+  // export list matches the C++ ScanPreamble resolver instead of truncating at the error (bughunt LSP-1).
+  const scan = scanFile(source, path.basename(key, ".uetkx"), /*resyncOnBodyError*/ true);
+  const decls: ExportedDecl[] = [];
+  for (const c of scan.components) decls.push({ name: c.name, kind: "component", exported: c.exported, nameAt: c.nameAt });
+  for (const h of scan.hooks) decls.push({ name: h.name, kind: "hook", exported: h.exported, nameAt: h.nameAt });
+  for (const m of scan.modules) decls.push({ name: m.name, kind: "module", exported: m.exported, nameAt: m.nameAt });
+  // ES-modules (M6): value/util decls join the export index (completions / go-to-def / fix-its).
+  for (const v of scan.values) decls.push({ name: v.name, kind: "value", exported: v.exported, nameAt: v.nameAt });
+  for (const u of scan.utils) decls.push({ name: u.name, kind: "util", exported: u.exported, nameAt: u.nameAt });
+  return { mtimeMs, decls, defaultExportName: scan.defaultExportName, scan, refs: collectFileReferences(scan, source), text: source };
+}
+
+/** Live-document overlay (TD-033 N-04): rename/references must never read stale disk text for
+ *  an OPEN dirty document — the server passes the current buffer contents here. Overlay entries
+ *  are computed fresh (never cached — they change per keystroke). */
+export type TextOverlay = ReadonlyMap<string, string>;
+
+function cachedScan(fsPath: string, overlay?: TextOverlay): CacheEntry | null {
   const key = normAbs(fsPath);
+  const live = overlay?.get(key);
+  if (live !== undefined) {
+    return buildEntry(live, key, -1);
+  }
   let mtimeMs: number;
   try {
     mtimeMs = fs.statSync(key).mtimeMs;
@@ -55,19 +82,18 @@ function cachedScan(fsPath: string): CacheEntry | null {
   } catch {
     return null;
   }
-  // Signature-list mode: keep listing exported decls even if one body is mid-edit / malformed, so the
-  // export list matches the C++ ScanPreamble resolver instead of truncating at the error (bughunt LSP-1).
-  const scan = scanFile(source, path.basename(key, ".uetkx"), /*resyncOnBodyError*/ true);
-  const decls: ExportedDecl[] = [];
-  for (const c of scan.components) decls.push({ name: c.name, kind: "component", exported: c.exported, nameAt: c.nameAt });
-  for (const h of scan.hooks) decls.push({ name: h.name, kind: "hook", exported: h.exported, nameAt: h.nameAt });
-  for (const m of scan.modules) decls.push({ name: m.name, kind: "module", exported: m.exported, nameAt: m.nameAt });
-  // ES-modules (M6): value/util decls join the export index (completions / go-to-def / fix-its).
-  for (const v of scan.values) decls.push({ name: v.name, kind: "value", exported: v.exported, nameAt: v.nameAt });
-  for (const u of scan.utils) decls.push({ name: u.name, kind: "util", exported: u.exported, nameAt: u.nameAt });
-  const entry: CacheEntry = { mtimeMs, decls, defaultExportName: scan.defaultExportName };
+  const entry = buildEntry(source, key, mtimeMs);
   scanCache.set(key, entry);
   return entry;
+}
+
+/** The full cached index entry for a file (scan + refs + exact text) — the TD-033 query base. */
+export function getFileIndex(
+  fsPath: string,
+  overlay?: TextOverlay,
+): { scan: UetkxFileScanResult; refs: UetkxFileRef[]; text: string } | null {
+  const entry = cachedScan(fsPath, overlay);
+  return entry ? { scan: entry.scan, refs: entry.refs, text: entry.text } : null;
 }
 
 /** All top-level declarations of a .uetkx file (name -> kind/exported/nameAt), mtime-cached.
@@ -483,4 +509,275 @@ export function importCursorAt(text: string, off: number): ImportCursor | null {
     return { kind: "import-name", specifier: specMatch ? specMatch[1] : null, partial: partMatch ? partMatch[1] : "" };
   }
   return null;
+}
+
+// ── symbol resolution + find-all-references (TD-033 N0) ─────────────────────────────────────
+
+/** What the cursor is on, resolved to the SYMBOL it means (N-04 semantics):
+ *  - `global`: a declaration — rename/references span the whole workspace.
+ *  - `local-alias`: a local import binding (`B` of `A as B`, a `* as X` alias, a default
+ *    alias) — rename/references stay within the importer file.
+ *  - `import-binding`: the cursor is ON a PLAIN named binding token (target == local) — global
+ *    target semantics for references; rename OFFERS the alias-insertion form (N1). */
+export type UetkxSymbol =
+  | { type: "global"; file: string; name: string }
+  | { type: "local-alias"; file: string; importIndex: number; name: string }
+  | { type: "import-binding"; file: string; importIndex: number; bindingIndex: number; targetFile: string; name: string };
+
+/** A single reference location (code points into `file`'s CURRENT text). */
+export interface UetkxRefLocation {
+  file: string;
+  start: number;
+  len: number;
+  kind: string; // UetkxRefKind — surfaced for tests/rename edit shaping
+}
+
+const refAt = (refs: UetkxFileRef[], cpOffset: number): UetkxFileRef | null => {
+  for (const r of refs) {
+    if (cpOffset >= r.start && cpOffset <= r.start + r.len) return r;
+  }
+  return null;
+};
+
+function normAbsPath(p: string): string {
+  return path.resolve(p).replace(/\\/g, "/");
+}
+
+/** Resolve the symbol at a cursor offset (code points). Null = not on a referenceable token. */
+export function resolveSymbolAt(fsPath: string, cpOffset: number, overlay?: TextOverlay): UetkxSymbol | null {
+  const index = getFileIndex(fsPath, overlay);
+  if (!index) return null;
+  const { scan, refs } = index;
+  const here = normAbsPath(fsPath);
+  const hit = refAt(refs, cpOffset);
+  if (!hit) return null;
+
+  const resolveImportTarget = (importIndex: number): string | null => {
+    const imp = scan.imports[importIndex];
+    return imp ? resolveSpecifier(fsPath, imp.specifier) : null;
+  };
+
+  switch (hit.kind) {
+    case "decl-name":
+    case "export-list":
+    case "export-default":
+      return { type: "global", file: here, name: hit.name };
+    case "import-target": {
+      const imp = scan.imports[hit.importIndex!];
+      const target = resolveImportTarget(hit.importIndex!);
+      if (!target || !imp) return null;
+      const n = imp.names.findIndex((nm, idx) => nm === hit.name && imp.nameAts[idx] === hit.start);
+      const plain = n >= 0 && (imp.localNames[n] ?? imp.names[n]) === imp.names[n];
+      if (plain) {
+        return { type: "import-binding", file: here, importIndex: hit.importIndex!, bindingIndex: n, targetFile: normAbsPath(target), name: hit.name };
+      }
+      return { type: "global", file: normAbsPath(target), name: hit.name };
+    }
+    case "import-alias":
+      return { type: "local-alias", file: here, importIndex: hit.importIndex!, name: hit.name };
+    case "qual-member": {
+      const target = resolveImportTarget(hit.importIndex!);
+      return target ? { type: "global", file: normAbsPath(target), name: hit.name } : null;
+    }
+    case "tag":
+    case "code": {
+      const name = hit.name;
+      // same-file declaration wins
+      if (scan.components.some((d) => d.name === name) || scan.hooks.some((d) => d.name === name) ||
+          scan.modules.some((d) => d.name === name) || scan.values.some((d) => d.name === name) ||
+          scan.utils.some((d) => d.name === name)) {
+        return { type: "global", file: here, name };
+      }
+      // an import binding: plain → the target's symbol; renamed/namespace/default → the local alias
+      for (let idx = 0; idx < scan.imports.length; idx++) {
+        const imp = scan.imports[idx];
+        if (imp.hostInclude) continue;
+        if (imp.isNamespace && imp.namespaceAlias === name) return { type: "local-alias", file: here, importIndex: idx, name };
+        if (imp.isDefault && imp.defaultAlias === name) return { type: "local-alias", file: here, importIndex: idx, name };
+        for (let n = 0; n < imp.names.length; n++) {
+          const local = imp.localNames[n] ?? imp.names[n];
+          if (local !== name) continue;
+          if (local === imp.names[n]) {
+            const target = resolveSpecifier(fsPath, imp.specifier);
+            return target ? { type: "global", file: normAbsPath(target), name: imp.names[n] } : null;
+          }
+          return { type: "local-alias", file: here, importIndex: idx, name };
+        }
+      }
+      // unimported but exported somewhere (the 2305 shape) — still navigable/renamable
+      const exporter = findExporter(name, fsPath);
+      return exporter ? { type: "global", file: normAbsPath(exporter.file), name } : null;
+    }
+  }
+  return null;
+}
+
+/** Every reference to `symbol` across the sweep universe (N-03/N-04). Declaration tokens are
+ *  included (the server filters on includeDeclaration). */
+export function findReferencesTo(symbol: UetkxSymbol, originFsPath: string, overlay?: TextOverlay): UetkxRefLocation[] {
+  const out: UetkxRefLocation[] = [];
+  const push = (file: string, r: UetkxFileRef) => out.push({ file, start: r.start, len: r.len, kind: r.kind });
+
+  if (symbol.type === "local-alias") {
+    const index = getFileIndex(symbol.file, overlay);
+    if (!index) return out;
+    for (const r of index.refs) {
+      if (r.name !== symbol.name) continue;
+      if (r.kind === "import-alias" && r.importIndex === symbol.importIndex) push(symbol.file, r);
+      // tags/code refs spelled with the alias belong to it (a valid file has no same-named
+      // decl or second import — 2325 polices that)
+      else if (r.kind === "tag" || r.kind === "code") push(symbol.file, r);
+    }
+    return out;
+  }
+
+  const targetFile = symbol.type === "import-binding" ? symbol.targetFile : symbol.file;
+  const name = symbol.name;
+
+  // the declaring file: decl token + export list/default + its own tags/code refs
+  const declIndex = getFileIndex(targetFile, overlay);
+  if (declIndex) {
+    for (const r of declIndex.refs) {
+      if (r.name !== name) continue;
+      if (r.kind === "decl-name" || r.kind === "export-list" || r.kind === "export-default" || r.kind === "tag" || r.kind === "code") {
+        push(targetFile, r);
+      }
+    }
+  }
+
+  // every other swept file: bindings whose import resolves to the declaring file
+  for (const file of sweptUetkxFiles(originFsPath)) {
+    const fileNorm = normAbsPath(file);
+    if (fileNorm === targetFile) continue;
+    const index = getFileIndex(file, overlay);
+    if (!index) continue;
+    // which of this file's imports point at the declaring file?
+    const pointing = new Map<number, "named-plain" | "named-renamed" | "namespace" | "default">();
+    index.scan.imports.forEach((imp, idx) => {
+      if (imp.hostInclude) return;
+      const key = resolveSpecifier(file, imp.specifier);
+      if (!key || normAbsPath(key) !== targetFile) return;
+      if (imp.isNamespace) pointing.set(idx, "namespace");
+      else if (imp.isDefault) pointing.set(idx, "default");
+      else {
+        const n = imp.names.indexOf(name);
+        if (n >= 0) pointing.set(idx, (imp.localNames[n] ?? imp.names[n]) === imp.names[n] ? "named-plain" : "named-renamed");
+      }
+    });
+    if (pointing.size === 0) continue;
+    let plainlyBound = false;
+    for (const kind of pointing.values()) if (kind === "named-plain") plainlyBound = true;
+    for (const r of index.refs) {
+      if (r.name !== name) continue;
+      if (r.kind === "import-target" && r.importIndex !== undefined && pointing.has(r.importIndex)) push(file, r);
+      else if (r.kind === "qual-member" && r.importIndex !== undefined && pointing.get(r.importIndex) === "namespace") push(file, r);
+      else if ((r.kind === "tag" || r.kind === "code") && plainlyBound) push(file, r);
+    }
+  }
+  return out;
+}
+
+// ── rename (TD-033 N1) ──────────────────────────────────────────────────────────────────────
+
+export interface UetkxRenameEdit {
+  file: string;
+  start: number; // code points
+  len: number;
+  newText: string;
+}
+
+export type UetkxRenameResult = { edits: UetkxRenameEdit[] } | { error: string };
+
+const IDENT_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/** Does `file` already bind `name` at its top level (a declaration or any import binding)?
+ *  The N-05 refusal check — never produce an edit the compiler immediately rejects (2325/2106
+ *  shapes). */
+function fileBindsName(file: string, name: string, overlay?: TextOverlay): boolean {
+  const index = getFileIndex(file, overlay);
+  if (!index) return false;
+  const { scan } = index;
+  if (
+    scan.components.some((d) => d.name === name) || scan.hooks.some((d) => d.name === name) ||
+    scan.modules.some((d) => d.name === name) || scan.values.some((d) => d.name === name) ||
+    scan.utils.some((d) => d.name === name)
+  ) {
+    return true;
+  }
+  for (const imp of scan.imports) {
+    if (imp.hostInclude) continue;
+    if (imp.isNamespace && imp.namespaceAlias === name) return true;
+    if (imp.isDefault && imp.defaultAlias === name) return true;
+    for (let n = 0; n < imp.names.length; n++) {
+      if ((imp.localNames[n] ?? imp.names[n]) === name) return true;
+    }
+  }
+  return false;
+}
+
+/** Rename the symbol at a cursor offset (N-04 semantics, N-05 validation). `hostTags` = the
+ *  markup element vocabulary (renaming a component TO a host-tag name would shadow it in tag
+ *  position — refused). */
+export function renameSymbolAt(
+  fsPath: string,
+  cpOffset: number,
+  newName: string,
+  hostTags: ReadonlySet<string>,
+  overlay?: TextOverlay,
+): UetkxRenameResult {
+  if (!IDENT_RE.test(newName)) {
+    return { error: `\`${newName}\` is not a valid identifier` };
+  }
+  const symbol = resolveSymbolAt(fsPath, cpOffset, overlay);
+  if (!symbol) {
+    return { error: "nothing renameable at this position" };
+  }
+  if (symbol.name === newName) {
+    return { edits: [] };
+  }
+  const refs = findReferencesTo(symbol, fsPath, overlay);
+
+  // N-05 validation over every file an edit would touch.
+  const touched = new Set<string>(refs.map((r) => r.file));
+  if (symbol.type !== "local-alias") touched.add(symbol.type === "import-binding" ? symbol.targetFile : symbol.file);
+  for (const file of touched) {
+    if (fileBindsName(file, newName, overlay)) {
+      return { error: `\`${newName}\` is already bound in ${path.basename(file)} — pick another name` };
+    }
+  }
+  if (symbol.type !== "local-alias") {
+    // 2106 shape: an EXPORTED name must stay globally unique.
+    const exporter = findExporter(newName, fsPath);
+    if (exporter) {
+      return { error: `\`${newName}\` is already exported by ${path.basename(exporter.file)} (one exported name, one file)` };
+    }
+    // a component renamed to a host tag would shadow the vocabulary in tag position
+    const declFile = symbol.type === "import-binding" ? symbol.targetFile : symbol.file;
+    const declIndex = getFileIndex(declFile, overlay);
+    const isComponent = declIndex?.scan.components.some((d) => d.name === symbol.name) ?? false;
+    if (isComponent && hostTags.has(newName)) {
+      return { error: `\`${newName}\` is a host element name — components cannot shadow the markup vocabulary` };
+    }
+  }
+
+  // Edits. `import-binding` (cursor ON a plain binding token) is the ES rename-at-binding
+  // behavior: keep the target, insert an alias, rename the importer's local refs only.
+  if (symbol.type === "import-binding") {
+    const index = getFileIndex(symbol.file, overlay);
+    if (!index) return { error: "importer unreadable" };
+    const imp = index.scan.imports[symbol.importIndex];
+    const bindingAt = imp.nameAts[symbol.bindingIndex];
+    const edits: UetkxRenameEdit[] = [
+      { file: symbol.file, start: bindingAt, len: symbol.name.length, newText: `${symbol.name} as ${newName}` },
+    ];
+    for (const r of index.refs) {
+      if ((r.kind === "tag" || r.kind === "code") && r.name === symbol.name) {
+        edits.push({ file: symbol.file, start: r.start, len: r.len, newText: newName });
+      }
+    }
+    return { edits };
+  }
+
+  const edits: UetkxRenameEdit[] = refs.map((r) => ({ file: r.file, start: r.start, len: r.len, newText: newName }));
+  return { edits };
 }

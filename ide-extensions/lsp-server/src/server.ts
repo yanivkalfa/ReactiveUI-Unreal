@@ -11,17 +11,24 @@ import {
   ProposedFeatures,
   TextDocuments,
   TextDocumentSyncKind,
+  CodeActionKind,
   CompletionItemKind,
   InsertTextFormat,
   DiagnosticSeverity,
   DiagnosticTag,
+  SymbolKind,
+  type CodeAction,
   type CompletionItem,
   type CompletionList,
   type Definition,
   type Diagnostic,
+  type DocumentSymbol,
   type Hover,
   type InitializeParams,
   type Location,
+  type SymbolInformation,
+  type TextEdit,
+  type WorkspaceEdit,
 } from "vscode-languageserver/node";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import { URI } from "./uri";
@@ -33,15 +40,20 @@ import { enclosingAttrName, fieldForKind, PAYLOAD_FIELDS } from "./eventPayload"
 import { readSidecarDiags } from "./diagsSidecar";
 import { formatUetkx, UetkxFormatOptions, DEFAULT_FORMAT_OPTIONS } from "./formatUetkx";
 import { scanFile } from "./uetkxFileScan";
+import { declStartCpOf, firstDeclStartCp, unusedImportRemoval, wrapperRewriteAt } from "./uetkxActions";
 import { loadFormatterConfig, schemaForFile, UetkxSchema } from "./uetkxSchema";
 import {
   defaultExportOf,
   findExporter,
+  findReferencesTo,
   getDecls,
+  getFileIndex,
   importCursorAt,
+  renameSymbolAt,
   resolveDiagnostics,
   resolveHostInclude,
   resolveSpecifier,
+  resolveSymbolAt,
   suggestSpecifier,
   sweptUetkxFiles,
   workspaceRootFor,
@@ -120,9 +132,25 @@ connection.onInitialize((params: InitializeParams) => {
       hoverProvider: true,
       definitionProvider: true,
       documentFormattingProvider: true,
+      // TD-033 (LSP_COMPLETION_PLAN): the workspace-index features.
+      referencesProvider: true,
+      renameProvider: { prepareProvider: true },
+      documentSymbolProvider: true,
+      workspaceSymbolProvider: true,
+      codeActionProvider: { codeActionKinds: [CodeActionKind.QuickFix] },
     },
   };
 });
+
+/** The live-document overlay (TD-033 N-04): index queries for OPEN documents must read the
+ *  current buffer, never stale disk text. Keys are normalized fs paths (the index's key space). */
+function liveOverlay(): Map<string, string> {
+  const overlay = new Map<string, string>();
+  for (const doc of documents.all()) {
+    overlay.set(path.resolve(fsPathOf(doc)).replace(/\\/g, "/"), doc.getText());
+  }
+  return overlay;
+}
 
 function fsPathOf(doc: TextDocument): string {
   return URI.toFsPath(doc.uri);
@@ -738,6 +766,245 @@ function markupDefinition(doc: TextDocument, params: { position: { line: number;
   const hit = findExporter(word, fsPath);
   return hit ? locAtDecl(hit.file, hit.nameAt, word.length) : null;
 }
+
+
+// ── TD-033: references / rename / symbols / code actions (LSP_COMPLETION_PLAN N0–N3) ────────
+
+/** A cp-offset range in a file → an LSP Location (reads the file's CURRENT text — overlay for
+ *  open docs, disk otherwise — for the UTF-16 conversion). */
+function locationOfCp(file: string, startCp: number, lenCp: number, overlay: Map<string, string>): Location | null {
+  const key = path.resolve(file).replace(/\\/g, "/");
+  let text = overlay.get(key);
+  if (text === undefined) {
+    try {
+      text = fs.readFileSync(key, "utf8");
+    } catch {
+      return null;
+    }
+  }
+  const startU16 = codePointToUtf16(text, startCp);
+  const endU16 = codePointToUtf16(text, startCp + lenCp);
+  const tdoc = TextDocument.create(URI.fromFsPath(key), "uetkx", 0, text);
+  return { uri: tdoc.uri, range: { start: tdoc.positionAt(startU16), end: tdoc.positionAt(endU16) } };
+}
+
+connection.onReferences((params): Location[] => {
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc) return [];
+  const overlay = liveOverlay();
+  const cpOff = utf16ToCodePoint(doc.getText(), doc.offsetAt(params.position));
+  const symbol = resolveSymbolAt(fsPathOf(doc), cpOff, overlay);
+  if (!symbol) return [];
+  const refs = findReferencesTo(symbol, fsPathOf(doc), overlay);
+  const out: Location[] = [];
+  for (const r of refs) {
+    if (!params.context.includeDeclaration && r.kind === "decl-name") continue;
+    const loc = locationOfCp(r.file, r.start, r.len, overlay);
+    if (loc) out.push(loc);
+  }
+  return out;
+});
+
+connection.onPrepareRename((params) => {
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc) return null;
+  const overlay = liveOverlay();
+  const text = doc.getText();
+  const cpOff = utf16ToCodePoint(text, doc.offsetAt(params.position));
+  const symbol = resolveSymbolAt(fsPathOf(doc), cpOff, overlay);
+  if (!symbol) return null;
+  // The token under the cursor (its own file's index has the exact range).
+  const index = getFileIndex(fsPathOf(doc), overlay);
+  if (!index) return null;
+  const hit = index.refs.find((r) => cpOff >= r.start && cpOff <= r.start + r.len);
+  if (!hit) return null;
+  const startU16 = codePointToUtf16(text, hit.start);
+  const endU16 = codePointToUtf16(text, hit.start + hit.len);
+  return { range: { start: doc.positionAt(startU16), end: doc.positionAt(endU16) }, placeholder: hit.name };
+});
+
+connection.onRenameRequest((params): WorkspaceEdit | null => {
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc) return null;
+  const overlay = liveOverlay();
+  const cpOff = utf16ToCodePoint(doc.getText(), doc.offsetAt(params.position));
+  const hostTags = new Set(Object.keys(schemaOf(doc).elements));
+  const result = renameSymbolAt(fsPathOf(doc), cpOff, params.newName, hostTags, overlay);
+  if ("error" in result) {
+    connection.window.showWarningMessage(`Rename refused: ${result.error}`);
+    return null;
+  }
+  const changes: Record<string, TextEdit[]> = {};
+  for (const edit of result.edits) {
+    const loc = locationOfCp(edit.file, edit.start, edit.len, overlay);
+    if (!loc) continue;
+    (changes[loc.uri] ??= []).push({ range: loc.range, newText: edit.newText });
+  }
+  return { changes };
+});
+
+const SYMBOL_KIND: Record<string, SymbolKind> = {
+  component: SymbolKind.Class,
+  hook: SymbolKind.Function,
+  module: SymbolKind.Namespace,
+  value: SymbolKind.Constant,
+  util: SymbolKind.Function,
+};
+
+connection.onDocumentSymbol((params): DocumentSymbol[] => {
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc) return [];
+  const text = doc.getText();
+  const scan = scanFile(text, path.basename(fsPathOf(doc), ".uetkx"), /*resyncOnBodyError*/ true);
+  const out: DocumentSymbol[] = [];
+  const symbolOf = (name: string, kind: string, nameAt: number, endCp: number): DocumentSymbol => {
+    const s = doc.positionAt(codePointToUtf16(text, nameAt));
+    const e = doc.positionAt(codePointToUtf16(text, Math.max(nameAt + name.length, endCp)));
+    const sel = { start: s, end: doc.positionAt(codePointToUtf16(text, nameAt + name.length)) };
+    return { name, kind: SYMBOL_KIND[kind] ?? SymbolKind.Object, range: { start: s, end: e }, selectionRange: sel, detail: kind };
+  };
+  for (const d of scan.components) out.push(symbolOf(d.name, "component", d.nameAt, d.next));
+  for (const d of scan.hooks) out.push(symbolOf(d.name, "hook", d.nameAt, d.next));
+  for (const d of scan.modules) out.push(symbolOf(d.name, "module", d.nameAt, d.next));
+  for (const d of scan.values) out.push(symbolOf(d.name, "value", d.nameAt, d.next));
+  for (const d of scan.utils) out.push(symbolOf(d.name, "util", d.nameAt, d.next));
+  out.sort((a, b) => (a.range.start.line - b.range.start.line) || (a.range.start.character - b.range.start.character));
+  return out;
+});
+
+connection.onWorkspaceSymbol((params): SymbolInformation[] => {
+  // EVERY open document anchors a sweep universe (deduped) — an editor session can have docs
+  // from several roots open (the smoke does), and "the first open doc" picked the wrong one.
+  const overlay = liveOverlay();
+  const query = params.query.toLowerCase();
+  const out: SymbolInformation[] = [];
+  const seenFiles = new Set<string>();
+  for (const doc of documents.all()) {
+    for (const file of sweptUetkxFiles(fsPathOf(doc))) {
+      const norm = path.resolve(file).replace(/\\/g, "/");
+      if (seenFiles.has(norm)) continue;
+      seenFiles.add(norm);
+      const decls = getDecls(file);
+      if (!decls) continue;
+      for (const d of decls) {
+        if (query && !d.name.toLowerCase().includes(query)) continue;
+        const loc = locationOfCp(file, d.nameAt, d.name.length, overlay);
+        if (loc) out.push({ name: d.name, kind: SYMBOL_KIND[d.kind] ?? SymbolKind.Object, location: loc, containerName: path.basename(file) });
+        if (out.length >= 200) return out; // capped (plan watch-list)
+      }
+    }
+  }
+  return out;
+});
+
+// ── code actions (N3): the fix-its as applicable edits — derived from published diagnostics ──
+
+connection.onCodeAction((params): CodeAction[] => {
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc) return [];
+  const text = doc.getText();
+  const fsPath = fsPathOf(doc);
+  const actions: CodeAction[] = [];
+
+  for (const diag of params.context.diagnostics) {
+    const code = String(diag.code ?? "");
+    if (code === "UETKX2305") {
+      // The message carries the exact fix: `… — add: import { X } from "spec"`.
+      const m = /add: import \{ ([A-Za-z0-9_]+) \} from "([^"]+)"/.exec(diag.message);
+      if (!m) continue;
+      const [, name, spec] = m;
+      const scan = scanFile(text, path.basename(fsPath, ".uetkx"), true);
+      // Merge into an existing same-spec named import when one exists; else a new line above
+      // the first declaration (the canonical preamble position).
+      const existing = scan.imports.find((imp) => !imp.hostInclude && !imp.isNamespace && !imp.isDefault && imp.specifier === spec);
+      let edit: TextEdit;
+      if (existing && existing.names.length > 0) {
+        const lastAt = existing.nameAts[existing.nameAts.length - 1];
+        const lastName = existing.names[existing.names.length - 1];
+        const lastLocal = existing.localNames[existing.localNames.length - 1] ?? lastName;
+        const insertCp = (lastLocal === lastName ? lastAt : existing.localNameAts[existing.localNameAts.length - 1]) + lastLocal.length;
+        const pos = doc.positionAt(codePointToUtf16(text, insertCp));
+        edit = { range: { start: pos, end: pos }, newText: `, ${name}` };
+      } else {
+        const firstDeclCp = firstDeclStartCp(scan);
+        const pos = doc.positionAt(codePointToUtf16(text, Math.max(0, firstDeclCp)));
+        edit = { range: { start: pos, end: pos }, newText: `import { ${name} } from "${spec}"\n` };
+      }
+      actions.push({
+        title: `Add import { ${name} } from "${spec}"`,
+        kind: CodeActionKind.QuickFix,
+        diagnostics: [diag],
+        edit: { changes: { [doc.uri]: [edit] } },
+      });
+      continue;
+    }
+    if (code === "UETKX2304") {
+      // The diagnostic range sits on the unused LOCAL binding token. Remove the binding — or
+      // the whole import line when it was the only one.
+      const scan = scanFile(text, path.basename(fsPath, ".uetkx"), true);
+      const diagCp = utf16ToCodePoint(text, doc.offsetAt(diag.range.start));
+      const removal = unusedImportRemoval(scan, text, diagCp);
+      if (removal) {
+        const start = doc.positionAt(codePointToUtf16(text, removal.start));
+        const end = doc.positionAt(codePointToUtf16(text, removal.end));
+        actions.push({
+          title: "Remove unused import",
+          kind: CodeActionKind.QuickFix,
+          diagnostics: [diag],
+          edit: { changes: { [doc.uri]: [{ range: { start, end }, newText: "" }] } },
+        });
+      }
+      continue;
+    }
+    if (code === "UETKX2301") {
+      // `X is not exported by <label> — add export …`: the diagnostic sits on the import's
+      // TARGET-name token; the fix edits the TARGET file (a cross-file WorkspaceEdit).
+      const scan = scanFile(text, path.basename(fsPath, ".uetkx"), true);
+      const diagCp = utf16ToCodePoint(text, doc.offsetAt(diag.range.start));
+      const imp = scan.imports.find((im) => !im.hostInclude && im.nameAts.some((at, n) => diagCp >= at && diagCp <= at + im.names[n].length));
+      if (!imp) continue;
+      const n = imp.nameAts.findIndex((at, idx) => diagCp >= at && diagCp <= at + imp.names[idx].length);
+      const target = resolveSpecifier(fsPath, imp.specifier);
+      if (!target || n < 0) continue;
+      const targetIndex = getFileIndex(target, liveOverlay());
+      const decl = targetIndex?.refs.find((r) => r.kind === "decl-name" && r.name === imp.names[n]);
+      if (!targetIndex || !decl) continue;
+      // insert `export ` at the DECLARATION's line start (its own At, which precedes the name)
+      const declRecord = declStartCpOf(targetIndex.scan, imp.names[n]);
+      if (declRecord < 0) continue;
+      const tpos = (() => {
+        const tdoc = TextDocument.create(URI.fromFsPath(target), "uetkx", 0, targetIndex.text);
+        const p = tdoc.positionAt(codePointToUtf16(targetIndex.text, declRecord));
+        return { uri: tdoc.uri, pos: p };
+      })();
+      actions.push({
+        title: `Add export to \`${imp.names[n]}\` in ${path.basename(target)}`,
+        kind: CodeActionKind.QuickFix,
+        diagnostics: [diag],
+        edit: { changes: { [tpos.uri]: [{ range: { start: tpos.pos, end: tpos.pos }, newText: "export " }] } },
+      });
+      continue;
+    }
+    if (code === "UETKX2320") {
+      // Migrate THIS declaration to the plain grammar — the codemod's per-decl rewrite,
+      // reproduced for components and hooks (modules hoist cross-file; the codemod owns those).
+      const scan = scanFile(text, path.basename(fsPath, ".uetkx"), true);
+      const diagCp = utf16ToCodePoint(text, doc.offsetAt(diag.range.start));
+      const rewrite = wrapperRewriteAt(scan, diagCp);
+      if (!rewrite) continue;
+      const start = doc.positionAt(codePointToUtf16(text, rewrite.start));
+      const end = doc.positionAt(codePointToUtf16(text, rewrite.end));
+      actions.push({
+        title: "Migrate to the plain declaration grammar",
+        kind: CodeActionKind.QuickFix,
+        diagnostics: [diag],
+        edit: { changes: { [doc.uri]: [{ range: { start, end }, newText: rewrite.text }] } },
+      });
+      continue;
+    }
+  }
+  return actions;
+});
 
 // ── formatting (uetkx.config.json walk-up, tab default) ────────────────────────────────────
 

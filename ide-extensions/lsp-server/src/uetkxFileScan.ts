@@ -541,6 +541,9 @@ export interface UetkxImportDecl {
   // ES-modules (G-05): the LOCAL binding for each names[n] — identical to names[n] unless the
   // import renamed it (`{ A as B }`, localNames[n] === "B"). Always 1:1 with names.
   localNames: string[];
+  // The alias TOKEN's offset for a renamed binding (the `B` of `A as B`); == nameAts[n] when no
+  // rename (the LSP rename/references index needs the exact token — TD-033).
+  localNameAts: number[];
   specifier: string;
   specifierAt: number; // offset of the opening quote
   at: number; // offset of the `import` keyword
@@ -662,6 +665,9 @@ export interface UetkxFileScanResult {
   // second is UETKX2327). Does NOT imply `exported` on the named decl (ES parity).
   defaultExportName: string;
   defaultExportAt: number;
+  // ES-modules (U-09): every `export { … };` list entry with its token offset — the LSP
+  // rename/references index (TD-033); the two-pass export resolution runs off the same records.
+  exportListEntries: Array<{ name: string; at: number }>;
 }
 
 export function hasError(result: UetkxFileScanResult): boolean {
@@ -1227,6 +1233,7 @@ function parseImport(src: number[], start: number, out: UetkxFileScanResult, imp
       names: [],
       nameAts: [],
       localNames: [],
+      localNameAts: [],
       specifier: payload.slice(1), // strip the leading '@'
       specifierAt: quoteAt,
       at: start,
@@ -1268,6 +1275,7 @@ function parseImport(src: number[], start: number, out: UetkxFileScanResult, imp
       names: [],
       nameAts: [],
       localNames: [],
+      localNameAts: [],
       specifier: "",
       specifierAt: -1,
       at: start,
@@ -1299,6 +1307,7 @@ function parseImport(src: number[], start: number, out: UetkxFileScanResult, imp
       names: [],
       nameAts: [],
       localNames: [],
+      localNameAts: [],
       specifier: "",
       specifierAt: -1,
       at: start,
@@ -1322,6 +1331,7 @@ function parseImport(src: number[], start: number, out: UetkxFileScanResult, imp
     names: [],
     nameAts: [],
     localNames: [],
+      localNameAts: [],
     specifier: "",
     specifierAt: -1,
     at: start,
@@ -1359,8 +1369,10 @@ function parseImport(src: number[], start: number, out: UetkxFileScanResult, imp
     imp.names.push(importedName);
     imp.nameAts.push(s);
     // ES-modules (G-05): `{ A as B }` — rename-on-import. localNames stays 1:1 with names; no
-    // `as` means the local binding is the imported name itself.
+    // `as` means the local binding is the imported name itself (alias token == name token —
+    // localNameAts mirrors that for the LSP index, TD-033).
     let localName = importedName;
+    let localNameAt = s;
     let afterName = skipWsOnly(src, p);
     if (afterName < bclose && keywordAt(src, afterName, "as")) {
       const aliasStart = skipWsOnly(src, afterName + 2);
@@ -1371,9 +1383,11 @@ function parseImport(src: number[], start: number, out: UetkxFileScanResult, imp
         return advancePastLine(src, bclose);
       }
       localName = fromCodePoints(src, aliasStart, ap - aliasStart);
+      localNameAt = aliasStart;
       p = ap;
     }
     imp.localNames.push(localName);
+    imp.localNameAts.push(localNameAt);
   }
   if (imp.names.length === 0) {
     pushDiag(out, "UETKX0303", 0, 'import must name at least one binding: `import { Name } from "..."`', k);
@@ -1950,6 +1964,7 @@ export function scanFile(source: string, basename: string, resyncOnBodyError = f
     diags: [],
     defaultExportName: "",
     defaultExportAt: -1,
+    exportListEntries: [],
   };
   const src: number[] = [];
   for (const ch of source) src.push(ch.codePointAt(0)!);
@@ -2017,7 +2032,8 @@ export function scanFile(source: string, basename: string, resyncOnBodyError = f
   }
 
   // ES-modules (U-09): `export { a, b };` requests, resolved once every decl kind is scanned.
-  const pendingExportList: PendingExportName[] = [];
+  // Kept on the result (exportListEntries) for the LSP rename/references index (TD-033).
+  const pendingExportList: PendingExportName[] = out.exportListEntries;
 
   const wrapperDeprecation =
     "wrapper syntax is deprecated — write a plain typed declaration (`export FRuiNode Name(...)` / `export <Type> UseName(...)` / `export <Type> Name = ...`); run `-run=RUIMigrateEsModules`. Removed in the next minor.";

@@ -62,6 +62,9 @@ struct REACTIVEUIINTERP_API FUetkxImportDecl
 	// ES-modules (G-05): the LOCAL binding for each Names[n] — identical to Names[n] unless the
 	// import renamed it (`{ A as B }`, LocalNames[n] == "B"). Always 1:1 with Names.
 	TArray<FString> LocalNames;
+	// The alias TOKEN's offset for a renamed binding (the `B` of `A as B`); == NameAts[n] when
+	// no rename (LSP rename/references need the exact token — TD-033 index).
+	TArray<int32> LocalNameAts;
 	FString Specifier;
 	int32 SpecifierAt = -1;	   // offset of the opening quote
 	int32 At = -1;			   // offset of the `import` keyword
@@ -188,6 +191,15 @@ struct REACTIVEUIINTERP_API FUetkxModuleDecl
 	int32 Next = -1;
 };
 
+/** ES-modules (U-09): one name requested by a deferred `export { ... };` list, with its token
+ *  offset — resolved against the decl arrays at end-of-scan; kept on the result for the LSP
+ *  rename/references index (TD-033). */
+struct REACTIVEUIINTERP_API FUetkxPendingExportName
+{
+	FString Name;
+	int32 At = -1;
+};
+
 struct REACTIVEUIINTERP_API FUetkxFileScanResult
 {
 	TArray<FString> PreambleIncludes; // verbatim `#include ...` lines from the preamble
@@ -211,6 +223,10 @@ struct REACTIVEUIINTERP_API FUetkxFileScanResult
 	// `export default X;` while X stays otherwise private.
 	FString DefaultExportName;
 	int32 DefaultExportAt = -1;
+	// ES-modules (U-09): every `export { … };` list entry with its token offset — the LSP
+	// rename/references index (TD-033) needs the exact positions; the two-pass export resolution
+	// still runs off the same records.
+	TArray<FUetkxPendingExportName> ExportListEntries;
 
 	// TRANSITION helper (A1): "has no markup" — true when the file declares no component. Retires
 	// from dispatch decisions in M3 (codegen emits per `Order`); kept until the HMR rewrite (M9)

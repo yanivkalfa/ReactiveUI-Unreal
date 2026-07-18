@@ -1342,8 +1342,10 @@ namespace
 			Imp.Names.Add(ImportedName);
 			Imp.NameAts.Add(s);
 			// ES-modules (G-05): `{ A as B }` — rename-on-import. LocalNames stays 1:1 with Names;
-			// no `as` means the local binding is the imported name itself.
+			// no `as` means the local binding is the imported name itself (alias token == name
+			// token — LocalNameAts mirrors that for the LSP index, TD-033).
 			FString LocalName = ImportedName;
+			int32 LocalNameAt = s;
 			const int32 AfterName = SkipWsAndComments(p);
 			if (AfterName < Bclose && FUetkxLexer::KeywordAt(Src, AfterName, TEXT("as")))
 			{
@@ -1359,9 +1361,11 @@ namespace
 					return AdvancePastLine(Src, Bclose);
 				}
 				LocalName = FUetkxLexer::FromCodePoints(Src, AliasStart, ap - AliasStart);
+				LocalNameAt = AliasStart;
 				p = ap;
 			}
 			Imp.LocalNames.Add(LocalName);
+			Imp.LocalNameAts.Add(LocalNameAt);
 		}
 		if (Imp.Names.IsEmpty())
 		{
@@ -1987,14 +1991,7 @@ namespace
 		return Bclose + 1;
 	}
 
-	/** ES-modules (U-09): one name requested by a deferred `export { ... };` list, awaiting
-	 *  end-of-scan resolution (a listed name may be declared anywhere in the file, forward or
-	 *  backward — resolution happens once every kind's array is fully populated). */
-	struct FUetkxPendingExportName
-	{
-		FString Name;
-		int32 At = -1;
-	};
+	// FUetkxPendingExportName moved to the header (the LSP index reads ExportListEntries).
 
 	/** ES-modules (U-09): `export { a, b };` — a deferred export-list STATEMENT, not a
 	 *  declaration. `BraceAt` is the `{`; names are recorded into PendingList for end-of-scan
@@ -2330,8 +2327,9 @@ FUetkxFileScanResult FUetkxFileScan::Scan(const FString& Source, const FString& 
 	const int32 N = Src.Num();
 
 	TMap<FString, FString> ImportedFrom; // name -> first specifier (UETKX2303 across the file)
-	// ES-modules (U-09): `export { a, b };` requests, resolved once every decl kind is scanned.
-	TArray<FUetkxPendingExportName> PendingExportList;
+	// ES-modules (U-09): `export { a, b };` requests, resolved once every decl kind is scanned;
+	// kept on the result (ExportListEntries) for the LSP rename/references index (TD-033).
+	TArray<FUetkxPendingExportName>& PendingExportList = Out.ExportListEntries;
 
 	// ── Preamble: verbatim #include lines + `import { … } from "…"`, until the first declaration.
 	// Imports are PREAMBLE ONLY (A1); an `export`/`component`/`hook`/`module` keyword ends it.
