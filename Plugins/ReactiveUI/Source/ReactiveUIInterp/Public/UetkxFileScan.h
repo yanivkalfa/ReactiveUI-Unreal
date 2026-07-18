@@ -213,8 +213,8 @@ struct REACTIVEUIINTERP_API FUetkxFileScanResult
 	TArray<FUetkxComponentDecl> Components;
 	TArray<FUetkxHookDecl> Hooks;
 	TArray<FUetkxModuleDecl> Modules;
-	TArray<FUetkxValueDecl> Values; // ES-modules (G-03/U-01)
-	TArray<FUetkxUtilDecl> Utils;	 // ES-modules (G-03/U-01)
+	TArray<FUetkxValueDecl> Values;				// ES-modules (G-03/U-01)
+	TArray<FUetkxUtilDecl> Utils;				// ES-modules (G-03/U-01)
 	TArray<TPair<EUetkxDeclKind, int32>> Order; // (kind, index-into-that-kind's-array), source order
 	TArray<FUetkxDiag> Diags;
 

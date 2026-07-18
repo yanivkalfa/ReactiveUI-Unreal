@@ -266,8 +266,9 @@ private:
 				{
 					++p2;
 				}
-				const bool bEq = p2 < N && Cp[p2] == '=' && (p2 + 1 >= N || Cp[p2 + 1] != '=') &&
-								 (s == 0 || (Cp[s - 1] != '=' && Cp[s - 1] != '!' && Cp[s - 1] != '<' && Cp[s - 1] != '>'));
+				const bool bEq =
+					p2 < N && Cp[p2] == '=' && (p2 + 1 >= N || Cp[p2 + 1] != '=') &&
+					(s == 0 || (Cp[s - 1] != '=' && Cp[s - 1] != '!' && Cp[s - 1] != '<' && Cp[s - 1] != '>'));
 				const bool bSemi = p2 < N && Cp[p2] == ';';
 				const bool bBrace = p2 < N && Cp[p2] == '{';
 				if (!bMember && !bScope && bPrevTypeish && (bEq || bSemi || bBrace))

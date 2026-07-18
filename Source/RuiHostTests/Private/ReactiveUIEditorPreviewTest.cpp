@@ -96,8 +96,7 @@ bool FRuiEditorPreviewTest::RunTest(const FString&)
 
 	// ── an uncompiled EXPORTED component reports "not compiled yet", it does NOT approximate ─────
 	{
-		const FString Source =
-			TEXT("export component NeverCompiled {\n\treturn ( <VerticalBox></VerticalBox> );\n}\n");
+		const FString Source = TEXT("export component NeverCompiled {\n\treturn ( <VerticalBox></VerticalBox> );\n}\n");
 		TSharedRef<FUetkxPreview> Preview = FUetkxPreview::FromSource(Source, TEXT("NeverCompiled"));
 		TestFalse(TEXT("uncompiled component does not mount"), Preview->IsValid());
 		TestTrue(TEXT("explains it is not compiled yet"),

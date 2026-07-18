@@ -35,16 +35,16 @@ namespace
 	{
 		switch (K)
 		{
-			case EUetkxDeclKind::Component:
-				return TEXT("component");
-			case EUetkxDeclKind::Hook:
-				return TEXT("hook");
-			case EUetkxDeclKind::Module:
-				return TEXT("module");
-			case EUetkxDeclKind::Value:
-				return TEXT("value");
-			case EUetkxDeclKind::Util:
-				return TEXT("util");
+		case EUetkxDeclKind::Component:
+			return TEXT("component");
+		case EUetkxDeclKind::Hook:
+			return TEXT("hook");
+		case EUetkxDeclKind::Module:
+			return TEXT("module");
+		case EUetkxDeclKind::Value:
+			return TEXT("value");
+		case EUetkxDeclKind::Util:
+			return TEXT("util");
 		}
 		return TEXT("module");
 	}
@@ -187,7 +187,8 @@ namespace
 				{
 					++m;
 				}
-				Out.Add({Ident, FUetkxLexer::FromCodePoints(Src, Ms, m - Ms), bExactBase ? BaseAt + s : BaseAt, FExtRef::EKind::Module});
+				Out.Add({Ident, FUetkxLexer::FromCodePoints(Src, Ms, m - Ms), bExactBase ? BaseAt + s : BaseAt,
+						 FExtRef::EKind::Module});
 			}
 			else if (bFollowParen && Ident.StartsWith(TEXT("Use")) && Ident.Len() >= 4 && FChar::IsUpper(Ident[3]) &&
 					 !FUetkxFileScan::HookNames().Contains(Ident))
@@ -267,75 +268,75 @@ namespace
 		const int32 NodeAt = Base < 0 ? FallbackAt : Base + Node.At;
 		switch (Node.Type)
 		{
-			case EUetkxNodeType::El:
-			case EUetkxNodeType::Frag:
-				for (const FUetkxAttr& Attr : Node.Attrs)
-				{
-					if (Attr.Kind != EUetkxAttrKind::Expr && Attr.Kind != EUetkxAttrKind::Spread)
-					{
-						continue;
-					}
-					const bool bExact = Base >= 0 && Attr.Vat >= 0;
-					CollectExternalRefs(Attr.Value, bExact ? Base + Attr.Vat : NodeAt, IslandSeed, Out, bExact,
-										&IslandSeed);
-				}
-				for (const TSharedPtr<FUetkxNode>& Child : Node.Children)
-				{
-					if (Child.IsValid())
-					{
-						CollectMarkupNodeRefs(*Child, Base, NodeAt, IslandSeed, Out);
-					}
-				}
-				break;
-			case EUetkxNodeType::Expr:
+		case EUetkxNodeType::El:
+		case EUetkxNodeType::Frag:
+			for (const FUetkxAttr& Attr : Node.Attrs)
 			{
-				const bool bExact = Base >= 0 && Node.Vat >= 0;
-				CollectExternalRefs(Node.Code, bExact ? Base + Node.Vat : NodeAt, IslandSeed, Out, bExact, &IslandSeed);
-				break;
+				if (Attr.Kind != EUetkxAttrKind::Expr && Attr.Kind != EUetkxAttrKind::Spread)
+				{
+					continue;
+				}
+				const bool bExact = Base >= 0 && Attr.Vat >= 0;
+				CollectExternalRefs(Attr.Value, bExact ? Base + Attr.Vat : NodeAt, IslandSeed, Out, bExact,
+									&IslandSeed);
 			}
-			case EUetkxNodeType::If:
-				for (const FUetkxIfBranch& Branch : Node.Branches)
-				{
-					CollectExternalRefs(Branch.Cond, NodeAt, IslandSeed, Out, /*bExactBase*/ false, &IslandSeed);
-					CollectDirectiveBodyRefs(Branch.BodyMarkup, Base < 0 || Branch.BodyAt < 0 ? -1 : Base + Branch.BodyAt,
-											 NodeAt, IslandSeed, Out);
-				}
-				if (Node.ElseBody.IsSet())
-				{
-					CollectDirectiveBodyRefs(Node.ElseBody.GetValue(),
-											 Base < 0 || Node.ElseBodyAt < 0 ? -1 : Base + Node.ElseBodyAt, NodeAt,
-											 IslandSeed, Out);
-				}
-				break;
-			case EUetkxNodeType::For:
-			case EUetkxNodeType::While:
+			for (const TSharedPtr<FUetkxNode>& Child : Node.Children)
 			{
-				CollectExternalRefs(Node.Header, NodeAt, IslandSeed, Out, /*bExactBase*/ false, &IslandSeed);
-				// The header's own declarations (`@for (int32 i = 0; …)`) are live inside the
-				// body — append them to the body's island seed (the N5 loop-var pin).
-				const FUetkxScopedLocals HeaderLocals(FUetkxLexer::ToCodePoints(Node.Header), IslandSeed);
-				const TArray<FString> BodySeed = HeaderLocals.AllDeclNames();
-				CollectDirectiveBodyRefs(Node.BodyMarkup, Base < 0 || Node.BodyAt < 0 ? -1 : Base + Node.BodyAt, NodeAt,
-										 BodySeed, Out);
-				break;
+				if (Child.IsValid())
+				{
+					CollectMarkupNodeRefs(*Child, Base, NodeAt, IslandSeed, Out);
+				}
 			}
-			case EUetkxNodeType::Match:
-				CollectExternalRefs(Node.Subject, NodeAt, IslandSeed, Out, /*bExactBase*/ false, &IslandSeed);
-				for (const FUetkxMatchCase& Case : Node.Cases)
-				{
-					CollectExternalRefs(Case.Value, NodeAt, IslandSeed, Out, /*bExactBase*/ false, &IslandSeed);
-					CollectDirectiveBodyRefs(Case.BodyMarkup, Base < 0 || Case.BodyAt < 0 ? -1 : Base + Case.BodyAt,
-											 NodeAt, IslandSeed, Out);
-				}
-				if (Node.DefaultBody.IsSet())
-				{
-					CollectDirectiveBodyRefs(Node.DefaultBody.GetValue(),
-											 Base < 0 || Node.DefaultBodyAt < 0 ? -1 : Base + Node.DefaultBodyAt, NodeAt,
-											 IslandSeed, Out);
-				}
-				break;
-			default:
-				break;
+			break;
+		case EUetkxNodeType::Expr:
+		{
+			const bool bExact = Base >= 0 && Node.Vat >= 0;
+			CollectExternalRefs(Node.Code, bExact ? Base + Node.Vat : NodeAt, IslandSeed, Out, bExact, &IslandSeed);
+			break;
+		}
+		case EUetkxNodeType::If:
+			for (const FUetkxIfBranch& Branch : Node.Branches)
+			{
+				CollectExternalRefs(Branch.Cond, NodeAt, IslandSeed, Out, /*bExactBase*/ false, &IslandSeed);
+				CollectDirectiveBodyRefs(Branch.BodyMarkup, Base < 0 || Branch.BodyAt < 0 ? -1 : Base + Branch.BodyAt,
+										 NodeAt, IslandSeed, Out);
+			}
+			if (Node.ElseBody.IsSet())
+			{
+				CollectDirectiveBodyRefs(Node.ElseBody.GetValue(),
+										 Base < 0 || Node.ElseBodyAt < 0 ? -1 : Base + Node.ElseBodyAt, NodeAt,
+										 IslandSeed, Out);
+			}
+			break;
+		case EUetkxNodeType::For:
+		case EUetkxNodeType::While:
+		{
+			CollectExternalRefs(Node.Header, NodeAt, IslandSeed, Out, /*bExactBase*/ false, &IslandSeed);
+			// The header's own declarations (`@for (int32 i = 0; …)`) are live inside the
+			// body — append them to the body's island seed (the N5 loop-var pin).
+			const FUetkxScopedLocals HeaderLocals(FUetkxLexer::ToCodePoints(Node.Header), IslandSeed);
+			const TArray<FString> BodySeed = HeaderLocals.AllDeclNames();
+			CollectDirectiveBodyRefs(Node.BodyMarkup, Base < 0 || Node.BodyAt < 0 ? -1 : Base + Node.BodyAt, NodeAt,
+									 BodySeed, Out);
+			break;
+		}
+		case EUetkxNodeType::Match:
+			CollectExternalRefs(Node.Subject, NodeAt, IslandSeed, Out, /*bExactBase*/ false, &IslandSeed);
+			for (const FUetkxMatchCase& Case : Node.Cases)
+			{
+				CollectExternalRefs(Case.Value, NodeAt, IslandSeed, Out, /*bExactBase*/ false, &IslandSeed);
+				CollectDirectiveBodyRefs(Case.BodyMarkup, Base < 0 || Case.BodyAt < 0 ? -1 : Base + Case.BodyAt, NodeAt,
+										 IslandSeed, Out);
+			}
+			if (Node.DefaultBody.IsSet())
+			{
+				CollectDirectiveBodyRefs(Node.DefaultBody.GetValue(),
+										 Base < 0 || Node.DefaultBodyAt < 0 ? -1 : Base + Node.DefaultBodyAt, NodeAt,
+										 IslandSeed, Out);
+			}
+			break;
+		default:
+			break;
 		}
 	}
 } // namespace
@@ -800,9 +801,8 @@ void FUetkxResolve::Apply(const FUetkxFileScanResult& Scan, const TMap<FString, 
 				const FUetkxTargetDecl* T = R.Member.IsEmpty() ? nullptr : Targets->Find(R.Member);
 				if (!T)
 				{
-					Add(TEXT("UETKX2302"), 0,
-						FString::Printf(TEXT("`%s` is not declared in %s"), *Qualified, *Label), R.At,
-						Qualified.Len());
+					Add(TEXT("UETKX2302"), 0, FString::Printf(TEXT("`%s` is not declared in %s"), *Qualified, *Label),
+						R.At, Qualified.Len());
 				}
 				else if (!T->bExported)
 				{
@@ -823,18 +823,18 @@ void FUetkxResolve::Apply(const FUetkxFileScanResult& Scan, const TMap<FString, 
 		EUetkxDeclKind Want;
 		switch (R.Kind)
 		{
-			case FExtRef::EKind::Hook:
-				Want = EUetkxDeclKind::Hook;
-				break;
-			case FExtRef::EKind::Module:
-				Want = EUetkxDeclKind::Module;
-				break;
-			case FExtRef::EKind::Call:
-				Want = EUetkxDeclKind::Util;
-				break;
-			default:
-				Want = EUetkxDeclKind::Value;
-				break;
+		case FExtRef::EKind::Hook:
+			Want = EUetkxDeclKind::Hook;
+			break;
+		case FExtRef::EKind::Module:
+			Want = EUetkxDeclKind::Module;
+			break;
+		case FExtRef::EKind::Call:
+			Want = EUetkxDeclKind::Util;
+			break;
+		default:
+			Want = EUetkxDeclKind::Value;
+			break;
 		}
 		if (Kind != Want)
 		{
@@ -994,18 +994,18 @@ void FUetkxResolve::MissingImports(const FUetkxFileScanResult& Scan, const TSet<
 	{
 		switch (R.Kind)
 		{
-			case FExtRef::EKind::Hook:
-				Consider(R.Name, EUetkxDeclKind::Hook);
-				break;
-			case FExtRef::EKind::Module:
-				Consider(R.Name, EUetkxDeclKind::Module);
-				break;
-			case FExtRef::EKind::Call:
-				Consider(R.Name, EUetkxDeclKind::Util);
-				break;
-			case FExtRef::EKind::Bare:
-				Consider(R.Name, EUetkxDeclKind::Value);
-				break;
+		case FExtRef::EKind::Hook:
+			Consider(R.Name, EUetkxDeclKind::Hook);
+			break;
+		case FExtRef::EKind::Module:
+			Consider(R.Name, EUetkxDeclKind::Module);
+			break;
+		case FExtRef::EKind::Call:
+			Consider(R.Name, EUetkxDeclKind::Util);
+			break;
+		case FExtRef::EKind::Bare:
+			Consider(R.Name, EUetkxDeclKind::Value);
+			break;
 		}
 	}
 	for (TPair<FString, TArray<FString>>& Pair : OutBySpecifier)

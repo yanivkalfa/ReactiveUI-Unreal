@@ -105,16 +105,16 @@ bool FRuiUetkxScannerTest::RunTest(const FString&)
 	{
 		switch (K)
 		{
-			case EUetkxDeclKind::Component:
-				return TEXT("component");
-			case EUetkxDeclKind::Hook:
-				return TEXT("hook");
-			case EUetkxDeclKind::Module:
-				return TEXT("module");
-			case EUetkxDeclKind::Value:
-				return TEXT("value");
-			case EUetkxDeclKind::Util:
-				return TEXT("util");
+		case EUetkxDeclKind::Component:
+			return TEXT("component");
+		case EUetkxDeclKind::Hook:
+			return TEXT("hook");
+		case EUetkxDeclKind::Module:
+			return TEXT("module");
+		case EUetkxDeclKind::Value:
+			return TEXT("value");
+		case EUetkxDeclKind::Util:
+			return TEXT("util");
 		}
 		return TEXT("module");
 	};
@@ -179,8 +179,8 @@ bool FRuiUetkxScannerTest::RunTest(const FString&)
 		}
 		return FString::Printf(TEXT("%s<-%s"), *FString::Join(Pieces, TEXT("|")), *I.Specifier);
 	};
-	auto RunFileScan = [this, &Total, &Join, &KindName, &ExpectedImportKey,
-						&ActualImportKey](const TSharedPtr<FJsonObject>& Case)
+	auto RunFileScan =
+		[this, &Total, &Join, &KindName, &ExpectedImportKey, &ActualImportKey](const TSharedPtr<FJsonObject>& Case)
 	{
 		const FString Name = Case->GetStringField(TEXT("name"));
 		const FString Input = Case->GetStringField(TEXT("input"));
@@ -282,21 +282,21 @@ bool FRuiUetkxScannerTest::RunTest(const FString&)
 				FString Nm;
 				switch (P.Key)
 				{
-					case EUetkxDeclKind::Component:
-						Nm = Scan.Components[P.Value].Name;
-						break;
-					case EUetkxDeclKind::Hook:
-						Nm = Scan.Hooks[P.Value].Name;
-						break;
-					case EUetkxDeclKind::Module:
-						Nm = Scan.Modules[P.Value].Name;
-						break;
-					case EUetkxDeclKind::Value:
-						Nm = Scan.Values[P.Value].Name;
-						break;
-					case EUetkxDeclKind::Util:
-						Nm = Scan.Utils[P.Value].Name;
-						break;
+				case EUetkxDeclKind::Component:
+					Nm = Scan.Components[P.Value].Name;
+					break;
+				case EUetkxDeclKind::Hook:
+					Nm = Scan.Hooks[P.Value].Name;
+					break;
+				case EUetkxDeclKind::Module:
+					Nm = Scan.Modules[P.Value].Name;
+					break;
+				case EUetkxDeclKind::Value:
+					Nm = Scan.Values[P.Value].Name;
+					break;
+				case EUetkxDeclKind::Util:
+					Nm = Scan.Utils[P.Value].Name;
+					break;
 				}
 				ActS.Add(FString::Printf(TEXT("%s:%s"), KindName(P.Key), *Nm));
 			}

@@ -331,8 +331,9 @@ int32 FUetkxWatcher::Sweep(const TCHAR* Reason)
 					FUetkxDriver::ImportersOf(FUetkxDriver::ProjectRelPath(File.UetkxPath), Roots);
 				if (Importers.Num() > 0)
 				{
-					UE_LOG(LogUetkxWatcher, Display, TEXT("[RUI] hmr: %s is a support file — the rebuild patches its "
-														  "importer(s): %s"),
+					UE_LOG(LogUetkxWatcher, Display,
+						   TEXT("[RUI] hmr: %s is a support file — the rebuild patches its "
+								"importer(s): %s"),
 						   *FPaths::GetCleanFilename(File.UetkxPath), *FString::Join(Importers, TEXT(", ")));
 				}
 			}

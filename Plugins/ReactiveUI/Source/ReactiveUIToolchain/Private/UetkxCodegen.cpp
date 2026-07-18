@@ -635,8 +635,7 @@ namespace
 	 *  RewriteAliases. `ParamNames` (TD-034 #1, N4) seeds the scope tracker: a LOCAL (param or
 	 *  body declaration) matching an alias/private name is never rewritten/qualified/injected. */
 	FString PrefixHookCalls(const FString& Code, const TMap<FString, FString>& Qualified = {},
-							const FUetkxAliasPlane* Aliases = nullptr,
-							const TArray<FString>* ParamNames = nullptr)
+							const FUetkxAliasPlane* Aliases = nullptr, const TArray<FString>* ParamNames = nullptr)
 	{
 		static const TArray<FString> NoParams;
 		const TArray<FString>& Seed = ParamNames ? *ParamNames : NoParams;
@@ -953,8 +952,9 @@ namespace
 	 *  qualification); a value initializer that happens to look like a hook call is not policed
 	 *  here — it surfaces as a normal downstream compile error (no `Ctx` in scope) exactly like
 	 *  any other misuse. A non-exported value nests in the per-file detail namespace. */
-	FEmittedDecl EmitValueInl(const FUetkxValueDecl& Value, const FString& PrivNs, const TMap<FString, FString>& Qualified,
-							 const FLineCtx& Line, const FUetkxAliasPlane* Aliases = nullptr)
+	FEmittedDecl EmitValueInl(const FUetkxValueDecl& Value, const FString& PrivNs,
+							  const TMap<FString, FString>& Qualified, const FLineCtx& Line,
+							  const FUetkxAliasPlane* Aliases = nullptr)
 	{
 		const FString Type = Value.Type.IsEmpty() ? FString(TEXT("auto")) : Value.Type;
 		const FString Init = PrefixHookCalls(Value.Init.TrimStartAndEnd(), Qualified, Aliases);
@@ -978,7 +978,7 @@ namespace
 	 *  body that happens to call something hook-shaped is not specially policed; it fails to
 	 *  compile downstream (no `Ctx` in scope), the same as any other misuse. */
 	FEmittedDecl EmitUtilInl(const FUetkxUtilDecl& Util, const FString& PrivNs, const TMap<FString, FString>& Qualified,
-							const FLineCtx& Line, const FUetkxAliasPlane* Aliases = nullptr)
+							 const FLineCtx& Line, const FUetkxAliasPlane* Aliases = nullptr)
 	{
 		const FString Sig = FString::Printf(TEXT("inline %s %s(%s)"), *Util.RetType, *Util.Name, *Util.Params);
 		FEmittedDecl E;
@@ -1041,7 +1041,10 @@ namespace
 		/** Hook auto-prefix (built-in → Ctx.*, user hooks → Ctx first arg), plus same-file PRIVATE
 		 *  reference qualification (private hook calls + `Module::` quals → RuiPriv_<Basename>::…),
 		 *  plus the ES-modules import-alias plane (U-03 — rename / `X::` strip pre-pass). */
-		FString PrefixHooks(const FString& Code) { return PrefixHookCalls(Code, Qualified, &Aliases, &ComponentParamNames); }
+		FString PrefixHooks(const FString& Code)
+		{
+			return PrefixHookCalls(Code, Qualified, &Aliases, &ComponentParamNames);
+		}
 
 		/** An embedded expression: rewrite nested markup ranges (jsx scan) to element exprs. */
 		FString EmitExpr(const FString& Expr, int32 AbsAt)
@@ -1707,8 +1710,7 @@ namespace
 		// same-named components never collide in the process-global registries (HMR maps included).
 		// G-01 documented semantic: renaming a file renames RuiPriv_<Basename> ⇒ private members get
 		// fresh runtime identity ⇒ remount/state-reset on the next sweep.
-		const FString RuntimeId =
-			Decl.bExported ? Decl.Name : PrivNamespaceFor(Basename) + TEXT("::") + Decl.Name;
+		const FString RuntimeId = Decl.bExported ? Decl.Name : PrivNamespaceFor(Basename) + TEXT("::") + Decl.Name;
 		Impl += FString::Printf(TEXT("static const FName G%sUetkxId = RUI::RegisterComponentId((void*)&%s_UetkxImpl, "
 									 "FName(TEXT(\"%s\")));\n"),
 								*Decl.Name, *Decl.Name, *RuntimeId);
@@ -1926,7 +1928,8 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 		// bodies (a props-struct default may reference a file value, so values must precede
 		// every props struct exactly as module constants do).
 		case EUetkxDeclKind::Value:
-			ModuleDecls += EmitValueInl(Scan.Values[Entry.Value], PrivNs, Qualified, Line, &Aliases).DeclPhase + TEXT("\n");
+			ModuleDecls +=
+				EmitValueInl(Scan.Values[Entry.Value], PrivNs, Qualified, Line, &Aliases).DeclPhase + TEXT("\n");
 			Out.ComponentNames.Add(Scan.Values[Entry.Value].Name);
 			break;
 		// ES-modules (U-04): a UTIL is hook-shaped (fwd-decl in the DECL phase, definition in
@@ -2025,7 +2028,7 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 	}
 	Out.Uses = Uses.Array();
 	Out.Uses.Sort();
-	Out.bSupportFile = Scan.Components.IsEmpty(); // no markup → HMR rebuild note, not interp swap
+	Out.bSupportFile = Scan.Components.IsEmpty();	// no markup → HMR rebuild note, not interp swap
 	Out.DefaultExportName = Scan.DefaultExportName; // ES-modules (U-08) — sidecar/export-table marker
 	Out.bOk = true;
 	Out.Inl = MoveTemp(Inl);

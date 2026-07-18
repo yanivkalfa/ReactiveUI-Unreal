@@ -319,8 +319,8 @@ namespace
 			FString Block;
 			for (const FString& Spec : Specs)
 			{
-				Block +=
-					FString::Printf(TEXT("import { %s } from \"%s\"\n"), *FString::Join(BySpec[Spec], TEXT(", ")), *Spec);
+				Block += FString::Printf(TEXT("import { %s } from \"%s\"\n"), *FString::Join(BySpec[Spec], TEXT(", ")),
+										 *Spec);
 				ImportsAdded += BySpec[Spec].Num();
 			}
 			// Insert the import block right before the first declaration (after any #include block +
@@ -524,8 +524,7 @@ namespace
 				return false;
 			}
 			const FString Name = FUetkxLexer::FromCodePoints(Cp, IdentStart, IdentEnd - IdentStart);
-			const FString Type =
-				FUetkxLexer::FromCodePoints(Cp, HeadStart, IdentStart - HeadStart).TrimStartAndEnd();
+			const FString Type = FUetkxLexer::FromCodePoints(Cp, HeadStart, IdentStart - HeadStart).TrimStartAndEnd();
 			if (Type.IsEmpty())
 			{
 				return false;

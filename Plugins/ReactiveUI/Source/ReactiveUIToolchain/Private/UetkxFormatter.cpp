@@ -724,12 +724,11 @@ namespace
 	{
 		// Form-preserving (ES-modules G-10): a legacy `component` wrapper keeps its wrapper; a
 		// new-form decl keeps the plain `FRuiNode Name(...)` head. Migration is the codemod's job.
-		FString Out =
-			Decl.bLegacySyntax
-				? FString::Printf(TEXT("%scomponent %s%s {\n"), ExportPrefix(Decl.bExported, Decl.ExportAt),
-								  *Decl.Name, *FmtParams(Decl.Params))
-				: FString::Printf(TEXT("%sFRuiNode %s%s {\n"), ExportPrefix(Decl.bExported, Decl.ExportAt), *Decl.Name,
-								  *FmtNewParams(Decl.Params));
+		FString Out = Decl.bLegacySyntax
+						  ? FString::Printf(TEXT("%scomponent %s%s {\n"), ExportPrefix(Decl.bExported, Decl.ExportAt),
+											*Decl.Name, *FmtParams(Decl.Params))
+						  : FString::Printf(TEXT("%sFRuiNode %s%s {\n"), ExportPrefix(Decl.bExported, Decl.ExportAt),
+											*Decl.Name, *FmtNewParams(Decl.Params));
 		const FString Setup = Reanchor(Decl.Setup, 1, State.O);
 		if (!Setup.IsEmpty())
 		{
@@ -801,8 +800,7 @@ namespace
 
 	FString FmtModule(const FUetkxModuleDecl& Decl, FFmtState& State)
 	{
-		FString Header =
-			FString::Printf(TEXT("%smodule %s"), ExportPrefix(Decl.bExported, Decl.ExportAt), *Decl.Name);
+		FString Header = FString::Printf(TEXT("%smodule %s"), ExportPrefix(Decl.bExported, Decl.ExportAt), *Decl.Name);
 		return Header + TEXT(" {\n") + FmtVerbatimBody(Decl.Body, State) + TEXT("}\n");
 	}
 
@@ -819,9 +817,9 @@ namespace
 	/** ES-modules (U-01): `[export] <Ret> Name(params) { body }` — the util function form. */
 	FString FmtUtil(const FUetkxUtilDecl& Decl, FFmtState& State)
 	{
-		const FString Header = FString::Printf(TEXT("%s%s %s(%s)"), ExportPrefix(Decl.bExported, Decl.ExportAt),
-											   *Decl.RetType.TrimStartAndEnd(), *Decl.Name,
-											   *Decl.Params.TrimStartAndEnd());
+		const FString Header =
+			FString::Printf(TEXT("%s%s %s(%s)"), ExportPrefix(Decl.bExported, Decl.ExportAt),
+							*Decl.RetType.TrimStartAndEnd(), *Decl.Name, *Decl.Params.TrimStartAndEnd());
 		return Header + TEXT(" {\n") + FmtVerbatimBody(Decl.Body, State) + TEXT("}\n");
 	}
 
@@ -893,8 +891,7 @@ FUetkxFormatResult FUetkxFormatter::Format(const FString& Source, const FUetkxFo
 	// `default:` fell through to Scan.Modules and would silently MIS-INDEX for any new kind.
 	auto TrueStart = [&Scan](const TPair<EUetkxDeclKind, int32>& Ord) -> int32
 	{
-		auto Pick = [](bool bExported, int32 ExportAt, int32 At)
-		{ return bExported && ExportAt >= 0 ? ExportAt : At; };
+		auto Pick = [](bool bExported, int32 ExportAt, int32 At) { return bExported && ExportAt >= 0 ? ExportAt : At; };
 		switch (Ord.Key)
 		{
 		case EUetkxDeclKind::Component:
@@ -1002,8 +999,7 @@ FUetkxFormatResult FUetkxFormatter::Format(const FString& Source, const FUetkxFo
 				// ES-modules (G-05): the three new import heads keep their own canonical spellings.
 				if (Imp.bNamespace)
 				{
-					Block += FString::Printf(TEXT("import * as %s from \"%s\"\n"), *Imp.NamespaceAlias,
-											 *Imp.Specifier);
+					Block += FString::Printf(TEXT("import * as %s from \"%s\"\n"), *Imp.NamespaceAlias, *Imp.Specifier);
 					continue;
 				}
 				if (Imp.bDefault)

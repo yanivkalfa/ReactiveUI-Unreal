@@ -389,7 +389,8 @@ namespace
 					continue;
 				}
 				if (Depth == 0 && C == '=' && (i + 1 >= Piece.Len() || Piece[i + 1] != '=') &&
-					(i == 0 || (Piece[i - 1] != '=' && Piece[i - 1] != '!' && Piece[i - 1] != '<' && Piece[i - 1] != '>')))
+					(i == 0 ||
+					 (Piece[i - 1] != '=' && Piece[i - 1] != '!' && Piece[i - 1] != '<' && Piece[i - 1] != '>')))
 				{
 					EqIdx = i;
 					break;
@@ -439,7 +440,7 @@ namespace
 		int32 NameAt = -1;
 		int32 NameLen = 0;
 		int32 TriggerAt = -1; // position of the '(' / '=' / unexpected '{' that ended the head
-		TCHAR Trigger = 0;	   // '(' | '=' | '{' (unexpected) | 0 (EOF/unterminated) — see caller
+		TCHAR Trigger = 0;	  // '(' | '=' | '{' (unexpected) | 0 (EOF/unterminated) — see caller
 	};
 
 	/** Scan a type-first declaration head starting at `Start` (just past an optional `export`),
@@ -517,7 +518,8 @@ namespace
 				continue;
 			}
 			if (Depth == 0 && C == C_EQ && (p + 1 >= N || Src[p + 1] != C_EQ) &&
-				(p == Start || (Src[p - 1] != C_EQ && Src[p - 1] != C_BANG && Src[p - 1] != C_LT && Src[p - 1] != C_GT)))
+				(p == Start ||
+				 (Src[p - 1] != C_EQ && Src[p - 1] != C_BANG && Src[p - 1] != C_LT && Src[p - 1] != C_GT)))
 			{
 				Out.Trigger = '=';
 				Out.TriggerAt = p;
@@ -1580,8 +1582,8 @@ namespace
 		FUetkxComponentDecl Decl;
 		Decl.bExported = bExported;
 		Decl.bLegacySyntax = false;
-		Decl.At = Head.TypeAt; // the decl's own start (sans `export`) — the new-form analog of the
-								// legacy `component` keyword position
+		Decl.At = Head.TypeAt;						// the decl's own start (sans `export`) — the new-form analog of the
+													// legacy `component` keyword position
 		Decl.ExportAt = bExported ? DeclStart : -1; // DeclStart == the `export` keyword itself
 		Decl.NameAt = Head.NameAt;
 		Decl.Name = FUetkxLexer::FromCodePoints(Src, Head.NameAt, Head.NameLen);
@@ -1820,7 +1822,8 @@ namespace
 			return -2; // no `(`/`=` found, or no identifier before it — not a declaration head
 		}
 		const FString Name = FUetkxLexer::FromCodePoints(Src, Head.NameAt, Head.NameLen);
-		const FString Type = FUetkxLexer::FromCodePoints(Src, Head.TypeAt, FMath::Max(0, Head.TypeLen)).TrimStartAndEnd();
+		const FString Type =
+			FUetkxLexer::FromCodePoints(Src, Head.TypeAt, FMath::Max(0, Head.TypeLen)).TrimStartAndEnd();
 		const bool bLooksLikeHook = LooksLikeHookName(Name);
 
 		if (Head.Trigger == '(')
@@ -2054,7 +2057,8 @@ namespace
 	 *  the file scanned). `DefaultAt` is the `default` keyword; `ExportKeywordAt` anchors the
 	 *  2327 diag at the offending statement's `export`. Whether the named decl actually EXISTS is
 	 *  resolved at end-of-scan (UETKX2323), like export lists. */
-	int32 ParseExportDefault(const TArray<int32>& Src, int32 DefaultAt, int32 ExportKeywordAt, FUetkxFileScanResult& Out)
+	int32 ParseExportDefault(const TArray<int32>& Src, int32 DefaultAt, int32 ExportKeywordAt,
+							 FUetkxFileScanResult& Out)
 	{
 		const int32 N = Src.Num();
 		int32 k = SkipWsOnly(Src, DefaultAt + 7); // past "default"

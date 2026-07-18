@@ -123,8 +123,8 @@ component RowList(Names: TArray<FString>) {
 		{
 			FUetkxCompileOutput Lower =
 				FUetkxCodegen::CompileSource(TEXT("component tiny { return ( <Spacer /> ); }"), TEXT("tiny"));
-			TestTrue(TEXT("2100 lowercase component"), Lower.Diags.ContainsByPredicate([](const FUetkxDiag& D)
-																					   { return D.Code == TEXT("UETKX2100"); }));
+			TestTrue(TEXT("2100 lowercase component"),
+					 Lower.Diags.ContainsByPredicate([](const FUetkxDiag& D) { return D.Code == TEXT("UETKX2100"); }));
 		}
 		FUetkxCompileOutput NoReturn =
 			FUetkxCodegen::CompileSource(TEXT("component Empty { int32 A = 1; }"), TEXT("Empty"));
@@ -314,10 +314,10 @@ component CardStack(Names: TArray<FString>) {
 	// ── ES-modules M2: value/util emission + the alias plane (U-03/U-04) ─────────────────────────
 	{
 		// Typed + inferred value exports: DECL-phase-only `inline const`, no body-phase trace.
-		const FUetkxCompileOutput Vals = FUetkxCodegen::CompileSource(
-			TEXT("export FLinearColor Cool = FLinearColor(0.2f, 0.6f, 0.9f, 1.0f);\n")
-				TEXT("export Accent = FLinearColor(0.9f, 0.2f, 0.2f, 1.0f);\n"),
-			TEXT("Palette2"));
+		const FUetkxCompileOutput Vals =
+			FUetkxCodegen::CompileSource(TEXT("export FLinearColor Cool = FLinearColor(0.2f, 0.6f, 0.9f, 1.0f);\n")
+											 TEXT("export Accent = FLinearColor(0.9f, 0.2f, 0.2f, 1.0f);\n"),
+										 TEXT("Palette2"));
 		if (TestTrue(TEXT("value exports compile"), Vals.bOk))
 		{
 			TestTrue(TEXT("typed value emits inline const <T>"),
@@ -326,7 +326,8 @@ component CardStack(Names: TArray<FString>) {
 					 Vals.Inl.Contains(TEXT("inline const auto Accent =")));
 			const int32 Split = Vals.Inl.Find(TEXT("#else"));
 			TestTrue(TEXT("values are DECL-phase-only (before #else)"),
-					 Split >= 0 && Vals.Inl.Find(TEXT("Cool")) < Split && Vals.Inl.Find(TEXT("Cool"), ESearchCase::CaseSensitive, ESearchDir::FromEnd) < Split);
+					 Split >= 0 && Vals.Inl.Find(TEXT("Cool")) < Split &&
+						 Vals.Inl.Find(TEXT("Cool"), ESearchCase::CaseSensitive, ESearchDir::FromEnd) < Split);
 			TestTrue(TEXT("exported values join the export ledger"),
 					 Vals.ExportedNames.Contains(TEXT("Cool")) && Vals.ExportedNames.Contains(TEXT("Accent")));
 			TestTrue(TEXT("a value/util-only file is a support file"), Vals.bSupportFile);
@@ -334,7 +335,8 @@ component CardStack(Names: TArray<FString>) {
 
 		// Util: fwd-decl (DECL phase) + definition (BODY phase), no Ctx injection into the signature.
 		const FUetkxCompileOutput Util = FUetkxCodegen::CompileSource(
-			TEXT("export FString FormatScore(int32 Score) {\n\treturn FString::FromInt(Score);\n}\n"), TEXT("ScoreFmt"));
+			TEXT("export FString FormatScore(int32 Score) {\n\treturn FString::FromInt(Score);\n}\n"),
+			TEXT("ScoreFmt"));
 		if (TestTrue(TEXT("util compiles"), Util.bOk))
 		{
 			const int32 Split = Util.Inl.Find(TEXT("#else"));
@@ -405,11 +407,9 @@ component CardStack(Names: TArray<FString>) {
 		// lone `:` — the scan-back must not read it as a `::` scope qual, or the alias survives
 		// into broken C++ (`? Good : LabStyle::Warn` shipped exactly that before the fix).
 		const FUetkxCompileOutput Tern = FUetkxCodegen::CompileSource(
-			TEXT("import * as Pal from \"./Palette2\"\n")
-				TEXT("import { Cool as Primary } from \"./Palette2\"\n") TEXT("export FRuiNode TernAlias() {\n")
-					TEXT("\tconst FLinearColor T = true ? Pal::Accent : Pal::Cool;\n")
-						TEXT("\tconst FLinearColor U = false ? Primary : Primary;\n")
-							TEXT("\treturn ( <Spacer /> );\n}\n"),
+			TEXT("import * as Pal from \"./Palette2\"\n") TEXT("import { Cool as Primary } from \"./Palette2\"\n") TEXT(
+				"export FRuiNode TernAlias() {\n") TEXT("\tconst FLinearColor T = true ? Pal::Accent : Pal::Cool;\n")
+				TEXT("\tconst FLinearColor U = false ? Primary : Primary;\n") TEXT("\treturn ( <Spacer /> );\n}\n"),
 			TEXT("TernAlias"));
 		if (TestTrue(TEXT("ternary alias sample compiles"), Tern.bOk))
 		{
@@ -426,10 +426,10 @@ component CardStack(Names: TArray<FString>) {
 		{
 			const FString PairSrc = TEXT("FRuiNode Row() {\n\treturn ( <Spacer /> );\n}\n")
 				TEXT("export FRuiNode PAIRNAME() {\n\treturn ( <VerticalBox> <Row /> </VerticalBox> );\n}\n");
-			const FUetkxCompileOutput A = FUetkxCodegen::CompileSource(
-				PairSrc.Replace(TEXT("PAIRNAME"), TEXT("PrivPairA")), TEXT("PrivPairA"));
-			const FUetkxCompileOutput B = FUetkxCodegen::CompileSource(
-				PairSrc.Replace(TEXT("PAIRNAME"), TEXT("PrivPairB")), TEXT("PrivPairB"));
+			const FUetkxCompileOutput A =
+				FUetkxCodegen::CompileSource(PairSrc.Replace(TEXT("PAIRNAME"), TEXT("PrivPairA")), TEXT("PrivPairA"));
+			const FUetkxCompileOutput B =
+				FUetkxCodegen::CompileSource(PairSrc.Replace(TEXT("PAIRNAME"), TEXT("PrivPairB")), TEXT("PrivPairB"));
 			if (TestTrue(TEXT("PrivPair sources compile"), A.bOk && B.bOk))
 			{
 				TestTrue(TEXT("A's private Row keys RuiPriv_PrivPairA::Row"),
@@ -476,8 +476,8 @@ component CardStack(Names: TArray<FString>) {
 				TEXT("FLinearColor RowTint = FLinearColor(1.0f, 1.0f, 1.0f, 1.0f);\n")
 					TEXT("FString Pad(FString S) {\n\treturn S;\n}\n") TEXT("export FRuiNode ShadowPriv() {\n")
 						TEXT("\tif (true) {\n\t\tFLinearColor RowTint = FLinearColor(0.0f, 0.0f, 0.0f, 1.0f);\n")
-							TEXT("\t\tauto Inner = RowTint;\n\t}\n")
-								TEXT("\tauto Outer = RowTint;\n\tauto S = Pad(FString());\n\treturn ( <Spacer /> );\n}\n"),
+							TEXT("\t\tauto Inner = RowTint;\n\t}\n") TEXT(
+								"\tauto Outer = RowTint;\n\tauto S = Pad(FString());\n\treturn ( <Spacer /> );\n}\n"),
 				TEXT("ShadowPriv"));
 			if (TestTrue(TEXT("private-shadow sample compiles"), PrivShadow.bOk))
 			{
@@ -491,11 +491,11 @@ component CardStack(Names: TArray<FString>) {
 
 			// A component PARAM shadowing an alias name suppresses the rewrite for the whole body;
 			// a structured binding (`auto [Primary, SetPrimary] = …`) does too.
-			const FUetkxCompileOutput ParamShadow = FUetkxCodegen::CompileSource(
-				TEXT("import { Cool as Primary } from \"./Palette2\"\n")
-					TEXT("export FRuiNode ShadowParam(FLinearColor Primary) {\n")
-						TEXT("\tauto V = Primary;\n\treturn ( <Spacer /> );\n}\n"),
-				TEXT("ShadowParam"));
+			const FUetkxCompileOutput ParamShadow =
+				FUetkxCodegen::CompileSource(TEXT("import { Cool as Primary } from \"./Palette2\"\n")
+												 TEXT("export FRuiNode ShadowParam(FLinearColor Primary) {\n")
+													 TEXT("\tauto V = Primary;\n\treturn ( <Spacer /> );\n}\n"),
+											 TEXT("ShadowParam"));
 			if (TestTrue(TEXT("param-shadow sample compiles"), ParamShadow.bOk))
 			{
 				TestTrue(TEXT("param shadow keeps the bare spelling"),
@@ -515,9 +515,8 @@ component CardStack(Names: TArray<FString>) {
 
 			// A local callable named like a USER hook (`auto UseWobble = …;`) is NOT Ctx-injected.
 			const FUetkxCompileOutput HookShadow = FUetkxCodegen::CompileSource(
-				TEXT("export FRuiNode ShadowHook() {\n")
-					TEXT("\tauto UseWobble = [](int32 A) { return A; };\n")
-						TEXT("\tauto W = UseWobble(2);\n\treturn ( <Spacer /> );\n}\n"),
+				TEXT("export FRuiNode ShadowHook() {\n") TEXT("\tauto UseWobble = [](int32 A) { return A; };\n")
+					TEXT("\tauto W = UseWobble(2);\n\treturn ( <Spacer /> );\n}\n"),
 				TEXT("ShadowHook"));
 			if (TestTrue(TEXT("hook-shadow sample compiles"), HookShadow.bOk))
 			{

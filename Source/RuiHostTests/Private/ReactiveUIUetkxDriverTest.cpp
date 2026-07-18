@@ -279,10 +279,10 @@ bool FRuiUetkxDriverTest::RunTest(const FString&)
 		const FString Dir = Scratch / TEXT("Value2");
 		const FString VA = Dir / TEXT("VA.uetkx");
 		const FString VB = Dir / TEXT("VB.uetkx");
-		FFileHelper::SaveStringToFile(
-			TEXT("import { BVal } from \"./VB\"\nexport int32 AVal = FMath::Max(BVal, 1);\n"), *VA);
-		FFileHelper::SaveStringToFile(
-			TEXT("import { AVal } from \"./VA\"\nexport int32 BVal = FMath::Max(AVal, 1);\n"), *VB);
+		FFileHelper::SaveStringToFile(TEXT("import { BVal } from \"./VB\"\nexport int32 AVal = FMath::Max(BVal, 1);\n"),
+									  *VA);
+		FFileHelper::SaveStringToFile(TEXT("import { AVal } from \"./VA\"\nexport int32 BVal = FMath::Max(AVal, 1);\n"),
+									  *VB);
 		AddExpectedError(TEXT("UETKX2306"), EAutomationExpectedErrorFlags::Contains, 0);
 		const FUetkxSweepResult Sweep = FUetkxDriver::CompileAll(Scratch, /*bForce*/ true);
 		TestTrue(TEXT("value-export<->value-export cycle is a sweep error (2306)"), Sweep.Errors >= 1);
@@ -327,8 +327,7 @@ bool FRuiUetkxDriverTest::RunTest(const FString&)
 										  TEXT("= Tone;\n\treturn ( <Spacer /> );\n}\n"),
 									  *ImpPath);
 		FUetkxDriver::CompileAll(Scratch);
-		const TArray<FString> Importers =
-			FUetkxDriver::ImportersOf(FUetkxDriver::ProjectRelPath(SupPath), {Scratch});
+		const TArray<FString> Importers = FUetkxDriver::ImportersOf(FUetkxDriver::ProjectRelPath(SupPath), {Scratch});
 		TestTrue(TEXT("ImportersOf names the value-importing file"), Importers.Contains(TEXT("ThemeUser")));
 		FM.Delete(*SupPath);
 		FM.Delete(*ImpPath);
@@ -353,10 +352,10 @@ bool FRuiUetkxDriverTest::RunTest(const FString&)
 	{
 		const FString PairSrc = TEXT("FRuiNode Row() {\n\treturn ( <Spacer /> );\n}\n")
 			TEXT("export FRuiNode RENAMED() {\n\treturn ( <VerticalBox> <Row /> </VerticalBox> );\n}\n");
-		const FUetkxCompileOutput AsA = FUetkxCodegen::CompileSource(
-			PairSrc.Replace(TEXT("RENAMED"), TEXT("RenameA")), TEXT("RenameA"));
-		const FUetkxCompileOutput AsB = FUetkxCodegen::CompileSource(
-			PairSrc.Replace(TEXT("RENAMED"), TEXT("RenameB")), TEXT("RenameB"));
+		const FUetkxCompileOutput AsA =
+			FUetkxCodegen::CompileSource(PairSrc.Replace(TEXT("RENAMED"), TEXT("RenameA")), TEXT("RenameA"));
+		const FUetkxCompileOutput AsB =
+			FUetkxCodegen::CompileSource(PairSrc.Replace(TEXT("RENAMED"), TEXT("RenameB")), TEXT("RenameB"));
 		TestTrue(TEXT("rename gives the private a FRESH runtime id (remount semantic)"),
 				 AsA.bOk && AsB.bOk && AsA.Inl.Contains(TEXT("RuiPriv_RenameA::Row")) &&
 					 AsB.Inl.Contains(TEXT("RuiPriv_RenameB::Row")));
@@ -371,8 +370,7 @@ bool FRuiUetkxDriverTest::RunTest(const FString&)
 		TestTrue(TEXT("default-export file compiles"), FUetkxDriver::CompileFile(DefPath, /*bForce*/ true).bOk);
 		FString SidecarJson;
 		FFileHelper::LoadFileToString(SidecarJson, *FUetkxDriver::SidecarPathFor(DefPath));
-		TestTrue(TEXT("sidecar carries the default marker"),
-				 SidecarJson.Contains(TEXT("\"default\":\"DefScreen\"")));
+		TestTrue(TEXT("sidecar carries the default marker"), SidecarJson.Contains(TEXT("\"default\":\"DefScreen\"")));
 		FM.Delete(*DefPath);
 		FUetkxDriver::CompileAll(Scratch);
 	}
