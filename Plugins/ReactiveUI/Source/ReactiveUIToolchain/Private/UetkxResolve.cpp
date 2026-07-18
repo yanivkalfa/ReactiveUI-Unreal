@@ -7,6 +7,7 @@
 #include "Misc/Paths.h"
 #include "UetkxConfig.h"
 #include "UetkxLexer.h"
+#include "UetkxScopedLocals.h"
 
 namespace
 {
@@ -77,10 +78,13 @@ namespace
 	 *  scope quals (module references), respecting comments/strings and member/scope prefixes — the
 	 *  PrefixHookCalls classification (so hand-header namespaces like `RuiDemo::X` are found here as
 	 *  Module refs but filtered out later when no file exports the name). BaseAt = the region's
-	 *  absolute offset in the original source. */
-	void CollectExternalRefs(const FString& Region, int32 BaseAt, TArray<FExtRef>& Out)
+	 *  absolute offset in the original source. TD-034 #2 (N4): `ParamSeed` seeds the scope tracker —
+	 *  a NAME with a local declaration in scope is a body local, never an external reference. */
+	void CollectExternalRefs(const FString& Region, int32 BaseAt, const TArray<FString>& ParamSeed,
+							 TArray<FExtRef>& Out)
 	{
 		const TArray<int32> Src = FUetkxLexer::ToCodePoints(Region);
+		const FUetkxScopedLocals Locals(Src, ParamSeed);
 		const int32 N = Src.Num();
 		int32 i = 0;
 		while (i < N)
@@ -120,6 +124,12 @@ namespace
 				break;
 			}
 			if (bMember || bScope)
+			{
+				continue;
+			}
+			// TD-034 #2 (N4): a body local (param, `Type Name = …`, structured binding) shadowing an
+			// exported name is NOT an external reference — no 2305, no codemod import.
+			if (Locals.IsLocal(Ident, s))
 			{
 				continue;
 			}
@@ -579,23 +589,28 @@ void FUetkxResolve::Apply(const FUetkxFileScanResult& Scan, const TMap<FString, 
 	TArray<FExtRef> Refs;
 	for (const FUetkxComponentDecl& D : Scan.Components)
 	{
-		CollectExternalRefs(D.Setup, D.SetupAt, Refs);
+		TArray<FString> Seed;
+		for (const FUetkxParam& P : D.Params)
+		{
+			Seed.Add(P.Name);
+		}
+		CollectExternalRefs(D.Setup, D.SetupAt, Seed, Refs);
 	}
 	for (const FUetkxHookDecl& D : Scan.Hooks)
 	{
-		CollectExternalRefs(D.Body, D.BodyAt, Refs);
+		CollectExternalRefs(D.Body, D.BodyAt, FUetkxScopedLocals::ParamNamesOf(D.Params), Refs);
 	}
 	for (const FUetkxModuleDecl& D : Scan.Modules)
 	{
-		CollectExternalRefs(D.Body, D.BodyAt, Refs);
+		CollectExternalRefs(D.Body, D.BodyAt, {}, Refs);
 	}
 	for (const FUetkxValueDecl& D : Scan.Values)
 	{
-		CollectExternalRefs(D.Init, D.InitAt, Refs);
+		CollectExternalRefs(D.Init, D.InitAt, {}, Refs);
 	}
 	for (const FUetkxUtilDecl& D : Scan.Utils)
 	{
-		CollectExternalRefs(D.Body, D.BodyAt, Refs);
+		CollectExternalRefs(D.Body, D.BodyAt, FUetkxScopedLocals::ParamNamesOf(D.Params), Refs);
 	}
 	for (const FExtRef& R : Refs)
 	{
@@ -775,23 +790,28 @@ void FUetkxResolve::MissingImports(const FUetkxFileScanResult& Scan, const TSet<
 	TArray<FExtRef> Refs;
 	for (const FUetkxComponentDecl& D : Scan.Components)
 	{
-		CollectExternalRefs(D.Setup, D.SetupAt, Refs);
+		TArray<FString> Seed;
+		for (const FUetkxParam& P : D.Params)
+		{
+			Seed.Add(P.Name);
+		}
+		CollectExternalRefs(D.Setup, D.SetupAt, Seed, Refs);
 	}
 	for (const FUetkxHookDecl& D : Scan.Hooks)
 	{
-		CollectExternalRefs(D.Body, D.BodyAt, Refs);
+		CollectExternalRefs(D.Body, D.BodyAt, FUetkxScopedLocals::ParamNamesOf(D.Params), Refs);
 	}
 	for (const FUetkxModuleDecl& D : Scan.Modules)
 	{
-		CollectExternalRefs(D.Body, D.BodyAt, Refs);
+		CollectExternalRefs(D.Body, D.BodyAt, {}, Refs);
 	}
 	for (const FUetkxValueDecl& D : Scan.Values)
 	{
-		CollectExternalRefs(D.Init, D.InitAt, Refs);
+		CollectExternalRefs(D.Init, D.InitAt, {}, Refs);
 	}
 	for (const FUetkxUtilDecl& D : Scan.Utils)
 	{
-		CollectExternalRefs(D.Body, D.BodyAt, Refs);
+		CollectExternalRefs(D.Body, D.BodyAt, FUetkxScopedLocals::ParamNamesOf(D.Params), Refs);
 	}
 	for (const FExtRef& R : Refs)
 	{

@@ -9,6 +9,7 @@
 #include "UetkxJsxScan.h"
 #include "UetkxLexer.h"
 #include "UetkxResolve.h"
+#include "UetkxScopedLocals.h"
 
 namespace
 {
@@ -548,12 +549,13 @@ namespace
 	 *  looks at it. Word-boundary identifiers only; member access (`.`/`->`) and an existing scope
 	 *  qual (`::`) block the rewrite exactly like the hook walk; strings/comments are opaque
 	 *  (skip-noncode). The `X ::`-lookahead crosses spaces/tabs only — never a newline — so line
-	 *  counts (the `#line` mapping) are always preserved. Known limit (family watch-list): a local
-	 *  variable shadowing an alias name is rewritten too — 2325 polices declared-name collisions,
-	 *  not body locals. */
-	FString RewriteAliases(const FString& Code, const FUetkxAliasPlane& Aliases)
+	 *  counts (the `#line` mapping) are always preserved. TD-034 #1 (N4): a local variable
+	 *  shadowing an alias name is NOT rewritten — the scope tracker (FUetkxScopedLocals, the
+	 *  N-07 heuristic) suppresses it; `ParamSeed` = the enclosing decl's parameter names. */
+	FString RewriteAliases(const FString& Code, const FUetkxAliasPlane& Aliases, const TArray<FString>& ParamSeed)
 	{
 		const TArray<int32> Src = FUetkxLexer::ToCodePoints(Code);
+		const FUetkxScopedLocals Locals(Src, ParamSeed);
 		FString Out;
 		int32 i = 0;
 		const int32 N = Src.Num();
@@ -590,7 +592,7 @@ namespace
 					bScope = (P == ':') && k > 0 && Src[k - 1] == ':';
 					break;
 				}
-				if (!bMember && !bScope)
+				if (!bMember && !bScope && !Locals.IsLocal(Ident, i))
 				{
 					if (Aliases.NamespaceStrip.Contains(Ident))
 					{
@@ -630,12 +632,19 @@ namespace
 	 *  both transforms. `Qualified` (M5) maps a same-file PRIVATE decl name to its detail-namespace
 	 *  prefix (`RuiPriv_<Basename>::`); a private hook call or a private `Module::` qual is rewritten
 	 *  to reach into that namespace. `Aliases` (ES-modules U-03) runs as a pre-pass — see
-	 *  RewriteAliases. */
+	 *  RewriteAliases. `ParamNames` (TD-034 #1, N4) seeds the scope tracker: a LOCAL (param or
+	 *  body declaration) matching an alias/private name is never rewritten/qualified/injected. */
 	FString PrefixHookCalls(const FString& Code, const TMap<FString, FString>& Qualified = {},
-							const FUetkxAliasPlane* Aliases = nullptr)
+							const FUetkxAliasPlane* Aliases = nullptr,
+							const TArray<FString>* ParamNames = nullptr)
 	{
-		const FString Rewritten = (Aliases != nullptr && !Aliases->IsEmpty()) ? RewriteAliases(Code, *Aliases) : Code;
+		static const TArray<FString> NoParams;
+		const TArray<FString>& Seed = ParamNames ? *ParamNames : NoParams;
+		const FString Rewritten =
+			(Aliases != nullptr && !Aliases->IsEmpty()) ? RewriteAliases(Code, *Aliases, Seed) : Code;
 		const TArray<int32> Src = FUetkxLexer::ToCodePoints(Rewritten);
+		// Tracker over the REWRITTEN text — the walk below reads its offsets, not the original's.
+		const FUetkxScopedLocals Locals(Src, Seed);
 		FString Out;
 		int32 i = 0;
 		const int32 N = Src.Num();
@@ -712,7 +721,10 @@ namespace
 				{
 					++p;
 				}
-				if (!FUetkxFileScan::HookNames().Contains(Ident) && !bMember && p < N && Src[p] == '(')
+				// TD-034 #1 (N4): a LOCAL callable named like a user hook (`auto UseFoo = …;`)
+				// must not get Ctx injected — the scope tracker suppresses it.
+				if (!FUetkxFileScan::HookNames().Contains(Ident) && !bMember && p < N && Src[p] == '(' &&
+					!Locals.IsLocal(Ident, i))
 				{
 					int32 q = p + 1;
 					while (q < N && (Src[q] == ' ' || Src[q] == '\t' || Src[q] == '\n' || Src[q] == '\r'))
@@ -748,7 +760,8 @@ namespace
 				ScanBack(i, bMember, bScope);
 				const FString Ident = FUetkxLexer::FromCodePoints(Src, i, e - i);
 				const FString* Prefix = Qualified.Find(Ident);
-				if (Prefix && !bMember && !bScope)
+				// TD-034 #1 (N4): a local shadowing a private name keeps its bare spelling.
+				if (Prefix && !bMember && !bScope && !Locals.IsLocal(Ident, i))
 				{
 					Out += *Prefix;
 					Out += Ident;
@@ -894,7 +907,8 @@ namespace
 		FEmittedDecl E;
 		E.DeclPhase = Sig + TEXT(";\n");
 		FString Def = Sig + TEXT("\n{\n");
-		const FString Body = PrefixHookCalls(Hook.Body.TrimStartAndEnd(), Qualified, Aliases);
+		const TArray<FString> HookParams = FUetkxScopedLocals::ParamNamesOf(Hook.Params);
+		const FString Body = PrefixHookCalls(Hook.Body.TrimStartAndEnd(), Qualified, Aliases, &HookParams);
 		if (!Body.IsEmpty())
 		{
 			Def += WithLine(TEXT("\t") + IndentRegion(Body) + TEXT("\n"), SrcLineOfRegion(Hook.Body, Hook.BodyAt, Line),
@@ -970,7 +984,8 @@ namespace
 		FEmittedDecl E;
 		E.DeclPhase = Sig + TEXT(";\n");
 		FString Def = Sig + TEXT("\n{\n");
-		const FString Body = PrefixHookCalls(Util.Body.TrimStartAndEnd(), Qualified, Aliases);
+		const TArray<FString> UtilParams = FUetkxScopedLocals::ParamNamesOf(Util.Params);
+		const FString Body = PrefixHookCalls(Util.Body.TrimStartAndEnd(), Qualified, Aliases, &UtilParams);
 		if (!Body.IsEmpty())
 		{
 			Def += WithLine(TEXT("\t") + IndentRegion(Body) + TEXT("\n"), SrcLineOfRegion(Util.Body, Util.BodyAt, Line),
@@ -995,6 +1010,11 @@ namespace
 			: Basename(InBasename), Decl(InDecl), Diags(InDiags), Uses(InUses), UseAts(InUseAts),
 			  Qualified(InQualified), Line(InLine), Aliases(InAliases)
 		{
+			// TD-034 #1 (N4): the component's params seed the scope tracker for every code region.
+			for (const FUetkxParam& Param : Decl.Params)
+			{
+				ComponentParamNames.Add(Param.Name);
+			}
 		}
 
 		FEmittedDecl Emit();
@@ -1021,7 +1041,7 @@ namespace
 		/** Hook auto-prefix (built-in → Ctx.*, user hooks → Ctx first arg), plus same-file PRIVATE
 		 *  reference qualification (private hook calls + `Module::` quals → RuiPriv_<Basename>::…),
 		 *  plus the ES-modules import-alias plane (U-03 — rename / `X::` strip pre-pass). */
-		FString PrefixHooks(const FString& Code) { return PrefixHookCalls(Code, Qualified, &Aliases); }
+		FString PrefixHooks(const FString& Code) { return PrefixHookCalls(Code, Qualified, &Aliases, &ComponentParamNames); }
 
 		/** An embedded expression: rewrite nested markup ranges (jsx scan) to element exprs. */
 		FString EmitExpr(const FString& Expr, int32 AbsAt)
@@ -1091,6 +1111,7 @@ namespace
 		const TMap<FString, FString>& Qualified; // private same-file decl name -> RuiPriv_<Basename>::name
 		const FLineCtx& Line;					 // #line directive context (M7)
 		const FUetkxAliasPlane& Aliases;		 // ES-modules import-alias substitution plane (U-03)
+		TArray<FString> ComponentParamNames;	 // scope-tracker seed for every code region (N4)
 		int32 TextKeyCounter = 0;
 		bool bError = false;
 	};

@@ -73,6 +73,46 @@ test("index collector: scope tracking suppresses locals (params, auto, typed, bi
   assert.ok(names.includes("Tint") && names.includes("Pair"), "real calls still referenced");
 });
 
+test("index collector: twin identity — `using`/`struct` head declarations; inner scopes expire at `}`", () => {
+  // Mirrors FUetkxScopedLocals::Walk (N-07): only control keywords turn type-ish OFF, so
+  // `using Alias = …;` and `struct Local { … }` both declare; a brace scope ends its shadows.
+  const src = [
+    "export FRuiNode Twin() {",
+    "\tusing Alias = FLinearColor;",
+    "\tstruct Local { int32 V; };",
+    "\tauto A = Alias(Local());",
+    "\tif (true) {",
+    "\t\tauto Shadowed = 1;",
+    "\t}",
+    "\tauto B = Shadowed;", // the inner-scope local expired — this IS a reference again
+    "\treturn ( <Spacer /> );",
+    "}",
+    "",
+  ].join("\n");
+  const names = refsOf(src, "Twin").filter((r) => r.kind === "code").map((r) => r.name);
+  assert.ok(!names.includes("Alias"), "`using Alias =` declares (type-ish head)");
+  assert.ok(!names.includes("Local"), "`struct Local {` declares");
+  assert.ok(names.includes("Shadowed"), "inner-scope local expires at `}` — outer use is a ref");
+});
+
+test("index collector: a ternary's second arm is NOT a declaration (lone-colon IMPORT-3 rule)", () => {
+  // `U = a ? Cool : Cool;` — the first arm sets the type-ish lookbehind and the lone `:` must
+  // reset it, or `Cool ;` reads as `Type Name;` and the second-arm reference vanishes (the exact
+  // C++-twin regression the Codegen ternary pin caught). A real `::` qual still keeps type-ish.
+  const src = [
+    "export FRuiNode Tern(bool bOn) {",
+    "\tauto U = bOn ? Cool : Cool;",
+    "\tstd::atomic Flag = 1;", // `::`-qualified type still declares Flag
+    "\tauto F = Flag;",
+    "\treturn ( <Spacer /> );",
+    "}",
+    "",
+  ].join("\n");
+  const names = refsOf(src, "Tern").filter((r) => r.kind === "code").map((r) => r.name);
+  assert.strictEqual(names.filter((n) => n === "Cool").length, 2, "both ternary arms stay references");
+  assert.ok(!names.includes("Flag"), "`std::atomic Flag` still declares through the `::` qual");
+});
+
 test("index collector: namespace quals emit base + member; ternary second arm still refs (IMPORT-3)", () => {
   const src = [
     'import * as Pal from "./Palette"',

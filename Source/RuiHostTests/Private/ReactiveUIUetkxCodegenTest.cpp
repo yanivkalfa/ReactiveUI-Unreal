@@ -449,6 +449,84 @@ component CardStack(Names: TArray<FString>) {
 			}
 		}
 
+		// TD-034 #1 (N4): the scope tracker — a LOCAL shadowing an alias/private name keeps its
+		// bare spelling inside its scope; outside the scope (or before the declaration) the
+		// rewrite still fires. Every recognized pattern is pinned here (params, `Type Name =`,
+		// `auto [A, B]`, inner-brace expiry).
+		{
+			// A local `FLinearColor Primary = …` shadows the rename alias: references AFTER the
+			// declaration stay bare; the reference BEFORE it still rewrites to the target.
+			const FUetkxCompileOutput Shadow = FUetkxCodegen::CompileSource(
+				TEXT("import { Cool as Primary } from \"./Palette2\"\n") TEXT("export FRuiNode ShadowVal() {\n")
+					TEXT("\tauto Before = Primary;\n")
+						TEXT("\tFLinearColor Primary = FLinearColor(1.0f, 0.0f, 0.0f, 1.0f);\n")
+							TEXT("\tauto After = Primary;\n\treturn ( <Spacer /> );\n}\n"),
+				TEXT("ShadowVal"));
+			if (TestTrue(TEXT("alias-shadow sample compiles"), Shadow.bOk))
+			{
+				TestTrue(TEXT("pre-declaration reference still rewrites"),
+						 Shadow.Inl.Contains(TEXT("auto Before = Cool;")));
+				TestTrue(TEXT("post-declaration reference keeps the local"),
+						 Shadow.Inl.Contains(TEXT("auto After = Primary;")));
+			}
+
+			// A local shadowing a PRIVATE value is NOT RuiPriv_-qualified; the un-shadowed private
+			// util call still is. Inner scope: the shadow dies at `}` and the qual returns.
+			const FUetkxCompileOutput PrivShadow = FUetkxCodegen::CompileSource(
+				TEXT("FLinearColor RowTint = FLinearColor(1.0f, 1.0f, 1.0f, 1.0f);\n")
+					TEXT("FString Pad(FString S) {\n\treturn S;\n}\n") TEXT("export FRuiNode ShadowPriv() {\n")
+						TEXT("\tif (true) {\n\t\tFLinearColor RowTint = FLinearColor(0.0f, 0.0f, 0.0f, 1.0f);\n")
+							TEXT("\t\tauto Inner = RowTint;\n\t}\n")
+								TEXT("\tauto Outer = RowTint;\n\tauto S = Pad(FString());\n\treturn ( <Spacer /> );\n}\n"),
+				TEXT("ShadowPriv"));
+			if (TestTrue(TEXT("private-shadow sample compiles"), PrivShadow.bOk))
+			{
+				TestTrue(TEXT("inner-scope shadow keeps the bare local"),
+						 PrivShadow.Inl.Contains(TEXT("auto Inner = RowTint;")));
+				TestTrue(TEXT("outer reference re-qualifies after the scope closes"),
+						 PrivShadow.Inl.Contains(TEXT("auto Outer = RuiPriv_ShadowPriv::RowTint;")));
+				TestTrue(TEXT("un-shadowed private util still qualifies"),
+						 PrivShadow.Inl.Contains(TEXT("RuiPriv_ShadowPriv::Pad(")));
+			}
+
+			// A component PARAM shadowing an alias name suppresses the rewrite for the whole body;
+			// a structured binding (`auto [Primary, SetPrimary] = …`) does too.
+			const FUetkxCompileOutput ParamShadow = FUetkxCodegen::CompileSource(
+				TEXT("import { Cool as Primary } from \"./Palette2\"\n")
+					TEXT("export FRuiNode ShadowParam(FLinearColor Primary) {\n")
+						TEXT("\tauto V = Primary;\n\treturn ( <Spacer /> );\n}\n"),
+				TEXT("ShadowParam"));
+			if (TestTrue(TEXT("param-shadow sample compiles"), ParamShadow.bOk))
+			{
+				TestTrue(TEXT("param shadow keeps the bare spelling"),
+						 ParamShadow.Inl.Contains(TEXT("auto V = Primary;")));
+				TestFalse(TEXT("no rewrite to the target"), ParamShadow.Inl.Contains(TEXT("auto V = Cool;")));
+			}
+			const FUetkxCompileOutput BindShadow = FUetkxCodegen::CompileSource(
+				TEXT("import { Cool as Primary } from \"./Palette2\"\n") TEXT("export FRuiNode ShadowBind() {\n")
+					TEXT("\tauto [Primary, SetPrimary] = UseState(FLinearColor());\n")
+						TEXT("\tauto V = Primary;\n\treturn ( <Spacer /> );\n}\n"),
+				TEXT("ShadowBind"));
+			if (TestTrue(TEXT("binding-shadow sample compiles"), BindShadow.bOk))
+			{
+				TestTrue(TEXT("structured-binding shadow keeps the bare spelling"),
+						 BindShadow.Inl.Contains(TEXT("auto V = Primary;")));
+			}
+
+			// A local callable named like a USER hook (`auto UseWobble = …;`) is NOT Ctx-injected.
+			const FUetkxCompileOutput HookShadow = FUetkxCodegen::CompileSource(
+				TEXT("export FRuiNode ShadowHook() {\n")
+					TEXT("\tauto UseWobble = [](int32 A) { return A; };\n")
+						TEXT("\tauto W = UseWobble(2);\n\treturn ( <Spacer /> );\n}\n"),
+				TEXT("ShadowHook"));
+			if (TestTrue(TEXT("hook-shadow sample compiles"), HookShadow.bOk))
+			{
+				TestTrue(TEXT("local callable keeps its plain call"), HookShadow.Inl.Contains(TEXT("UseWobble(2)")));
+				TestFalse(TEXT("no Ctx injection into the local call"),
+						  HookShadow.Inl.Contains(TEXT("UseWobble(Ctx, 2)")));
+			}
+		}
+
 		// Mixed 5-kind file: source order preserved within each phase region.
 		const FUetkxCompileOutput Mixed = FUetkxCodegen::CompileSource(
 			TEXT("export FRuiNode Widget5() {\n\treturn ( <Spacer /> );\n}\n")

@@ -58,6 +58,14 @@ const CODE_NOISE = new Set([
   "typename", "int32", "int64", "uint32", "uint8", "float", "double", "int",
 ]);
 
+// Keywords that can never HEAD a type — the ONLY identifiers that turn the type-ish lookbehind
+// off. MUST mirror FUetkxScopedLocals::Walk's list exactly (N-07 behavioral identity): anything
+// else (`const`, `struct`, `using`, a user type…) keeps a following `Name =/;/{` a declaration.
+const NON_TYPEISH = new Set([
+  "return", "if", "else", "for", "while", "switch", "case", "break", "continue",
+  "new", "delete", "sizeof",
+]);
+
 // ── the scope-aware code-reference collector (N-07 TS half) ─────────────────────────────────
 
 interface ScopeState {
@@ -251,12 +259,16 @@ export function collectCodeRefs(
 
       // update decl-lookbehind: an identifier (possibly to-be-decorated) may be a type head.
       prevIdent = ident;
-      prevIdentWasTypeish = !CODE_NOISE.has(ident) || ident === "const" || ident === "auto" ||
-        /^(int32|int64|uint32|uint8|float|double|bool|int|void)$/.test(ident);
+      prevIdentWasTypeish = !NON_TYPEISH.has(ident);
       continue;
     }
-    // whitespace and type decorations keep the type-ish state alive; other punctuation resets
-    if (isWs(c) || c === 60 /* < */ || c === 62 /* > */ || c === 38 /* & */ || c === 42 /* * */ || c === 58 /* : */) {
+    // whitespace and type decorations keep the type-ish state alive; other punctuation resets.
+    // A colon keeps it ONLY as part of a `::` qual — a LONE ternary/label colon resets (the
+    // IMPORT-3 rule; `U = a ? B : B;` otherwise reads the second arm as a declaration).
+    if (
+      isWs(c) || c === 60 /* < */ || c === 62 /* > */ || c === 38 /* & */ || c === 42 /* * */ ||
+      (c === 58 /* : */ && (regionCp[i + 1] === 58 || (i > 0 && regionCp[i - 1] === 58)))
+    ) {
       i++;
       continue;
     }

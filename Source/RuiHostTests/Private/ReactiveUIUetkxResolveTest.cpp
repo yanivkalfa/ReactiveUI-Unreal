@@ -199,6 +199,31 @@ bool FRuiUetkxResolveTest::RunTest(const FString&)
 			HasNot(C, TEXT("UETKX2304"));
 			HasNot(C, TEXT("UETKX2305"));
 		}
+
+		// TD-034 #2 (N4): a body LOCAL shadowing an exported name is not an external reference —
+		// no 2305 (and no codemod import). A param shadow behaves the same; the un-shadowed
+		// spelling (a reference BEFORE the local declaration) still diagnoses.
+		{
+			const TArray<FString> C =
+				Codes(TEXT("export FRuiNode T() {\n\tFLinearColor Cool = FLinearColor(0.1f, 0.1f, 0.1f, 1.0f);\n")
+						  TEXT("\tauto X = Cool;\n\treturn ( <Spacer /> );\n}\n"),
+					  Rel, R3);
+			HasNot(C, TEXT("UETKX2305"));
+		}
+		{
+			const TArray<FString> C =
+				Codes(TEXT("export FRuiNode T(FLinearColor Cool) {\n\tauto X = Cool;\n\treturn ( <Spacer /> );\n}\n"),
+					  Rel, R3);
+			HasNot(C, TEXT("UETKX2305"));
+		}
+		{ // the reference sits BEFORE the shadowing declaration → still an external ref → 2305
+			const TArray<FString> C =
+				Codes(TEXT("export FRuiNode T() {\n\tauto X = Cool;\n")
+						  TEXT("\tFLinearColor Cool = FLinearColor(0.1f, 0.1f, 0.1f, 1.0f);\n")
+							  TEXT("\treturn ( <Spacer /> );\n}\n"),
+					  Rel, R3);
+			Has(C, TEXT("UETKX2305"));
+		}
 	}
 
 	// ── 2308: module boundary (real-mode resolver with *.Build.cs module roots) ────────────────
