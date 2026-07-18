@@ -47,9 +47,11 @@ export const HooksGuidePage: FC = () => (
       Hooks give a function component memory. They are PascalCase (<code>UseState</code>, not{' '}
       <code>useState</code>) and must be called <strong>unconditionally at the top</strong> of a
       component or another hook — state is stored by call order, so a conditional hook desyncs the
-      slots. Router hooks live in the <strong>Router</strong> guide. Every hook also has its own
-      generated reference page — see the <strong>Hooks</strong> and <strong>Router Hooks</strong>{' '}
-      sections in the sidebar.
+      slots. The compiler enforces this (<code>UETKX0013</code>–<code>0016</code>): a hook under an{' '}
+      <code>if</code>/loop/<code>switch</code>/lambda — or anywhere inside markup, including{' '}
+      <code>@if</code>/<code>@for</code> directive bodies — is a compile error. Router hooks live in
+      the <strong>Router</strong> guide. Every hook also has its own generated reference page — see
+      the <strong>Hooks</strong> and <strong>Router Hooks</strong> sections in the sidebar.
     </Typography>
 
     <Typography variant="h5" component="h2" gutterBottom sx={{ mt: 3 }}>

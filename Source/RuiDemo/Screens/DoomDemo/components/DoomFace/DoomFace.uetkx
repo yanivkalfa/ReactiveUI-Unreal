@@ -3,7 +3,7 @@ import "@Doom/DoomTextures.h"
 // DoomFace.uetkx — the Doomguy mug widget. Faithful port of the Unity sample's
 // `DoomFace.uitkx` (cross-checked against the Godot `doom_face.guitkx`).
 // `Frame` is state.Player.FaceState (0=god, 1..5 hp buckets, 6=hurt, 7=dead).
-export component DoomFace(Frame: int32 = 0) {
+export FRuiNode DoomFace(int32 Frame = 0) {
 	const int32 Idx = FMath::Clamp(Frame, 0, 7);
 	const FLinearColor PanelBg(0.20f, 0.16f, 0.10f, 1.0f);
 	const FLinearColor BorderClr(0.85f, 0.55f, 0.20f, 1.0f);
@@ -24,8 +24,17 @@ export component DoomFace(Frame: int32 = 0) {
 			<Border BorderImage="WhiteBrush" BorderBackgroundColor={ BorderClr } Padding="1">
 				<Border BorderImage="WhiteBrush" BorderBackgroundColor={ PanelBg } Padding="0,1">
 					<VerticalBox>
-						<TextBlock Text="DOOMGUY" Font.Size={ 10.0f } ColorAndOpacity={ LabelClr } Justification="center" Slot.HAlign="center" Slot.Padding="0,1" />
-						<Image Image={ FaceBrush } DesiredSizeOverride={ FVector2D(48.0f, 48.0f) } Slot.HAlign="center" />
+						<TextBlock
+							Text="DOOMGUY"
+							Font.Size={ 10.0f }
+							ColorAndOpacity={ LabelClr }
+							Justification="center"
+							Slot.HAlign="center"
+							Slot.Padding="0,1" />
+						<Image
+							Image={ FaceBrush }
+							DesiredSizeOverride={ FVector2D(48.0f, 48.0f) }
+							Slot.HAlign="center" />
 					</VerticalBox>
 				</Border>
 			</Border>

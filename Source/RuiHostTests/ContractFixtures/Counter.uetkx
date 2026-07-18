@@ -1,4 +1,4 @@
-export component Counter(StartAt: int32 = 0) {
+export FRuiNode Counter(int32 StartAt = 0) {
 	auto [Count, SetCount] = UseState(StartAt);
 	TFunction<void(int32)> Set = SetCount;
 	const int32 Now = Count;
@@ -7,9 +7,13 @@ export component Counter(StartAt: int32 = 0) {
 			<TextBlock Text={ FText::AsNumber(Count) } />
 			<Button OnClicked={ Set(Now + 1) }>+1</Button>
 			@if (Count > 3) {
-				return ( <TextBlock Text="big!" /> );
+				return (
+					<TextBlock Text="big!" />
+				);
 			} @else {
-				return ( <TextBlock Text="small" /> );
+				return (
+					<TextBlock Text="small" />
+				);
 			}
 		</VerticalBox>
 	);

@@ -16,7 +16,94 @@ export interface ClangdPosition {
   character: number;
 }
 
-/** Walk up from `startDir` for a compile_commands.json (the clang tooling DB). Null when none. */
+/** A clangd publishDiagnostics payload (virtual-doc coordinates — the server maps them back).
+ *  `version` echoes the didOpen/didChange version the diagnostics were computed FOR — the N6
+ *  rename guard synchronizes on it (stale diagnostics must never gate a fresh rename). */
+export interface ClangdPublishedDiagnostics {
+  uri: string;
+  version?: number;
+  diagnostics: Array<{
+    range: { start: ClangdPosition; end: ClangdPosition };
+    severity?: number;
+    code?: string | number;
+    source?: string;
+    message: string;
+    tags?: number[];
+  }>;
+}
+
+/** Locate a clangd binary (TB-10): explicit setting → PATH → the extension's managed install
+ *  (%LOCALAPPDATA%/uetkx/clangd) → common LLVM/VS locations. Returns null when none exists —
+ *  the caller degrades to markup-only AND tells the user what was probed (the silent-darkness
+ *  fix). PATH is probed via existsSync over PATH entries so an absent binary never costs a
+ *  spawn. */
+export function findClangd(explicitPath?: string): string | null {
+  const exe = process.platform === "win32" ? "clangd.exe" : "clangd";
+  if (explicitPath && explicitPath.trim().length > 0) {
+    return fs.existsSync(explicitPath) ? explicitPath : null; // an explicit setting is authoritative
+  }
+  // §5: the extension-BUNDLED clangd — before any machine discovery ("completely self
+  // sustained"). The server runs from <ext-root>/server/, so the bundle sits one level up:
+  // the VS Code platform vsix ships clangd/<platform>-<arch>/…, the (single-platform) VS2022
+  // VSIX ships clangd/…. In the dev tree (lsp-server/out/) neither exists — falls through.
+  for (const rel of [
+    ["..", "clangd", `${process.platform}-${process.arch}`, "bin", exe],
+    ["..", "clangd", "bin", exe],
+  ]) {
+    const bundled = path.resolve(__dirname, ...rel);
+    if (fs.existsSync(bundled)) {
+      return bundled;
+    }
+  }
+  for (const dir of (process.env.PATH ?? "").split(path.delimiter)) {
+    if (dir && fs.existsSync(path.join(dir, exe))) {
+      return path.join(dir, exe);
+    }
+  }
+  const candidates: string[] = [];
+  if (process.env.LOCALAPPDATA) {
+    candidates.push(path.join(process.env.LOCALAPPDATA, "uetkx", "clangd", "bin", exe));
+  }
+  // The official clangd VS Code extension's managed install (@clangd/install → globalStorage):
+  // if the user already has it, reuse its binary — newest version first.
+  const appData = process.env.APPDATA ?? (process.env.HOME ? path.join(process.env.HOME, ".config") : null);
+  if (appData) {
+    for (const product of ["Code", "Code - Insiders", "VSCodium"]) {
+      const store = path.join(appData, product, "User", "globalStorage", "llvm-vs-code-extensions.vscode-clangd", "install");
+      try {
+        const versions = fs.readdirSync(store).sort().reverse();
+        for (const v of versions) {
+          const inner = path.join(store, v);
+          for (const sub of fs.readdirSync(inner)) {
+            candidates.push(path.join(inner, sub, "bin", exe));
+          }
+        }
+      } catch {
+        /* not installed — keep probing */
+      }
+    }
+  }
+  if (process.platform === "win32") {
+    candidates.push("C:\\Program Files\\LLVM\\bin\\clangd.exe");
+    for (const edition of ["Community", "Professional", "Enterprise"]) {
+      candidates.push(
+        `C:\\Program Files\\Microsoft Visual Studio\\2022\\${edition}\\VC\\Tools\\Llvm\\x64\\bin\\clangd.exe`,
+      );
+    }
+  }
+  for (const c of candidates) {
+    if (fs.existsSync(c)) {
+      return c;
+    }
+  }
+  return null;
+}
+
+/** Walk up from `startDir` for a compile database. Checks the canonical name first
+ *  (compile_commands.json at the root or build/), then UBT's VSCODE-GENERATOR OUTPUT
+ *  (.vscode/compileCommands_*.json) — so a stock `-projectfiles -vscode` run works with NO
+ *  manual copy step (TB-10; the project-named file wins over compileCommands_Default). Null
+ *  when none. */
 export function findCompileCommands(startDir: string): string | null {
   let dir = path.resolve(startDir);
   for (;;) {
@@ -27,6 +114,20 @@ export function findCompileCommands(startDir: string): string | null {
     const buildDir = path.join(dir, "build", "compile_commands.json");
     if (fs.existsSync(buildDir)) {
       return buildDir;
+    }
+    const vscodeDir = path.join(dir, ".vscode");
+    if (fs.existsSync(vscodeDir)) {
+      try {
+        const generated = fs
+          .readdirSync(vscodeDir)
+          .filter((f) => f.startsWith("compileCommands_") && f.endsWith(".json"))
+          .sort((a, b) => (a === "compileCommands_Default.json" ? 1 : b === "compileCommands_Default.json" ? -1 : a.localeCompare(b)));
+        if (generated.length > 0) {
+          return path.join(vscodeDir, generated[0]);
+        }
+      } catch {
+        /* unreadable .vscode — keep walking */
+      }
     }
     const parent = path.dirname(dir);
     if (parent === dir) {
@@ -71,6 +172,155 @@ export function drainMessages(buffer: Buffer): { messages: unknown[]; rest: Buff
   return { messages, rest };
 }
 
+/** §2 root-cause fix: UBT's VSCode-generator commands force-include the module's SharedPCH
+ *  HEADER — meant for MSVC's compiled-PCH machinery. Re-parsing that everything-header under
+ *  clang fails partway and silently truncates core engine templates (TFunction's internals
+ *  came back "undefined"); every downstream `undeclared identifier` was cascade. The mirror
+ *  therefore EXPANDS each entry's @rsp into explicit arguments and drops the `/FI <SharedPCH>`
+ *  pair (Definitions.*.h — the macro set — stays). Explicit arguments also remove clangd's
+ *  rsp-expansion variability. Exported for tests. */
+/** Split one rsp line into arguments, honoring double quotes (`/I "C:\Program Files\X"` →
+ *  two args, quotes stripped). Exported for tests. */
+export function tokenizeRspLine(line: string): string[] {
+  const out: string[] = [];
+  let cur = "";
+  let inQuotes = false;
+  let sawAny = false;
+  for (const ch of line) {
+    if (ch === '"') {
+      inQuotes = !inQuotes;
+      sawAny = true;
+      continue;
+    }
+    if (!inQuotes && (ch === " " || ch === "\t")) {
+      if (sawAny) {
+        out.push(cur);
+        cur = "";
+        sawAny = false;
+      }
+      continue;
+    }
+    cur += ch;
+    sawAny = true;
+  }
+  if (sawAny) {
+    out.push(cur);
+  }
+  return out;
+}
+
+export function sanitizeCompileCommands(dbPath: string): Array<{ file: string; directory: string; arguments: string[] }> {
+  const raw = JSON.parse(fs.readFileSync(dbPath, "utf8")) as Array<{
+    file: string;
+    directory: string;
+    arguments?: string[];
+    command?: string;
+  }>;
+  const out: Array<{ file: string; directory: string; arguments: string[] }> = [];
+  for (const entry of raw) {
+    let args = entry.arguments ?? (entry.command ? entry.command.split(/\s+/) : []);
+    // Expand response files (`@path.rsp`). UBT's rsp lines hold flag+value PAIRS with quoted
+    // paths (`/I "C:\Program Files\…"`) — tokenize per line honoring double quotes; one
+    // line is NOT one argument.
+    const expanded: string[] = [];
+    for (const a of args) {
+      if (a.startsWith("@")) {
+        try {
+          const rsp = fs.readFileSync(a.slice(1), "utf8");
+          for (const line of rsp.split(/\r?\n/)) {
+            expanded.push(...tokenizeRspLine(line));
+          }
+        } catch {
+          expanded.push(a); // unreadable rsp — keep the reference, clangd can try
+        }
+      } else {
+        expanded.push(a);
+      }
+    }
+    // Drop the SharedPCH force-include: `/FI <path>`, `/FIpath`, `-include <path>` forms.
+    const cleaned: string[] = [];
+    for (let i = 0; i < expanded.length; i++) {
+      const a = expanded[i];
+      const next = expanded[i + 1] ?? "";
+      if ((a === "/FI" || a === "-include") && /SharedPCH/i.test(next)) {
+        i++; // skip the path too
+        continue;
+      }
+      if (/^(\/FI|-include)/.test(a) && /SharedPCH/i.test(a)) {
+        continue;
+      }
+      cleaned.push(a);
+    }
+    // The rsp carries NO STL/SDK paths — real cl.exe gets them from its ENVIRONMENT, which
+    // clangd's spawn doesn't have, and driver auto-detection is unreliable outside a VS
+    // prompt ('type_traits' file not found was the root under every cascade). Derive them
+    // deterministically: MSVC's include dir from the entry's own cl.exe path, the Windows
+    // SDK from its standard install root; append as -imsvc (clang-cl system includes).
+    cleaned.push(...systemIncludeArgs(cleaned[0] ?? ""));
+    out.push({ file: entry.file, directory: entry.directory, arguments: cleaned });
+  }
+  return out;
+}
+
+let cachedSystemIncludes: string[] | null = null;
+/** `-imsvc` args for the MSVC STL (derived from the cl.exe path: …\VC\Tools\MSVC\<ver>\bin\…
+ *  → …\include) and the newest installed Windows 10/11 SDK (ucrt/shared/um/winrt). Cached —
+ *  identical for every entry. Exported for tests. */
+export function systemIncludeArgs(clExePath: string): string[] {
+  if (cachedSystemIncludes) {
+    return cachedSystemIncludes;
+  }
+  const args: string[] = [];
+  const msvcMatch = /^(.*\\VC\\Tools\\MSVC\\(\d+)\.(\d+)[^\\]*)\\bin\\/i.exec(clExePath);
+  if (msvcMatch && fs.existsSync(path.join(msvcMatch[1], "include"))) {
+    args.push("-imsvc", path.join(msvcMatch[1], "include"));
+    // clang assumes _MSC_VER 1933 by default; UE's headers static_assert on the REAL
+    // toolchain version (14.44 → 1944). Derive it from the same path.
+    args.push(`-fmsc-version=19${msvcMatch[3]}`);
+  }
+  for (const kitsRoot of ["C:\\Program Files (x86)\\Windows Kits\\10\\Include", "C:\\Program Files\\Windows Kits\\10\\Include"]) {
+    try {
+      const versions = fs
+        .readdirSync(kitsRoot)
+        .filter((v) => /^\d+\./.test(v))
+        .sort()
+        .reverse();
+      if (versions.length > 0) {
+        for (const sub of ["ucrt", "shared", "um", "winrt"]) {
+          const p = path.join(kitsRoot, versions[0], sub);
+          if (fs.existsSync(p)) {
+            args.push("-imsvc", p);
+          }
+        }
+        break;
+      }
+    } catch {
+      /* kit root absent — try the next */
+    }
+  }
+  cachedSystemIncludes = args;
+  return args;
+}
+
+/** The mirror refreshes when the source is newer OR when the existing target is not in
+ *  sanitized form: a visible SharedPCH force-include, an UNEXPANDED `@rsp` reference (which
+ *  can hide the SharedPCH inside the response file), or `command`-string entries. Content-
+ *  based, so stale pre-sanitizer mirrors self-heal regardless of mtimes. */
+export function mirrorNeedsRefresh(srcPath: string, targetPath: string): boolean {
+  if (!fs.existsSync(targetPath)) {
+    return true;
+  }
+  try {
+    if (fs.statSync(targetPath).mtimeMs < fs.statSync(srcPath).mtimeMs) {
+      return true;
+    }
+    const txt = fs.readFileSync(targetPath, "utf8");
+    return /SharedPCH/i.test(txt) || txt.includes('"@') || txt.includes('"command"');
+  } catch {
+    return true;
+  }
+}
+
 export class ClangdProxy {
   private proc: ChildProcessWithoutNullStreams | null = null;
   private buffer: Buffer = Buffer.alloc(0);
@@ -78,6 +328,22 @@ export class ClangdProxy {
   private readonly pending = new Map<number, (result: unknown) => void>();
   private available = false;
   private starting: Promise<boolean> | null = null;
+  /** Open virtual docs → last sent version (didOpen once, didChange after — clangd re-runs
+   *  diagnostics per version; re-sending didOpen would leak duplicate TUs). */
+  private readonly openVersions = new Map<string, number>();
+  /** Open virtual docs → hash of the last sent text: an identical re-send is a no-op (N6 —
+   *  the rename path syncs the doc before its guard; without dedup every rename would bump
+   *  the version and force a full clangd re-parse of unchanged text). */
+  private readonly openTextHashes = new Map<string, number>();
+
+  /** TB-10: clangd's publishDiagnostics for a VIRTUAL doc land here (virtual coordinates —
+   *  the server maps them back through the source map before publishing). */
+  onPublishDiagnostics: ((params: ClangdPublishedDiagnostics) => void) | null = null;
+
+  /** §1 crash-hardening: errors thrown INSIDE the stdout pump (incl. the publish callback)
+   *  surface here instead of dying as an uncaughtException — the message pump is an
+   *  EventEmitter context, OUTSIDE the jsonrpc layer's handler guards. */
+  onError: ((context: string, error: unknown) => void) | null = null;
 
   constructor(
     private readonly clangdPath = "clangd",
@@ -99,7 +365,26 @@ export class ClangdProxy {
         const args = ["--log=error"];
         const cc = findCompileCommands(this.rootPath);
         if (cc) {
-          args.push(`--compile-commands-dir=${path.dirname(cc)}`);
+          // clangd only reads the CANONICAL filename from --compile-commands-dir. When the hit
+          // is UBT's .vscode/compileCommands_*.json, mirror it to <root>/compile_commands.json
+          // SANITIZED (no manual copy step for the user, TB-10; no MSVC-only flags, §2).
+          let ccDir: string | null = null;
+          if (path.basename(cc) === "compile_commands.json") {
+            ccDir = path.dirname(cc);
+          } else {
+            const target = path.join(path.dirname(path.dirname(cc)), "compile_commands.json");
+            try {
+              if (mirrorNeedsRefresh(cc, target)) {
+                fs.writeFileSync(target, JSON.stringify(sanitizeCompileCommands(cc), null, "\t"));
+              }
+              ccDir = path.dirname(target);
+            } catch {
+              ccDir = null; // unwritable root — clangd falls back to heuristics
+            }
+          }
+          if (ccDir) {
+            args.push(`--compile-commands-dir=${ccDir}`);
+          }
         }
         proc = spawn(this.clangdPath, args, { stdio: "pipe" });
       } catch {
@@ -117,7 +402,13 @@ export class ClangdProxy {
       this.request("initialize", {
         processId: process.pid,
         rootUri: null,
-        capabilities: {},
+        // Advertise diagnostic-tag support so clangd sends Unnecessary/Deprecated tags —
+        // the client renders Unnecessary as faded (TB-10/TB-5 presentation).
+        capabilities: {
+          textDocument: {
+            publishDiagnostics: { relatedInformation: false, tagSupport: { valueSet: [1, 2] } },
+          },
+        },
       })
         .then(() => {
           this.notify("initialized", {});
@@ -132,23 +423,68 @@ export class ClangdProxy {
     return this.starting;
   }
 
-  /** Open the virtual C++ doc so subsequent position requests resolve against it. */
+  /** Sync the virtual C++ doc: didOpen on first sight, versioned didChange after (clangd
+   *  re-diagnoses per version — the TB-10 diagnostics loop rides this). An UNCHANGED text is
+   *  a no-op (see openTextHashes). */
   didOpen(uri: string, text: string): void {
     if (!this.available) {
       return;
     }
-    this.notify("textDocument/didOpen", {
-      textDocument: { uri, languageId: "cpp", version: 1, text },
+    const hash = ClangdProxy.textHash(text);
+    const prev = this.openVersions.get(uri);
+    if (prev !== undefined && this.openTextHashes.get(uri) === hash) {
+      return; // same text clangd already holds — don't force a re-parse
+    }
+    this.openTextHashes.set(uri, hash);
+    if (prev === undefined) {
+      this.openVersions.set(uri, 1);
+      this.notify("textDocument/didOpen", {
+        textDocument: { uri, languageId: "cpp", version: 1, text },
+      });
+      return;
+    }
+    const version = prev + 1;
+    this.openVersions.set(uri, version);
+    this.notify("textDocument/didChange", {
+      textDocument: { uri, version },
+      contentChanges: [{ text }], // full-sync — the virtual doc is rebuilt per edit anyway
     });
   }
 
-  /** Forward a position request; null on any degradation (unavailable / timeout / error). */
-  async positionRequest(method: string, uri: string, position: ClangdPosition): Promise<unknown | null> {
+  /** The version clangd currently holds for a virtual doc (0 = never opened) — the N6 rename
+   *  guard waits for THIS version's diagnostics before trusting the TU's health. */
+  versionOf(uri: string): number {
+    return this.openVersions.get(uri) ?? 0;
+  }
+
+  /** Close a virtual doc (its .uetkx closed) so clangd drops the TU and clears diagnostics. */
+  didClose(uri: string): void {
+    if (!this.available || !this.openVersions.has(uri)) {
+      return;
+    }
+    this.openVersions.delete(uri);
+    this.openTextHashes.delete(uri);
+    this.notify("textDocument/didClose", { textDocument: { uri } });
+  }
+
+  /** FNV-1a over UTF-16 units — cheap dedup key for didOpen (not cryptographic). */
+  private static textHash(text: string): number {
+    let h = 2166136261;
+    for (let i = 0; i < text.length; i++) {
+      h = (h ^ text.charCodeAt(i)) >>> 0;
+      h = Math.imul(h, 16777619) >>> 0;
+    }
+    return h;
+  }
+
+  /** Forward a position request; null on any degradation (unavailable / timeout / error).
+   *  `extra` merges additional request params (N6: rename's `newName`). */
+  async positionRequest(method: string, uri: string, position: ClangdPosition, extra?: object): Promise<unknown | null> {
     if (!this.available) {
       return null;
     }
     try {
-      return await this.request(method, { textDocument: { uri }, position });
+      return await this.request(method, { textDocument: { uri }, position, ...(extra ?? {}) });
     } catch {
       return null;
     }
@@ -170,11 +506,21 @@ export class ClangdProxy {
     const { messages, rest } = drainMessages(this.buffer);
     this.buffer = rest;
     for (const msg of messages) {
-      const m = msg as { id?: number; result?: unknown };
-      if (typeof m.id === "number" && this.pending.has(m.id)) {
-        const resolve = this.pending.get(m.id)!;
-        this.pending.delete(m.id);
-        resolve(m.result ?? null);
+      // Per-message guard (§1): one bad frame or a throwing consumer must never kill the
+      // pump — and DEFINITELY not the server process (an exception here is fatal in Node).
+      try {
+        const m = msg as { id?: number; result?: unknown; method?: string; params?: unknown };
+        if (typeof m.id === "number" && this.pending.has(m.id)) {
+          const resolve = this.pending.get(m.id)!;
+          this.pending.delete(m.id);
+          resolve(m.result ?? null);
+          continue;
+        }
+        if (m.method === "textDocument/publishDiagnostics" && this.onPublishDiagnostics && m.params) {
+          this.onPublishDiagnostics(m.params as ClangdPublishedDiagnostics);
+        }
+      } catch (e) {
+        this.onError?.("clangd message pump", e);
       }
     }
   }

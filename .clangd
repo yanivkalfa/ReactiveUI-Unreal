@@ -1,0 +1,15 @@
+# clangd project config (TB-10). The compile database comes from UBT's VSCode generator
+# (cl.exe @rsp entries; see docs "Embedded C++ intelligence" — regenerate with
+#   dotnet <Engine>/Engine/Binaries/DotNET/UnrealBuildTool/UnrealBuildTool.dll -projectfiles
+#     -project=<uproject> -game -vscode
+# then copy .vscode/compileCommands_<project>.json to compile_commands.json).
+# clangd's flag interpolation for files OUTSIDE the database (our .uetkx virtual docs) keeps
+# the include set but DROPS /std:c++20 — re-pin it here (cl driver mode, hence the slash form).
+CompileFlags:
+  Add: [/std:c++20]
+  # UBT's VSCode-generator commands force-include the module's SharedPCH *header* (meant for
+  # MSVC's compiled-PCH machinery). Re-parsing that ~everything-header under clang fails
+  # partway and silently truncates core engine templates (TFunction internals!) — every
+  # downstream "undeclared identifier" was cascade from this. Definitions.*.h (the macro set)
+  # stays force-included; the PCH header goes.
+  Remove: [/FI*SharedPCH*, -include*SharedPCH*]

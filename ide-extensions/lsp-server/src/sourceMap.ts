@@ -63,6 +63,16 @@ export class SourceMap {
     return null;
   }
 
+  /** The span containing a .uetkx offset, or null outside every embedded region (N6: the rename
+   *  guard needs the ENCLOSING region's source bounds to scope its error check). */
+  sourceSpanContaining(srcOffset: number): SourceSpan | null {
+    const span = SourceMap.find(this.bySrc, (s) => s.srcStart, srcOffset);
+    if (span && srcOffset >= span.srcStart && srcOffset <= span.srcStart + span.length) {
+      return span;
+    }
+    return null;
+  }
+
   /** virtual offset -> .uetkx offset, or null when inside synthetic scaffolding (not user code). */
   virtualToSource(virOffset: number): number | null {
     const span = SourceMap.find(this.byVir, (s) => s.virStart, virOffset);

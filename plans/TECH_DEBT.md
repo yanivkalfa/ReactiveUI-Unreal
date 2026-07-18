@@ -660,7 +660,15 @@ referenced from plans/PRs.
   reach and the aggregator TU still fences symbol collisions; only the live-reload registry is flat.
 - **Production-grade resolution:** file-scoped runtime component identity (qualified ids in the
   registry) so private names never alias across files at runtime.
-- **Status:** OPEN (accepted caveat, documented in M5/M9)
+- **Status:** **RESOLVED** (ES-modules M3, CodegenVersion 3). The interpreter half died with HMR v2
+  (interp deleted, TD-027). The registry half: a PRIVATE component's `RegisterComponentId` key is now
+  the FILE-QUALIFIED emitted name `RuiPriv_<Basename>::<Name>` (built from `PrivNamespaceFor` — one
+  source of truth), so two files' private same-named components hold distinct registry + HMR-map
+  identities; exported components keep the short name (2106 ledger guarantees uniqueness). Pinned by
+  `ContractFixtures/PrivPairA/B.uetkx` goldens + the TD-026 block in `ReactiveUIUetkxCodegenTest.cpp`.
+  G-01 documented semantic: renaming a file renames `RuiPriv_<Basename>` ⇒ private members remount
+  (state reset) on the next sweep. The preview's misleading "not compiled yet" hint for private
+  components was fixed in the same window (`UetkxPreview.cpp` — "private — add `export` to preview").
 
 ## TD-027 — HMR v2: Live-Coding-driven whole-project HMR + `ReactiveUetkx` menu/window
 - **Where:** `ReactiveUIInterp` (the interpreter executor), `RuiHmr.*`, `UetkxWatcher.cpp`,
@@ -794,3 +802,107 @@ referenced from plans/PRs.
   particular form is leg-specific. Until then this is a one-way ledger entry, not a blocker.
 - **Status:** OPEN (informational — no cross-repo PR pending). Unreal + the family's origin
   (Unity) both ship the `@` form; Godot tracked here for whenever the need arises.
+
+## TD-031 — `<Provider>` element: slice-scoped context provision (owner decision 2026-07-17)
+- **Where:** the family markup grammar (all three legs) + `ReactiveUICore` fibers + codegen/LSP
+- **What/why:** context provision is hook-style (`ProvideContext(Handle, Value)` — family API,
+  D-08.3): the provision boundary is the COMPONENT boundary, so providing to a SLICE of a
+  component's markup requires extracting a child component. React spells this as a
+  `<Context.Provider value={…}>` wrapper element scoping exactly its children. During the
+  2026-07-17 testing session the owner reviewed the trade-off and DECIDED to adopt a
+  `<Provider>` element in the future. No hard technical blocker exists: fragments already prove
+  widget-less structural nodes, and since markup compiles to C++, a provider element can
+  desugar to the existing typed call — "a fragment that carries a provided value" (a structural
+  fiber holding the ProvidedContext map slot).
+- **Production-grade resolution:** family RFC first (grammar change must land in all three
+  repos or be recorded as a divergence): agree the element shape (e.g.
+  `<Provider Context={GThemeCtx} Value={Theme}> …children… </Provider>`), then per leg: grammar
+  + parser + a structural provider fiber + codegen desugar + LSP schema/completions + formatter
+  + corpus cases + docs. Keep `ProvideContext` working (the element is sugar over it, not a
+  replacement — same stack, same change detection).
+- **Status:** OPEN — owner-approved direction ("we will switch to that in the future",
+  2026-07-17); scheduled after the IDE-extension debugging passes; blocked on the family RFC.
+
+## TD-032 — Markup-as-value (`auto X = (<Tag>…);`) — family grammar RFC (owner interest 2026-07-17)
+- **Where:** the family markup grammar (all three legs) + codegen + formatter + LSP
+- **What/why:** markup is legal only in return position; assigning a subtree to a local and
+  embedding it with `{ X }` (a React idiom the owner reached for during the testing session,
+  TESTING_BUGS.md TB-12) silently produced garbage C++ for MSVC. The stopgap shipped 2026-07-17:
+  `UETKX0114` (error, both scanners, corpus-pinned) rejects the shape with a pointer here; the
+  supported spelling is extracting a child component.
+- **Production-grade resolution:** family RFC (the TD-031 lane): markup expressions as VALUES —
+  grammar acceptance, codegen lowering to an `FRuiNode` local (the runtime type already exists
+  and `{ X }` children already splice it), formatter layout for markup in initializer position,
+  LSP/corpus in all three legs. No runtime work — this is purely a front-end feature.
+- **Status:** **CLOSED (2026-07-17)** — shipped by the markup-everywhere campaign
+  (`plans/MARKUP_EVERYWHERE_PLAN.md` §4): value-position markup lowers in place via the family
+  jsx scan (`FUetkxJsxScan` was already the Godot-parity port; codegen's verbatim-splice sites
+  now route through `EmitExpr`), the LSP neutralizes + lifts it, the family corpus pins it in
+  all three repos (hash 917dd8cd…), and `UETKX0114` narrowed to the paren-less-return
+  remainder. Formatter = family parity (reanchored, not restructured — a family-wide
+  value-markup formatter remains future work, tracked by the corpus pin).
+
+## TD-033 — LSP rename-symbol handler (ES-modules M6 — deferred, owner call pending)
+- **Where:** `ide-extensions/lsp-server/src/server.ts` (no `onRenameRequest` handler exists)
+- **What/why deferred:** G-12 lists rename among the sync surfaces, but no rename handler has
+  EVER existed in this server — the ES-modules leg (M6) delivered completions / hover /
+  go-to-def THROUGH aliases (rename imports, `* as`, default) and the plan marked a rename
+  handler OPTIONAL scope with a TECH_DEBT entry as the sanctioned alternative
+  (ES_MODULES_EXECUTION_PLAN.md §M6/§11.2). Correct rename needs the full cross-file reference
+  set (tags + code refs + alias bindings + export lists + `export default` targets across the
+  sweep universe) — a workspace-index feature, not an afternoon patch on the current
+  per-request scans.
+- **Production-grade resolution:** a WorkspaceEdit-producing rename over the swept-file index:
+  rename at the DECLARATION renames every importer's binding (or inserts `as` to pin locals);
+  rename at a LOCAL alias edits only the importer. Family-symmetric (the Godot/Unity servers
+  lack rename too — candidate for a family fast-follow).
+- **Status:** **RESOLVED (2026-07-18)** — shipped by the LSP-completion campaign
+  (`plans/LSP_COMPLETION_PLAN.md`, N0–N3 + N6, same branch as ES-modules): a workspace
+  reference index (`uetkxIndex.ts` — tags incl. close tags, code refs via the N-07 scope
+  tracker, import/alias/export-list tokens) feeds find-all-references, prepareRename + rename
+  with the N-04 semantics (decl rename edits every importer incl. `as`-target spellings;
+  local-alias rename stays importer-local; plain-binding rename inserts `A as New`), refusal
+  validation (N-05), document/workspace symbols, and four quickfix code actions
+  (2305/2304/2301/2320 — the 2320 rewrite byte-matches the codemod). The N6 stretch landed
+  too: embedded-C++ LOCALS rename through clangd over the virtual doc, all-or-nothing
+  (cross-file/glue edits and partial-AST shapes refuse with a reason). The rename surfaces are
+  family-firsts — the Godot/Unity servers remain candidates for the fast-follow port.
+
+## TD-034 — ES-modules accepted caveats: alias/value reference rewriting limits (M2/M4)
+- **Where:** `UetkxCodegen.cpp` (`RewriteAliases`, the generalized private-qualification branch),
+  `UetkxResolve.cpp` (`CollectExternalRefs` Bare/Call kinds)
+- **What:** (a) A body LOCAL VARIABLE that shadows an import alias or a same-file private
+  value/util name is rewritten/qualified too — UETKX2325 polices declared-name collisions, not
+  body locals (family watch-list limit, ES_MODULES_EXECUTION_PLAN.md §11). (b) Strict-usage
+  policing of bare value references (2305) keys on the export table: a local identifier that
+  happens to match a .uetkx-exported VALUE name diagnoses as a missing import. Both are the
+  same accepted family model that hooks/module-quals always had — export-table names are
+  effectively reserved within markup files. (c) Usage accounting (2304) scans setup/bodies but
+  not markup attr expressions — a value used ONLY inside an attr expr may warn unused (warn
+  severity; pre-existing hook behavior, now more visible with values).
+- **Production-grade resolution:** scope-aware reference analysis in the rewrite planes (track
+  local declarations in the brace walk) + jsx-aware attr-expr scanning for usage accounting.
+- **Status:** **RESOLVED (2026-07-18, with a documented residual)** — the LSP-completion
+  campaign (`plans/LSP_COMPLETION_PLAN.md` N4/N5) shipped exactly that resolution:
+  (a)+(b) `FUetkxScopedLocals` (N-07; TS twin in `uetkxIndex.ts`, behaviorally identical and
+  twin-pinned) tracks brace scopes + local declarations (params, `Type Name =/;/{`, `auto`,
+  structured bindings) — locals shadowing an alias/private/exported name are no longer
+  rewritten, qualified, Ctx-injected, or 2305'd (pre-declaration references still are);
+  (c) `CollectExternalRefs` is markup-aware (N-08): attr/directive expressions join the
+  reference set, so markup-only usage marks imports USED and missing imports diagnose 2305.
+  **Residual (accepted):** the tracker is a heuristic, not a C++ parser — an unrecognized
+  declaration shape stays invisible (its shadow still rewrites), and markup islands see a
+  conservative locals-union seed (over-suppression = a silently missed diagnostic, never a
+  false one). Contract-pinned by `ShadowedNames.uetkx`; corpus untouched.
+  **Audit hardening (2026-07-18, same day):** a deep bughunt closed five gaps the first cut
+  left open — (1) the EMITTER now consults a body-wide in-scope-at-offset oracle so a setup
+  local shadowing an alias/private name survives inside attr expressions, across value-markup
+  fragmentation, and in directive frames (previously it silently emitted the WRONG symbol);
+  (2) the tracker recognizes range-for variables and lambda parameters (both twins); (3) a
+  comma no longer keeps the type-ish lookbehind (`Func(A, B = 1)` mis-declared `B` — the
+  dangerous direction; the cost is the second declarator of `Type A = X, B = Y;`, silent);
+  (4) the resolver/index body walks SKIP markup ranges, so attr names (`Value`, `Text`) no
+  longer mint junk locals that masked real 2305s; (5) the LSP index seeds markup islands from
+  the same oracle, so setup locals used in markup are never phantom refs a rename would edit.
+  Remaining residual: multi-declarator second declarators, and locals visible AFTER a lambda
+  whose parameter shadowed them (over-suppression, silent by design).

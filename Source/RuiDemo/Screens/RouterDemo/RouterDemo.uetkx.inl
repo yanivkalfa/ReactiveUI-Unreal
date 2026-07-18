@@ -20,7 +20,7 @@ static FRuiNodeArray RouterDemo_UetkxImpl(FRuiContext& Ctx, const FRouterDemoUet
 {
 #line 8 "Source/RuiDemo/Screens/RouterDemo/RouterDemo.uetkx"
 	TArray<RUI::FRuiRoute> RouteList;
-		RouteList.Add(RUI::FRuiRoute{ TEXT("/"),          RouterHome() });
+		RouteList.Add(RUI::FRuiRoute{ TEXT("/"), RouterHome() });
 		RouteList.Add(RUI::FRuiRoute{ TEXT("/users/:id"), RouterUser() });
 #line 26 "RouterDemo.uetkx.inl"
 	return { [&]() -> FRuiNode {

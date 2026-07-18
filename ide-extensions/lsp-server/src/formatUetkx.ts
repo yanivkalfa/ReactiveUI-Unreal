@@ -8,7 +8,7 @@
 import { skipNoncode } from "./cppScanner";
 import { fromCodePoints, toCodePoints } from "./codePoints";
 import { parseMarkup, UetkxAttr, UetkxNode } from "./uetkxMarkup";
-import { scanFile, hasError, splitMarkupReturn, UetkxComponentDecl, UetkxHookDecl, UetkxModuleDecl, UetkxParam } from "./uetkxFileScan";
+import { scanFile, hasError, splitMarkupReturn, UetkxComponentDecl, UetkxHookDecl, UetkxModuleDecl, UetkxParam, UetkxUtilDecl, UetkxValueDecl } from "./uetkxFileScan";
 
 export interface UetkxFormatOptions {
   printWidth: number;
@@ -53,27 +53,42 @@ export function formatUetkx(source: string, opts?: Partial<UetkxFormatOptions>):
   // The source-order start/end + canonical re-emit of any top-level declaration kind (M12
   // FmtHook/FmtModule): the mixed-decl file is a SEQUENCE (scan.order) of components + hooks +
   // modules, each canonicalized by its own formatter. trueStart honors a preceding `export`.
+  // NOTE (ES-modules M6): all three kind-switches carry EXPLICIT value/util cases — a fallthrough
+  // default would silently MIS-INDEX into scan.modules for the new kinds (same fix as the C++).
   type Ord = (typeof scan.order)[number];
+  const declOf = (ord: Ord): { exported: boolean; exportAt: number; at: number; next: number } => {
+    switch (ord.kind) {
+      case "component":
+        return scan.components[ord.index];
+      case "hook":
+        return scan.hooks[ord.index];
+      case "module":
+        return scan.modules[ord.index];
+      case "value":
+        return scan.values[ord.index];
+      case "util":
+        return scan.utils[ord.index];
+    }
+  };
   const trueStart = (ord: Ord): number => {
-    if (ord.kind === "component") {
-      const d = scan.components[ord.index];
-      return d.exported && d.exportAt >= 0 ? d.exportAt : d.at;
-    }
-    if (ord.kind === "hook") {
-      const d = scan.hooks[ord.index];
-      return d.exported && d.exportAt >= 0 ? d.exportAt : d.at;
-    }
-    const d = scan.modules[ord.index];
+    const d = declOf(ord);
     return d.exported && d.exportAt >= 0 ? d.exportAt : d.at;
   };
-  const declNext = (ord: Ord): number =>
-    ord.kind === "component" ? scan.components[ord.index].next : ord.kind === "hook" ? scan.hooks[ord.index].next : scan.modules[ord.index].next;
-  const fmtDecl = (ord: Ord): string =>
-    ord.kind === "component"
-      ? fmtComponent(scan.components[ord.index], state)
-      : ord.kind === "hook"
-        ? fmtHook(scan.hooks[ord.index], state)
-        : fmtModule(scan.modules[ord.index], state);
+  const declNext = (ord: Ord): number => declOf(ord).next;
+  const fmtDecl = (ord: Ord): string => {
+    switch (ord.kind) {
+      case "component":
+        return fmtComponent(scan.components[ord.index], state);
+      case "hook":
+        return fmtHook(scan.hooks[ord.index], state);
+      case "module":
+        return fmtModule(scan.modules[ord.index], state);
+      case "value":
+        return fmtValue(scan.values[ord.index]);
+      case "util":
+        return fmtUtil(scan.utils[ord.index], state);
+    }
+  };
 
   // preamble (T1.3 + M11): canonical ONLY when whitespace + #include + `import` lines.
   // Canonical order: #include block, blank, import block, blank.
@@ -101,11 +116,26 @@ export function formatUetkx(source: string, opts?: Partial<UetkxFormatOptions>):
     if (scan.imports.length > 0) {
       if (block) block += "\n";
       // `import "@Header.h"` (INCLUDE_RETIREMENT_PLAN.md §B) — a nameless host include, spelled
-      // with its own shape rather than the named `{ ... } from` block.
+      // with its own shape rather than the named `{ ... } from` block. ES-modules (G-05): the
+      // three new import heads keep their own canonical spellings (mirrors the C++ loop).
       for (const imp of scan.imports) {
-        block += imp.hostInclude
-          ? `import "@${imp.specifier}"\n`
-          : `import { ${imp.names.join(", ")} } from "${imp.specifier}"\n`;
+        if (imp.hostInclude) {
+          block += `import "@${imp.specifier}"\n`;
+          continue;
+        }
+        if (imp.isNamespace) {
+          block += `import * as ${imp.namespaceAlias} from "${imp.specifier}"\n`;
+          continue;
+        }
+        if (imp.isDefault) {
+          block += `import ${imp.defaultAlias} from "${imp.specifier}"\n`;
+          continue;
+        }
+        const pieces = imp.names.map((name, n) => {
+          const local = imp.localNames[n] ?? name;
+          return local === name ? name : `${name} as ${local}`;
+        });
+        block += `import { ${pieces.join(", ")} } from "${imp.specifier}"\n`;
       }
     }
     if (block) out += block + "\n";
@@ -115,8 +145,18 @@ export function formatUetkx(source: string, opts?: Partial<UetkxFormatOptions>):
   for (let k = 0; k < scan.order.length; k++) {
     const ord = scan.order[k];
     if (k > 0) {
-      if (fromCodePoints(srcCp, cursor, trueStart(ord) - cursor).trim()) return verbatim(true); // never delete user text
+      // Content between declarations would be dropped by a re-emit — never delete user text.
+      // EXCEPTION (ES-modules U-08/U-09): `export { … };` / `export default X;` statements are
+      // preserved in place, each line trimmed-canonical (mirrors the C++).
+      const between = fromCodePoints(srcCp, cursor, trueStart(ord) - cursor);
+      let exportStmts = "";
+      if (between.trim()) {
+        const stmts = tryFmtExportStatements(between);
+        if (stmts === null) return verbatim(true);
+        exportStmts = stmts;
+      }
       out += "\n";
+      if (exportStmts) out += exportStmts + "\n";
     }
     out += fmtDecl(ord);
     cursor = declNext(ord);
@@ -125,7 +165,10 @@ export function formatUetkx(source: string, opts?: Partial<UetkxFormatOptions>):
 
   if (cursor >= 0 && cursor < srcCp.length) {
     const trailing = fromCodePoints(srcCp, cursor, srcCp.length - cursor);
-    if (trailing.trim()) out = rstripWsNl(out) + "\n\n" + lstripWsNl(trailing);
+    if (trailing.trim()) {
+      const stmts = tryFmtExportStatements(trailing);
+      out = stmts !== null ? rstripWsNl(out) + "\n" + stmts : rstripWsNl(out) + "\n\n" + lstripWsNl(trailing);
+    }
   }
   const text = rstripWsNl(out) + "\n";
   return { ok: true, text, changed: text !== source, fellBack: false };
@@ -365,6 +408,13 @@ function fmtElement(node: UetkxNode, indent: number, state: FmtState): string {
   const single = head + singleClose;
   let wrap = state.o.singleAttributePerLine && attrStrs.length > 1;
   if (!wrap && p.length + single.length > state.o.printWidth && attrStrs.length > 1) wrap = true;
+  // TB-4 (TESTING_BUGS.md): an element whose ONLY child is one raw-text run stays inline —
+  // `<Button …>+</Button>` — when the whole form fits printWidth. C++-identical (FmtElement).
+  if (!wrap && children.length === 1 && children[0].type === "text") {
+    const text = (children[0].value ?? "").trim();
+    const inline = `${head}>${text}</${node.tag}>`;
+    if (text.length && p.length + inline.length <= state.o.printWidth) return p + inline + "\n";
+  }
   let out = "";
   if (!wrap) {
     if (selfClose) return p + single + "\n";
@@ -493,8 +543,31 @@ function fmtParams(params: readonly UetkxParam[]): string {
   return `(${parts.join(", ")})`;
 }
 
+/** ES-modules (U-01): the NEW-form C++-native param spelling `Type Name = Default` — the
+ *  formatter is FORM-PRESERVING (never migrates). Param-less new components still print `()`.
+ *  Mirrors FmtNewParams. */
+function fmtNewParams(params: readonly UetkxParam[]): string {
+  const parts = params.map((p) => {
+    let part = p.type ? `${p.type} ${p.name}` : p.name;
+    if (p.default) part += " = " + p.default;
+    return part;
+  });
+  return `(${parts.join(", ")})`;
+}
+
+/** ES-modules (U-09): the inline `export ` prefix — ONLY when the decl itself carried it
+ *  (exportAt >= 0); a decl exported via `export { … };` keeps its bare head. Mirrors
+ *  ExportPrefix. */
+function exportPrefix(exported: boolean, exportAt: number): string {
+  return exported && exportAt >= 0 ? "export " : "";
+}
+
 function fmtComponent(decl: UetkxComponentDecl, state: FmtState): string {
-  let out = `${decl.exported ? "export " : ""}component ${decl.name}${fmtParams(decl.params)} {\n`;
+  // Form-preserving (ES-modules G-10): legacy wrapper keeps its wrapper; new-form keeps the
+  // plain `FRuiNode Name(...)` head. Mirrors FmtComponent.
+  let out = decl.legacySyntax
+    ? `${exportPrefix(decl.exported, decl.exportAt)}component ${decl.name}${fmtParams(decl.params)} {\n`
+    : `${exportPrefix(decl.exported, decl.exportAt)}FRuiNode ${decl.name}${fmtNewParams(decl.params)} {\n`;
   const setup = reanchor(decl.setup, 1, state.o);
   if (setup) {
     if (hasLeadingBlank(decl.setup)) out += "\n";
@@ -523,15 +596,52 @@ function fmtVerbatimBody(body: string, state: FmtState): string {
 }
 
 function fmtHook(decl: UetkxHookDecl, state: FmtState): string {
-  // `export? hook Name(<verbatim C++ params>) [-> <verbatim Ret>] {`. Params/Ret are verbatim C++
-  // (template commas the family grammar can't split) — trimmed, never re-parsed.
-  let header = `${decl.exported ? "export " : ""}hook ${decl.name}(${decl.params.trim()})`;
-  const ret = decl.ret.trim();
-  if (ret) header += ` -> ${ret}`;
+  // Form-preserving (ES-modules G-10): legacy `hook Name(...) [-> Ret]` keeps its wrapper;
+  // new-form keeps the leading return type (`void` explicit). Params/Ret are verbatim C++
+  // (template commas the family grammar can't split) — trimmed, never re-parsed. Mirrors FmtHook.
+  let header: string;
+  if (decl.legacySyntax) {
+    header = `${exportPrefix(decl.exported, decl.exportAt)}hook ${decl.name}(${decl.params.trim()})`;
+    const ret = decl.ret.trim();
+    if (ret) header += ` -> ${ret}`;
+  } else {
+    const ret = decl.ret.trim() || "void";
+    header = `${exportPrefix(decl.exported, decl.exportAt)}${ret} ${decl.name}(${decl.params.trim()})`;
+  }
   return header + " {\n" + fmtVerbatimBody(decl.body, state) + "}\n";
 }
 
 function fmtModule(decl: UetkxModuleDecl, state: FmtState): string {
-  const header = `${decl.exported ? "export " : ""}module ${decl.name}`;
+  const header = `${exportPrefix(decl.exported, decl.exportAt)}module ${decl.name}`;
   return header + " {\n" + fmtVerbatimBody(decl.body, state) + "}\n";
+}
+
+/** ES-modules (U-01): `[export] <Type> Name = <Init>;` — mirrors FmtValue. */
+function fmtValue(decl: UetkxValueDecl): string {
+  const type = decl.type.trim();
+  return `${exportPrefix(decl.exported, decl.exportAt)}${type ? type + " " : ""}${decl.name} = ${decl.init.trim()};\n`;
+}
+
+/** ES-modules (U-01): `[export] <Ret> Name(params) { body }` — mirrors FmtUtil. */
+function fmtUtil(decl: UetkxUtilDecl, state: FmtState): string {
+  const header = `${exportPrefix(decl.exported, decl.exportAt)}${decl.retType.trim()} ${decl.name}(${decl.params.trim()})`;
+  return header + " {\n" + fmtVerbatimBody(decl.body, state) + "}\n";
+}
+
+/** ES-modules (U-08/U-09): true when `text` consists SOLELY of `export { ... };` /
+ *  `export default Name;` statements (+ whitespace) — preserved in place, each line re-emitted
+ *  trimmed. Mirrors TryFmtExportStatements. */
+function tryFmtExportStatements(text: string): string | null {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+  let out = "";
+  for (const line of trimmed.split("\n")) {
+    const t = line.trim();
+    if (!t) continue;
+    const isList = t.startsWith("export {") || t.startsWith("export{");
+    const isDefault = t.startsWith("export default ");
+    if (!isList && !isDefault) return null;
+    out += t + "\n";
+  }
+  return out;
 }

@@ -8,7 +8,7 @@ import * as path from "node:path";
 
 export interface UetkxSchema {
   v: number;
-  elements: Record<string, { factory: string; children: boolean; attrs: Record<string, string> }>;
+  elements: Record<string, { factory: string; children: boolean; attrs: Record<string, string>; sinceUE?: string }>;
   styleKeys: string[];
   slotPrefix: string;
   slotKeys: string[];

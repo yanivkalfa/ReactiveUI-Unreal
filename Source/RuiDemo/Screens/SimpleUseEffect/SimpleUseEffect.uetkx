@@ -1,9 +1,14 @@
-export component SimpleUseEffect {
+export FRuiNode SimpleUseEffect() {
 	auto [Message, SetMessage] = UseState<FString>(FString(TEXT("Waiting...")));
 	UseEffect([SetMessage]() { SetMessage(FString(TEXT("Effect ran!"))); }, RUI::Deps());
 
 	return (
-		<Border Padding="12" BorderImage="WhiteBrush" BorderBackgroundColor={ FLinearColor(0.02f, 0.02f, 0.03f, 0.85f) } Slot.Padding="0,10,0,0">
+		<Border
+			Padding="12"
+			BorderImage="WhiteBrush"
+			BorderBackgroundColor={ FLinearColor(0.02f, 0.02f, 0.03f, 0.85f) }
+			Slot.Padding="0,10,0,0"
+		>
 			<TextBlock Text={ RUI::Fmt(TEXT("Message: {}"), Message) } />
 		</Border>
 	);

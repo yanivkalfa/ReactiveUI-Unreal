@@ -1,8 +1,8 @@
-export component ChildHost {
+export FRuiNode ChildHost() {
 	return (
 		<VerticalBox>
 			<TextBlock Text="HOST-HEADER" />
-			{children}
+			{ children }
 			<TextBlock Text="HOST-FOOTER" />
 		</VerticalBox>
 	);

@@ -1,9 +1,15 @@
 import "@RuiDemoSupport.h"
 
-export component DemoContextPanel(Label: FString = FString(TEXT("Primary Panel"))) {
+export FRuiNode DemoContextPanel(FString Label = FString(TEXT("Primary Panel"))) {
 	const FLinearColor Theme = UseContext(RuiDemo::GDemoThemeCtx);
+
 	return (
-		<Border Padding="10" BorderImage="WhiteBrush" BorderBackgroundColor={ Theme } Slot.Padding="0,6,0,0">
+		<Border
+			Padding="10"
+			BorderImage="WhiteBrush"
+			BorderBackgroundColor={ Theme }
+			Slot.Padding="0,6,0,0"
+		>
 			<TextBlock Text={ FText::FromString(FString::Printf(TEXT("%s: rgba(%.2f, %.2f, %.2f)"), *Label, Theme.R, Theme.G, Theme.B)) } />
 		</Border>
 	);

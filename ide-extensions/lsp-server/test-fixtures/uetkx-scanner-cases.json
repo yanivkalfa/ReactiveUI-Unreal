@@ -150,7 +150,19 @@
     "the source `order`, and the exact set of diagnostic CODES. `basename` defaults to \"\" (so the",
     "component/file-name nudge 0103 never fires). `noError` asserts hasError()==false (LINT-only).",
     "fileScan = family-core import/export/mixed grammar (byte-identical family-wide); fileScanLeg =",
-    "per-leg hook casing (Unreal/Unity PascalCase Use*, Godot snake_case use_*)."
+    "per-leg hook casing (Unreal/Unity PascalCase Use*, Godot snake_case use_*).",
+    "ES-MODULES DRAFT (M0.4, plans/ES_MODULES_EXECUTION_PLAN.md — NOT YET IMPLEMENTED, prospective",
+    "hash only): import.localNames (rename target; omitted when == names), import.namespace",
+    "(`* as X` local alias), import.default (default-import local alias), defaultExport (the",
+    "file's `export default <Name>` target, if any) are new fileScan fields. `values`/`utils`",
+    "arrays + `value:`/`util:` order entries are new decl-kind shapes. New-form typed",
+    "component/hook/value/util declarations are per-leg (fileScanLeg) — G-04 native-idiom typing",
+    "means their HEAD grammar is not byte-identical family-wide (GDScript's trailing `-> Type` vs",
+    "C++/C# leading-type head); only the wrapper-keyword deprecation (2320) and the import/export",
+    "surface itself (rename/namespace/default/export-list/export-default, 2323-2325/2327) stay",
+    "family-core, since those are engine-neutral syntax. 2321/2322 need native type spelling to",
+    "trigger (per-leg). 2326 (no default export) is a cross-file RESOLVER check, not a scanner",
+    "diagnostic — it is corpus-tested via ContractFixtures/resolver tests instead, not here."
   ],
   "fileScan": [
     {
@@ -160,7 +172,7 @@
         "imports": [{ "names": ["StatusChip"], "specifier": "./StatusChip" }],
         "components": [{ "name": "Foo", "exported": false }],
         "order": ["component:Foo"],
-        "diags": [],
+        "diags": ["UETKX2320"],
         "noError": true
       }
     },
@@ -170,18 +182,18 @@
       "expect": {
         "imports": [{ "names": ["A", "B", "C"], "specifier": "~/Shared/Types" }],
         "order": ["component:Foo"],
-        "diags": []
+        "diags": ["UETKX2320"]
       }
     },
     {
       "name": "import parent-relative specifier",
       "input": "import { X } from \"../lib/X\"\ncomponent Foo {\n\treturn ( <Spacer /> );\n}\n",
-      "expect": { "imports": [{ "names": ["X"], "specifier": "../lib/X" }], "diags": [] }
+      "expect": { "imports": [{ "names": ["X"], "specifier": "../lib/X" }], "diags": ["UETKX2320"] }
     },
     {
       "name": "import non-BMP specifier keeps code points intact",
       "input": "import { X } from \"./caf🎮\"\ncomponent Foo {\n\treturn ( <Spacer /> );\n}\n",
-      "expect": { "imports": [{ "names": ["X"], "specifier": "./caf🎮" }], "diags": [] }
+      "expect": { "imports": [{ "names": ["X"], "specifier": "./caf🎮" }], "diags": ["UETKX2320"] }
     },
     {
       "name": "multiple imports, mixed specifier forms",
@@ -192,7 +204,7 @@
           { "names": ["B"], "specifier": "../B" },
           { "names": ["C"], "specifier": "~/C" }
         ],
-        "diags": []
+        "diags": ["UETKX2320"]
       }
     },
     {
@@ -201,13 +213,13 @@
       "expect": {
         "components": [{ "name": "Widget", "exported": true }],
         "order": ["component:Widget"],
-        "diags": []
+        "diags": ["UETKX2320"]
       }
     },
     {
       "name": "private component (no export)",
       "input": "component Widget {\n\treturn ( <Spacer /> );\n}\n",
-      "expect": { "components": [{ "name": "Widget", "exported": false }], "diags": [] }
+      "expect": { "components": [{ "name": "Widget", "exported": false }], "diags": ["UETKX2320"] }
     },
     {
       "name": "export module",
@@ -215,7 +227,7 @@
       "expect": {
         "modules": [{ "name": "Styles", "exported": true }],
         "order": ["module:Styles"],
-        "diags": []
+        "diags": ["UETKX2320"]
       }
     },
     {
@@ -225,18 +237,18 @@
         "components": [{ "name": "Foo", "exported": false }],
         "modules": [{ "name": "M", "exported": true }],
         "order": ["component:Foo", "module:M"],
-        "diags": []
+        "diags": ["UETKX2320", "UETKX2320"]
       }
     },
     {
       "name": "duplicate import is UETKX2303",
       "input": "import { A } from \"./X\"\nimport { A } from \"./Y\"\ncomponent Foo {\n\treturn ( <Spacer /> );\n}\n",
-      "expect": { "diags": ["UETKX2303"] }
+      "expect": { "diags": ["UETKX2303", "UETKX2320"] }
     },
     {
       "name": "import after a declaration is UETKX2309",
       "input": "component Foo {\n\treturn ( <Spacer /> );\n}\nimport { A } from \"./X\"\n",
-      "expect": { "components": [{ "name": "Foo", "exported": false }], "diags": ["UETKX2309"] }
+      "expect": { "components": [{ "name": "Foo", "exported": false }], "diags": ["UETKX2309", "UETKX2320"] }
     },
     {
       "name": "two components is the one-per-file convention warn UETKX2105 (not an error)",
@@ -244,7 +256,7 @@
       "expect": {
         "components": [{ "name": "Alpha", "exported": false }, { "name": "Beta", "exported": false }],
         "order": ["component:Alpha", "component:Beta"],
-        "diags": ["UETKX2105"],
+        "diags": ["UETKX2105", "UETKX2320", "UETKX2320"],
         "noError": true
       }
     },
@@ -256,21 +268,140 @@
     {
       "name": "empty import list is UETKX0303",
       "input": "import { } from \"./X\"\ncomponent Foo {\n\treturn ( <Spacer /> );\n}\n",
-      "expect": { "diags": ["UETKX0303"] }
+      "expect": { "diags": ["UETKX0303", "UETKX2320"] }
     },
     {
       "name": "wave G: early returns — multiple markup returns accepted (last top-level anchors)",
       "input": "component Multi {\n\tif (true) {\n\t\treturn ( <TextBlock Text=\"big\" /> );\n\t}\n\treturn ( <Spacer /> );\n}\n",
       "expect": {
         "components": [{ "name": "Multi", "exported": false }],
-        "diags": [],
+        "diags": ["UETKX2320"],
         "noError": true
       }
     },
     {
       "name": "wave G: every return window parses per-span — a bad EARLY window still diagnoses",
       "input": "component MultiBad {\n\tif (true) {\n\t\treturn ( <TextBlock Text=\"a\" /> <Spacer /> );\n\t}\n\treturn ( <Spacer /> );\n}\n",
-      "expect": { "diags": ["UETKX0108"] }
+      "expect": { "diags": ["UETKX0108", "UETKX2320"] }
+    },
+    {
+      "name": "S4/markup-everywhere (family): markup as a value scans clean — assignment + paren boundaries",
+      "input": "component ValueMarkup {\n\tx = (<VerticalBox>\n\t\t<Spacer />\n\t</VerticalBox>);\n\ty = <Spacer />;\n\treturn (\n\t\t<Border />\n\t);\n}\n",
+      "expect": {
+        "components": [{ "name": "ValueMarkup", "exported": false }],
+        "diags": ["UETKX2320"],
+        "noError": true
+      }
+    },
+    {
+      "name": "S5/es-modules: rename import (`as`)",
+      "input": "import { A as B } from \"./x\"\ncomponent Foo {\n\treturn ( <Spacer /> );\n}\n",
+      "expect": {
+        "imports": [{ "names": ["A"], "localNames": ["B"], "specifier": "./x" }],
+        "diags": ["UETKX2320"]
+      }
+    },
+    {
+      "name": "S5/es-modules: rename import mixed with a plain name in one brace list",
+      "input": "import { A as B, C } from \"./x\"\ncomponent Foo {\n\treturn ( <Spacer /> );\n}\n",
+      "expect": {
+        "imports": [{ "names": ["A", "C"], "localNames": ["B", "C"], "specifier": "./x" }],
+        "diags": ["UETKX2320"]
+      }
+    },
+    {
+      "name": "S5/es-modules: namespace import (`* as`)",
+      "input": "import * as Palette from \"./Palette\"\ncomponent Foo {\n\treturn ( <Spacer /> );\n}\n",
+      "expect": {
+        "imports": [{ "namespace": "Palette", "specifier": "./Palette" }],
+        "diags": ["UETKX2320"]
+      }
+    },
+    {
+      "name": "S5/es-modules: default import",
+      "input": "import Screen from \"./Screen\"\ncomponent Foo {\n\treturn ( <Spacer /> );\n}\n",
+      "expect": {
+        "imports": [{ "default": "Screen", "specifier": "./Screen" }],
+        "diags": ["UETKX2320"]
+      }
+    },
+    {
+      "name": "S5/es-modules: deferred export list (`export { a, b };`)",
+      "input": "component Alpha {\n\treturn ( <Spacer /> );\n}\ncomponent Beta {\n\treturn ( <Spacer /> );\n}\nexport { Alpha, Beta };\n",
+      "expect": {
+        "components": [{ "name": "Alpha", "exported": true }, { "name": "Beta", "exported": true }],
+        "diags": ["UETKX2105", "UETKX2320", "UETKX2320"]
+      }
+    },
+    {
+      "name": "S5/es-modules: export list is mixable with inline `export`",
+      "input": "export component Alpha {\n\treturn ( <Spacer /> );\n}\ncomponent Beta {\n\treturn ( <Spacer /> );\n}\nexport { Beta };\n",
+      "expect": {
+        "components": [{ "name": "Alpha", "exported": true }, { "name": "Beta", "exported": true }],
+        "diags": ["UETKX2105", "UETKX2320", "UETKX2320"]
+      }
+    },
+    {
+      "name": "S5/es-modules: `export default Name;` does not implicitly export it for named import",
+      "input": "component Screen {\n\treturn ( <Spacer /> );\n}\nexport default Screen;\n",
+      "expect": {
+        "components": [{ "name": "Screen", "exported": false }],
+        "defaultExport": "Screen",
+        "diags": ["UETKX2320"]
+      }
+    },
+    {
+      "name": "S5/es-modules 2320: `component` wrapper is deprecated",
+      "input": "export component LegacyWidget {\n\treturn ( <Spacer /> );\n}\n",
+      "expect": {
+        "components": [{ "name": "LegacyWidget", "exported": true }],
+        "diags": ["UETKX2320"],
+        "noError": true
+      }
+    },
+    {
+      "name": "S5/es-modules 2320: `module` wrapper is deprecated",
+      "input": "export module LegacyStyles { inline const float Pad = 4.0f; }\n",
+      "expect": {
+        "modules": [{ "name": "LegacyStyles", "exported": true }],
+        "diags": ["UETKX2320"],
+        "noError": true
+      }
+    },
+    {
+      "name": "S5/es-modules 2323: export list names an undeclared identifier",
+      "input": "component Foo {\n\treturn ( <Spacer /> );\n}\nexport { Ghost };\n",
+      "expect": { "diags": ["UETKX2320", "UETKX2323"] }
+    },
+    {
+      "name": "S5/es-modules 2323: `export default` names an undeclared identifier",
+      "input": "component Foo {\n\treturn ( <Spacer /> );\n}\nexport default Ghost;\n",
+      "expect": { "diags": ["UETKX2320", "UETKX2323"] }
+    },
+    {
+      "name": "S5/es-modules 2324: duplicate export -- already exported inline",
+      "input": "export component Foo {\n\treturn ( <Spacer /> );\n}\nexport { Foo };\n",
+      "expect": { "diags": ["UETKX2320", "UETKX2324"] }
+    },
+    {
+      "name": "S5/es-modules 2324: duplicate export -- named in two separate export lists",
+      "input": "component Foo {\n\treturn ( <Spacer /> );\n}\nexport { Foo };\nexport { Foo };\n",
+      "expect": { "diags": ["UETKX2320", "UETKX2324"] }
+    },
+    {
+      "name": "S5/es-modules 2325: import alias collides with a local declaration",
+      "input": "import { A as Foo } from \"./x\"\ncomponent Foo {\n\treturn ( <Spacer /> );\n}\n",
+      "expect": { "diags": ["UETKX2320", "UETKX2325"] }
+    },
+    {
+      "name": "S5/es-modules 2325: namespace import alias collides with another import's local name",
+      "input": "import { Foo } from \"./a\"\nimport * as Foo from \"./b\"\ncomponent Bar {\n\treturn ( <Spacer /> );\n}\n",
+      "expect": { "diags": ["UETKX2320", "UETKX2325"] }
+    },
+    {
+      "name": "S5/es-modules 2327: duplicate `export default`",
+      "input": "component Foo {\n\treturn ( <Spacer /> );\n}\ncomponent Bar {\n\treturn ( <Spacer /> );\n}\nexport default Foo;\nexport default Bar;\n",
+      "expect": { "diags": ["UETKX2105", "UETKX2320", "UETKX2320", "UETKX2327"] }
     }
   ],
   "fileScanLeg": [
@@ -280,13 +411,13 @@
       "expect": {
         "hooks": [{ "name": "UseThing", "exported": true }],
         "order": ["hook:UseThing"],
-        "diags": []
+        "diags": ["UETKX2320"]
       }
     },
     {
       "name": "private hook (no export)",
       "input": "hook UseThing() { }\n",
-      "expect": { "hooks": [{ "name": "UseThing", "exported": false }], "diags": [] }
+      "expect": { "hooks": [{ "name": "UseThing", "exported": false }], "diags": ["UETKX2320"] }
     },
     {
       "name": "full mixed sequence: component + hook + module in source order",
@@ -296,25 +427,25 @@
         "hooks": [{ "name": "UseBar", "exported": false }],
         "modules": [{ "name": "Styles", "exported": false }],
         "order": ["component:Foo", "hook:UseBar", "module:Styles"],
-        "diags": []
+        "diags": ["UETKX2320", "UETKX2320", "UETKX2320"]
       }
     },
     {
       "name": "hook before component keeps declaration order",
       "input": "hook UseBar() { }\ncomponent Foo {\n\treturn ( <Spacer /> );\n}\n",
-      "expect": { "order": ["hook:UseBar", "component:Foo"], "diags": [] }
+      "expect": { "order": ["hook:UseBar", "component:Foo"], "diags": ["UETKX2320", "UETKX2320"] }
     },
     {
       "name": "wave G: final markup return must be top-level (UETKX3007)",
       "input": "component Nested {\n\tif (true) {\n\t\treturn ( <TextBlock Text=\"a\" /> );\n\t} else {\n\t\treturn ( <TextBlock Text=\"b\" /> );\n\t}\n}\n",
-      "expect": { "diags": ["UETKX3007"] }
+      "expect": { "diags": ["UETKX2320", "UETKX3007"] }
     },
     {
       "name": "wave G: lambda brace-init return stays verbatim C++ (not a markup window)",
       "input": "component LambdaInit {\n\tauto F = [&]() { return ({ 1 }); };\n\treturn ( <Spacer /> );\n}\n",
       "expect": {
         "components": [{ "name": "LambdaInit", "exported": false }],
-        "diags": [],
+        "diags": ["UETKX2320"],
         "noError": true
       }
     },
@@ -327,28 +458,213 @@
           { "names": ["StatusChip"], "specifier": "./StatusChip" }
         ],
         "components": [{ "name": "Foo", "exported": false }],
-        "diags": [],
+        "diags": ["UETKX2320"],
         "noError": true
       }
     },
     {
       "name": "include retirement: import string without leading @ is UETKX0303",
       "input": "import \"NotAt\"\ncomponent Foo {\n\treturn ( <Spacer /> );\n}\n",
-      "expect": { "diags": ["UETKX0303"] }
+      "expect": { "diags": ["UETKX0303", "UETKX2320"] }
     },
     {
       "name": "include retirement: duplicate host include payload is UETKX2303",
       "input": "import \"@Doom/DoomTypes.h\"\nimport \"@Doom/DoomTypes.h\"\ncomponent Foo {\n\treturn ( <Spacer /> );\n}\n",
-      "expect": { "diags": ["UETKX2303"] }
+      "expect": { "diags": ["UETKX2303", "UETKX2320"] }
     },
     {
       "name": "include retirement: a prelude-covered host include is UETKX2317 (hint, not an error)",
       "input": "import \"@RuiRouter.h\"\ncomponent Foo {\n\treturn ( <Spacer /> );\n}\n",
       "expect": {
         "components": [{ "name": "Foo", "exported": false }],
-        "diags": ["UETKX2317"],
+        "diags": ["UETKX2317", "UETKX2320"],
         "noError": true
       }
+    },
+    {
+      "name": "TB-5/0107: plain early return dims the rest of the body (hint, not an error)",
+      "input": "export component T {\n\treturn null;\n\tconst int32 N = 5;\n\n\treturn (\n\t\t<Spacer />\n\t);\n}\n",
+      "expect": {
+        "components": [{ "name": "T", "exported": true }],
+        "diags": ["UETKX0107", "UETKX2320"],
+        "noError": true
+      }
+    },
+    {
+      "name": "TB-5/0107: statements after the final markup return are unreachable",
+      "input": "export component T {\n\treturn (\n\t\t<Spacer />\n\t);\n\tconst int32 Dead = 1;\n}\n",
+      "expect": {
+        "components": [{ "name": "T", "exported": true }],
+        "diags": ["UETKX0107", "UETKX2320"],
+        "noError": true
+      }
+    },
+    {
+      "name": "TB-5/0107: a CONDITIONAL early return is reachable code -- no diagnostic",
+      "input": "export component T {\n\tif (GIsEditor) { return ( <Spacer /> ); }\n\treturn (\n\t\t<Box />\n\t);\n}\n",
+      "expect": {
+        "components": [{ "name": "T", "exported": true }],
+        "diags": ["UETKX2320"],
+        "noError": true
+      }
+    },
+    {
+      "name": "S4/markup-everywhere: markup as a VALUE (auto X = (<Tag>...)) scans clean",
+      "input": "export component T {\n\tauto Some = (<VerticalBox>\n\t\t<Spacer />\n\t</VerticalBox>);\n\treturn (\n\t\t<Border>\n\t\t\t{ Some }\n\t\t</Border>\n\t);\n}\n",
+      "expect": {
+        "components": [{ "name": "T", "exported": true }],
+        "diags": ["UETKX2320"],
+        "noError": true
+      }
+    },
+    {
+      "name": "S4/0114 narrowed: a paren-less markup return is the one still-illegal spelling",
+      "input": "export component T {\n\treturn <Spacer />;\n}\n",
+      "expect": {
+        "diags": ["UETKX0114", "UETKX2101", "UETKX2320"]
+      }
+    },
+    {
+      "name": "S4/rules-of-hooks 0013: hook under an if block",
+      "input": "export component T(Flag: bool = false) {\n\tif (Flag) {\n\t\tauto [A, SetA] = UseState(0);\n\t}\n\treturn ( <Spacer /> );\n}\n",
+      "expect": {
+        "components": [{ "name": "T", "exported": true }],
+        "diags": ["UETKX0013", "UETKX2320"]
+      }
+    },
+    {
+      "name": "S4/rules-of-hooks 0014: hook inside a loop",
+      "input": "export component T {\n\tfor (int32 i = 0; i < 3; ++i) {\n\t\tauto [A, SetA] = UseState(i);\n\t}\n\treturn ( <Spacer /> );\n}\n",
+      "expect": {
+        "components": [{ "name": "T", "exported": true }],
+        "diags": ["UETKX0014", "UETKX2320"]
+      }
+    },
+    {
+      "name": "S4/rules-of-hooks 0016: hook inside a lambda",
+      "input": "export component T {\n\tauto Fn = [&]() { auto [A, SetA] = UseState(0); };\n\treturn ( <Spacer /> );\n}\n",
+      "expect": {
+        "components": [{ "name": "T", "exported": true }],
+        "diags": ["UETKX0016", "UETKX2320"]
+      }
+    },
+    {
+      "name": "S4/rules-of-hooks 0013: hook inside a markup attr expression",
+      "input": "export component T {\n\treturn ( <TextBlock Text={ FText::AsNumber(UseState(0)) } /> );\n}\n",
+      "expect": {
+        "components": [{ "name": "T", "exported": true }],
+        "diags": ["UETKX0013", "UETKX2320"]
+      }
+    },
+    {
+      "name": "S4/rules-of-hooks 0016: hook inside an event attr",
+      "input": "export component T {\n\treturn ( <Button OnClicked={ UseState(0) }>x</Button> );\n}\n",
+      "expect": {
+        "components": [{ "name": "T", "exported": true }],
+        "diags": ["UETKX0016", "UETKX2320"]
+      }
+    },
+    {
+      "name": "S4/HMR protection: hook names inside value-markup text never enter the hook signature",
+      "input": "export component T {\n\tauto [Count, SetCount] = UseState(0);\n\tauto Chip = (<TextBlock Text=\"UseState(1) is just prose here\" />);\n\treturn (\n\t\t<Border>\n\t\t\t{ Chip }\n\t\t</Border>\n\t);\n}\n",
+      "expect": {
+        "components": [{ "name": "T", "exported": true, "hookCalls": ["UseState"] }],
+        "diags": ["UETKX2320"],
+        "noError": true
+      }
+    },
+    {
+      "name": "S5/es-modules: new-form component (`export FRuiNode Name() { ... }`)",
+      "input": "export FRuiNode Widget() {\n\treturn ( <Spacer /> );\n}\n",
+      "expect": {
+        "components": [{ "name": "Widget", "exported": true }],
+        "order": ["component:Widget"],
+        "diags": []
+      }
+    },
+    {
+      "name": "S5/es-modules: private new-form component (no export)",
+      "input": "FRuiNode Widget() {\n\treturn ( <Spacer /> );\n}\n",
+      "expect": { "components": [{ "name": "Widget", "exported": false }], "diags": [] }
+    },
+    {
+      "name": "S5/es-modules: new-form component with C++-native typed params",
+      "input": "export FRuiNode Row(FString Label, int32 Count = 0) {\n\treturn ( <TextBlock Text={ Label } /> );\n}\n",
+      "expect": { "components": [{ "name": "Row", "exported": true }], "diags": [] }
+    },
+    {
+      "name": "S5/es-modules: new-form hook (leading return type, no `->`)",
+      "input": "export int32 UseThing(int32 A) {\n\treturn A;\n}\n",
+      "expect": { "hooks": [{ "name": "UseThing", "exported": true }], "order": ["hook:UseThing"], "diags": [] }
+    },
+    {
+      "name": "S5/es-modules: private new-form hook",
+      "input": "int32 UseThing() {\n\treturn 0;\n}\n",
+      "expect": { "hooks": [{ "name": "UseThing", "exported": false }], "diags": [] }
+    },
+    {
+      "name": "S5/es-modules: new-form hook with explicit `void` return",
+      "input": "export void UseSideEffect() {\n}\n",
+      "expect": { "hooks": [{ "name": "UseSideEffect", "exported": true }], "diags": [] }
+    },
+    {
+      "name": "S5/es-modules: typed value export",
+      "input": "export FLinearColor Cool = FLinearColor(0.23f, 0.65f, 0.95f, 1.0f);\n",
+      "expect": { "values": [{ "name": "Cool", "exported": true }], "order": ["value:Cool"], "diags": [] }
+    },
+    {
+      "name": "S5/es-modules: inferred value export (initializer names the type -- `T(...)`)",
+      "input": "export Accent = FLinearColor(0.9f, 0.2f, 0.2f, 1.0f);\n",
+      "expect": { "values": [{ "name": "Accent", "exported": true }], "diags": [] }
+    },
+    {
+      "name": "S5/es-modules: private value (file-local, no export)",
+      "input": "FLinearColor RowTint = FLinearColor(1.0f, 1.0f, 1.0f, 1.0f);\n",
+      "expect": { "values": [{ "name": "RowTint", "exported": false }], "diags": [] }
+    },
+    {
+      "name": "S5/es-modules: util function (non-`Use`-prefixed, non-FRuiNode-returning)",
+      "input": "export FString FormatScore(int32 Score) {\n\treturn FString::FromInt(Score);\n}\n",
+      "expect": { "utils": [{ "name": "FormatScore", "exported": true }], "order": ["util:FormatScore"], "diags": [] }
+    },
+    {
+      "name": "S5/es-modules: private util function",
+      "input": "FString Pad(FString S) {\n\treturn S;\n}\n",
+      "expect": { "utils": [{ "name": "Pad", "exported": false }], "diags": [] }
+    },
+    {
+      "name": "S5/es-modules: mixed component + hook + value + util + module in source order",
+      "input": "export FRuiNode Widget() {\n\treturn ( <Spacer /> );\n}\nexport int32 UseThing(int32 A) {\n\treturn A;\n}\nexport FLinearColor Cool = FLinearColor(0.23f, 0.65f, 0.95f, 1.0f);\nexport FString FormatScore(int32 Score) {\n\treturn FString::FromInt(Score);\n}\nexport module Styles { inline const float Pad = 4.0f; }\n",
+      "expect": {
+        "components": [{ "name": "Widget", "exported": true }],
+        "hooks": [{ "name": "UseThing", "exported": true }],
+        "values": [{ "name": "Cool", "exported": true }],
+        "utils": [{ "name": "FormatScore", "exported": true }],
+        "modules": [{ "name": "Styles", "exported": true }],
+        "order": ["component:Widget", "hook:UseThing", "value:Cool", "util:FormatScore", "module:Styles"],
+        "diags": ["UETKX2320"],
+        "noError": true
+      }
+    },
+    {
+      "name": "S5/es-modules: mixed old + new declarations in one file (2320 fires only on the wrapper)",
+      "input": "component Legacy {\n\treturn ( <Spacer /> );\n}\nexport FRuiNode Modern() {\n\treturn ( <Spacer /> );\n}\n",
+      "expect": {
+        "components": [{ "name": "Legacy", "exported": false }, { "name": "Modern", "exported": true }],
+        "order": ["component:Legacy", "component:Modern"],
+        "diags": ["UETKX2105", "UETKX2320"],
+        "noError": true
+      }
+    },
+    {
+      "name": "S5/es-modules 2321: `Use`-prefixed name returning FRuiNode -- did you mean a component?",
+      "input": "export FRuiNode UseThing() {\n\treturn ( <Spacer /> );\n}\n",
+      "expect": { "diags": ["UETKX2321"] }
+    },
+    {
+      "name": "S5/es-modules 2322: cannot infer the type -- initializer does not name a type",
+      "input": "export Bad = 5;\n",
+      "expect": { "diags": ["UETKX2322"] }
     }
   ]
 }

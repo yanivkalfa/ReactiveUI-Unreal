@@ -18,6 +18,7 @@ namespace RuiDemo
 		static const TArray<FRuiDemoEntry> Entries = {
 			{TEXT("Hello World"), +[]() { return RUI::Named(FName(TEXT("HelloWorld"))); }},
 			{TEXT("Counter"), +[]() { return RUI::Named(FName(TEXT("SimpleCounter"))); }},
+			{TEXT("Click Counter"), +[]() { return RUI::Named(FName(TEXT("ClickCounter"))); }},
 			{TEXT("Text Field"), +[]() { return RUI::Named(FName(TEXT("SimpleTextField"))); }},
 			{TEXT("Use Effect"), +[]() { return RUI::Named(FName(TEXT("SimpleUseEffect"))); }},
 			{TEXT("Signals"), +[]() { return RUI::Named(FName(TEXT("SignalCounter"))); }},
@@ -42,12 +43,13 @@ namespace RuiDemo
 	const TArray<FName>& GetCompiledScreenNames()
 	{
 		static const TArray<FName> Names = {
-			FName(TEXT("HelloWorld")),		FName(TEXT("SimpleCounter")),	FName(TEXT("SimpleTextField")),
-			FName(TEXT("SimpleUseEffect")), FName(TEXT("SignalCounter")),	FName(TEXT("ContextDemo")),
-			FName(TEXT("KeyedDiff")),		FName(TEXT("StyledPanels")),	FName(TEXT("TicTacToe")),
-			FName(TEXT("CustomDraw")),		FName(TEXT("StressTest")),		FName(TEXT("RouterDemo")),
-			FName(TEXT("AcceptanceLab")),	FName(TEXT("MvvmDemo")),		FName(TEXT("CommonUiDemo")),
-			FName(TEXT("UmgHostDemo")),		FName(TEXT("InteropShowcase")), FName(TEXT("DoomGame")),
+			FName(TEXT("HelloWorld")),		FName(TEXT("SimpleCounter")),	FName(TEXT("ClickCounter")),
+			FName(TEXT("SimpleTextField")), FName(TEXT("SimpleUseEffect")), FName(TEXT("SignalCounter")),
+			FName(TEXT("ContextDemo")),		FName(TEXT("KeyedDiff")),		FName(TEXT("StyledPanels")),
+			FName(TEXT("TicTacToe")),		FName(TEXT("CustomDraw")),		FName(TEXT("StressTest")),
+			FName(TEXT("RouterDemo")),		FName(TEXT("AcceptanceLab")),	FName(TEXT("MvvmDemo")),
+			FName(TEXT("CommonUiDemo")),	FName(TEXT("UmgHostDemo")),		FName(TEXT("InteropShowcase")),
+			FName(TEXT("DoomGame")),
 		};
 		return Names;
 	}

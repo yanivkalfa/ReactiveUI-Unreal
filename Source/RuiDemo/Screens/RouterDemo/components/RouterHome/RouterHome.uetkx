@@ -1,14 +1,29 @@
 // The "/" route. Router hooks are plain Use* calls — the compiler passes Ctx.
-export component RouterHome {
+export FRuiNode RouterHome() {
 	auto Navigate = UseNavigate();
 	const FString Path = UsePathname();
 
 	return (
 		<VerticalBox>
 			<TextBlock Text={ RUI::Fmt(TEXT("Location: {}"), Path) } />
-			<TextBlock Text="Home — pick a user:" ColorAndOpacity={ FLinearColor(0.7f, 0.7f, 0.8f) } Font.Size={ 11.0f } />
-			<Button OnClicked={ Navigate(TEXT("/users/42"), false) } ContentPadding="12,4" Slot.Padding="0,6,0,0">Open user 42</Button>
-			<Button OnClicked={ Navigate(TEXT("/users/7"), false) } ContentPadding="12,4" Slot.Padding="0,4,0,0">Open user 7</Button>
+			<TextBlock
+				Text="Home — pick a user:"
+				ColorAndOpacity={ FLinearColor(0.7f, 0.7f, 0.8f) }
+				Font.Size={ 11.0f } />
+			<Button
+				OnClicked={ Navigate(TEXT("/users/42"), false) }
+				ContentPadding="12,4"
+				Slot.Padding="0,6,0,0"
+			>
+				Open user 42
+			</Button>
+			<Button
+				OnClicked={ Navigate(TEXT("/users/7"), false) }
+				ContentPadding="12,4"
+				Slot.Padding="0,4,0,0"
+			>
+				Open user 7
+			</Button>
 		</VerticalBox>
 	);
 }

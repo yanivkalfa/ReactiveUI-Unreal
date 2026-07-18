@@ -4,16 +4,24 @@ import { RouterUser } from "./components/RouterUser/RouterUser"
 // The docs' Router sample, live: a Router owns an in-memory history; Routes
 // renders the best match for the current location. Routes are data (FRuiRoute),
 // not tags — the Router mounts as an expression child (the RUI:: structural API).
-export component RouterDemo {
+export FRuiNode RouterDemo() {
 	TArray<RUI::FRuiRoute> RouteList;
-	RouteList.Add(RUI::FRuiRoute{ TEXT("/"),          RouterHome() });
+	RouteList.Add(RUI::FRuiRoute{ TEXT("/"), RouterHome() });
 	RouteList.Add(RUI::FRuiRoute{ TEXT("/users/:id"), RouterUser() });
 
 	return (
-		<Border Padding="12" BorderImage="WhiteBrush" BorderBackgroundColor={ FLinearColor(0.02f, 0.02f, 0.03f, 0.85f) } Slot.Padding="0,10,0,0">
+		<Border
+			Padding="12"
+			BorderImage="WhiteBrush"
+			BorderBackgroundColor={ FLinearColor(0.02f, 0.02f, 0.03f, 0.85f) }
+			Slot.Padding="0,10,0,0"
+		>
 			<VerticalBox>
 				<TextBlock Text="Router — in-memory navigation" Font.Size={ 18.0f } />
-				<TextBlock Text="Two routes; :id is a dynamic segment read via UseParams." ColorAndOpacity={ FLinearColor(0.7f, 0.7f, 0.8f) } Font.Size={ 11.0f } />
+				<TextBlock
+					Text="Two routes; :id is a dynamic segment read via UseParams."
+					ColorAndOpacity={ FLinearColor(0.7f, 0.7f, 0.8f) }
+					Font.Size={ 11.0f } />
 				<Spacer Size={ FVector2D(1.0f, 8.0f) } />
 				{ RUI::Router({ RUI::Routes(MoveTemp(RouteList)) }, /*InitialPath*/ TEXT("/")) }
 			</VerticalBox>

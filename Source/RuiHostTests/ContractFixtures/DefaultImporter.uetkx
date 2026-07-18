@@ -1,0 +1,9 @@
+import Home from "./DefaultExport"
+
+export FRuiNode DefaultImporter() {
+	return (
+		<Border>
+			<Home />
+		</Border>
+	);
+}

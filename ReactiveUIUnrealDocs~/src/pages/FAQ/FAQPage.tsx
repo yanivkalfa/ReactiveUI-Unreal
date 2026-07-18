@@ -44,7 +44,12 @@ const QA: Array<[string, ReactNode]> = [
   [
     'What editor support exists?',
     <>VS Code and Visual Studio 2022 extensions: syntax highlighting, schema-driven completion and
-      hover, import intelligence, diagnostics and canonical formatting — fully offline.</>,
+      hover, import intelligence, diagnostics and canonical formatting — fully offline. The VS Code
+      extension also hides a <code>.uetkx</code> file&apos;s generated companions
+      (<code>*.uetkx.inl</code>, <code>*.uetkx.diags.json</code>, <code>*.Uetkx.gen.cpp</code>) from
+      the Explorer by default — they still exist and the <code>.inl</code>/<code>.gen.cpp</code> stay
+      committed; set the corresponding <code>files.exclude</code> entries to <code>false</code> in
+      your settings to see them again.</>,
   ],
 ]
 

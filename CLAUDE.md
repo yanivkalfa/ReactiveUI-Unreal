@@ -12,11 +12,16 @@ byte-compatible with the family's `.guitkx`/`.uitkx`) compiles to C++ for shippi
 hot-reloads live in dev via **Unreal Live Coding** (whole-project, state preserved; HMR v2 —
 the old dev-loop interpreter was deleted).
 
-`.uetkx` files use **static imports** (strict from day one): `import { A, B } from "./x"` /
-`~/root-alias`, extensionless, named-only, preamble-only; `export` on a `component`/`hook`/
-`module` makes it cross-file addressable (non-exported = private, tree-shaken). A file is a free
-sequence of components + hooks + modules. `-run=RUIMigrateImports` is the idempotent codemod that
-adds `export` + the needed imports to an existing tree (`RUICompile -check` enforces resolution).
+`.uetkx` files are **ES modules** (a file IS a module; strict imports from day one): the full
+import surface — `import { A, B as C } from "./x"` / `import * as X` / default imports /
+`~/root-alias`, extensionless, preamble-only — plus `export` on plain C++-typed declarations,
+deferred `export { a, b };` lists, and one `export default X;` per file. Declaration kind is read
+from the SIGNATURE alone: `FRuiNode Name(...)` = component, `Use`-prefixed = hook, `Name = ...` =
+value export, other callables = utils (non-exported = private, tree-shaken, file-qualified
+runtime identity). The legacy `component`/`hook`/`module` wrappers still parse for one minor
+(UETKX2320 warns); `-run=RUIMigrateEsModules` is the idempotent codemod that migrates a whole
+tree (`-run=RUIMigrateImports` remains for the older exports/imports step; `RUICompile -check`
+enforces resolution).
 
 **The plans are the source of truth**: [plans/ROADMAP.md](plans/ROADMAP.md) (living status
 table), [plans/MASTER_PLAN.md](plans/MASTER_PLAN.md) (locked decisions D-01..D-33, the 10

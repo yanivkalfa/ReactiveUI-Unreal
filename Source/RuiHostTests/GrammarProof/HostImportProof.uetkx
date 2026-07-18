@@ -1,10 +1,12 @@
 import "@Misc/DateTime.h"
 
-export component HostImportProof {
+export FRuiNode HostImportProof() {
 	// FDateTime lives in Misc/DateTime.h — NOT on the auto-included prelude list
 	// (INCLUDE_RETIREMENT_PLAN.md §A); reaching it here proves the `import "@Header.h"`
 	// host include (§B) actually emits the #include the setup code needs.
 	const FDateTime Stamp = FDateTime(2026, 1, 1);
 	const FString Label = FString::Printf(TEXT("year=%d"), Stamp.GetYear());
-	return ( <TextBlock Text={ FString(Label) } /> );
+	return (
+		<TextBlock Text={ FString(Label) } />
+	);
 }

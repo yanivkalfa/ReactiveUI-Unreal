@@ -5,7 +5,7 @@
 
 import * as fs from "fs";
 import * as path from "path";
-import { commands, ExtensionContext, window } from "vscode";
+import { commands, ExtensionContext, window, workspace } from "vscode";
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from "vscode-languageclient/node";
 
 let client: LanguageClient | undefined;
@@ -17,6 +17,10 @@ function buildAndStartClient(module: string): LanguageClient {
   };
   const clientOptions: LanguageClientOptions = {
     documentSelector: [{ scheme: "file", language: "uetkx" }],
+    // TB-10: hand the server the clangd override for embedded-C++ intelligence (empty = discover).
+    initializationOptions: {
+      clangdPath: workspace.getConfiguration("uetkx").get<string>("clangd.path", ""),
+    },
   };
   const c = new LanguageClient("uetkx", "UETKX Language Server", serverOptions, clientOptions);
   c.start();

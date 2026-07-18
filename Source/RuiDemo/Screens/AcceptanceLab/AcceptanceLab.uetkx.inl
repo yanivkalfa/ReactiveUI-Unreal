@@ -48,12 +48,30 @@ static FRuiNodeArray AcceptanceLab_UetkxImpl(FRuiContext& Ctx, const FAcceptance
 		// A mutable counter the bounded @while advances. It is re-declared (=0) every render, so the
 		// loop always terminates at 3 — a SAFE, actually-iterating @while (not the @while(false) guard).
 		int32 WhileI = 0;
-#line 52 "AcceptanceLab.uetkx.inl"
+	
+		// ── 10 · MARKUP AS A VALUE (§4 markup-everywhere) — markup is first-class at every
+		// expression boundary: assigned to a local (both the parenthesized and bare `=` spellings),
+		// then spliced below with { Badge } / { Chip }. The same FRuiNode splices TWICE — two
+		// mounted instances from one value. Editing THIS markup and saving must HMR without
+		// resetting the counter above (the hook signature ignores markup text).
+		auto Badge = ([&]() -> FRuiNode {
+			FRuiNode __N = RUI::TextBlock((RUI::Fmt(TEXT("count is {}"), Count)), FRuiKey());
+			TSharedRef<FRuiTextBlockProps> __P = MakeShared<FRuiTextBlockProps>(static_cast<const FRuiTextBlockProps&>(*__N.Props));
+			TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
+			TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
+			__Style->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(Accent));
+			if (!__Style->IsEmpty()) { __P->Style = __Style; }
+			if (!__Slot->IsEmpty()) { __P->SlotProps = __Slot; }
+			__N.Props = __P;
+			return __N;
+		}());
+		FRuiNode Chip = RUI::TextBlock(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_1", "   a bare `=` markup value"), FRuiKey());
+#line 70 "AcceptanceLab.uetkx.inl"
 	return { [&]() -> FRuiNode {
 		FRuiBorderProps P;
 		P.SetPadding(FMargin(12));
 		P.SetBorderImage(FName(TEXT("WhiteBrush")));
-		P.SetBorderBackgroundColor((LabStyle::Panel));
+		P.SetBorderBackgroundColor((Panel));
 		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
 		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
 		__Slot->Add(FName(TEXT("Slot.Padding")), FRuiValue(TEXT("0,10,0,0")));
@@ -67,12 +85,12 @@ static FRuiNodeArray AcceptanceLab_UetkxImpl(FRuiContext& Ctx, const FAcceptance
 		FRuiVerticalBoxProps P;
 		TArray<FRuiNode> Ch;
 		Ch.Add([&]() -> FRuiNode {
-		FRuiNode __N = RUI::TextBlock(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_1", "Acceptance Lab — one screen to test them all"), FRuiKey());
+		FRuiNode __N = RUI::TextBlock(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_2", "Acceptance Lab — one screen to test them all"), FRuiKey());
 		TSharedRef<FRuiTextBlockProps> __P = MakeShared<FRuiTextBlockProps>(static_cast<const FRuiTextBlockProps&>(*__N.Props));
 		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
 		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
 		__Style->Add(FName(TEXT("Font.Size")), FRuiValue(18.0f));
-		__Style->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(LabStyle::Accent));
+		__Style->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(Accent));
 		if (!__Style->IsEmpty()) { __P->Style = __Style; }
 		if (!__Slot->IsEmpty()) { __P->SlotProps = __Slot; }
 		__N.Props = __P;
@@ -107,7 +125,7 @@ static FRuiNodeArray AcceptanceLab_UetkxImpl(FRuiContext& Ctx, const FAcceptance
 		if (!__Style->IsEmpty()) { P.Style = __Style; }
 		if (!__Slot->IsEmpty()) { P.SlotProps = __Slot; }
 		TArray<FRuiNode> Ch;
-		Ch.Add(RUI::TextBlock(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_2", "+1")));
+		Ch.Add(RUI::TextBlock(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_3", "+1")));
 		return RUI::Slate::Button(MoveTemp(P), MoveTemp(Ch), FRuiKey());
 	}());
 		Ch.Add([&]() -> FRuiNode {
@@ -120,7 +138,7 @@ static FRuiNodeArray AcceptanceLab_UetkxImpl(FRuiContext& Ctx, const FAcceptance
 		if (!__Style->IsEmpty()) { P.Style = __Style; }
 		if (!__Slot->IsEmpty()) { P.SlotProps = __Slot; }
 		TArray<FRuiNode> Ch;
-		Ch.Add(RUI::TextBlock(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_3", "Reset")));
+		Ch.Add(RUI::TextBlock(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_4", "Reset")));
 		return RUI::Slate::Button(MoveTemp(P), MoveTemp(Ch), FRuiKey());
 	}());
 		return RUI::Slate::HorizontalBox(MoveTemp(P), MoveTemp(Ch), FRuiKey());
@@ -146,7 +164,7 @@ static FRuiNodeArray AcceptanceLab_UetkxImpl(FRuiContext& Ctx, const FAcceptance
 		Ch.Add([&]() -> FRuiNode {
 		FRuiEditableTextBoxProps P;
 		P.SetText((FText::FromString(Name)));
-		P.SetHintText(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_4", "Type here — the mirror below tracks you"));
+		P.SetHintText(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_5", "Type here — the mirror below tracks you"));
 		P.SetOnTextChanged(FRuiCallback::Create([=](const FRuiValue& Value) { SetName(Value.TextValue.ToString()); }));
 		return RUI::Slate::EditableTextBox(MoveTemp(P), FRuiKey());
 	}());
@@ -174,7 +192,7 @@ static FRuiNodeArray AcceptanceLab_UetkxImpl(FRuiContext& Ctx, const FAcceptance
 		P.SetbIsChecked((bChecked));
 		P.SetOnCheckStateChanged(FRuiCallback::Create([=](const FRuiValue& Value) { SetChecked(Value.BoolValue); }));
 		TArray<FRuiNode> Ch;
-		Ch.Add(RUI::TextBlock(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_5", "3. dim the label when checked"), FRuiKey()));
+		Ch.Add(RUI::TextBlock(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_6", "3. dim the label when checked"), FRuiKey()));
 		return RUI::Slate::CheckBox(MoveTemp(P), MoveTemp(Ch), FRuiKey());
 	}());
 		Ch.Add([&]() -> FRuiNode {
@@ -227,15 +245,15 @@ static FRuiNodeArray AcceptanceLab_UetkxImpl(FRuiContext& Ctx, const FAcceptance
 		Ch.Add([&]() -> FRuiNode {
 		FRuiVerticalBoxProps P;
 		TArray<FRuiNode> Ch;
-		Ch.Add(RUI::TextBlock(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_6", "4. @if / @elif / @else (drag the slider above)"), FRuiKey()));
+		Ch.Add(RUI::TextBlock(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_7", "4. @if / @elif / @else (drag the slider above)"), FRuiKey()));
 		if (Ratio < 0.33f)
 		{
 			Ch.Add([&]() -> FRuiNode {
-		FRuiNode __N = RUI::TextBlock(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_7", "   LOW"), FRuiKey());
+		FRuiNode __N = RUI::TextBlock(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_8", "   LOW"), FRuiKey());
 		TSharedRef<FRuiTextBlockProps> __P = MakeShared<FRuiTextBlockProps>(static_cast<const FRuiTextBlockProps&>(*__N.Props));
 		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
 		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
-		__Style->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(LabStyle::Warn));
+		__Style->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(Warn));
 		if (!__Style->IsEmpty()) { __P->Style = __Style; }
 		if (!__Slot->IsEmpty()) { __P->SlotProps = __Slot; }
 		__N.Props = __P;
@@ -245,11 +263,11 @@ static FRuiNodeArray AcceptanceLab_UetkxImpl(FRuiContext& Ctx, const FAcceptance
 		else if (Ratio < 0.66f)
 		{
 			Ch.Add([&]() -> FRuiNode {
-		FRuiNode __N = RUI::TextBlock(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_8", "   MID"), FRuiKey());
+		FRuiNode __N = RUI::TextBlock(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_9", "   MID"), FRuiKey());
 		TSharedRef<FRuiTextBlockProps> __P = MakeShared<FRuiTextBlockProps>(static_cast<const FRuiTextBlockProps&>(*__N.Props));
 		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
 		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
-		__Style->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(LabStyle::Accent));
+		__Style->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(Accent));
 		if (!__Style->IsEmpty()) { __P->Style = __Style; }
 		if (!__Slot->IsEmpty()) { __P->SlotProps = __Slot; }
 		__N.Props = __P;
@@ -259,11 +277,11 @@ static FRuiNodeArray AcceptanceLab_UetkxImpl(FRuiContext& Ctx, const FAcceptance
 		else
 		{
 			Ch.Add([&]() -> FRuiNode {
-		FRuiNode __N = RUI::TextBlock(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_9", "   HIGH"), FRuiKey());
+		FRuiNode __N = RUI::TextBlock(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_10", "   HIGH"), FRuiKey());
 		TSharedRef<FRuiTextBlockProps> __P = MakeShared<FRuiTextBlockProps>(static_cast<const FRuiTextBlockProps&>(*__N.Props));
 		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
 		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
-		__Style->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(LabStyle::Good));
+		__Style->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(Good));
 		if (!__Style->IsEmpty()) { __P->Style = __Style; }
 		if (!__Slot->IsEmpty()) { __P->SlotProps = __Slot; }
 		__N.Props = __P;
@@ -288,7 +306,7 @@ static FRuiNodeArray AcceptanceLab_UetkxImpl(FRuiContext& Ctx, const FAcceptance
 		Ch.Add([&]() -> FRuiNode {
 		FRuiVerticalBoxProps P;
 		TArray<FRuiNode> Ch;
-		Ch.Add(RUI::TextBlock(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_10", "5. @for over a keyed list"), FRuiKey()));
+		Ch.Add(RUI::TextBlock(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_11", "5. @for over a keyed list"), FRuiKey()));
 		for (int32 i = 0; i < UE_ARRAY_COUNT(Fruits); ++i)
 		{
 			Ch.Add([&]() -> FRuiNode {
@@ -316,7 +334,7 @@ static FRuiNodeArray AcceptanceLab_UetkxImpl(FRuiContext& Ctx, const FAcceptance
 		Ch.Add([&]() -> FRuiNode {
 		FRuiVerticalBoxProps P;
 		TArray<FRuiNode> Ch;
-		Ch.Add(RUI::TextBlock(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_11", "6. @while (bounded, 3 rows)"), FRuiKey()));
+		Ch.Add(RUI::TextBlock(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_12", "6. @while (bounded, 3 rows)"), FRuiKey()));
 		while (WhileI < 3)
 		{
 			const int32 Shown = WhileI;
@@ -354,7 +372,7 @@ static FRuiNodeArray AcceptanceLab_UetkxImpl(FRuiContext& Ctx, const FAcceptance
 		if (!__Style->IsEmpty()) { P.Style = __Style; }
 		if (!__Slot->IsEmpty()) { P.SlotProps = __Slot; }
 		TArray<FRuiNode> Ch;
-		Ch.Add(RUI::TextBlock(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_12", "Overview")));
+		Ch.Add(RUI::TextBlock(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_13", "Overview")));
 		return RUI::Slate::Button(MoveTemp(P), MoveTemp(Ch), FRuiKey());
 	}());
 		Ch.Add([&]() -> FRuiNode {
@@ -367,7 +385,7 @@ static FRuiNodeArray AcceptanceLab_UetkxImpl(FRuiContext& Ctx, const FAcceptance
 		if (!__Style->IsEmpty()) { P.Style = __Style; }
 		if (!__Slot->IsEmpty()) { P.SlotProps = __Slot; }
 		TArray<FRuiNode> Ch;
-		Ch.Add(RUI::TextBlock(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_13", "Details")));
+		Ch.Add(RUI::TextBlock(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_14", "Details")));
 		return RUI::Slate::Button(MoveTemp(P), MoveTemp(Ch), FRuiKey());
 	}());
 		Ch.Add([&]() -> FRuiNode {
@@ -380,7 +398,7 @@ static FRuiNodeArray AcceptanceLab_UetkxImpl(FRuiContext& Ctx, const FAcceptance
 		if (!__Style->IsEmpty()) { P.Style = __Style; }
 		if (!__Slot->IsEmpty()) { P.SlotProps = __Slot; }
 		TArray<FRuiNode> Ch;
-		Ch.Add(RUI::TextBlock(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_14", "Other")));
+		Ch.Add(RUI::TextBlock(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_15", "Other")));
 		return RUI::Slate::Button(MoveTemp(P), MoveTemp(Ch), FRuiKey());
 	}());
 		return RUI::Slate::HorizontalBox(MoveTemp(P), MoveTemp(Ch), FRuiKey());
@@ -390,11 +408,11 @@ static FRuiNodeArray AcceptanceLab_UetkxImpl(FRuiContext& Ctx, const FAcceptance
 		case 0:
 		{
 			Ch.Add([&]() -> FRuiNode {
-		FRuiNode __N = RUI::TextBlock(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_15", "7. @match → Overview tab"), FRuiKey());
+		FRuiNode __N = RUI::TextBlock(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_16", "7. @match → Overview tab"), FRuiKey());
 		TSharedRef<FRuiTextBlockProps> __P = MakeShared<FRuiTextBlockProps>(static_cast<const FRuiTextBlockProps&>(*__N.Props));
 		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
 		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
-		__Style->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(LabStyle::Accent));
+		__Style->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(Accent));
 		if (!__Style->IsEmpty()) { __P->Style = __Style; }
 		if (!__Slot->IsEmpty()) { __P->SlotProps = __Slot; }
 		__N.Props = __P;
@@ -405,11 +423,11 @@ static FRuiNodeArray AcceptanceLab_UetkxImpl(FRuiContext& Ctx, const FAcceptance
 		case 1:
 		{
 			Ch.Add([&]() -> FRuiNode {
-		FRuiNode __N = RUI::TextBlock(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_16", "7. @match → Details tab"), FRuiKey());
+		FRuiNode __N = RUI::TextBlock(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_17", "7. @match → Details tab"), FRuiKey());
 		TSharedRef<FRuiTextBlockProps> __P = MakeShared<FRuiTextBlockProps>(static_cast<const FRuiTextBlockProps&>(*__N.Props));
 		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
 		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
-		__Style->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(LabStyle::Good));
+		__Style->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(Good));
 		if (!__Style->IsEmpty()) { __P->Style = __Style; }
 		if (!__Slot->IsEmpty()) { __P->SlotProps = __Slot; }
 		__N.Props = __P;
@@ -420,11 +438,11 @@ static FRuiNodeArray AcceptanceLab_UetkxImpl(FRuiContext& Ctx, const FAcceptance
 		default:
 		{
 			Ch.Add([&]() -> FRuiNode {
-		FRuiNode __N = RUI::TextBlock(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_17", "7. @match → default (Other)"), FRuiKey());
+		FRuiNode __N = RUI::TextBlock(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_18", "7. @match → default (Other)"), FRuiKey());
 		TSharedRef<FRuiTextBlockProps> __P = MakeShared<FRuiTextBlockProps>(static_cast<const FRuiTextBlockProps&>(*__N.Props));
 		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
 		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
-		__Style->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(LabStyle::Warn));
+		__Style->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(Warn));
 		if (!__Style->IsEmpty()) { __P->Style = __Style; }
 		if (!__Slot->IsEmpty()) { __P->SlotProps = __Slot; }
 		__N.Props = __P;
@@ -451,7 +469,7 @@ static FRuiNodeArray AcceptanceLab_UetkxImpl(FRuiContext& Ctx, const FAcceptance
 		Ch.Add([&]() -> FRuiNode {
 		FRuiVerticalBoxProps P;
 		TArray<FRuiNode> Ch;
-		Ch.Add(RUI::TextBlock(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_18", "8. Imported sub-components (LabCard)"), FRuiKey()));
+		Ch.Add(RUI::TextBlock(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_19", "8. Imported sub-components (LabCard)"), FRuiKey()));
 		Ch.Add([&]() -> FRuiNode {
 		FRuiHorizontalBoxProps P;
 		TArray<FRuiNode> Ch;
@@ -488,6 +506,42 @@ static FRuiNodeArray AcceptanceLab_UetkxImpl(FRuiContext& Ctx, const FAcceptance
 		P.Ref = ([RefTarget](const FRuiHostHandle& H) { RefTarget->Current = H; });
 		TArray<FRuiNode> Ch;
 		Ch.Add(RUI::TextBlock((RUI::Fmt(TEXT("9. Ref captured this Border - attached: {}"), bRefAttached)), FRuiKey()));
+		return RUI::Slate::Border(MoveTemp(P), MoveTemp(Ch), FRuiKey());
+	}());
+		Ch.Add([&]() -> FRuiNode {
+		FRuiSpacerProps P;
+		P.SetSize((FVector2D(1.0f, 6.0f)));
+		return RUI::Slate::Spacer(MoveTemp(P), FRuiKey());
+	}());
+		Ch.Add([&]() -> FRuiNode {
+		FRuiBorderProps P;
+		P.SetPadding(FMargin(8));
+		P.SetBorderImage(FName(TEXT("WhiteBrush")));
+		P.SetBorderBackgroundColor((FLinearColor(0.04f, 0.04f, 0.06f, 0.9f)));
+		TArray<FRuiNode> Ch;
+		Ch.Add([&]() -> FRuiNode {
+		FRuiVerticalBoxProps P;
+		TArray<FRuiNode> Ch;
+		Ch.Add(RUI::TextBlock(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_20", "10. Markup as a value (FRuiNode locals, spliced below)"), FRuiKey()));
+		Ch.Add((Badge));
+		Ch.Add((Badge));
+		Ch.Add((Chip));
+		Ch.Add((bChecked  ? RUI::TextBlock(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_21", "   short-circuit chip (uncheck 3 to hide me)"), FRuiKey()) : FRuiNode()));
+		Ch.Add((bMounted
+								? [&]() -> FRuiNode {
+		FRuiNode __N = RUI::TextBlock(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_22", "   ternary: mounted"), FRuiKey());
+		TSharedRef<FRuiTextBlockProps> __P = MakeShared<FRuiTextBlockProps>(static_cast<const FRuiTextBlockProps&>(*__N.Props));
+		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
+		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
+		__Style->Add(FName(TEXT("ColorAndOpacity")), FRuiValue(Good));
+		if (!__Style->IsEmpty()) { __P->Style = __Style; }
+		if (!__Slot->IsEmpty()) { __P->SlotProps = __Slot; }
+		__N.Props = __P;
+		return __N;
+	}()
+								: RUI::TextBlock(NSLOCTEXT("Uetkx.AcceptanceLab", "AcceptanceLab_23", "   ternary: not yet"), FRuiKey())));
+		return RUI::Slate::VerticalBox(MoveTemp(P), MoveTemp(Ch), FRuiKey());
+	}());
 		return RUI::Slate::Border(MoveTemp(P), MoveTemp(Ch), FRuiKey());
 	}());
 		return RUI::Slate::VerticalBox(MoveTemp(P), MoveTemp(Ch), FRuiKey());

@@ -9,6 +9,7 @@
 #include "UetkxJsxScan.h"
 #include "UetkxLexer.h"
 #include "UetkxResolve.h"
+#include "UetkxScopedLocals.h"
 
 namespace
 {
@@ -529,6 +530,100 @@ namespace
 		return Out;
 	}
 
+	/** ES-modules (U-03): the import-alias substitution plane. Exported symbols keep their real
+	 *  emission home; every ALIASED reference in the importer is rewritten at emit:
+	 *  - Rename: `import { A as B }` — local `B` → target `A` (identifier replacement).
+	 *  - NamespaceStrip: `import * as X` — a `X::` qual is stripped (`X::Member` → `Member`).
+	 *  - Default aliases (`import D from "./x"` → the target's `export default` symbol) join the
+	 *    Rename map once the target's default-export name is known (M4 export tables — the
+	 *    resolver is the only place that knows it; wired there, same plane). */
+	struct FUetkxAliasPlane
+	{
+		TMap<FString, FString> Rename; // local alias -> imported target name
+		TSet<FString> NamespaceStrip;  // `X` of `import * as X` — `X::` quals are stripped
+		bool IsEmpty() const { return Rename.IsEmpty() && NamespaceStrip.IsEmpty(); }
+	};
+
+	/** ES-modules (U-03): the alias PRE-PASS over verbatim C++ — runs before the hook-prefix walk
+	 *  so a renamed hook alias bears its target (Use-prefixed) name by the time Ctx injection
+	 *  looks at it. Word-boundary identifiers only; member access (`.`/`->`) and an existing scope
+	 *  qual (`::`) block the rewrite exactly like the hook walk; strings/comments are opaque
+	 *  (skip-noncode). The `X ::`-lookahead crosses spaces/tabs only — never a newline — so line
+	 *  counts (the `#line` mapping) are always preserved. TD-034 #1 (N4): a local variable
+	 *  shadowing an alias name is NOT rewritten — the scope tracker (FUetkxScopedLocals, the
+	 *  N-07 heuristic) suppresses it; `ParamSeed` = the enclosing decl's parameter names. */
+	FString RewriteAliases(const FString& Code, const FUetkxAliasPlane& Aliases, const TArray<FString>& ParamSeed)
+	{
+		const TArray<int32> Src = FUetkxLexer::ToCodePoints(Code);
+		const FUetkxScopedLocals Locals(Src, ParamSeed);
+		FString Out;
+		int32 i = 0;
+		const int32 N = Src.Num();
+		while (i < N)
+		{
+			const int32 j = FUetkxLexer::SkipNoncode(Src, i);
+			if (j != i)
+			{
+				Out += FUetkxLexer::FromCodePoints(Src, i, j - i);
+				i = j;
+				continue;
+			}
+			const bool bWordStart = (i == 0) || !FUetkxLexer::IsIdentCode(Src[i - 1]);
+			if (bWordStart && FUetkxLexer::IsIdentCode(Src[i]) && !(Src[i] >= '0' && Src[i] <= '9'))
+			{
+				int32 e = i;
+				while (e < N && FUetkxLexer::IsIdentCode(Src[e]))
+				{
+					++e;
+				}
+				const FString Ident = FUetkxLexer::FromCodePoints(Src, i, e - i);
+				bool bMember = false, bScope = false;
+				for (int32 k = i - 1; k >= 0; --k)
+				{
+					const int32 P = Src[k];
+					if (P == ' ' || P == '\t')
+					{
+						continue;
+					}
+					bMember = (P == '.') || (P == '>' && k > 0 && Src[k - 1] == '-');
+					// Only a real `::` scope qual blocks (a SECOND colon precedes) — a lone `:` is a
+					// ternary/label/case and must NOT block (the IMPORT-3 rule; a ternary's second
+					// arm `? A::X : B::Y` otherwise kept its alias qual and emitted broken C++).
+					bScope = (P == ':') && k > 0 && Src[k - 1] == ':';
+					break;
+				}
+				if (!bMember && !bScope && !Locals.IsLocal(Ident, i))
+				{
+					if (Aliases.NamespaceStrip.Contains(Ident))
+					{
+						int32 p = e;
+						while (p < N && (Src[p] == ' ' || Src[p] == '\t'))
+						{
+							++p;
+						}
+						if (p + 1 < N && Src[p] == ':' && Src[p + 1] == ':')
+						{
+							i = p + 2; // drop `X ::` entirely — the member name flows through bare
+							continue;
+						}
+					}
+					if (const FString* Target = Aliases.Rename.Find(Ident))
+					{
+						Out += *Target;
+						i = e;
+						continue;
+					}
+				}
+				Out += Ident;
+				i = e;
+				continue;
+			}
+			Out += FUetkxLexer::FromCodePoints(Src, i, 1);
+			++i;
+		}
+		return Out;
+	}
+
 	/** Hook auto-prefix over verbatim C++ (shared by component setup/exprs AND `hook` decl
 	 *  bodies): bare BUILT-IN hook calls become Ctx.-qualified; bare USER hook calls
 	 *  (`Use<Upper>...` not in the built-in table, incl. `NS::Use...`) get `Ctx` injected as
@@ -536,10 +631,19 @@ namespace
 	 *  documented divergence from Unity's ambient statics). Member access (`.`/`->`) blocks
 	 *  both transforms. `Qualified` (M5) maps a same-file PRIVATE decl name to its detail-namespace
 	 *  prefix (`RuiPriv_<Basename>::`); a private hook call or a private `Module::` qual is rewritten
-	 *  to reach into that namespace. */
-	FString PrefixHookCalls(const FString& Code, const TMap<FString, FString>& Qualified = {})
+	 *  to reach into that namespace. `Aliases` (ES-modules U-03) runs as a pre-pass — see
+	 *  RewriteAliases. `ParamNames` (TD-034 #1, N4) seeds the scope tracker: a LOCAL (param or
+	 *  body declaration) matching an alias/private name is never rewritten/qualified/injected. */
+	FString PrefixHookCalls(const FString& Code, const TMap<FString, FString>& Qualified = {},
+							const FUetkxAliasPlane* Aliases = nullptr, const TArray<FString>* ParamNames = nullptr)
 	{
-		const TArray<int32> Src = FUetkxLexer::ToCodePoints(Code);
+		static const TArray<FString> NoParams;
+		const TArray<FString>& Seed = ParamNames ? *ParamNames : NoParams;
+		const FString Rewritten =
+			(Aliases != nullptr && !Aliases->IsEmpty()) ? RewriteAliases(Code, *Aliases, Seed) : Code;
+		const TArray<int32> Src = FUetkxLexer::ToCodePoints(Rewritten);
+		// Tracker over the REWRITTEN text — the walk below reads its offsets, not the original's.
+		const FUetkxScopedLocals Locals(Src, Seed);
 		FString Out;
 		int32 i = 0;
 		const int32 N = Src.Num();
@@ -565,7 +669,10 @@ namespace
 						continue;
 					}
 					bOutMember = (P == '.') || (P == '>' && k > 0 && Src[k - 1] == '-');
-					bOutScope = (P == ':');
+					// Only a real `::` scope qual blocks — a lone `:` is a ternary/label/case (the
+					// IMPORT-3 rule, applied here in ES-modules M7; a private name in a ternary's
+					// second arm otherwise skipped its RuiPriv_:: qualification).
+					bOutScope = (P == ':') && k > 0 && Src[k - 1] == ':';
 					break;
 				}
 			};
@@ -613,7 +720,10 @@ namespace
 				{
 					++p;
 				}
-				if (!FUetkxFileScan::HookNames().Contains(Ident) && !bMember && p < N && Src[p] == '(')
+				// TD-034 #1 (N4): a LOCAL callable named like a user hook (`auto UseFoo = …;`)
+				// must not get Ctx injected — the scope tracker suppresses it.
+				if (!FUetkxFileScan::HookNames().Contains(Ident) && !bMember && p < N && Src[p] == '(' &&
+					!Locals.IsLocal(Ident, i))
 				{
 					int32 q = p + 1;
 					while (q < N && (Src[q] == ' ' || Src[q] == '\t' || Src[q] == '\n' || Src[q] == '\r'))
@@ -631,8 +741,12 @@ namespace
 					bMatched = true;
 				}
 			}
-			// private same-file `Module::` qual → RuiPriv_<Basename>::Module:: (M5). Only fires for
-			// an identifier the file declares privately; ambient namespaces are untouched.
+			// private same-file reference → RuiPriv_<Basename>:: qualification. Originally (M5)
+			// only `Module::` quals; ES-modules (U-04) generalizes to ANY privately-declared
+			// identifier at a word boundary — a private VALUE is referenced bare and a private
+			// UTIL as a plain call, and both live inside the detail namespace, so every reference
+			// shape needs the prefix (a hook call was already handled by the branch above). Only
+			// fires for names the file declares privately; ambient identifiers are untouched.
 			if (!bMatched && bWordStart && !Qualified.IsEmpty() && FUetkxLexer::IsIdentCode(Src[i]) &&
 				!(Src[i] >= '0' && Src[i] <= '9'))
 			{
@@ -641,16 +755,12 @@ namespace
 				{
 					++e;
 				}
-				int32 p = e;
-				while (p < N && (Src[p] == ' ' || Src[p] == '\t'))
-				{
-					++p;
-				}
 				bool bMember = false, bScope = false;
 				ScanBack(i, bMember, bScope);
 				const FString Ident = FUetkxLexer::FromCodePoints(Src, i, e - i);
 				const FString* Prefix = Qualified.Find(Ident);
-				if (Prefix && !bMember && !bScope && p + 1 < N && Src[p] == ':' && Src[p + 1] == ':')
+				// TD-034 #1 (N4): a local shadowing a private name keeps its bare spelling.
+				if (Prefix && !bMember && !bScope && !Locals.IsLocal(Ident, i))
 				{
 					Out += *Prefix;
 					Out += Ident;
@@ -788,7 +898,7 @@ namespace
 	 *  calls in the body Ctx.-prefixed, nested user hooks Ctx-injected). DECL phase = the forward
 	 *  declaration; BODY phase = the definition. A non-exported hook wraps in the detail namespace. */
 	FEmittedDecl EmitHookInl(const FUetkxHookDecl& Hook, const FString& PrivNs, const TMap<FString, FString>& Qualified,
-							 const FLineCtx& Line)
+							 const FLineCtx& Line, const FUetkxAliasPlane* Aliases = nullptr)
 	{
 		const FString Ret = Hook.Ret.IsEmpty() ? FString(TEXT("void")) : Hook.Ret;
 		const FString Sig = FString::Printf(TEXT("inline %s %s(FRuiContext& Ctx%s%s)"), *Ret, *Hook.Name,
@@ -796,7 +906,8 @@ namespace
 		FEmittedDecl E;
 		E.DeclPhase = Sig + TEXT(";\n");
 		FString Def = Sig + TEXT("\n{\n");
-		const FString Body = PrefixHookCalls(Hook.Body.TrimStartAndEnd(), Qualified);
+		const TArray<FString> HookParams = FUetkxScopedLocals::ParamNamesOf(Hook.Params);
+		const FString Body = PrefixHookCalls(Hook.Body.TrimStartAndEnd(), Qualified, Aliases, &HookParams);
 		if (!Body.IsEmpty())
 		{
 			Def += WithLine(TEXT("\t") + IndentRegion(Body) + TEXT("\n"), SrcLineOfRegion(Hook.Body, Hook.BodyAt, Line),
@@ -833,16 +944,84 @@ namespace
 		return E;
 	}
 
+	/** ES-modules (U-04): a `[export] <Type> Name = <Init>;` VALUE export → DECL-PHASE-ONLY
+	 *  `inline const <T> Name = <Init>;` (typed) or `inline const auto Name = <Init>;` (inferred
+	 *  — U-01). Immutable by construction: there is no BODY phase (module-level mutable state is
+	 *  not a thing). The initializer still runs through the alias-rewrite plane (`PrefixHookCalls`
+	 *  with `Qualified` — U-03: import renames, `X::` namespace quals, private same-file
+	 *  qualification); a value initializer that happens to look like a hook call is not policed
+	 *  here — it surfaces as a normal downstream compile error (no `Ctx` in scope) exactly like
+	 *  any other misuse. A non-exported value nests in the per-file detail namespace. */
+	FEmittedDecl EmitValueInl(const FUetkxValueDecl& Value, const FString& PrivNs,
+							  const TMap<FString, FString>& Qualified, const FLineCtx& Line,
+							  const FUetkxAliasPlane* Aliases = nullptr)
+	{
+		const FString Type = Value.Type.IsEmpty() ? FString(TEXT("auto")) : Value.Type;
+		const FString Init = PrefixHookCalls(Value.Init.TrimStartAndEnd(), Qualified, Aliases);
+		FString Out = FString::Printf(TEXT("inline const %s %s =\n"), *Type, *Value.Name);
+		Out += WithLine(Init + TEXT("\n"), SrcLineOfRegion(Value.Init, Value.InitAt, Line), Line);
+		Out += TEXT(";\n");
+		FEmittedDecl E;
+		E.DeclPhase = Out;
+		if (!Value.bExported)
+		{
+			WrapPrivate(E, PrivNs);
+		}
+		return E;
+	}
+
+	/** ES-modules (U-04): a `[export] <Type> Name(params) { body }` UTIL function → an inline
+	 *  free function, EXACTLY like `EmitHookInl` minus the `FRuiContext& Ctx` parameter and minus
+	 *  HookSig participation (utils are never scanned into a component's HookCalls — the scanner
+	 *  never records them there). The body still runs through the full `PrefixHookCalls` text
+	 *  transform (built-in hook Ctx.-prefixing, user-hook Ctx-injection, alias rewriting) — a util
+	 *  body that happens to call something hook-shaped is not specially policed; it fails to
+	 *  compile downstream (no `Ctx` in scope), the same as any other misuse. */
+	FEmittedDecl EmitUtilInl(const FUetkxUtilDecl& Util, const FString& PrivNs, const TMap<FString, FString>& Qualified,
+							 const FLineCtx& Line, const FUetkxAliasPlane* Aliases = nullptr)
+	{
+		const FString Sig = FString::Printf(TEXT("inline %s %s(%s)"), *Util.RetType, *Util.Name, *Util.Params);
+		FEmittedDecl E;
+		E.DeclPhase = Sig + TEXT(";\n");
+		FString Def = Sig + TEXT("\n{\n");
+		const TArray<FString> UtilParams = FUetkxScopedLocals::ParamNamesOf(Util.Params);
+		const FString Body = PrefixHookCalls(Util.Body.TrimStartAndEnd(), Qualified, Aliases, &UtilParams);
+		if (!Body.IsEmpty())
+		{
+			Def += WithLine(TEXT("\t") + IndentRegion(Body) + TEXT("\n"), SrcLineOfRegion(Util.Body, Util.BodyAt, Line),
+							Line);
+		}
+		Def += TEXT("}\n");
+		E.BodyPhase = Def;
+		if (!Util.bExported)
+		{
+			WrapPrivate(E, PrivNs);
+		}
+		return E;
+	}
+
 	/** The one emitter (per component). */
 	class FEmitter
 	{
 	public:
 		FEmitter(const FString& InBasename, const FUetkxComponentDecl& InDecl, TArray<FUetkxDiag>& InDiags,
 				 TSet<FString>& InUses, TMap<FString, int32>& InUseAts, const TMap<FString, FString>& InQualified,
-				 const FLineCtx& InLine)
+				 const FLineCtx& InLine, const FUetkxAliasPlane& InAliases)
 			: Basename(InBasename), Decl(InDecl), Diags(InDiags), Uses(InUses), UseAts(InUseAts),
-			  Qualified(InQualified), Line(InLine)
+			  Qualified(InQualified), Line(InLine), Aliases(InAliases)
 		{
+			// TD-034 #1 (N4): the component's params seed the scope tracker for every code region.
+			for (const FUetkxParam& Param : Decl.Params)
+			{
+				ComponentParamNames.Add(Param.Name);
+			}
+			// N4 audit: ONE body-wide tracker (markup ranges skipped — no junk decls from tags/
+			// attrs) answers "which locals are live at offset X?" so markup-expression regions and
+			// value-markup-fragmented setup segments see the setup locals that shadow alias/
+			// private names (a rewrite there would silently read the WRONG symbol).
+			BodyCp = FUetkxLexer::ToCodePoints(Decl.Body);
+			BodyRanges = FUetkxJsxScan::FindMarkupRanges(BodyCp, 0, BodyCp.Num());
+			BodyLocals = MakeUnique<FUetkxScopedLocals>(BodyCp, ComponentParamNames, &BodyRanges);
 		}
 
 		FEmittedDecl Emit();
@@ -867,17 +1046,53 @@ namespace
 		}
 
 		/** Hook auto-prefix (built-in → Ctx.*, user hooks → Ctx first arg), plus same-file PRIVATE
-		 *  reference qualification (private hook calls + `Module::` quals → RuiPriv_<Basename>::…). */
-		FString PrefixHooks(const FString& Code) { return PrefixHookCalls(Code, Qualified); }
+		 *  reference qualification (private hook calls + `Module::` quals → RuiPriv_<Basename>::…),
+		 *  plus the ES-modules import-alias plane (U-03 — rename / `X::` strip pre-pass).
+		 *  `OriginAbs` = the FILE-absolute offset of Code[0] when known (-1 detached): the region's
+		 *  tracker is seeded with the locals IN SCOPE at that body position (N4 audit), so a setup
+		 *  local shadowing an alias/private name stays itself inside markup expressions and across
+		 *  value-markup fragmentation — a rewrite there reads the WRONG symbol silently. */
+		static int32 TrimmedOrigin(const FString& Raw, int32 Origin)
+		{
+			if (Origin < 0)
+			{
+				return -1;
+			}
+			int32 Lead = 0;
+			while (Lead < Raw.Len() && FChar::IsWhitespace(Raw[Lead]))
+			{
+				++Lead;
+			}
+			return Origin + Lead;
+		}
 
-		/** An embedded expression: rewrite nested markup ranges (jsx scan) to element exprs. */
-		FString EmitExpr(const FString& Expr, int32 AbsAt)
+		FString PrefixHooks(const FString& Code, int32 OriginAbs = -1)
+		{
+			if (OriginAbs >= 0 && BodyLocals.IsValid())
+			{
+				TArray<FString> Seed = BodyLocals->NamesInScopeAt(OriginAbs - Decl.BodyAt);
+				Seed.Append(DirectiveSeed);
+				return PrefixHookCalls(Code, Qualified, &Aliases, &Seed);
+			}
+			if (DirectiveSeed.Num() > 0)
+			{
+				TArray<FString> Seed = ComponentParamNames;
+				Seed.Append(DirectiveSeed);
+				return PrefixHookCalls(Code, Qualified, &Aliases, &Seed);
+			}
+			return PrefixHookCalls(Code, Qualified, &Aliases, &ComponentParamNames);
+		}
+
+		/** An embedded expression: rewrite nested markup ranges (jsx scan) to element exprs.
+		 *  `OriginAbs` = the file-absolute offset of Expr[0] when the caller knows it (attr Vat /
+		 *  setup start) — seeds the scope tracker; AbsAt stays the DIAG anchor (goldens pin it). */
+		FString EmitExpr(const FString& Expr, int32 AbsAt, int32 OriginAbs = -1)
 		{
 			const TArray<int32> Src = FUetkxLexer::ToCodePoints(Expr);
 			TArray<FUetkxMarkupRange> Ranges = FUetkxJsxScan::FindMarkupRanges(Src, 0, Src.Num());
 			if (Ranges.IsEmpty())
 			{
-				return PrefixHooks(Expr);
+				return PrefixHooks(Expr, OriginAbs);
 			}
 			FString Out;
 			int32 Cursor = 0;
@@ -895,7 +1110,8 @@ namespace
 				// condition text is safe on the left of the emitted ternary.
 				const bool bShortCircuit = !Range.Op.IsEmpty();
 				Out += PrefixHooks(
-					FUetkxLexer::FromCodePoints(Src, Cursor, (bShortCircuit ? Range.OpPos : Range.Start) - Cursor));
+					FUetkxLexer::FromCodePoints(Src, Cursor, (bShortCircuit ? Range.OpPos : Range.Start) - Cursor),
+					OriginAbs >= 0 ? OriginAbs + Cursor : -1);
 				FUetkxMarkup Parser;
 				FUetkxParseResult Pr = Parser.Parse(Src, Range.Start, Range.End);
 				if (!Pr.IsOk() || Pr.Nodes.Num() != 1)
@@ -915,53 +1131,64 @@ namespace
 				}
 				Cursor = Range.End;
 			}
-			Out += PrefixHooks(FUetkxLexer::FromCodePoints(Src, Cursor, Src.Num() - Cursor));
+			Out += PrefixHooks(FUetkxLexer::FromCodePoints(Src, Cursor, Src.Num() - Cursor),
+							   OriginAbs >= 0 ? OriginAbs + Cursor : -1);
 			return Out;
 		}
 
 		/** One node as a C++ FRuiNode expression. */
-		FString EmitNodeExpr(const FUetkxNode& Node, int32 AbsAt);
+		FString EmitNodeExpr(const FUetkxNode& Node, int32 AbsAt, int32 TrueBase = -1);
 
 		/** Children statements appending into `Ch`. */
 		void EmitChildren(FString& Out, const TArray<TSharedPtr<FUetkxNode>>& Children, const FString& Indent,
-						  int32 AbsAt);
+						  int32 AbsAt, int32 TrueBase = -1);
 
 		/** A directive body: C++ statements ending in `return ( <markup> )` — leading
 		 *  statements splice verbatim, the returned markup lowers to Ch.Add(...). */
-		void EmitBody(FString& Out, const FString& BodyMarkup, const FString& Indent, int32 AbsAt);
+		void EmitBody(FString& Out, const FString& BodyMarkup, const FString& Indent, int32 AbsAt,
+					  int32 TrueOrigin = -1);
 
 		const FString& Basename;
 		const FUetkxComponentDecl& Decl;
 		TArray<FUetkxDiag>& Diags;
-		TSet<FString>& Uses;					 // component tags this component references (aggregator topo order)
-		TMap<FString, int32>& UseAts;			 // tag -> first reference offset (strict-import diagnostics, M4)
-		const TMap<FString, FString>& Qualified; // private same-file decl name -> RuiPriv_<Basename>::name
-		const FLineCtx& Line;					 // #line directive context (M7)
+		TSet<FString>& Uses;					   // component tags this component references (aggregator topo order)
+		TMap<FString, int32>& UseAts;			   // tag -> first reference offset (strict-import diagnostics, M4)
+		const TMap<FString, FString>& Qualified;   // private same-file decl name -> RuiPriv_<Basename>::name
+		const FLineCtx& Line;					   // #line directive context (M7)
+		const FUetkxAliasPlane& Aliases;		   // ES-modules import-alias substitution plane (U-03)
+		TArray<FString> ComponentParamNames;	   // scope-tracker seed for every code region (N4)
+		TArray<int32> BodyCp;					   // the component body, code points (N4 audit)
+		TArray<FUetkxMarkupRange> BodyRanges;	   // its markup ranges (skipped by BodyLocals)
+		TUniquePtr<FUetkxScopedLocals> BodyLocals; // body-wide in-scope-at-offset oracle
+		TArray<FString> DirectiveSeed;			   // @for headers + directive-lead locals live in NESTED islands
 		int32 TextKeyCounter = 0;
 		bool bError = false;
 	};
 
-	FString FEmitter::EmitNodeExpr(const FUetkxNode& Node, int32 AbsAt)
+	FString FEmitter::EmitNodeExpr(const FUetkxNode& Node, int32 AbsAt, int32 TrueBase)
 	{
 		switch (Node.Type)
 		{
 		case EUetkxNodeType::Text:
 			return FString::Printf(TEXT("RUI::TextBlock(%s)"), *NsLocText(Node.Value));
 		case EUetkxNodeType::Expr:
-			return FString::Printf(TEXT("(%s)"), *EmitExpr(Node.Code, AbsAt));
+			return FString::Printf(
+				TEXT("(%s)"), *EmitExpr(Node.Code, AbsAt, TrueBase >= 0 && Node.Vat >= 0 ? TrueBase + Node.Vat : -1));
 		case EUetkxNodeType::Comment:
 			return FString(); // comments emit nothing
 		case EUetkxNodeType::Frag:
 		{
 			FString Out = TEXT("[&]() -> FRuiNode {\n\t\tTArray<FRuiNode> Ch;\n");
-			EmitChildren(Out, Node.Children, TEXT("\t\t"), AbsAt);
+			EmitChildren(Out, Node.Children, TEXT("\t\t"), AbsAt, TrueBase);
 			FString Key = TEXT("FRuiKey()");
 			for (const FUetkxAttr& Attr : Node.Attrs)
 			{
 				if (Attr.Name == TEXT("key"))
 				{
 					Key = Attr.Kind == EUetkxAttrKind::Expr
-							  ? FString::Printf(TEXT("FRuiKey(%s)"), *EmitExpr(Attr.Value, AbsAt))
+							  ? FString::Printf(TEXT("FRuiKey(%s)"),
+												*EmitExpr(Attr.Value, AbsAt,
+														  TrueBase >= 0 && Attr.Vat >= 0 ? TrueBase + Attr.Vat : -1))
 							  : FString::Printf(TEXT("FRuiKey(FName(TEXT(\"%s\")))"), *CppStringLiteral(Attr.Value));
 				}
 			}
@@ -977,7 +1204,7 @@ namespace
 			FString Out = TEXT("[&]() -> FRuiNode {\n\t\tTArray<FRuiNode> Ch;\n");
 			TArray<TSharedPtr<FUetkxNode>> Self;
 			Self.Add(MakeShared<FUetkxNode>(Node));
-			EmitChildren(Out, Self, TEXT("\t\t"), AbsAt);
+			EmitChildren(Out, Self, TEXT("\t\t"), AbsAt, TrueBase);
 			Out += TEXT("\t\treturn Ch.Num() == 1 ? MoveTemp(Ch[0]) : RUI::Fragment(MoveTemp(Ch));\n\t}()");
 			return Out;
 		}
@@ -1006,9 +1233,16 @@ namespace
 			Fail(TEXT("UETKX0105"), FString::Printf(TEXT("unknown tag <%s>"), *Node.Tag), AbsAt + Node.At);
 			return FString(TEXT("FRuiNode()"));
 		}
+		// ES-modules (U-03): a component tag spelled with a rename-import alias (`import { A as B }`
+		// + `<B/>`) emits against the TARGET name (its real props struct + wrapper). `Uses` (the
+		// aggregator's topo-order input) records the TARGET — dependency edges are keyed by exported
+		// names; `UseAts` keeps the LOCAL spelling — the resolver's usage accounting (2304) and
+		// diagnostics anchor on what the author wrote (M4).
+		const FString* AliasTarget = bComponent ? Aliases.Rename.Find(Node.Tag) : nullptr;
+		const FString EmitTag = AliasTarget ? *AliasTarget : Node.Tag;
 		if (bComponent)
 		{
-			Uses.Add(Node.Tag);
+			Uses.Add(EmitTag);
 			if (!UseAts.Contains(Node.Tag))
 			{
 				UseAts.Add(Node.Tag, AbsAt + Node.At);
@@ -1032,14 +1266,19 @@ namespace
 				}
 				if (Attr.Name == TEXT("Text"))
 				{
-					TextExpr = Attr.Kind == EUetkxAttrKind::Str
-								   ? NsLocText(Attr.Value)
-								   : FString::Printf(TEXT("(%s)"), *EmitExpr(Attr.Value, AbsAt));
+					TextExpr =
+						Attr.Kind == EUetkxAttrKind::Str
+							? NsLocText(Attr.Value)
+							: FString::Printf(TEXT("(%s)"),
+											  *EmitExpr(Attr.Value, AbsAt,
+														TrueBase >= 0 && Attr.Vat >= 0 ? TrueBase + Attr.Vat : -1));
 				}
 				else if (Attr.Name == TEXT("key"))
 				{
 					Key = Attr.Kind == EUetkxAttrKind::Expr
-							  ? FString::Printf(TEXT("FRuiKey(%s)"), *EmitExpr(Attr.Value, AbsAt))
+							  ? FString::Printf(TEXT("FRuiKey(%s)"),
+												*EmitExpr(Attr.Value, AbsAt,
+														  TrueBase >= 0 && Attr.Vat >= 0 ? TrueBase + Attr.Vat : -1))
 							  : FString::Printf(TEXT("FRuiKey(FName(TEXT(\"%s\")))"), *CppStringLiteral(Attr.Value));
 				}
 				else if (Attr.Name == TEXT("classes"))
@@ -1047,7 +1286,9 @@ namespace
 					bStyled = true;
 					if (Attr.Kind == EUetkxAttrKind::Expr)
 					{
-						ClassStmts += FString::Printf(TEXT("\t\t__P->Classes = (%s);\n"), *EmitExpr(Attr.Value, AbsAt));
+						ClassStmts += FString::Printf(
+							TEXT("\t\t__P->Classes = (%s);\n"),
+							*EmitExpr(Attr.Value, AbsAt, TrueBase >= 0 && Attr.Vat >= 0 ? TrueBase + Attr.Vat : -1));
 					}
 					else
 					{
@@ -1066,7 +1307,9 @@ namespace
 					if (Attr.Kind == EUetkxAttrKind::Expr)
 					{
 						bStyled = true;
-						RefStmts += FString::Printf(TEXT("\t\t__P->Ref = (%s);\n"), *EmitExpr(Attr.Value, AbsAt));
+						RefStmts += FString::Printf(
+							TEXT("\t\t__P->Ref = (%s);\n"),
+							*EmitExpr(Attr.Value, AbsAt, TrueBase >= 0 && Attr.Vat >= 0 ? TrueBase + Attr.Vat : -1));
 					}
 					else
 					{
@@ -1081,7 +1324,9 @@ namespace
 					const bool bSlot = Attr.Name.StartsWith(TEXT("Slot."));
 					const FString Value =
 						Attr.Kind == EUetkxAttrKind::Expr
-							? FString::Printf(TEXT("FRuiValue(%s)"), *EmitExpr(Attr.Value, AbsAt))
+							? FString::Printf(TEXT("FRuiValue(%s)"),
+											  *EmitExpr(Attr.Value, AbsAt,
+														TrueBase >= 0 && Attr.Vat >= 0 ? TrueBase + Attr.Vat : -1))
 							: FString::Printf(TEXT("FRuiValue(TEXT(\"%s\"))"), *CppStringLiteral(Attr.Value));
 					StyleStmts += FString::Printf(TEXT("\t\t__%s->Add(FName(TEXT(\"%s\")), %s);\n"),
 												  bSlot ? TEXT("Slot") : TEXT("Style"), *Attr.Name, *Value);
@@ -1112,12 +1357,14 @@ namespace
 		}
 
 		// A same-file PRIVATE component lives in the per-file detail namespace, so its call site
-		// qualifies both the props struct and the wrapper (RuiPriv_<Basename>::…).
-		const FString* Priv = bComponent ? Qualified.Find(Node.Tag) : nullptr;
+		// qualifies both the props struct and the wrapper (RuiPriv_<Basename>::…). EmitTag (not
+		// Node.Tag) so a rename-imported component resolves to its real emission home (U-03) — an
+		// import target is never same-file-private, so the two prefixes cannot both apply.
+		const FString* Priv = bComponent ? Qualified.Find(EmitTag) : nullptr;
 		const FString Prefix = Priv ? *Priv : FString();
 		const FString PropsType =
-			bComponent ? FString::Printf(TEXT("%sF%sUetkxProps"), *Prefix, *Node.Tag) : Tag->PropsType;
-		const FString Factory = bComponent ? Prefix + Node.Tag : Tag->Factory;
+			bComponent ? FString::Printf(TEXT("%sF%sUetkxProps"), *Prefix, *EmitTag) : Tag->PropsType;
+		const FString Factory = bComponent ? Prefix + EmitTag : Tag->Factory;
 
 		FString Out = TEXT("[&]() -> FRuiNode {\n");
 		Out += FString::Printf(TEXT("\t\t%s P;\n"), *PropsType);
@@ -1132,7 +1379,9 @@ namespace
 			if (Attr.Name == TEXT("key"))
 			{
 				Key = Attr.Kind == EUetkxAttrKind::Expr
-						  ? FString::Printf(TEXT("FRuiKey(%s)"), *EmitExpr(Attr.Value, AbsAt))
+						  ? FString::Printf(
+								TEXT("FRuiKey(%s)"),
+								*EmitExpr(Attr.Value, AbsAt, TrueBase >= 0 && Attr.Vat >= 0 ? TrueBase + Attr.Vat : -1))
 						  : FString::Printf(TEXT("FRuiKey(FName(TEXT(\"%s\")))"), *CppStringLiteral(Attr.Value));
 				continue;
 			}
@@ -1147,7 +1396,9 @@ namespace
 				// where the expression yields a TArray<FName>.
 				if (Attr.Kind == EUetkxAttrKind::Expr)
 				{
-					Out += FString::Printf(TEXT("\t\tP.Classes = (%s);\n"), *EmitExpr(Attr.Value, AbsAt));
+					Out += FString::Printf(
+						TEXT("\t\tP.Classes = (%s);\n"),
+						*EmitExpr(Attr.Value, AbsAt, TrueBase >= 0 && Attr.Vat >= 0 ? TrueBase + Attr.Vat : -1));
 				}
 				else
 				{
@@ -1170,7 +1421,9 @@ namespace
 				// handle's `.Ref`. Expr-only: a string form has no meaning for a callable.
 				if (Attr.Kind == EUetkxAttrKind::Expr)
 				{
-					Out += FString::Printf(TEXT("\t\tP.Ref = (%s);\n"), *EmitExpr(Attr.Value, AbsAt));
+					Out += FString::Printf(
+						TEXT("\t\tP.Ref = (%s);\n"),
+						*EmitExpr(Attr.Value, AbsAt, TrueBase >= 0 && Attr.Vat >= 0 ? TrueBase + Attr.Vat : -1));
 				}
 				else
 				{
@@ -1186,7 +1439,9 @@ namespace
 				const bool bSlot = Attr.Name.StartsWith(TEXT("Slot."));
 				const FString Value =
 					Attr.Kind == EUetkxAttrKind::Expr
-						? FString::Printf(TEXT("FRuiValue(%s)"), *EmitExpr(Attr.Value, AbsAt))
+						? FString::Printf(
+							  TEXT("FRuiValue(%s)"),
+							  *EmitExpr(Attr.Value, AbsAt, TrueBase >= 0 && Attr.Vat >= 0 ? TrueBase + Attr.Vat : -1))
 						: FString::Printf(TEXT("FRuiValue(TEXT(\"%s\"))"), *CppStringLiteral(Attr.Value));
 				StyleStmts += FString::Printf(TEXT("\t\t__%s->Add(FName(TEXT(\"%s\")), %s);\n"),
 											  bSlot ? TEXT("Slot") : TEXT("Style"), *Attr.Name, *Value);
@@ -1195,10 +1450,12 @@ namespace
 			if (bComponent)
 			{
 				// component props are plain fields on the generated struct
-				const FString Value = Attr.Kind == EUetkxAttrKind::Expr ? EmitExpr(Attr.Value, AbsAt)
-									  : Attr.Kind == EUetkxAttrKind::Bool
-										  ? FString(TEXT("true"))
-										  : FString::Printf(TEXT("TEXT(\"%s\")"), *CppStringLiteral(Attr.Value));
+				const FString Value =
+					Attr.Kind == EUetkxAttrKind::Expr
+						? EmitExpr(Attr.Value, AbsAt, TrueBase >= 0 && Attr.Vat >= 0 ? TrueBase + Attr.Vat : -1)
+					: Attr.Kind == EUetkxAttrKind::Bool
+						? FString(TEXT("true"))
+						: FString::Printf(TEXT("TEXT(\"%s\")"), *CppStringLiteral(Attr.Value));
 				Out += FString::Printf(TEXT("\t\tP.%s = %s;\n"), *Attr.Name, *Value);
 				continue;
 			}
@@ -1215,9 +1472,12 @@ namespace
 				// Events: the handler body sees the payload as `Value` (FRuiValue — text/bool/
 				// float of the widget event); zero-payload events simply ignore it.
 				Value = *AttrType == EAttrType::Event
-							? FString::Printf(TEXT("FRuiCallback::Create([=](const FRuiValue& Value) { %s; })"),
-											  *PrefixHooks(Attr.Value))
-							: FString::Printf(TEXT("(%s)"), *EmitExpr(Attr.Value, AbsAt));
+							? FString::Printf(
+								  TEXT("FRuiCallback::Create([=](const FRuiValue& Value) { %s; })"),
+								  *PrefixHooks(Attr.Value, TrueBase >= 0 && Attr.Vat >= 0 ? TrueBase + Attr.Vat : -1))
+							: FString::Printf(TEXT("(%s)"),
+											  *EmitExpr(Attr.Value, AbsAt,
+														TrueBase >= 0 && Attr.Vat >= 0 ? TrueBase + Attr.Vat : -1));
 			}
 			else if (Attr.Kind == EUetkxAttrKind::Bool)
 			{
@@ -1279,13 +1539,13 @@ namespace
 			return Out;
 		}
 		Out += TEXT("\t\tTArray<FRuiNode> Ch;\n");
-		EmitChildren(Out, Node.Children, TEXT("\t\t"), AbsAt);
+		EmitChildren(Out, Node.Children, TEXT("\t\t"), AbsAt, TrueBase);
 		Out += FString::Printf(TEXT("\t\treturn %s(MoveTemp(P), MoveTemp(Ch), %s);\n\t}()"), *Factory, *Key);
 		return Out;
 	}
 
 	void FEmitter::EmitChildren(FString& Out, const TArray<TSharedPtr<FUetkxNode>>& Children, const FString& Indent,
-								int32 AbsAt)
+								int32 AbsAt, int32 TrueBase)
 	{
 		for (const TSharedPtr<FUetkxNode>& ChildPtr : Children)
 		{
@@ -1304,14 +1564,17 @@ namespace
 				{
 					const FUetkxIfBranch& Branch = Child.Branches[b];
 					Out += FString::Printf(TEXT("%s%s (%s)\n%s{\n"), *Indent, b == 0 ? TEXT("if") : TEXT("else if"),
-										   *EmitExpr(Branch.Cond, AbsAt), *Indent);
-					EmitBody(Out, Branch.BodyMarkup, Indent + TEXT("\t"), AbsAt + Child.At);
+										   *EmitExpr(Branch.Cond, AbsAt, TrueBase >= 0 ? TrueBase + Child.At : -1),
+										   *Indent);
+					EmitBody(Out, Branch.BodyMarkup, Indent + TEXT("\t"), AbsAt + Child.At,
+							 TrueBase >= 0 && Branch.BodyAt >= 0 ? TrueBase + Branch.BodyAt : -1);
 					Out += Indent + TEXT("}\n");
 				}
 				if (Child.ElseBody.IsSet())
 				{
 					Out += Indent + TEXT("else\n") + Indent + TEXT("{\n");
-					EmitBody(Out, Child.ElseBody.GetValue(), Indent + TEXT("\t"), AbsAt + Child.At);
+					EmitBody(Out, Child.ElseBody.GetValue(), Indent + TEXT("\t"), AbsAt + Child.At,
+							 TrueBase >= 0 && Child.ElseBodyAt >= 0 ? TrueBase + Child.ElseBodyAt : -1);
 					Out += Indent + TEXT("}\n");
 				}
 				break;
@@ -1321,24 +1584,33 @@ namespace
 			{
 				Out += FString::Printf(TEXT("%s%s (%s)\n%s{\n"), *Indent,
 									   Child.Type == EUetkxNodeType::For ? TEXT("for") : TEXT("while"),
-									   *PrefixHooks(Child.Header), *Indent);
-				EmitBody(Out, Child.BodyMarkup, Indent + TEXT("\t"), AbsAt + Child.At);
+									   *PrefixHooks(Child.Header, TrueBase >= 0 ? TrueBase + Child.At : -1), *Indent);
+				const int32 SeedMark = DirectiveSeed.Num();
+				DirectiveSeed.Append(
+					FUetkxScopedLocals(FUetkxLexer::ToCodePoints(Child.Header), TArray<FString>()).AllDeclNames());
+				EmitBody(Out, Child.BodyMarkup, Indent + TEXT("\t"), AbsAt + Child.At,
+						 TrueBase >= 0 && Child.BodyAt >= 0 ? TrueBase + Child.BodyAt : -1);
+				DirectiveSeed.SetNum(SeedMark);
 				Out += Indent + TEXT("}\n");
 				break;
 			}
 			case EUetkxNodeType::Match:
 			{
-				Out += FString::Printf(TEXT("%sswitch (%s)\n%s{\n"), *Indent, *EmitExpr(Child.Subject, AbsAt), *Indent);
+				Out +=
+					FString::Printf(TEXT("%sswitch (%s)\n%s{\n"), *Indent,
+									*EmitExpr(Child.Subject, AbsAt, TrueBase >= 0 ? TrueBase + Child.At : -1), *Indent);
 				for (const FUetkxMatchCase& Case : Child.Cases)
 				{
 					Out += FString::Printf(TEXT("%scase %s:\n%s{\n"), *Indent, *Case.Value, *Indent);
-					EmitBody(Out, Case.BodyMarkup, Indent + TEXT("\t"), AbsAt + Child.At);
+					EmitBody(Out, Case.BodyMarkup, Indent + TEXT("\t"), AbsAt + Child.At,
+							 TrueBase >= 0 && Case.BodyAt >= 0 ? TrueBase + Case.BodyAt : -1);
 					Out += Indent + TEXT("\tbreak;\n") + Indent + TEXT("}\n");
 				}
 				if (Child.DefaultBody.IsSet())
 				{
 					Out += Indent + TEXT("default:\n") + Indent + TEXT("{\n");
-					EmitBody(Out, Child.DefaultBody.GetValue(), Indent + TEXT("\t"), AbsAt + Child.At);
+					EmitBody(Out, Child.DefaultBody.GetValue(), Indent + TEXT("\t"), AbsAt + Child.At,
+							 TrueBase >= 0 && Child.DefaultBodyAt >= 0 ? TrueBase + Child.DefaultBodyAt : -1);
 					Out += Indent + TEXT("\tbreak;\n") + Indent + TEXT("}\n");
 				}
 				Out += Indent + TEXT("}\n");
@@ -1353,7 +1625,7 @@ namespace
 					Out += Indent + TEXT("Ch.Append(children);\n");
 					break;
 				}
-				const FString Expr = EmitNodeExpr(Child, AbsAt);
+				const FString Expr = EmitNodeExpr(Child, AbsAt, TrueBase);
 				if (!Expr.IsEmpty())
 				{
 					Out += FString::Printf(TEXT("%sCh.Add(%s);\n"), *Indent, *Expr);
@@ -1364,7 +1636,8 @@ namespace
 		}
 	}
 
-	void FEmitter::EmitBody(FString& Out, const FString& BodyMarkup, const FString& Indent, int32 AbsAt)
+	void FEmitter::EmitBody(FString& Out, const FString& BodyMarkup, const FString& Indent, int32 AbsAt,
+							int32 TrueOrigin)
 	{
 		const TArray<int32> Body = FUetkxLexer::ToCodePoints(BodyMarkup);
 		// the (last) top-level markup return inside the body — bodies are code blocks whose
@@ -1375,14 +1648,17 @@ namespace
 		const int32 MEnd = Split.MEnd;
 		if (!Split.bOk)
 		{
-			// no return -> pure statements (rare; e.g. a guard `continue;`) — splice verbatim
-			Out += Indent + PrefixHooks(BodyMarkup).TrimStartAndEnd() + TEXT("\n");
+			// no return -> pure statements (rare; e.g. a guard `continue;`) — splice via EmitExpr so
+			// markup-as-value inside a directive body lowers too (§4 markup-everywhere).
+			Out += Indent + EmitExpr(BodyMarkup, AbsAt, TrueOrigin).TrimStartAndEnd() + TEXT("\n");
 			return;
 		}
 		const FString Lead = FUetkxLexer::FromCodePoints(Body, 0, RetAt).TrimStartAndEnd();
 		if (!Lead.IsEmpty())
 		{
-			Out += Indent + PrefixHooks(Lead) + TEXT("\n");
+			Out += Indent +
+				   EmitExpr(Lead, AbsAt, TrimmedOrigin(FUetkxLexer::FromCodePoints(Body, 0, RetAt), TrueOrigin)) +
+				   TEXT("\n");
 		}
 		FUetkxMarkup Parser;
 		FUetkxParseResult Pr = Parser.Parse(Body, MStart, MEnd);
@@ -1391,6 +1667,8 @@ namespace
 			Fail(*Pr.ErrorCode, Pr.ErrorMsg, AbsAt);
 			return;
 		}
+		const int32 SeedMark = DirectiveSeed.Num();
+		DirectiveSeed.Append(FUetkxScopedLocals(FUetkxLexer::ToCodePoints(Lead), TArray<FString>()).AllDeclNames());
 		for (const TSharedPtr<FUetkxNode>& Node : Pr.Nodes)
 		{
 			if (Node.IsValid() && Node->Type != EUetkxNodeType::Comment)
@@ -1400,9 +1678,10 @@ namespace
 					Out += Indent + TEXT("Ch.Append(children);\n"); // TD-015 children splice (directive body)
 					continue;
 				}
-				Out += FString::Printf(TEXT("%sCh.Add(%s);\n"), *Indent, *EmitNodeExpr(*Node, AbsAt));
+				Out += FString::Printf(TEXT("%sCh.Add(%s);\n"), *Indent, *EmitNodeExpr(*Node, AbsAt, TrueOrigin));
 			}
 		}
+		DirectiveSeed.SetNum(SeedMark);
 	}
 
 	FEmittedDecl FEmitter::Emit()
@@ -1467,14 +1746,18 @@ namespace
 		}
 		if (Decl.Returns.Num() <= 1)
 		{
-			// Single markup return — the legacy shape (byte-stable goldens).
+			// Single markup return — the legacy shape (byte-stable goldens; EmitExpr degenerates to
+			// PrefixHooks when setup holds no markup). Markup-as-value (§4 markup-everywhere) lowers
+			// in place: `auto X = (<VerticalBox>…);` becomes a plain FRuiNode local.
 			const FString Setup = Decl.Setup.TrimStartAndEnd();
 			if (!Setup.IsEmpty())
 			{
-				Impl += WithLine(TEXT("\t") + IndentRegion(PrefixHooks(Setup)) + TEXT("\n"),
-								 SrcLineOfRegion(Decl.Setup, Decl.SetupAt, Line), Line);
+				Impl += WithLine(
+					TEXT("\t") + IndentRegion(EmitExpr(Setup, Decl.SetupAt, TrimmedOrigin(Decl.Setup, Decl.SetupAt))) +
+						TEXT("\n"),
+					SrcLineOfRegion(Decl.Setup, Decl.SetupAt, Line), Line);
 			}
-			Impl += FString::Printf(TEXT("\treturn { %s };\n}\n"), *EmitNodeExpr(*Decl.Root, Decl.BodyAt));
+			Impl += FString::Printf(TEXT("\treturn { %s };\n}\n"), *EmitNodeExpr(*Decl.Root, Decl.BodyAt, Decl.BodyAt));
 		}
 		else
 		{
@@ -1489,10 +1772,11 @@ namespace
 				const FString Segment = Raw.TrimStartAndEnd();
 				if (!Segment.IsEmpty())
 				{
-					Impl += WithLine(TEXT("\t") + IndentRegion(PrefixHooks(Segment)) + TEXT("\n"),
+					Impl += WithLine(TEXT("\t") + IndentRegion(EmitExpr(Segment, Decl.BodyAt + Cursor)) + TEXT("\n"),
 									 SrcLineOfRegion(Raw, Decl.BodyAt + Cursor, Line), Line);
 				}
-				Impl += FString::Printf(TEXT("\treturn { %s };\n"), *EmitNodeExpr(*Span.Root, Decl.BodyAt));
+				Impl +=
+					FString::Printf(TEXT("\treturn { %s };\n"), *EmitNodeExpr(*Span.Root, Decl.BodyAt, Decl.BodyAt));
 				// step past the authored `;` (we emit our own)
 				Cursor = Span.AfterParen;
 				while (Cursor < Body.Num() &&
@@ -1509,14 +1793,21 @@ namespace
 			const FString Tail = RawTail.TrimStartAndEnd();
 			if (!Tail.IsEmpty())
 			{
-				Impl += WithLine(TEXT("\t") + IndentRegion(PrefixHooks(Tail)) + TEXT("\n"),
+				Impl += WithLine(TEXT("\t") + IndentRegion(EmitExpr(Tail, Decl.BodyAt + Cursor)) + TEXT("\n"),
 								 SrcLineOfRegion(RawTail, Decl.BodyAt + Cursor, Line), Line);
 			}
 			Impl += TEXT("}\n");
 		}
+		// TD-026 (ES-modules M3): runtime identity keys. An EXPORTED component registers its short
+		// name (globally unique via the UETKX2106 ledger); a PRIVATE one registers the FILE-QUALIFIED
+		// `RuiPriv_<Basename>::<Name>` — the exact emitted C++ qualified name — so two files' private
+		// same-named components never collide in the process-global registries (HMR maps included).
+		// G-01 documented semantic: renaming a file renames RuiPriv_<Basename> ⇒ private members get
+		// fresh runtime identity ⇒ remount/state-reset on the next sweep.
+		const FString RuntimeId = Decl.bExported ? Decl.Name : PrivNamespaceFor(Basename) + TEXT("::") + Decl.Name;
 		Impl += FString::Printf(TEXT("static const FName G%sUetkxId = RUI::RegisterComponentId((void*)&%s_UetkxImpl, "
 									 "FName(TEXT(\"%s\")));\n"),
-								*Decl.Name, *Decl.Name, *Decl.Name);
+								*Decl.Name, *Decl.Name, *RuntimeId);
 		Impl += FString::Printf(TEXT("static constexpr uint32 %s_RUI_HOOK_SIG = 0x%08Xu;\n"), *Decl.Name,
 								FUetkxFileScan::HookSignature(Decl.HookCalls));
 		Impl += FString::Printf(TEXT("inline FRuiNode %s(%s InProps, TArray<FRuiNode> InChildren, FRuiKey "
@@ -1619,6 +1910,64 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 			Qualified.Add(D.Name, PrivNs + TEXT("::"));
 		}
 	}
+	for (const FUetkxValueDecl& D : Scan.Values)
+	{
+		if (!D.bExported)
+		{
+			Qualified.Add(D.Name, PrivNs + TEXT("::"));
+		}
+	}
+	for (const FUetkxUtilDecl& D : Scan.Utils)
+	{
+		if (!D.bExported)
+		{
+			Qualified.Add(D.Name, PrivNs + TEXT("::"));
+		}
+	}
+
+	// ES-modules (U-03): the import-alias plane, built from the scan's import bindings. Rename
+	// (`{ A as B }`) maps local → target; namespace (`* as X`) strips `X::` quals. A DEFAULT
+	// import's target symbol lives in the TARGET file's export table — only the resolver knows it
+	// (M4 wires that lookup into this same map before emit); no resolver ⇒ the default alias
+	// passes through verbatim and resolution reports it.
+	FUetkxAliasPlane Aliases;
+	for (const FUetkxImportDecl& Imp : Scan.Imports)
+	{
+		if (Imp.bHostInclude)
+		{
+			continue;
+		}
+		if (Imp.bNamespace)
+		{
+			Aliases.NamespaceStrip.Add(Imp.NamespaceAlias);
+			continue;
+		}
+		if (Imp.bDefault)
+		{
+			// ES-modules (M4): the default alias binds the TARGET file's `export default` symbol —
+			// only the resolver knows its name. Unresolvable here (no resolver / no file / no
+			// default) ⇒ the alias passes through verbatim and Apply reports 2300/2326 after emit
+			// (an error discards the .inl, so unresolved code never lands).
+			if (Resolver != nullptr)
+			{
+				const FString ImporterRel = ProjectRelPath.IsEmpty() ? Basename + TEXT(".uetkx") : ProjectRelPath;
+				const FString Key = Resolver->Resolve(Imp.Specifier, ImporterRel);
+				const FString DefName = Key.IsEmpty() ? FString() : Resolver->DefaultExportOf(Key);
+				if (!DefName.IsEmpty() && DefName != Imp.DefaultAlias)
+				{
+					Aliases.Rename.Add(Imp.DefaultAlias, DefName);
+				}
+			}
+			continue;
+		}
+		for (int32 n = 0; n < Imp.Names.Num(); ++n)
+		{
+			if (Imp.LocalNames.IsValidIndex(n) && Imp.LocalNames[n] != Imp.Names[n])
+			{
+				Aliases.Rename.Add(Imp.LocalNames[n], Imp.Names[n]);
+			}
+		}
+	}
 
 	// #line mapping (M7): breakpoints in the .uetkx bind to the generated body. ProjRel is the
 	// machine-stable path (M3); fixtures/tests fall back to `<Basename>.uetkx`.
@@ -1642,7 +1991,7 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 		case EUetkxDeclKind::Component:
 		{
 			const FUetkxComponentDecl& Decl = Scan.Components[Entry.Value];
-			FEmitter Emitter(Basename, Decl, Out.Diags, Uses, UseAts, Qualified, Line);
+			FEmitter Emitter(Basename, Decl, Out.Diags, Uses, UseAts, Qualified, Line, Aliases);
 			const FEmittedDecl E = Emitter.Emit();
 			if (Emitter.HasError())
 			{
@@ -1659,7 +2008,7 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 		}
 		case EUetkxDeclKind::Hook:
 		{
-			const FEmittedDecl E = EmitHookInl(Scan.Hooks[Entry.Value], PrivNs, Qualified, Line);
+			const FEmittedDecl E = EmitHookInl(Scan.Hooks[Entry.Value], PrivNs, Qualified, Line, &Aliases);
 			OtherDecls += E.DeclPhase + TEXT("\n");
 			Bodies += E.BodyPhase + TEXT("\n");
 			Out.ComponentNames.Add(Scan.Hooks[Entry.Value].Name);
@@ -1669,6 +2018,24 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 			ModuleDecls += EmitModuleInl(Scan.Modules[Entry.Value], PrivNs, Line).DeclPhase + TEXT("\n");
 			Out.ComponentNames.Add(Scan.Modules[Entry.Value].Name);
 			break;
+		// ES-modules (U-04): a VALUE is DECL-PHASE-ONLY, in the same early region as module
+		// bodies (a props-struct default may reference a file value, so values must precede
+		// every props struct exactly as module constants do).
+		case EUetkxDeclKind::Value:
+			ModuleDecls +=
+				EmitValueInl(Scan.Values[Entry.Value], PrivNs, Qualified, Line, &Aliases).DeclPhase + TEXT("\n");
+			Out.ComponentNames.Add(Scan.Values[Entry.Value].Name);
+			break;
+		// ES-modules (U-04): a UTIL is hook-shaped (fwd-decl in the DECL phase, definition in
+		// the BODY phase) minus Ctx/HookSig.
+		case EUetkxDeclKind::Util:
+		{
+			const FEmittedDecl E = EmitUtilInl(Scan.Utils[Entry.Value], PrivNs, Qualified, Line, &Aliases);
+			OtherDecls += E.DeclPhase + TEXT("\n");
+			Bodies += E.BodyPhase + TEXT("\n");
+			Out.ComponentNames.Add(Scan.Utils[Entry.Value].Name);
+			break;
+		}
 		}
 	}
 	Inl += TEXT("#if defined(RUI_UETKX_DECL_PHASE)\n");
@@ -1733,6 +2100,20 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 			Out.ExportedNames.Add(D.Name);
 		}
 	}
+	for (const FUetkxValueDecl& D : Scan.Values)
+	{
+		if (D.bExported)
+		{
+			Out.ExportedNames.Add(D.Name);
+		}
+	}
+	for (const FUetkxUtilDecl& D : Scan.Utils)
+	{
+		if (D.bExported)
+		{
+			Out.ExportedNames.Add(D.Name);
+		}
+	}
 
 	// a component never depends on ITSELF for ordering (recursion is legal in one TU)
 	for (const FString& Name : Out.ComponentNames)
@@ -1741,7 +2122,8 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 	}
 	Out.Uses = Uses.Array();
 	Out.Uses.Sort();
-	Out.bSupportFile = Scan.Components.IsEmpty(); // no markup → HMR rebuild note, not interp swap
+	Out.bSupportFile = Scan.Components.IsEmpty();	// no markup → HMR rebuild note, not interp swap
+	Out.DefaultExportName = Scan.DefaultExportName; // ES-modules (U-08) — sidecar/export-table marker
 	Out.bOk = true;
 	Out.Inl = MoveTemp(Inl);
 	return Out;

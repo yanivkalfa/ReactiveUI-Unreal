@@ -474,6 +474,17 @@ namespace
 		{
 			bWrap = true;
 		}
+		// TB-4 (TESTING_BUGS.md): an element whose ONLY child is one raw-text run stays inline —
+		// `<Button …>+</Button>` — when the whole form fits PrintWidth. TS-identical (fmtElement).
+		if (!bWrap && Children.Num() == 1 && Children[0]->Type == EUetkxNodeType::Text)
+		{
+			const FString Text = Children[0]->Value.TrimStartAndEnd();
+			const FString Inline = FString::Printf(TEXT("%s>%s</%s>"), *Head, *Text, *Node.Tag);
+			if (!Text.IsEmpty() && P.Len() + Inline.Len() <= State.O.PrintWidth)
+			{
+				return P + Inline + TEXT("\n");
+			}
+		}
 		FString Out;
 		if (!bWrap)
 		{
@@ -683,10 +694,41 @@ namespace
 		return FString::Printf(TEXT("(%s)"), *FString::Join(Parts, TEXT(", ")));
 	}
 
+	/** ES-modules (U-01): the NEW-form C++-native param spelling `Type Name = Default` — the
+	 *  formatter is FORM-PRESERVING (never migrates), so new-form components keep their own
+	 *  grammar. Param-less new components still print `()` (C++ function syntax). */
+	FString FmtNewParams(const TArray<FUetkxParam>& Params)
+	{
+		TArray<FString> Parts;
+		for (const FUetkxParam& Param : Params)
+		{
+			FString Part = Param.Type.IsEmpty() ? Param.Name : Param.Type + TEXT(" ") + Param.Name;
+			if (!Param.Default.IsEmpty())
+			{
+				Part += TEXT(" = ") + Param.Default;
+			}
+			Parts.Add(MoveTemp(Part));
+		}
+		return FString::Printf(TEXT("(%s)"), *FString::Join(Parts, TEXT(", ")));
+	}
+
+	/** ES-modules (U-09): the inline `export ` prefix — ONLY when the decl itself carried it
+	 *  (ExportAt >= 0); a decl exported via `export { … };` keeps its bare head (the list
+	 *  statement is preserved separately — re-prefixing would duplicate the export, 2324). */
+	const TCHAR* ExportPrefix(bool bExported, int32 ExportAt)
+	{
+		return bExported && ExportAt >= 0 ? TEXT("export ") : TEXT("");
+	}
+
 	FString FmtComponent(const FUetkxComponentDecl& Decl, FFmtState& State)
 	{
-		FString Out = FString::Printf(TEXT("%scomponent %s%s {\n"), Decl.bExported ? TEXT("export ") : TEXT(""),
-									  *Decl.Name, *FmtParams(Decl.Params));
+		// Form-preserving (ES-modules G-10): a legacy `component` wrapper keeps its wrapper; a
+		// new-form decl keeps the plain `FRuiNode Name(...)` head. Migration is the codemod's job.
+		FString Out = Decl.bLegacySyntax
+						  ? FString::Printf(TEXT("%scomponent %s%s {\n"), ExportPrefix(Decl.bExported, Decl.ExportAt),
+											*Decl.Name, *FmtParams(Decl.Params))
+						  : FString::Printf(TEXT("%sFRuiNode %s%s {\n"), ExportPrefix(Decl.bExported, Decl.ExportAt),
+											*Decl.Name, *FmtNewParams(Decl.Params));
 		const FString Setup = Reanchor(Decl.Setup, 1, State.O);
 		if (!Setup.IsEmpty())
 		{
@@ -732,22 +774,86 @@ namespace
 
 	FString FmtHook(const FUetkxHookDecl& Decl, FFmtState& State)
 	{
-		// `export? hook Name(<verbatim C++ params>) [-> <verbatim Ret>] {`. Params/Ret are verbatim
-		// C++ (template commas the family grammar can't split) — trimmed, never re-parsed.
-		FString Header = FString::Printf(TEXT("%shook %s(%s)"), Decl.bExported ? TEXT("export ") : TEXT(""), *Decl.Name,
-										 *Decl.Params.TrimStartAndEnd());
-		const FString Ret = Decl.Ret.TrimStartAndEnd();
-		if (!Ret.IsEmpty())
+		// Form-preserving (ES-modules G-10): legacy `hook Name(...) [-> Ret]` keeps its wrapper;
+		// new-form keeps the leading return type (`void` explicit — the scanner recorded it).
+		// Params/Ret are verbatim C++ (template commas the family grammar can't split) — trimmed,
+		// never re-parsed.
+		FString Header;
+		if (Decl.bLegacySyntax)
 		{
-			Header += FString::Printf(TEXT(" -> %s"), *Ret);
+			Header = FString::Printf(TEXT("%shook %s(%s)"), ExportPrefix(Decl.bExported, Decl.ExportAt), *Decl.Name,
+									 *Decl.Params.TrimStartAndEnd());
+			const FString Ret = Decl.Ret.TrimStartAndEnd();
+			if (!Ret.IsEmpty())
+			{
+				Header += FString::Printf(TEXT(" -> %s"), *Ret);
+			}
+		}
+		else
+		{
+			const FString Ret = Decl.Ret.TrimStartAndEnd();
+			Header = FString::Printf(TEXT("%s%s %s(%s)"), ExportPrefix(Decl.bExported, Decl.ExportAt),
+									 Ret.IsEmpty() ? TEXT("void") : *Ret, *Decl.Name, *Decl.Params.TrimStartAndEnd());
 		}
 		return Header + TEXT(" {\n") + FmtVerbatimBody(Decl.Body, State) + TEXT("}\n");
 	}
 
 	FString FmtModule(const FUetkxModuleDecl& Decl, FFmtState& State)
 	{
-		FString Header = FString::Printf(TEXT("%smodule %s"), Decl.bExported ? TEXT("export ") : TEXT(""), *Decl.Name);
+		FString Header = FString::Printf(TEXT("%smodule %s"), ExportPrefix(Decl.bExported, Decl.ExportAt), *Decl.Name);
 		return Header + TEXT(" {\n") + FmtVerbatimBody(Decl.Body, State) + TEXT("}\n");
+	}
+
+	/** ES-modules (U-01): `[export] <Type> Name = <Init>;` — the header canonicalizes; the
+	 *  initializer is verbatim C++ (trimmed, internal lines untouched — idempotent). */
+	FString FmtValue(const FUetkxValueDecl& Decl)
+	{
+		const FString Type = Decl.Type.TrimStartAndEnd();
+		return FString::Printf(TEXT("%s%s%s = %s;\n"), ExportPrefix(Decl.bExported, Decl.ExportAt),
+							   Type.IsEmpty() ? TEXT("") : *(Type + TEXT(" ")), *Decl.Name,
+							   *Decl.Init.TrimStartAndEnd());
+	}
+
+	/** ES-modules (U-01): `[export] <Ret> Name(params) { body }` — the util function form. */
+	FString FmtUtil(const FUetkxUtilDecl& Decl, FFmtState& State)
+	{
+		const FString Header =
+			FString::Printf(TEXT("%s%s %s(%s)"), ExportPrefix(Decl.bExported, Decl.ExportAt),
+							*Decl.RetType.TrimStartAndEnd(), *Decl.Name, *Decl.Params.TrimStartAndEnd());
+		return Header + TEXT(" {\n") + FmtVerbatimBody(Decl.Body, State) + TEXT("}\n");
+	}
+
+	/** ES-modules (U-08/U-09): true when `Text` consists SOLELY of `export { ... };` /
+	 *  `export default Name;` statements (+ whitespace) — the two decl-region statements that
+	 *  live BETWEEN declarations and must be preserved in place (each line re-emitted trimmed),
+	 *  never treated as unknown content (which would force a verbatim fallback). */
+	bool TryFmtExportStatements(const FString& Text, FString& OutFormatted)
+	{
+		const FString Trimmed = Text.TrimStartAndEnd();
+		if (Trimmed.IsEmpty())
+		{
+			return false;
+		}
+		TArray<FString> Lines;
+		Trimmed.ParseIntoArray(Lines, TEXT("\n"), true);
+		FString Out;
+		for (const FString& Line : Lines)
+		{
+			const FString T = Line.TrimStartAndEnd();
+			if (T.IsEmpty())
+			{
+				continue;
+			}
+			const bool bList = T.StartsWith(TEXT("export {")) || T.StartsWith(TEXT("export{"));
+			const bool bDefault = T.StartsWith(TEXT("export default "));
+			if (!bList && !bDefault)
+			{
+				return false;
+			}
+			Out += T + TEXT("\n");
+		}
+		OutFormatted = Out;
+		return true;
 	}
 } // namespace
 
@@ -781,23 +887,27 @@ FUetkxFormatResult FUetkxFormatter::Format(const FString& Source, const FUetkxFo
 	// The source-order start/end + canonical re-emit of any top-level declaration kind (M12
 	// FmtHook/FmtModule): the mixed-decl file is a SEQUENCE (Scan.Order) of components + hooks +
 	// modules, each canonicalized by its own formatter. TrueStart honors a preceding `export`.
+	// NOTE (ES-modules M6): all three kind-switches carry EXPLICIT Value/Util cases — the old
+	// `default:` fell through to Scan.Modules and would silently MIS-INDEX for any new kind.
 	auto TrueStart = [&Scan](const TPair<EUetkxDeclKind, int32>& Ord) -> int32
 	{
+		auto Pick = [](bool bExported, int32 ExportAt, int32 At) { return bExported && ExportAt >= 0 ? ExportAt : At; };
 		switch (Ord.Key)
 		{
 		case EUetkxDeclKind::Component:
-			return Scan.Components[Ord.Value].bExported && Scan.Components[Ord.Value].ExportAt >= 0
-					   ? Scan.Components[Ord.Value].ExportAt
-					   : Scan.Components[Ord.Value].At;
+			return Pick(Scan.Components[Ord.Value].bExported, Scan.Components[Ord.Value].ExportAt,
+						Scan.Components[Ord.Value].At);
 		case EUetkxDeclKind::Hook:
-			return Scan.Hooks[Ord.Value].bExported && Scan.Hooks[Ord.Value].ExportAt >= 0
-					   ? Scan.Hooks[Ord.Value].ExportAt
-					   : Scan.Hooks[Ord.Value].At;
-		default:
-			return Scan.Modules[Ord.Value].bExported && Scan.Modules[Ord.Value].ExportAt >= 0
-					   ? Scan.Modules[Ord.Value].ExportAt
-					   : Scan.Modules[Ord.Value].At;
+			return Pick(Scan.Hooks[Ord.Value].bExported, Scan.Hooks[Ord.Value].ExportAt, Scan.Hooks[Ord.Value].At);
+		case EUetkxDeclKind::Module:
+			return Pick(Scan.Modules[Ord.Value].bExported, Scan.Modules[Ord.Value].ExportAt,
+						Scan.Modules[Ord.Value].At);
+		case EUetkxDeclKind::Value:
+			return Pick(Scan.Values[Ord.Value].bExported, Scan.Values[Ord.Value].ExportAt, Scan.Values[Ord.Value].At);
+		case EUetkxDeclKind::Util:
+			return Pick(Scan.Utils[Ord.Value].bExported, Scan.Utils[Ord.Value].ExportAt, Scan.Utils[Ord.Value].At);
 		}
+		return 0;
 	};
 	auto DeclNext = [&Scan](const TPair<EUetkxDeclKind, int32>& Ord) -> int32
 	{
@@ -807,9 +917,14 @@ FUetkxFormatResult FUetkxFormatter::Format(const FString& Source, const FUetkxFo
 			return Scan.Components[Ord.Value].Next;
 		case EUetkxDeclKind::Hook:
 			return Scan.Hooks[Ord.Value].Next;
-		default:
+		case EUetkxDeclKind::Module:
 			return Scan.Modules[Ord.Value].Next;
+		case EUetkxDeclKind::Value:
+			return Scan.Values[Ord.Value].Next;
+		case EUetkxDeclKind::Util:
+			return Scan.Utils[Ord.Value].Next;
 		}
+		return 0;
 	};
 	auto FmtDecl = [&Scan, &State](const TPair<EUetkxDeclKind, int32>& Ord) -> FString
 	{
@@ -819,9 +934,14 @@ FUetkxFormatResult FUetkxFormatter::Format(const FString& Source, const FUetkxFo
 			return FmtComponent(Scan.Components[Ord.Value], State);
 		case EUetkxDeclKind::Hook:
 			return FmtHook(Scan.Hooks[Ord.Value], State);
-		default:
+		case EUetkxDeclKind::Module:
 			return FmtModule(Scan.Modules[Ord.Value], State);
+		case EUetkxDeclKind::Value:
+			return FmtValue(Scan.Values[Ord.Value]);
+		case EUetkxDeclKind::Util:
+			return FmtUtil(Scan.Utils[Ord.Value], State);
 		}
+		return FString();
 	};
 
 	// Preamble (T1.3 + M11): canonicalized ONLY when it is nothing but whitespace + #include +
@@ -871,9 +991,31 @@ FUetkxFormatResult FUetkxFormatter::Format(const FString& Source, const FUetkxFo
 			{
 				// `import "@Header.h"` (INCLUDE_RETIREMENT_PLAN.md §B) — a nameless host include,
 				// spelled with its own shape rather than the named `{ ... } from` block.
-				Block += Imp.bHostInclude ? FString::Printf(TEXT("import \"@%s\"\n"), *Imp.Specifier)
-										  : FString::Printf(TEXT("import { %s } from \"%s\"\n"),
-															*FString::Join(Imp.Names, TEXT(", ")), *Imp.Specifier);
+				if (Imp.bHostInclude)
+				{
+					Block += FString::Printf(TEXT("import \"@%s\"\n"), *Imp.Specifier);
+					continue;
+				}
+				// ES-modules (G-05): the three new import heads keep their own canonical spellings.
+				if (Imp.bNamespace)
+				{
+					Block += FString::Printf(TEXT("import * as %s from \"%s\"\n"), *Imp.NamespaceAlias, *Imp.Specifier);
+					continue;
+				}
+				if (Imp.bDefault)
+				{
+					Block += FString::Printf(TEXT("import %s from \"%s\"\n"), *Imp.DefaultAlias, *Imp.Specifier);
+					continue;
+				}
+				TArray<FString> Pieces;
+				for (int32 n = 0; n < Imp.Names.Num(); ++n)
+				{
+					const FString& Local = Imp.LocalNames.IsValidIndex(n) ? Imp.LocalNames[n] : Imp.Names[n];
+					Pieces.Add(Local == Imp.Names[n] ? Imp.Names[n]
+													 : FString::Printf(TEXT("%s as %s"), *Imp.Names[n], *Local));
+				}
+				Block += FString::Printf(TEXT("import { %s } from \"%s\"\n"), *FString::Join(Pieces, TEXT(", ")),
+										 *Imp.Specifier);
 			}
 		}
 		if (!Block.IsEmpty())
@@ -889,12 +1031,23 @@ FUetkxFormatResult FUetkxFormatter::Format(const FString& Source, const FUetkxFo
 		if (k > 0)
 		{
 			// content between declarations would be silently dropped by a re-emit — never
-			// delete user text (T1.3): fall back verbatim.
-			if (!FUetkxLexer::FromCodePoints(SrcCp, Cursor, TrueStart(Ord) - Cursor).TrimStartAndEnd().IsEmpty())
+			// delete user text (T1.3): fall back verbatim. EXCEPTION (ES-modules U-08/U-09):
+			// `export { … };` / `export default X;` are decl-region STATEMENTS — preserved in
+			// place, each line trimmed-canonical.
+			const FString Between = FUetkxLexer::FromCodePoints(SrcCp, Cursor, TrueStart(Ord) - Cursor);
+			FString ExportStmts;
+			if (!Between.TrimStartAndEnd().IsEmpty())
 			{
-				return Verbatim(true);
+				if (!TryFmtExportStatements(Between, ExportStmts))
+				{
+					return Verbatim(true);
+				}
 			}
 			Out += TEXT("\n"); // exactly one blank line between declarations
+			if (!ExportStmts.IsEmpty())
+			{
+				Out += ExportStmts + TEXT("\n");
+			}
 		}
 		Out += FmtDecl(Ord);
 		Cursor = DeclNext(Ord);
@@ -904,14 +1057,23 @@ FUetkxFormatResult FUetkxFormatter::Format(const FString& Source, const FUetkxFo
 		return Verbatim(true); // G-05
 	}
 
-	// Trailing content after the last declaration round-trips verbatim after exactly one
-	// canonical blank line (idempotent).
+	// Trailing content after the last declaration: `export { … };` / `export default X;`
+	// statements canonicalize in place (ES-modules); anything else round-trips verbatim after
+	// exactly one canonical blank line (idempotent).
 	if (Cursor >= 0 && Cursor < SrcCp.Num())
 	{
 		const FString Trailing = FUetkxLexer::FromCodePoints(SrcCp, Cursor, SrcCp.Num() - Cursor);
 		if (!Trailing.TrimStartAndEnd().IsEmpty())
 		{
-			Out = RStripWsNl(Out) + TEXT("\n\n") + LStripWsNl(Trailing);
+			FString ExportStmts;
+			if (TryFmtExportStatements(Trailing, ExportStmts))
+			{
+				Out = RStripWsNl(Out) + TEXT("\n") + ExportStmts;
+			}
+			else
+			{
+				Out = RStripWsNl(Out) + TEXT("\n\n") + LStripWsNl(Trailing);
+			}
 		}
 	}
 	Result.Text = RStripWsNl(Out) + TEXT("\n");

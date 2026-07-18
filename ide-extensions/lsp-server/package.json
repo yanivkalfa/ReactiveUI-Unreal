@@ -1,8 +1,8 @@
 {
   "name": "uetkx-language-server",
-  "version": "0.4.2",
+  "version": "0.6.0",
   "description": "Language server for .uetkx (ReactiveUI for Unreal markup): markup intelligence from the compiler-exported schema + diagnostics sidecars; embedded-C++ intelligence degrades gracefully without clangd.",
-  "license": "MIT",
+  "license": "PolyForm-Shield-1.0.0",
   "main": "out/server.js",
   "bin": {
     "uetkx-language-server": "out/server.js"

@@ -1,7 +1,7 @@
 {
 	"FileVersion": 3,
-	"Version": 12,
-	"VersionName": "0.10.0",
+	"Version": 14,
+	"VersionName": "0.12.0",
 	"FriendlyName": "ReactiveUI for Unreal",
 	"Description": "React-style reactive UI in pure C++: function components, 23 hooks, and a fiber reconciler that decides which Slate widgets exist each frame. .uetkx markup compiles to native C++ for shipping builds and hot-reloads live in PIE during development. UMG, CommonUI, and MVVM stay in place — feeding data in or hosting our output.",
 	"Category": "User Interface",

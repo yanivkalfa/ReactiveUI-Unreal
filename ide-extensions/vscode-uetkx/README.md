@@ -9,12 +9,44 @@ Editor support for **`.uetkx`**, the JSX-like markup of [ReactiveUI for Unreal](
 - **Import intelligence** — specifier and exported-name completions, go-to-definition across `.uetkx` files, and strict resolution diagnostics.
 - **Diagnostics** — live parse diagnostics plus the compiler's own diagnostics surfaced from committed sidecars — **fully offline, no running Unreal editor required**.
 - **Formatting** — canonical `.uetkx` formatting (golden-corpus locked to the C++ compiler); **Format on Save is enabled by default** for `.uetkx` files (the standard `editor.formatOnSave` setting, scoped to the language).
+- **Clean Explorer** — the generated companions a `.uetkx` file drags along (`*.uetkx.inl`, `*.uetkx.diags.json`, `*.Uetkx.gen.cpp`) are **hidden from the Explorer by default**. They still exist (the `.inl`/`.gen.cpp` are committed, compiled C++ — only the view is filtered). To see them again, override the corresponding `files.exclude` entries in your settings:
+
+  ```json
+  "files.exclude": {
+    "**/*.uetkx.inl": false,
+    "**/*.uetkx.diags.json": false,
+    "**/*.Uetkx.gen.cpp": false
+  }
+  ```
 
 ## Requirements
 
 - Everything is bundled — the language server ships with the extension (a Node runtime is included), so no Node on your PATH and no running Unreal editor are required.
+- **Embedded C++ intelligence** (completion/hover/diagnostics *inside* setup/hook/module bodies) needs two things:
+  1. **clangd** — **bundled on Windows x64** (clangd 22.1.6, Apache-2.0 w/ LLVM exceptions — nothing to install). On other platforms it is auto-discovered from PATH, `%LOCALAPPDATA%\uetkx\clangd\bin`, `C:\Program Files\LLVM`, or the VS 2022 "C++ Clang tools" component; or point `uetkx.clangd.path` at one (an explicit setting always wins, including over the bundle). Without any clangd the extension degrades gracefully to full markup intelligence (a one-time notice tells you).
+  2. **A compile database** — generate once per project with UBT's VS Code generator; the language server finds the `.vscode/compileCommands_<Project>.json` it writes and mirrors it to the canonical `compile_commands.json` automatically (add that name to your `.gitignore` — it holds machine-local paths):
+
+     ```
+     dotnet "<Engine>/Engine/Binaries/DotNET/UnrealBuildTool/UnrealBuildTool.dll" -projectfiles -project="<your>.uproject" -game -vscode
+     ```
 
 ## Changelog
+
+### [0.6.0] - 2026-07-18
+- Workspace language features land: find-all-references (tags, code references, import/export tokens — close tags included), rename with the family's ES semantics (renaming a declaration updates every importer including `A as B` target spellings; renaming a local alias stays in the importer; renaming a plain imported binding inserts `A as NewName` so the export is untouched — invalid names, collisions and host-tag shadowing refuse with a reason), document + workspace symbols, and four quickfixes: add the missing import (UETKX2305), remove the unused import (UETKX2304), add `export` in the TARGET file (UETKX2301), and migrate a deprecated wrapper to the plain declaration form (UETKX2320 — byte-identical to the codemod's rewrite). Reference analysis is scope-aware: a local variable shadowing an exported name is never miscounted as a symbol reference.
+- Embedded-C++ locals rename too: a cursor on a body local forwards the rename to clangd over the virtual document and translates the edits back into your .uetkx — all-or-nothing by design (an engine-header symbol, an occurrence in generated glue, or a block whose C++ has unresolved errors refuses with a reason instead of applying a partial rename). Works without a compile database for UE's numeric types; engine types need one (the refusal says so).
+- Audit hardening for the new workspace features: a setup local used inside a markup expression is no longer a phantom reference (a rename could edit user code it must not touch); range-for variables and lambda parameters count as locals; a plain-binding rename now validates only the importer it edits (no more spurious refusals when the new alias exists elsewhere); removing an unused MULTI-LINE import deletes the whole statement instead of leaving a dangling `} from`; comments inside an `import { … }` name list parse correctly (they already did in the compiler); and reference resolution compares paths case-insensitively on Windows so a mis-cased specifier can't silently drop an importer from a rename.
+
+### [0.6.0] - 2026-07-17
+- ES modules: the .uetkx language server understands the whole new grammar — signature-classified plain declarations (components/hooks/values/utils), rename (`A as B`), namespace (`* as X`) and default imports, `export { … };` lists and `export default`. Completions, hover and go-to-definition resolve THROUGH aliases; embedded-C++ intelligence types imported values/utils and your own value initializers/util bodies; the new UETKX2320–2327 diagnostics surface live, and the deprecated wrapper keywords warn with the codemod hint.
+- Compiler diagnostics are back in the editor: the sidecar reader silently dropped EVERY compiler-written diagnostics file after the driver moved to schema v3 (a strict version check) — only live-parse diagnostics showed. The gate now accepts v2+, so full compiler errors/warnings flow into the IDE again.
+- Typed event-payload completion (`Value.` → the enclosing event's field first) now wins over the embedded-C++ forward inside event expressions — clangd's generic member list (or, with no compile database, its identifier fallback) previously preempted the payload-first ordering.
+
+### [0.5.0] - 2026-07-17
+- Crash-proof language server: process-level traps, a guarded clangd message pump, and a URI re-serialization fallback (clangd's percent-encoded drive letters silently dropped every diagnostic) — a single bad message or background rejection can no longer take the server down.
+- Embedded C++ intelligence, root-caused clean: every markup expression (attr values, event handlers, expr children, directive headers/bodies) now lifts into the virtual TU with byte-exact source mapping — completion, hover, and diagnostics work inside ALL embedded C++, not just setup. The clangd channel was rebuilt end-to-end: the UBT compile database is sanitized (quote-aware .rsp expansion, MSVC STL + Windows SDK include derivation, SharedPCH force-include dropped, -fmsc-version pinned to the toolchain), clangd is discovered across PATH/LLVM/VS/managed installs, and the demo tree sweeps with ZERO false positives.
+- Markup everywhere (plugin 0.11.0 parity): markup-as-value scans, colors, and analyzes like any body markup — UETKX0114 narrowed to the paren-less markup return, the family rules-of-hooks (UETKX0013-0016) land in the scanner, hook signatures ignore markup text (HMR protection), and the virtual doc neutralizes value markup to a typed placeholder so clangd keeps full intelligence around (and inside) it. The family scanner corpus is reconciled across all three sibling repos (shared hash 917dd8cd).
+- clangd 22.1.6 ships INSIDE the artifacts: the VS Code extension publishes a win32-x64 flavor with clangd bundled (embedded C++ intelligence with zero machine setup) plus a universal flavor that falls back to discovery; the VS2022 VSIX bundles clangd.exe directly. The bundled binary wins over machine discovery; an explicit uetkx.clangd.path still overrides. LLVM license ships beside the binary.
 
 ### [0.4.2] - 2026-07-16
 - Embedded-C++ intelligence now sees the full auto-included prelude: the virtual document's header list gains `CoreMinimal.h`, `RuiSignal.h`, `RuiSlateElements.h`, and `RuiStyle.h`, matching the compiler's 18-header list exactly — clangd-backed completion/hover inside setup bodies now resolves Slate element factories, signals, and style types.

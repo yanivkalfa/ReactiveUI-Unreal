@@ -20,7 +20,7 @@ static FRuiNodeArray KeyedDiff_UetkxImpl(FRuiContext& Ctx, const FKeyedDiffUetkx
 {
 #line 2 "Source/RuiDemo/Screens/KeyedDiff/KeyedDiff.uetkx"
 	static const TCHAR* Seed[] = {TEXT("Alpha"), TEXT("Bravo"), TEXT("Charlie"), TEXT("Delta"),
-									  TEXT("Echo"), TEXT("Foxtrot"), TEXT("Golf")};
+										TEXT("Echo"), TEXT("Foxtrot"), TEXT("Golf")};
 		auto SeedItems = []() {
 			TArray<FString> Out;
 			for (const TCHAR* S : Seed)

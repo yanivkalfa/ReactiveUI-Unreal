@@ -9,9 +9,8 @@
 // A `module` is a namespace of verbatim C++ (colors, types, statics) that other .uetkx files
 // reach through `LabStyle::Name`. Non-exported members would be private to this file.
 
-export module LabStyle {
-	inline const FLinearColor Accent{0.36f, 0.75f, 1.0f, 1.0f};
-	inline const FLinearColor Good{0.45f, 0.90f, 0.50f, 1.0f};
-	inline const FLinearColor Warn{0.98f, 0.72f, 0.25f, 1.0f};
-	inline const FLinearColor Panel{0.02f, 0.02f, 0.03f, 0.85f};
-}
+export FLinearColor Accent = { 0.36f, 0.75f, 1.0f, 1.0f };
+export FLinearColor Good = { 0.45f, 0.90f, 0.50f, 1.0f };
+export FLinearColor Warn = { 0.98f, 0.72f, 0.25f, 1.0f };
+export FLinearColor Panel = { 0.02f, 0.02f, 0.03f, 0.85f };
+

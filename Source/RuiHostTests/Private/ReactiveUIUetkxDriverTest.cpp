@@ -10,6 +10,7 @@
 #include "Misc/AutomationTest.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "RuiNode.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "UetkxDriver.h"
@@ -68,7 +69,10 @@ bool FRuiUetkxDriverTest::RunTest(const FString&)
 			TestTrue(TEXT("v3 records an export_hash"), Sidecar->HasField(TEXT("export_hash")));
 			TestEqual(TEXT("src_hash recorded"), (uint32)Sidecar->GetNumberField(TEXT("src_hash")),
 					  FUetkxDriver::SrcHash(GoodBadge));
-			TestEqual(TEXT("clean compile -> no diagnostics"), Sidecar->GetArrayField(TEXT("diagnostics")).Num(), 0);
+			// ES-modules (2320): `export component` is the legacy wrapper — one deprecation warning
+			// is now the CORRECT "clean" outcome (no errors) for this still-legal syntax.
+			TestEqual(TEXT("clean compile -> only the 2320 deprecation warning"),
+					  Sidecar->GetArrayField(TEXT("diagnostics")).Num(), 1);
 			TestEqual(TEXT("refs maps component -> inl"),
 					  Sidecar->GetObjectField(TEXT("refs"))->GetStringField(TEXT("Badge")),
 					  FString(TEXT("Badge.uetkx.inl")));
@@ -94,7 +98,8 @@ bool FRuiUetkxDriverTest::RunTest(const FString&)
 		FFileHelper::SaveStringToFile(BrokenSrc, *BrokenPath);
 		const FUetkxFileResult R = FUetkxDriver::CompileFile(BrokenPath);
 		TestFalse(TEXT("broken fails"), R.bOk);
-		TestTrue(TEXT("carries error diags"), R.Diags.Num() > 0 && R.Diags[0].Severity == 0);
+		TestTrue(TEXT("carries error diags"),
+				 R.Diags.Num() > 0 && R.Diags.ContainsByPredicate([](const FUetkxDiag& D) { return D.Severity == 0; }));
 		TestFalse(TEXT("no .inl for broken source"), FM.FileExists(*FUetkxDriver::InlPathFor(BrokenPath)));
 		TestFalse(TEXT("error verdict -> NOT stale (busy-loop guard)"), FUetkxDriver::IsStale(BrokenPath));
 		TestTrue(TEXT("error verdict -> skip"), FUetkxDriver::CompileFile(BrokenPath).bSkipped);
@@ -266,6 +271,107 @@ bool FRuiUetkxDriverTest::RunTest(const FString&)
 		TestTrue(TEXT("module<->module value cycle is a sweep error (2306)"), Sweep.Errors >= 1);
 		FM.Delete(*MA);
 		FM.Delete(*MB);
+		FUetkxDriver::CompileAll(Scratch);
+	}
+
+	// ── ES-modules (U-06): a NEW-form VALUE-export cycle (A⇄B via value imports) is 2306 too ─────
+	{
+		const FString Dir = Scratch / TEXT("Value2");
+		const FString VA = Dir / TEXT("VA.uetkx");
+		const FString VB = Dir / TEXT("VB.uetkx");
+		FFileHelper::SaveStringToFile(TEXT("import { BVal } from \"./VB\"\nexport int32 AVal = FMath::Max(BVal, 1);\n"),
+									  *VA);
+		FFileHelper::SaveStringToFile(TEXT("import { AVal } from \"./VA\"\nexport int32 BVal = FMath::Max(AVal, 1);\n"),
+									  *VB);
+		AddExpectedError(TEXT("UETKX2306"), EAutomationExpectedErrorFlags::Contains, 0);
+		const FUetkxSweepResult Sweep = FUetkxDriver::CompileAll(Scratch, /*bForce*/ true);
+		TestTrue(TEXT("value-export<->value-export cycle is a sweep error (2306)"), Sweep.Errors >= 1);
+		FM.Delete(*VA);
+		FM.Delete(*VB);
+		FUetkxDriver::CompileAll(Scratch);
+	}
+
+	// ── ES-modules (M4): export_hash moves on a value edit → importer recompiles in ONE sweep ────
+	{
+		const FString Dir = Scratch / TEXT("ValueDep");
+		const FString PalettePath = Dir / TEXT("Pal.uetkx");
+		const FString UserPath = Dir / TEXT("PalUser.uetkx");
+		FFileHelper::SaveStringToFile(TEXT("export FLinearColor Main = FLinearColor(0.1f, 0.1f, 0.1f, 1.0f);\n"),
+									  *PalettePath);
+		FFileHelper::SaveStringToFile(TEXT("import { Main } from \"./Pal\"\nexport component PalUser {\n\tauto C = ")
+										  TEXT("Main;\n\treturn ( <Spacer /> );\n}\n"),
+									  *UserPath);
+		FUetkxDriver::CompileAll(Scratch);
+		TestTrue(TEXT("value-importing component compiled"), FM.FileExists(*FUetkxDriver::InlPathFor(UserPath)));
+		// Renaming the exported value moves Pal's export_hash; the ONE next sweep must recompile
+		// the importer (whose old import is now 2302-broken) — the TD-025 fixpoint over value deps.
+		FFileHelper::SaveStringToFile(TEXT("export FLinearColor Main2 = FLinearColor(0.1f, 0.1f, 0.1f, 1.0f);\n"),
+									  *PalettePath);
+		AddExpectedError(TEXT("UETKX2302"), EAutomationExpectedErrorFlags::Contains, 0);
+		FUetkxDriver::CompileAll(Scratch);
+		TestFalse(TEXT("importer re-verdicts on the value rename (stale .inl deleted in the same sweep)"),
+				  FM.FileExists(*FUetkxDriver::InlPathFor(UserPath)));
+		FM.Delete(*PalettePath);
+		FM.Delete(*UserPath);
+		FUetkxDriver::CompileAll(Scratch);
+	}
+
+	// ── ES-modules (M5): support-file blast radius — ImportersOf answers from the dep graph ──────
+	{
+		const FString Dir = Scratch / TEXT("Blast");
+		const FString SupPath = Dir / TEXT("Theme.uetkx");
+		const FString ImpPath = Dir / TEXT("ThemeUser.uetkx");
+		FFileHelper::SaveStringToFile(TEXT("export FLinearColor Tone = FLinearColor(0.3f, 0.3f, 0.3f, 1.0f);\n"),
+									  *SupPath);
+		FFileHelper::SaveStringToFile(TEXT("import { Tone } from \"./Theme\"\nexport component ThemeUser {\n\tauto C ")
+										  TEXT("= Tone;\n\treturn ( <Spacer /> );\n}\n"),
+									  *ImpPath);
+		FUetkxDriver::CompileAll(Scratch);
+		const TArray<FString> Importers = FUetkxDriver::ImportersOf(FUetkxDriver::ProjectRelPath(SupPath), {Scratch});
+		TestTrue(TEXT("ImportersOf names the value-importing file"), Importers.Contains(TEXT("ThemeUser")));
+		FM.Delete(*SupPath);
+		FM.Delete(*ImpPath);
+		FUetkxDriver::CompileAll(Scratch);
+	}
+
+	// ── ES-modules (M5/TD-026): private HMR identity is per-FILE — signatures never alias ────────
+	{
+		// The M3 emission keys two files' private `Row`s as RuiPriv_<File>::Row; the HMR maps key
+		// by that FName, so editing one file's private component can never flip the other's
+		// signature (pre-M3 both keyed bare `Row` — last-swap-wins).
+		const FName IdA(TEXT("RuiPriv_HmrPairA::Row"));
+		const FName IdB(TEXT("RuiPriv_HmrPairB::Row"));
+		RUI::RegisterHookSignature(IdA, 0x11111111u);
+		RUI::RegisterHookSignature(IdB, 0x22222222u);
+		RUI::RegisterHookSignature(IdA, 0x33333333u); // "edit" A's file — its signature moves
+		TestEqual(TEXT("A's private signature updated"), RUI::FindHookSignature(IdA), 0x33333333u);
+		TestEqual(TEXT("B's private signature untouched"), RUI::FindHookSignature(IdB), 0x22222222u);
+	}
+
+	// ── ES-modules (M5/G-01): renaming a file renames RuiPriv_<Basename> — privates remount ─────
+	{
+		const FString PairSrc = TEXT("FRuiNode Row() {\n\treturn ( <Spacer /> );\n}\n")
+			TEXT("export FRuiNode RENAMED() {\n\treturn ( <VerticalBox> <Row /> </VerticalBox> );\n}\n");
+		const FUetkxCompileOutput AsA =
+			FUetkxCodegen::CompileSource(PairSrc.Replace(TEXT("RENAMED"), TEXT("RenameA")), TEXT("RenameA"));
+		const FUetkxCompileOutput AsB =
+			FUetkxCodegen::CompileSource(PairSrc.Replace(TEXT("RENAMED"), TEXT("RenameB")), TEXT("RenameB"));
+		TestTrue(TEXT("rename gives the private a FRESH runtime id (remount semantic)"),
+				 AsA.bOk && AsB.bOk && AsA.Inl.Contains(TEXT("RuiPriv_RenameA::Row")) &&
+					 AsB.Inl.Contains(TEXT("RuiPriv_RenameB::Row")));
+	}
+
+	// ── ES-modules (U-08): the sidecar records the default-export marker ─────────────────────────
+	{
+		const FString DefPath = Scratch / TEXT("Loose/DefScreen.uetkx");
+		FFileHelper::SaveStringToFile(TEXT("export component DefScreen { return ( <Spacer /> ); }\nexport default ")
+										  TEXT("DefScreen;\n"),
+									  *DefPath);
+		TestTrue(TEXT("default-export file compiles"), FUetkxDriver::CompileFile(DefPath, /*bForce*/ true).bOk);
+		FString SidecarJson;
+		FFileHelper::LoadFileToString(SidecarJson, *FUetkxDriver::SidecarPathFor(DefPath));
+		TestTrue(TEXT("sidecar carries the default marker"), SidecarJson.Contains(TEXT("\"default\":\"DefScreen\"")));
+		FM.Delete(*DefPath);
 		FUetkxDriver::CompileAll(Scratch);
 	}
 

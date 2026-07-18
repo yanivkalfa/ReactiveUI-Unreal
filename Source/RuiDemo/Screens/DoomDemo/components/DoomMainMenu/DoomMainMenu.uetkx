@@ -5,13 +5,7 @@ import "@Doom/DoomMaps.h"
 // `doom_main_menu.guitkx`): level select + difficulty select + start, all through the
 // passed-in callbacks. Selection renders as a Border wrapper tinted with the selected
 // color (v1 has no per-Button background styling).
-export component DoomMainMenu(
-	Level: int32 = 1,
-	Diff: int32 = 1,
-	OnLevelChange: FRuiCallback = FRuiCallback(),
-	OnDifficultyChange: FRuiCallback = FRuiCallback(),
-	OnStart: FRuiCallback = FRuiCallback()
-) {
+export FRuiNode DoomMainMenu(int32 Level = 1, int32 Diff = 1, FRuiCallback OnLevelChange = FRuiCallback(), FRuiCallback OnDifficultyChange = FRuiCallback(), FRuiCallback OnStart = FRuiCallback()) {
 	const FLinearColor Bg(0.06f, 0.05f, 0.05f, 1.0f);
 	const FLinearColor TitleClr(0.95f, 0.20f, 0.15f, 1.0f);
 	const FLinearColor SubtitleClr(0.85f, 0.70f, 0.40f, 1.0f);
@@ -27,44 +21,97 @@ export component DoomMainMenu(
 	return (
 		<Border BorderImage="WhiteBrush" BorderBackgroundColor={ Bg } HAlign="center" VAlign="center">
 			<VerticalBox>
-				<TextBlock Text="DOOM" Font.Size={ 96.0f } ColorAndOpacity={ TitleClr } Justification="center" Slot.HAlign="center" Slot.Padding="0,0,0,4" />
-				<TextBlock Text="(in .uetkx)" Font.Size={ 18.0f } ColorAndOpacity={ SubtitleClr } Justification="center" Slot.HAlign="center" Slot.Padding="0,0,0,30" />
-
+				<TextBlock
+					Text="DOOM"
+					Font.Size={ 96.0f }
+					ColorAndOpacity={ TitleClr }
+					Justification="center"
+					Slot.HAlign="center"
+					Slot.Padding="0,0,0,4" />
+				<TextBlock
+					Text="(in .uetkx)"
+					Font.Size={ 18.0f }
+					ColorAndOpacity={ SubtitleClr }
+					Justification="center"
+					Slot.HAlign="center"
+					Slot.Padding="0,0,0,30" />
 				<!-- Level row: EPISODE 1 — one button per authored level (E1M1..E1M6). -->
 				<HorizontalBox Slot.HAlign="center" Slot.Padding="0,0,0,28">
-					<TextBlock Text="EPISODE 1   —" Font.Size={ 16.0f } ColorAndOpacity={ LabelClr } Slot.VAlign="center" Slot.Padding="0,0,12,0" />
+					<TextBlock
+						Text="EPISODE 1   —"
+						Font.Size={ 16.0f }
+						ColorAndOpacity={ LabelClr }
+						Slot.VAlign="center"
+						Slot.Padding="0,0,12,0" />
 					@for (int32 i = 1; i <= RuiDoom::LEVEL_COUNT; ++i) {
 						return (
-							<Border key={ FName(*FString::Printf(TEXT("lv%d"), i)) } BorderImage="WhiteBrush" BorderBackgroundColor={ Level == i ? BtnSelected : BtnBorder } Padding="2" Slot.VAlign="center" Slot.Padding="4,0">
-								<Border BorderImage="WhiteBrush" BorderBackgroundColor={ Level == i ? BtnSelected : BtnFace }>
+							<Border
+								key={ FName(*FString::Printf(TEXT("lv%d"), i)) }
+								BorderImage="WhiteBrush"
+								BorderBackgroundColor={ Level == i ? BtnSelected : BtnBorder }
+								Padding="2"
+								Slot.VAlign="center"
+								Slot.Padding="4,0"
+							>
+								<Border
+									BorderImage="WhiteBrush"
+									BorderBackgroundColor={ Level == i ? BtnSelected : BtnFace }
+								>
 									<Button OnClicked={ OnLevelChange.Execute(FRuiValue(i)) } ContentPadding="14,6">
-										<TextBlock Text={ FText::FromString(RuiDoom::LevelName(i)) } Font.Size={ 13.0f } ColorAndOpacity={ BtnText } />
+										<TextBlock
+											Text={ FText::FromString(RuiDoom::LevelName(i)) }
+											Font.Size={ 13.0f }
+											ColorAndOpacity={ BtnText } />
 									</Button>
 								</Border>
 							</Border>
 						);
 					}
 				</HorizontalBox>
-
 				<!-- Difficulty row: Easy / Normal / Hard. -->
 				<HorizontalBox Slot.HAlign="center" Slot.Padding="0,0,0,36">
-					<TextBlock Text="DIFFICULTY  —" Font.Size={ 16.0f } ColorAndOpacity={ LabelClr } Slot.VAlign="center" Slot.Padding="0,0,12,0" />
+					<TextBlock
+						Text="DIFFICULTY  —"
+						Font.Size={ 16.0f }
+						ColorAndOpacity={ LabelClr }
+						Slot.VAlign="center"
+						Slot.Padding="0,0,12,0" />
 					@for (int32 d = 0; d < 3; ++d) {
 						return (
-							<Border key={ FName(*FString::Printf(TEXT("df%d"), d)) } BorderImage="WhiteBrush" BorderBackgroundColor={ Diff == d ? BtnSelected : BtnBorder } Padding="2" Slot.VAlign="center" Slot.Padding="4,0">
-								<Border BorderImage="WhiteBrush" BorderBackgroundColor={ Diff == d ? BtnSelected : BtnFace }>
+							<Border
+								key={ FName(*FString::Printf(TEXT("df%d"), d)) }
+								BorderImage="WhiteBrush"
+								BorderBackgroundColor={ Diff == d ? BtnSelected : BtnBorder }
+								Padding="2"
+								Slot.VAlign="center"
+								Slot.Padding="4,0"
+							>
+								<Border
+									BorderImage="WhiteBrush"
+									BorderBackgroundColor={ Diff == d ? BtnSelected : BtnFace }
+								>
 									<Button OnClicked={ OnDifficultyChange.Execute(FRuiValue(d)) } ContentPadding="14,6">
-										<TextBlock Text={ FText::FromString(DiffLabels[d]) } Font.Size={ 13.0f } ColorAndOpacity={ BtnText } />
+										<TextBlock
+											Text={ FText::FromString(DiffLabels[d]) }
+											Font.Size={ 13.0f }
+											ColorAndOpacity={ BtnText } />
 									</Button>
 								</Border>
 							</Border>
 						);
 					}
 				</HorizontalBox>
-
 				<!-- START button: 280x60, heavy border, its own darker red. -->
-				<Border BorderImage="WhiteBrush" BorderBackgroundColor={ BtnBorder } Padding="3" Slot.HAlign="center">
-					<Border BorderImage="WhiteBrush" BorderBackgroundColor={ FLinearColor(0.5f, 0.1f, 0.05f, 1.0f) }>
+				<Border
+					BorderImage="WhiteBrush"
+					BorderBackgroundColor={ BtnBorder }
+					Padding="3"
+					Slot.HAlign="center"
+				>
+					<Border
+						BorderImage="WhiteBrush"
+						BorderBackgroundColor={ FLinearColor(0.5f, 0.1f, 0.05f, 1.0f) }
+					>
 						<Box WidthOverride={ 280.0f } HeightOverride={ 60.0f } HAlign="center" VAlign="center">
 							<Button OnClicked={ OnStart.Execute() } ContentPadding="14,8">
 								<TextBlock Text="▶  START GAME" Font.Size={ 22.0f } ColorAndOpacity={ BtnText } />
@@ -72,8 +119,13 @@ export component DoomMainMenu(
 						</Box>
 					</Border>
 				</Border>
-
-				<TextBlock Text="WASD = move    |    Mouse = look    |    Click = shoot    |    1-7 = weapons    |    E = use door    |    Shift = run" Font.Size={ 12.0f } ColorAndOpacity={ HintClr } Justification="center" Slot.HAlign="center" Slot.Padding="0,36,0,0" />
+				<TextBlock
+					Text="WASD = move    |    Mouse = look    |    Click = shoot    |    1-7 = weapons    |    E = use door    |    Shift = run"
+					Font.Size={ 12.0f }
+					ColorAndOpacity={ HintClr }
+					Justification="center"
+					Slot.HAlign="center"
+					Slot.Padding="0,36,0,0" />
 			</VerticalBox>
 		</Border>
 	);

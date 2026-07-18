@@ -1,0 +1,29 @@
+// TD-034 #1/#2 (N4): the scope tracker (FUetkxScopedLocals / the uetkxIndex.ts twin). Locals
+// shadowing an import alias, a private name, or a user-hook shape keep their BARE spelling
+// inside their scope; the un-shadowed spellings still rewrite/qualify. Patterns pinned:
+// param shadow, `Type Name =` shadow, structured binding, inner-brace expiry, local callable.
+import { Cool as Primary } from "./ValueExports"
+
+FLinearColor RowTint = FLinearColor(1.0f, 1.0f, 1.0f, 1.0f);
+
+export FRuiNode ShadowedNames(FLinearColor Tint) {
+	auto Before = Primary;
+	FLinearColor Primary = Tint;
+	auto After = Primary;
+	auto UseWobble = [](int32 A) { return A; };
+	auto W = UseWobble(2);
+	if (W > 0) {
+		FLinearColor RowTint = Primary;
+		auto Inner = RowTint;
+	}
+	auto Outer = RowTint;
+	auto [Shade, SetShade] = UseState(Primary);
+	FRuiNode Chip = <Spacer />;
+	auto AfterRange = Primary;
+	return (
+		<VerticalBox>
+			<Border BorderBackgroundColor={ Primary } />
+			{ Chip }
+		</VerticalBox>
+	);
+}

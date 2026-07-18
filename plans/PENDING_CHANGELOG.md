@@ -20,4 +20,14 @@ around.
      the single bullet went straight into Lane A ([0.10.0]), Lane B (changelog.json 0.4.0 —
      shared entry), and Lane C (DISCORD_CHANGELOG [0.10.0]) as it was authored — nothing was
      staged here mid-campaign, so there was nothing to drain from THIS file, only to verify. -->
-(empty — drained 2026-07-16)
+<!-- Drained 2026-07-17 for the markup-everywhere release (plugin 0.11.0, extensions 0.5.0):
+     the §4 grammar bullet went into Lane A ([0.11.0] Added/Changed) + Lane C
+     (DISCORD_CHANGELOG [0.11.0]); the Message Log menu bullet into Lane A ([0.11.0] Added);
+     the LSP-mirror, crash-proofing/§2-channel, and §5 bundled-clangd bullets into Lane B
+     (changelog.json 2026-07-17 shared entries, vscode+vs2022 0.5.0). -->
+<!-- Drained 2026-07-18 for the ES-modules release (plugin 0.12.0, extensions 0.6.0): the
+     campaign wrote its lanes directly at M8 (nothing was staged here mid-campaign) — Lane A
+     ([0.12.0] Added/Changed/Fixed), Lane B (changelog.json shared entries: ES-modules LSP,
+     TD-024 sidecar gate, Value.-payload ordering — vscode+vs2022 0.6.0), Lane C
+     (DISCORD_CHANGELOG [0.12.0], 1895 chars). -->
+(empty — drained 2026-07-18)

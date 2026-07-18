@@ -38,7 +38,9 @@ enum class EUetkxDeclKind : uint8
 {
 	Component,
 	Hook,
-	Module
+	Module,
+	Value, // ES-modules (plans/ES_MODULES_EXECUTION_PLAN.md G-03/U-01): `export <Type> Name = Init;`
+	Util   // `export <Type> Name(params) { body }` — not Use-prefixed, not FRuiNode-returning
 };
 
 /** `import { A, B } from "specifier"` — a PREAMBLE-ONLY static import (A1): named bindings only
@@ -57,10 +59,25 @@ struct REACTIVEUIINTERP_API FUetkxImportDecl
 {
 	TArray<FString> Names;
 	TArray<int32> NameAts;
+	// ES-modules (G-05): the LOCAL binding for each Names[n] — identical to Names[n] unless the
+	// import renamed it (`{ A as B }`, LocalNames[n] == "B"). Always 1:1 with Names.
+	TArray<FString> LocalNames;
+	// The alias TOKEN's offset for a renamed binding (the `B` of `A as B`); == NameAts[n] when
+	// no rename (LSP rename/references need the exact token — TD-033 index).
+	TArray<int32> LocalNameAts;
 	FString Specifier;
 	int32 SpecifierAt = -1;	   // offset of the opening quote
 	int32 At = -1;			   // offset of the `import` keyword
 	bool bHostInclude = false; // `import "@Header.h"` — see the class comment
+	// ES-modules (G-05): `import * as X from "./x"` — Names/LocalNames stay EMPTY; NamespaceAlias
+	// is the local binding "X". `import Y from "./x"` (default) — DefaultAlias is the local binding
+	// "Y". A single import statement is exactly one of: named/renamed list, namespace, or default.
+	bool bNamespace = false;
+	FString NamespaceAlias;
+	int32 NamespaceAliasAt = -1;
+	bool bDefault = false;
+	FString DefaultAlias;
+	int32 DefaultAliasAt = -1;
 };
 
 /** One markup `return ( ... )` span inside a component body (wave G early returns — the
@@ -96,6 +113,11 @@ struct REACTIVEUIINTERP_API FUetkxComponentDecl
 	TArray<FUetkxReturnSpan> Returns;
 	TArray<FString> HookCalls; // ordered hook kinds in setup ("UseState", "UseEffect", ...)
 	int32 Next = -1;		   // just past the closing brace
+	// ES-modules (G-10): true when this decl used the deprecated `component Name(...) { }` wrapper
+	// keyword (UETKX2320 fires at At); false for the new plain-declaration form
+	// `[export] FRuiNode Name(...) { }` (classified by signature, U-02). Drives the formatter's
+	// form-preserving choice (§6 — the formatter never migrates syntax).
+	bool bLegacySyntax = true;
 };
 
 /** `hook UseName(params) [-> Ret] { body }` — a user hook (support-file declaration). The
@@ -113,6 +135,47 @@ struct REACTIVEUIINTERP_API FUetkxHookDecl
 	FString Body;	// verbatim C++ body
 	int32 BodyAt = -1;
 	int32 Next = -1;
+	// ES-modules (G-10): see FUetkxComponentDecl::bLegacySyntax — true for `hook UseX(...) -> R {}`,
+	// false for the new plain form `[export] R UseX(...) {}` (return type LEADS, no `->`).
+	bool bLegacySyntax = true;
+};
+
+/** `[export] <Type> Name = <Init>;` — a module-level VALUE export (G-03/U-01). Immutable by
+ *  construction (no source-level mutation — the family has no module-level mutable state); Type
+ *  empty means inference sugar, valid ONLY when Init begins `Ident(`/`Ident{`/`Ident<` (the
+ *  initializer names its own type — UETKX2322 otherwise). Emission is DECL-PHASE-ONLY
+ *  `inline const <T> Name = <Init>;` (U-04) — there is no BodyAt/Body split like hooks/utils. */
+struct REACTIVEUIINTERP_API FUetkxValueDecl
+{
+	FString Name;
+	int32 NameAt = -1;
+	FString Type; // empty = inferred
+	int32 TypeAt = -1;
+	FString Init;
+	int32 InitAt = -1;
+	bool bExported = false;
+	int32 ExportAt = -1;
+	int32 At = -1; // the decl's true start (Type, or `export` when exported)
+	int32 Next = -1;
+};
+
+/** `[export] <Type> Name(params) { body }` — a module-level UTIL function (G-03/U-01): not
+ *  `Use`-prefixed, not FRuiNode-returning. Params are verbatim C++ text (like hooks — template
+ *  commas can't be split by the family `Name: Type` grammar). Emission mirrors a hook minus the
+ *  `Ctx` injection and HookSig participation (U-04). */
+struct REACTIVEUIINTERP_API FUetkxUtilDecl
+{
+	FString Name;
+	int32 NameAt = -1;
+	FString RetType;
+	int32 RetTypeAt = -1;
+	FString Params; // verbatim C++ parameter list (may be empty)
+	FString Body;	// verbatim C++ body
+	int32 BodyAt = -1;
+	bool bExported = false;
+	int32 ExportAt = -1;
+	int32 At = -1;
+	int32 Next = -1;
 };
 
 /** `module Name { body }` — verbatim C++ declarations (style dicts, types, statics). */
@@ -128,6 +191,15 @@ struct REACTIVEUIINTERP_API FUetkxModuleDecl
 	int32 Next = -1;
 };
 
+/** ES-modules (U-09): one name requested by a deferred `export { ... };` list, with its token
+ *  offset — resolved against the decl arrays at end-of-scan; kept on the result for the LSP
+ *  rename/references index (TD-033). */
+struct REACTIVEUIINTERP_API FUetkxPendingExportName
+{
+	FString Name;
+	int32 At = -1;
+};
+
 struct REACTIVEUIINTERP_API FUetkxFileScanResult
 {
 	TArray<FString> PreambleIncludes; // verbatim `#include ...` lines from the preamble
@@ -141,13 +213,28 @@ struct REACTIVEUIINTERP_API FUetkxFileScanResult
 	TArray<FUetkxComponentDecl> Components;
 	TArray<FUetkxHookDecl> Hooks;
 	TArray<FUetkxModuleDecl> Modules;
+	TArray<FUetkxValueDecl> Values;				// ES-modules (G-03/U-01)
+	TArray<FUetkxUtilDecl> Utils;				// ES-modules (G-03/U-01)
 	TArray<TPair<EUetkxDeclKind, int32>> Order; // (kind, index-into-that-kind's-array), source order
 	TArray<FUetkxDiag> Diags;
+
+	// ES-modules (U-08): `export default <Name>;` target, if any (statement, at most one per file
+	// — a second is UETKX2327). Does NOT imply bExported on the named decl (ES parity) — a file may
+	// `export default X;` while X stays otherwise private.
+	FString DefaultExportName;
+	int32 DefaultExportAt = -1;
+	// ES-modules (U-09): every `export { … };` list entry with its token offset — the LSP
+	// rename/references index (TD-033) needs the exact positions; the two-pass export resolution
+	// still runs off the same records.
+	TArray<FUetkxPendingExportName> ExportListEntries;
 
 	// TRANSITION helper (A1): "has no markup" — true when the file declares no component. Retires
 	// from dispatch decisions in M3 (codegen emits per `Order`); kept until the HMR rewrite (M9)
 	// still reads it. NOT a file-KIND classifier anymore — a mixed file has both markup and hooks.
-	bool IsSupportFile() const { return Components.IsEmpty() && (Hooks.Num() + Modules.Num()) > 0; }
+	bool IsSupportFile() const
+	{
+		return Components.IsEmpty() && (Hooks.Num() + Modules.Num() + Values.Num() + Utils.Num()) > 0;
+	}
 
 	bool HasError() const
 	{
@@ -180,6 +267,10 @@ struct REACTIVEUIINTERP_API FUetkxPreambleScan
 	TArray<FUetkxImportDecl> Imports;
 	TArray<FUetkxPreambleDecl> Decls;
 	int32 FirstDeclAt = -1; // offset where the first declaration begins (preamble end); -1 = none
+	// ES-modules (U-08): the file's `export default <Name>` target ("" = none) — the resolver's
+	// export tables carry it (default-import resolution + 2326; part of the export hash so a
+	// default change re-stales importers).
+	FString DefaultExportName;
 };
 
 /** The (last) top-level markup `return ( ... )` inside a body — the ONE splitter shared by

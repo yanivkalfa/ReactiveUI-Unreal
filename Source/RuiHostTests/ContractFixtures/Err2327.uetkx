@@ -1,0 +1,7 @@
+export FRuiNode Err2327() {
+	return (
+		<Spacer />
+	);
+}
+export default Err2327;
+export default Err2327;

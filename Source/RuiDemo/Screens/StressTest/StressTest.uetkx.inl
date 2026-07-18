@@ -36,7 +36,7 @@ static FRuiNodeArray StressTest_UetkxImpl(FRuiContext& Ctx, const FStressTestUet
 		// The frame loop: a self-re-arming RequestFrame chain (the Suspense poll-driver pattern).
 		Ctx.UseEffect(
 			[bRunning, CountText, DurationText, Boxes, Host, SetStats, SetRenderTick, SetRunning,
-			 Version]() -> TFunction<void()> {
+				Version]() -> TFunction<void()> {
 				if (!bRunning)
 				{
 					return []() {};
@@ -67,7 +67,7 @@ static FRuiNodeArray StressTest_UetkxImpl(FRuiContext& Ctx, const FStressTestUet
 	
 				TSharedRef<TFunction<void()>> Loop = MakeShared<TFunction<void()>>();
 				*Loop = [Cancelled, Start, Last, Frames, Tick, Boxes, Host, Duration, SetStats, SetRenderTick,
-						 SetRunning, Loop]() {
+							SetRunning, Loop]() {
 					if (*Cancelled)
 					{
 						return;
@@ -115,12 +115,12 @@ static FRuiNodeArray StressTest_UetkxImpl(FRuiContext& Ctx, const FStressTestUet
 		if (S.bFinished)
 		{
 			Status = FString::Printf(TEXT("DONE -- %d boxes | Avg FPS: %.1f | Duration: %.1fs | Frames: %d"),
-									 Boxes->Current.Num(), S.AvgFps, S.Elapsed, S.Frames);
+										Boxes->Current.Num(), S.AvgFps, S.Elapsed, S.Frames);
 		}
 		else if (bRunning)
 		{
 			Status = FString::Printf(TEXT("Stress -- %d boxes | Avg FPS: %.1f | %.1fs | Frames: %d"), Boxes->Current.Num(),
-									 S.AvgFps, S.Elapsed, S.Frames);
+										S.AvgFps, S.Elapsed, S.Frames);
 		}
 		else
 		{

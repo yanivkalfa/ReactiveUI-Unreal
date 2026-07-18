@@ -3,9 +3,10 @@
 // includes, `component Name(params) {}` declarations, the shared last-top-level-markup-return
 // splitter, hook-call scanning and the FNV hook signature. All offsets are code points.
 
-import { findMatching, findMatchingMarkup, keywordAt, skipNoncode, skipNoncodeMarkup } from "./cppScanner";
-import { fromCodePoints } from "./codePoints";
+import { findMatching, findMatchingMarkup, isIdentCode, keywordAt, skipNoncode, skipNoncodeMarkup } from "./cppScanner";
+import { fromCodePoints, toCodePoints } from "./codePoints";
 import { parseMarkup, UetkxNode } from "./uetkxMarkup";
+import { findMarkupRanges, MarkupRange } from "./jsxScan";
 
 const C_NL = 10,
   C_CR = 13,
@@ -19,6 +20,495 @@ const C_NL = 10,
   C_QUOTE = 34,
   C_APOS = 39,
   C_COMMA = 44;
+
+/** §4 markup-everywhere: if code point `i` lands inside a jsx markup range, the index to jump
+ *  to (the range end); -1 otherwise. Walkers use this to keep CODE lexis off markup text.
+ *  C++-identical (JsxSkipTo). */
+function jsxSkipTo(ranges: readonly MarkupRange[], i: number): number {
+  for (const r of ranges) {
+    if (i >= r.start && i < r.end) return r.end;
+  }
+  return -1;
+}
+
+/** The body's jsx-range list of record (element-form markup at every family boundary position),
+ *  with unbalanced ranges clamped to the body end. */
+function bodyJsxRanges(body: readonly number[]): MarkupRange[] {
+  const ranges = findMarkupRanges(body, 0, body.length);
+  for (const r of ranges) {
+    if (r.end === -1) r.end = body.length;
+  }
+  return ranges;
+}
+
+/** TB-12 / UETKX0114, NARROWED by §4 markup-everywhere: markup-as-value is now first-class
+ *  (`auto X = (<VerticalBox>…);` lowers in place), so the old detector is gone. What stays
+ *  illegal is a PAREN-LESS markup return at statement level (`return <Tag/>;`) — the family
+ *  return spelling is `return ( <markup> );`. Lambda-nested returns (parenDepth > 0, deduced
+ *  return type) lower fine and stay legal. C++-identical (DiagnoseBareMarkupReturn). */
+function diagnoseBareMarkupReturn(
+  body: readonly number[],
+  ranges: readonly MarkupRange[],
+  bodyAt: number,
+  out: UetkxFileScanResult,
+): void {
+  const n = body.length;
+  const isWs = (c: number) => c === C_SPACE || c === C_TAB || c === C_NL || c === C_CR;
+  let parenDepth = 0;
+  let i = 0;
+  while (i < n) {
+    const skip = jsxSkipTo(ranges, i);
+    if (skip !== -1) {
+      i = skip;
+      continue;
+    }
+    const j = skipNoncode(body, i);
+    if (j !== i) {
+      i = j;
+      continue;
+    }
+    const c = body[i];
+    if (c === C_LPAREN || c === 91 /*[*/) {
+      parenDepth++;
+      i++;
+      continue;
+    }
+    if (c === 41 /*)*/ || c === 93 /*]*/) {
+      parenDepth--;
+      i++;
+      continue;
+    }
+    if (parenDepth === 0 && c === 114 /*r*/ && keywordAt(body, i, "return")) {
+      let p = i + 6;
+      while (p < n && isWs(body[p])) p++;
+      if (ranges.some((r) => r.start === p)) {
+        pushDiag(out, "UETKX0114", 0, "a markup return must be parenthesized — write `return ( <...> );`", bodyAt + p);
+        return;
+      }
+      i += 6;
+      continue;
+    }
+    i++;
+  }
+}
+
+// ── §4 rules of hooks — the family port (Unity UITKX0013-0016, Godot T2.5), C++-shaped ──────
+// Hooks must run unconditionally at the top level of the component body: 0013 conditional
+// (if/else — and any hook inside markup, which renders conditionally by construction), 0014
+// loop (for/while/@for/@while), 0015 match branch (switch/@match), 0016 callback/lambda (incl.
+// event attributes). Every violating call is reported. C++-identical (ValidateHookPlacement).
+
+type HookBlock = "none" | "conditional" | "loop" | "match" | "callback" | "markup";
+
+function hookBlockCode(kind: HookBlock): string {
+  switch (kind) {
+    case "loop":
+      return "UETKX0014";
+    case "match":
+      return "UETKX0015";
+    case "callback":
+      return "UETKX0016";
+    default:
+      return "UETKX0013";
+  }
+}
+
+function hookBlockMessage(kind: HookBlock): string {
+  let what = "conditionally (inside an if/else)";
+  if (kind === "loop") what = "inside a loop";
+  else if (kind === "match") what = "inside a switch/match branch";
+  else if (kind === "callback") what = "inside a callback/lambda";
+  else if (kind === "markup") what = "inside markup";
+  return `hook called ${what} — hooks must run unconditionally at the top level of the component body`;
+}
+
+/** Hook-call match at `i` (same rule as scanHookCalls): a known hook name followed by `(` or a
+ *  `<` template-arg list. Returns the name length, or 0. C++-identical (HookCallLenAt). */
+function hookCallLenAt(src: readonly number[], i: number): number {
+  const n = src.length;
+  if (i >= n || (src[i] !== 85 /*U*/ && src[i] !== 80) /*P*/) return 0;
+  for (const hook of HOOK_NAMES) {
+    if (keywordAt(src, i, hook)) {
+      const k = skipWsOnly(src, i + hook.length);
+      if (k < n && (src[k] === C_LPAREN || src[k] === C_LT)) return hook.length;
+    }
+  }
+  return 0;
+}
+
+/** Code embedded in markup (attr/child expressions, directive headers/bodies): flag hook calls
+ *  with `kind`, then recurse into any markup ranges nested in the code (jsx scan). `base` is
+ *  the absolute offset of code[0], or -1 when unknown (diags fall back to fallbackAt).
+ *  C++-identical (ScanMarkupCodeForHooks). */
+function scanMarkupCodeForHooks(
+  code: string,
+  base: number,
+  fallbackAt: number,
+  kind: HookBlock,
+  out: UetkxFileScanResult,
+): void {
+  const src = toCodePoints(code);
+  const ranges = findMarkupRanges(src, 0, src.length);
+  for (const r of ranges) {
+    if (r.end === -1) r.end = src.length;
+  }
+  const n = src.length;
+  let i = 0;
+  while (i < n) {
+    const jump = jsxSkipTo(ranges, i);
+    if (jump !== -1) {
+      i = jump;
+      continue;
+    }
+    const j = skipNoncode(src, i);
+    if (j !== i) {
+      i = j;
+      continue;
+    }
+    const hookLen = hookCallLenAt(src, i);
+    if (hookLen > 0) {
+      pushDiag(out, hookBlockCode(kind), 0, hookBlockMessage(kind), base < 0 ? fallbackAt : base + i, hookLen);
+      i += hookLen;
+      continue;
+    }
+    if (isIdentCode(src[i])) {
+      while (i < n && isIdentCode(src[i])) i++;
+      continue;
+    }
+    i++;
+  }
+  for (const r of ranges) {
+    const parsed = parseMarkup(src, r.start, r.end);
+    if (parsed.errorCode) continue; // the compiler owns markup parse errors
+    for (const nd of parsed.nodes) {
+      validateMarkupNodeHooks(nd, base, base < 0 ? fallbackAt : base + r.start, kind, out);
+    }
+  }
+}
+
+/** A directive body — statements + `return ( <markup> )` (family 0.7): validate the lead code
+ *  (jsx-aware), then every root of the return window. Mirrors the emitter's split exactly.
+ *  C++-identical (ValidateDirectiveBodyHooks). */
+function validateDirectiveBodyHooks(
+  bodyMarkup: string,
+  base: number,
+  fallbackAt: number,
+  enclosing: HookBlock,
+  out: UetkxFileScanResult,
+): void {
+  const body = toCodePoints(bodyMarkup);
+  const split = splitMarkupReturn(body, false);
+  if (!split.ok) {
+    scanMarkupCodeForHooks(bodyMarkup, base, fallbackAt, enclosing, out);
+    return;
+  }
+  scanMarkupCodeForHooks(fromCodePoints(body, 0, split.returnAt), base, fallbackAt, enclosing, out);
+  const parsed = parseMarkup(body, split.mStart, split.mEnd);
+  if (!parsed.errorCode) {
+    for (const nd of parsed.nodes) {
+      validateMarkupNodeHooks(nd, base, base < 0 ? fallbackAt : base + split.mStart, enclosing, out);
+    }
+  }
+}
+
+/** Walk one parsed markup node: attr/child expressions, directive headers and bodies. `base` is
+ *  the absolute anchor of this tree's offset frame (node.at/vat/bodyAt compose on top of it),
+ *  or -1 when detached (diags fall back to fallbackAt). C++-identical (ValidateMarkupNodeHooks)
+ *  — with the TS parser's trim-exact header offsets (condAt/headerAt/subjectAt/valueAt) used
+ *  where the C++ falls back to the directive's `@`. */
+function validateMarkupNodeHooks(
+  node: UetkxNode,
+  base: number,
+  fallbackAt: number,
+  enclosing: HookBlock,
+  out: UetkxFileScanResult,
+): void {
+  const nodeAt = base < 0 ? fallbackAt : base + node.at;
+  const sub = (at: number | undefined) => (base < 0 || at === undefined || at < 0 ? -1 : base + at);
+  switch (node.type) {
+    case "el":
+    case "frag": {
+      for (const attr of node.attrs ?? []) {
+        if (attr.kind !== "expr" && attr.kind !== "spread") continue;
+        let kind: HookBlock = enclosing;
+        if (attr.name.length > 2 && attr.name.startsWith("On")) kind = "callback"; // event attrs run as callbacks
+        else if (kind === "none") kind = "markup";
+        scanMarkupCodeForHooks(attr.value, sub(attr.vat), nodeAt, kind, out);
+      }
+      for (const child of node.children ?? []) {
+        validateMarkupNodeHooks(child, base, nodeAt, enclosing, out);
+      }
+      break;
+    }
+    case "expr":
+      scanMarkupCodeForHooks(node.code ?? "", sub(node.vat), nodeAt, enclosing === "none" ? "markup" : enclosing, out);
+      break;
+    case "if": {
+      for (const branch of node.branches ?? []) {
+        scanMarkupCodeForHooks(branch.cond, sub(branch.condAt), nodeAt, "conditional", out);
+        validateDirectiveBodyHooks(branch.bodyMarkup, sub(branch.bodyAt), nodeAt, "conditional", out);
+      }
+      if (node.elseBody !== undefined) {
+        validateDirectiveBodyHooks(node.elseBody, sub(node.elseBodyAt), nodeAt, "conditional", out);
+      }
+      break;
+    }
+    case "for":
+    case "while":
+      scanMarkupCodeForHooks(node.header ?? "", sub(node.headerAt), nodeAt, "loop", out);
+      validateDirectiveBodyHooks(node.bodyMarkup ?? "", sub(node.bodyAt), nodeAt, "loop", out);
+      break;
+    case "match": {
+      scanMarkupCodeForHooks(node.subject ?? "", sub(node.subjectAt), nodeAt, "match", out);
+      for (const c of node.cases ?? []) {
+        scanMarkupCodeForHooks(c.value, sub(c.valueAt), nodeAt, "match", out);
+        validateDirectiveBodyHooks(c.bodyMarkup, sub(c.bodyAt), nodeAt, "match", out);
+      }
+      if (node.defaultBody !== undefined) {
+        validateDirectiveBodyHooks(node.defaultBody, sub(node.defaultBodyAt), nodeAt, "match", out);
+      }
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+/** The C++ brace-stack walk over the body's CODE (markup regions skipped): flag hook calls
+ *  under if/else/for/while/do/switch blocks (incl. brace-less bodies + headers) and inside
+ *  lambdas. C++-identical (CodeWalkHooks). */
+function codeWalkHooks(
+  body: readonly number[],
+  skip: readonly MarkupRange[],
+  bodyAt: number,
+  out: UetkxFileScanResult,
+): void {
+  const stack: HookBlock[] = []; // one entry per '{'
+  const lambdaBraces = new Set<number>(); // '{' offsets recognized as lambda bodies
+  let pending: HookBlock = "none";
+  let parenDepth = 0;
+  const n = body.length;
+  let i = 0;
+  while (i < n) {
+    const jump = jsxSkipTo(skip, i);
+    if (jump !== -1) {
+      i = jump;
+      continue;
+    }
+    const j = skipNoncode(body, i);
+    if (j !== i) {
+      i = j;
+      continue;
+    }
+    const c = body[i];
+    if (c === C_LPAREN) {
+      parenDepth++;
+      i++;
+      continue;
+    }
+    if (c === 41 /*)*/) {
+      parenDepth--;
+      i++;
+      continue;
+    }
+    if (c === 91 /*[*/) {
+      // lambda intro? peek non-destructively: [captures] (params)? specifiers? '{'
+      const closeB = findMatching(body, i);
+      if (closeB !== -1) {
+        let k = skipWsOnly(body, closeB + 1);
+        if (k < n && body[k] === C_LPAREN) {
+          const closeP = findMatching(body, k);
+          k = closeP === -1 ? n : skipWsOnly(body, closeP + 1);
+        }
+        let guard = 0;
+        const tolerated = (cc: number) =>
+          isIdentCode(cc) ||
+          cc === C_SPACE ||
+          cc === C_TAB ||
+          cc === C_NL ||
+          cc === C_CR ||
+          cc === 45 /*-*/ ||
+          cc === 62 /*>*/ ||
+          cc === 58 /*:*/ ||
+          cc === 38 /*&*/ ||
+          cc === 42 /***/ ||
+          cc === C_LT ||
+          cc === C_COMMA;
+        while (k < n && body[k] !== C_LBRACE && guard++ < 64 && tolerated(body[k])) k++;
+        if (k < n && body[k] === C_LBRACE) lambdaBraces.add(k);
+      }
+      i++; // walk the capture list normally — init-captures run unconditionally
+      continue;
+    }
+    if (c === C_LBRACE) {
+      let kind: HookBlock = "none";
+      if (lambdaBraces.has(i)) kind = "callback";
+      else if (pending !== "none") kind = pending;
+      stack.push(kind);
+      pending = "none";
+      i++;
+      continue;
+    }
+    if (c === 125 /*}*/) {
+      if (stack.length > 0) stack.pop();
+      i++;
+      continue;
+    }
+    if (c === 59 /*;*/ && parenDepth === 0) {
+      pending = "none"; // a brace-less `if (x) stmt;` body ended
+      i++;
+      continue;
+    }
+    if (isIdentCode(c) && (i === 0 || !isIdentCode(body[i - 1]))) {
+      const hookLen = hookCallLenAt(body, i);
+      if (hookLen > 0) {
+        let ctx: HookBlock = pending;
+        for (let s = stack.length - 1; ctx === "none" && s >= 0; s--) ctx = stack[s];
+        if (ctx !== "none") {
+          pushDiag(out, hookBlockCode(ctx), 0, hookBlockMessage(ctx), bodyAt + i, hookLen);
+        }
+        i += hookLen;
+        continue;
+      }
+      if (keywordAt(body, i, "if") || keywordAt(body, i, "else")) pending = "conditional";
+      else if (keywordAt(body, i, "for") || keywordAt(body, i, "while") || keywordAt(body, i, "do")) pending = "loop";
+      else if (keywordAt(body, i, "switch")) pending = "match";
+      while (i < n && isIdentCode(body[i])) i++;
+      continue;
+    }
+    i++;
+  }
+}
+
+/** §4 rules-of-hooks driver: the code walk (outside markup), then every markup region's parsed
+ *  tree — return windows use their already-parsed roots; value-markup ranges parse here
+ *  (tolerantly — the compiler owns parse errors). C++-identical (ValidateHookPlacement). */
+function validateHookPlacement(
+  body: readonly number[],
+  jsxRanges: readonly MarkupRange[],
+  returns: ReadonlyArray<UetkxReturnSpan>,
+  bodyAt: number,
+  out: UetkxFileScanResult,
+): void {
+  const skip: MarkupRange[] = [...jsxRanges];
+  for (const span of returns) {
+    // directive-form windows (`return ( @if … )`) are not jsx ranges
+    skip.push({ start: span.mStart, end: span.mEnd, op: "", opPos: span.mStart });
+  }
+  codeWalkHooks(body, skip, bodyAt, out);
+  for (const span of returns) {
+    if (span.root) validateMarkupNodeHooks(span.root, bodyAt, bodyAt + span.mStart, "none", out);
+  }
+  for (const r of jsxRanges) {
+    if (returns.some((span) => r.start >= span.mStart && r.start < span.mEnd)) continue;
+    const parsed = parseMarkup(body, r.start, r.end);
+    if (parsed.errorCode) continue;
+    for (const nd of parsed.nodes) {
+      validateMarkupNodeHooks(nd, bodyAt, bodyAt + r.start, "none", out);
+    }
+  }
+}
+
+/** TB-5 / UETKX0107 — Unity's UnreachableAfterReturn (UITKX0107), family-numbered: dead code
+ *  after the FIRST top-level `return` statement of a component body. Handles BOTH shapes — a
+ *  top-level markup `return ( … )` before the body's end, and a plain C++ early `return x;`
+ *  in setup (the collector never sees those — no markup). Severity 2 (hint); the server
+ *  attaches the Unnecessary tag so editors FADE the range. Comment-only tails don't count.
+ *  C++-identical (DiagnoseUnreachableAfterReturn). */
+function diagnoseUnreachableAfterReturn(
+  body: readonly number[],
+  returns: ReadonlyArray<{ returnAt: number; afterParen: number }>,
+  ranges: readonly MarkupRange[],
+  bodyAt: number,
+  out: UetkxFileScanResult,
+): void {
+  const n = body.length;
+  let deadStart = -1;
+  let depth = 0;
+  let i = 0;
+  while (i < n) {
+    const skip = jsxSkipTo(ranges, i);
+    if (skip !== -1) {
+      i = skip;
+      continue;
+    }
+    const j = skipNoncode(body, i);
+    if (j !== i) {
+      i = j;
+      continue;
+    }
+    const c = body[i];
+    if (c === C_LBRACE || c === C_LPAREN || c === 91 /*[*/) {
+      depth++;
+      i++;
+      continue;
+    }
+    if (c === 125 /*}*/ || c === 41 /*)*/ || c === 93 /*]*/) {
+      depth--;
+      i++;
+      continue;
+    }
+    if (depth === 0 && c === 114 /*r*/ && keywordAt(body, i, "return")) {
+      const span = returns.find((s) => s.returnAt === i);
+      let end: number;
+      if (span) {
+        end = span.afterParen;
+        while (end < n && (body[end] === C_SPACE || body[end] === C_TAB || body[end] === C_NL || body[end] === C_CR)) end++;
+        if (end < n && body[end] === 59 /*;*/) end++;
+      } else {
+        // A plain C++ `return expr;` — scan to its statement-ending top-level `;`.
+        // Markup ranges jump whole (a `;` inside markup text is not a terminator).
+        let d2 = 0;
+        let k = i + 6;
+        while (k < n) {
+          const skip2 = jsxSkipTo(ranges, k);
+          if (skip2 !== -1) {
+            k = skip2;
+            continue;
+          }
+          const j2 = skipNoncode(body, k);
+          if (j2 !== k) {
+            k = j2;
+            continue;
+          }
+          const c2 = body[k];
+          if (c2 === C_LBRACE || c2 === C_LPAREN || c2 === 91) d2++;
+          else if (c2 === 125 || c2 === 41 || c2 === 93) d2--;
+          else if (c2 === 59 /*;*/ && d2 === 0) {
+            k++;
+            break;
+          }
+          k++;
+        }
+        end = k;
+      }
+      deadStart = end;
+      break;
+    }
+    i++;
+  }
+  if (deadStart < 0) return;
+  let first = -1;
+  i = deadStart;
+  while (i < n) {
+    const j = skipNoncode(body, i);
+    if (j !== i) {
+      i = j;
+      continue;
+    }
+    const c = body[i];
+    if (c === C_SPACE || c === C_TAB || c === C_NL || c === C_CR) {
+      i++;
+      continue;
+    }
+    first = i;
+    break;
+  }
+  if (first < 0) return;
+  let last = n;
+  while (last > first && (body[last - 1] === C_SPACE || body[last - 1] === C_TAB || body[last - 1] === C_NL || body[last - 1] === C_CR)) last--;
+  pushDiag(out, "UETKX0107", 2, "Unreachable code after 'return'.", bodyAt + first, last - first);
+}
 
 export interface UetkxDiag {
   code: string;
@@ -34,8 +524,10 @@ export interface UetkxParam {
   default: string;
 }
 
-/** The three declaration kinds a .uetkx file may hold, in any number/order (mixed-decl v1). */
-export type UetkxDeclKind = "component" | "hook" | "module";
+/** The five declaration kinds a .uetkx file may hold, in any number/order (mixed-decl v1).
+ *  ES-modules (plans/ES_MODULES_EXECUTION_PLAN.md G-03/U-01, "S5"): `value`/`util` are the new
+ *  plain-declaration kinds — C++-identical (EUetkxDeclKind). */
+export type UetkxDeclKind = "component" | "hook" | "module" | "value" | "util";
 
 /** `import { A, B } from "specifier"` — a preamble-only static import (named bindings only).
  *
@@ -46,10 +538,25 @@ export type UetkxDeclKind = "component" | "hook" | "module";
 export interface UetkxImportDecl {
   names: string[];
   nameAts: number[];
+  // ES-modules (G-05): the LOCAL binding for each names[n] — identical to names[n] unless the
+  // import renamed it (`{ A as B }`, localNames[n] === "B"). Always 1:1 with names.
+  localNames: string[];
+  // The alias TOKEN's offset for a renamed binding (the `B` of `A as B`); == nameAts[n] when no
+  // rename (the LSP rename/references index needs the exact token — TD-033).
+  localNameAts: number[];
   specifier: string;
   specifierAt: number; // offset of the opening quote
   at: number; // offset of the `import` keyword
   hostInclude: boolean; // `import "@Header.h"` — see the interface comment
+  // ES-modules (G-05): `import * as X from "./x"` — names/localNames stay EMPTY; namespaceAlias
+  // is the local binding "X". `import Y from "./x"` (default) — defaultAlias is the local
+  // binding "Y". A single import statement is exactly one of named/renamed, namespace, default.
+  isNamespace: boolean;
+  namespaceAlias: string;
+  namespaceAliasAt: number;
+  isDefault: boolean;
+  defaultAlias: string;
+  defaultAliasAt: number;
 }
 
 /** One markup `return ( ... )` span inside a component body (wave G early returns).
@@ -80,6 +587,9 @@ export interface UetkxComponentDecl {
   returns: UetkxReturnSpan[];
   hookCalls: string[];
   next: number;
+  // ES-modules (G-10): true for the deprecated `component Name(...) { }` wrapper (fires 2320);
+  // false for the new plain form `[export] FRuiNode Name(...) { }`.
+  legacySyntax: boolean;
 }
 
 export interface UetkxHookDecl {
@@ -93,6 +603,8 @@ export interface UetkxHookDecl {
   body: string;
   bodyAt: number;
   next: number;
+  // ES-modules (G-10): see UetkxComponentDecl.legacySyntax.
+  legacySyntax: boolean;
 }
 
 export interface UetkxModuleDecl {
@@ -106,6 +618,38 @@ export interface UetkxModuleDecl {
   next: number;
 }
 
+/** `[export] <Type> Name = <Init>;` — a module-level VALUE export (G-03/U-01). Immutable by
+ *  construction; `type` empty means inference sugar, valid ONLY when `init` begins
+ *  `Ident(`/`Ident{`/`Ident<` (UETKX2322 otherwise). C++-identical (FUetkxValueDecl). */
+export interface UetkxValueDecl {
+  name: string;
+  nameAt: number;
+  type: string; // "" = inferred
+  typeAt: number;
+  init: string;
+  initAt: number;
+  exported: boolean;
+  exportAt: number;
+  at: number;
+  next: number;
+}
+
+/** `[export] <Type> Name(params) { body }` — a module-level UTIL function (G-03/U-01): not
+ *  `Use`-prefixed, not FRuiNode-returning. C++-identical (FUetkxUtilDecl). */
+export interface UetkxUtilDecl {
+  name: string;
+  nameAt: number;
+  retType: string;
+  retTypeAt: number;
+  params: string;
+  body: string;
+  bodyAt: number;
+  exported: boolean;
+  exportAt: number;
+  at: number;
+  next: number;
+}
+
 export interface UetkxFileScanResult {
   preambleIncludes: string[];
   preambleIncludeAts: number[]; // 1:1 with preambleIncludes — each line's start offset
@@ -113,8 +657,17 @@ export interface UetkxFileScanResult {
   components: UetkxComponentDecl[];
   hooks: UetkxHookDecl[];
   modules: UetkxModuleDecl[];
-  order: { kind: UetkxDeclKind; index: number }[]; // source order across all three arrays
+  values: UetkxValueDecl[]; // ES-modules (G-03/U-01)
+  utils: UetkxUtilDecl[]; // ES-modules (G-03/U-01)
+  order: { kind: UetkxDeclKind; index: number }[]; // source order across all five arrays
   diags: UetkxDiag[];
+  // ES-modules (U-08): `export default <Name>;` target, if any (at most one per file — a
+  // second is UETKX2327). Does NOT imply `exported` on the named decl (ES parity).
+  defaultExportName: string;
+  defaultExportAt: number;
+  // ES-modules (U-09): every `export { … };` list entry with its token offset — the LSP
+  // rename/references index (TD-033); the two-pass export resolution runs off the same records.
+  exportListEntries: Array<{ name: string; at: number }>;
 }
 
 export function hasError(result: UetkxFileScanResult): boolean {
@@ -340,9 +893,10 @@ export function collectMarkupReturns(body: readonly number[]): UetkxReturnSpan[]
   return out;
 }
 
-/** Family param grammar `Name: Type = Default, ...` with depth-aware splitting. */
-export function parseParams(paramText: string): UetkxParam[] {
-  const out: UetkxParam[] = [];
+/** Split a param-list text on top-level commas (depth-aware — `()[]{}<>` all nest). Shared by the
+ *  legacy `Name: Type = Default` splitter (parseParams) and the ES-modules new-form
+ *  `Type Name = Default` splitter (parseNewParams). */
+function splitTopLevelCommaPieces(paramText: string): string[] {
   const pieces: string[] = [];
   let depth = 0;
   let cur = "";
@@ -357,6 +911,13 @@ export function parseParams(paramText: string): UetkxParam[] {
     cur += ch;
   }
   if (cur.trim()) pieces.push(cur);
+  return pieces;
+}
+
+/** Family param grammar `Name: Type = Default, ...` with depth-aware splitting. */
+export function parseParams(paramText: string): UetkxParam[] {
+  const out: UetkxParam[] = [];
+  const pieces = splitTopLevelCommaPieces(paramText);
   for (const piece of pieces) {
     let rest = piece;
     let def = "";
@@ -383,11 +944,196 @@ export function parseParams(paramText: string): UetkxParam[] {
   return out;
 }
 
-function scanHookCalls(setup: readonly number[]): string[] {
+/** ES-modules (U-01, "S5"): split NEW-form params `Type Name = Default, ...` (type-first — the
+ *  mirror image of legacy parseParams' `Name: Type = Default`). Per piece, NAME is the LAST
+ *  top-level identifier before that piece's own top-level `=` (or before its end when there is
+ *  no default) — the same rule scanDeclHead uses for the outer declaration head. */
+export function parseNewParams(paramText: string): UetkxParam[] {
+  const out: UetkxParam[] = [];
+  const pieces = splitTopLevelCommaPieces(paramText);
+  const isIdentChar = (c: string) => /[A-Za-z0-9_]/.test(c);
+  for (const piece of pieces) {
+    let depth = 0;
+    let identStart = -1;
+    let identEnd = -1;
+    let eqIdx = -1;
+    for (let i = 0; i < piece.length; i++) {
+      const c = piece[i];
+      if (c === "(" || c === "[" || c === "{" || c === "<") {
+        depth++;
+        continue;
+      }
+      if (c === ")" || c === "]" || c === "}" || c === ">") {
+        depth--;
+        continue;
+      }
+      if (depth === 0 && c === "=" && piece[i + 1] !== "=") {
+        eqIdx = i;
+        break;
+      }
+      if (depth === 0 && /[A-Za-z_]/.test(c)) {
+        const s = i;
+        while (i < piece.length && isIdentChar(piece[i])) i++;
+        identStart = s;
+        identEnd = i;
+        i--; // the for-loop's i++ resumes right after this identifier
+      }
+    }
+    const head = eqIdx === -1 ? piece : piece.slice(0, eqIdx);
+    let name = "";
+    let type = "";
+    if (identStart !== -1 && identEnd <= head.length) {
+      name = head.slice(identStart, identEnd).trim();
+      type = head.slice(0, identStart).trim();
+    } else {
+      type = head.trim();
+    }
+    const def = eqIdx === -1 ? "" : piece.slice(eqIdx + 1).trim();
+    if (name) out.push({ name, type, default: def });
+  }
+  return out;
+}
+
+/** ES-modules (U-02): one type-first declaration head, scanned directly over source code points
+ *  (mirrors ScanDeclHead — UetkxFileScan.cpp). */
+interface UetkxDeclHead {
+  typeAt: number;
+  typeLen: number;
+  nameAt: number;
+  nameLen: number;
+  triggerAt: number;
+  trigger: "(" | "=" | "{" | ""; // "" = EOF/unterminated
+}
+
+/** Scan a type-first declaration head starting at `start` (just past an optional `export`),
+ *  stopping at the first top-level `(` (component/hook/util param list), `=` (value export), or
+ *  an unexpected top-level `{` (no `(`/`=` seen — not a recognized head). NAME is the LAST
+ *  top-level identifier before the trigger; TYPE is everything before NAME (empty ⇒ value
+ *  inference sugar). `<`/`{`/`[` always nest here — pure TYPE position. C++-identical
+ *  (ScanDeclHead). */
+function scanDeclHead(src: number[], start: number): UetkxDeclHead {
+  const n = src.length;
+  const out: UetkxDeclHead = { typeAt: -1, typeLen: 0, nameAt: -1, nameLen: 0, triggerAt: -1, trigger: "" };
+  let depth = 0;
+  let identStart = -1;
+  let identEnd = -1;
+  let p = start;
+  while (p < n) {
+    const j = skipNoncode(src, p);
+    if (j !== p) {
+      p = j;
+      continue;
+    }
+    const c = src[p];
+    if (c === C_SPACE || c === C_TAB || c === C_NL || c === C_CR) {
+      p++;
+      continue;
+    }
+    if (depth === 0 && isIdentCp(c) && !(c >= 48 && c <= 57)) {
+      const s = p;
+      while (p < n && isIdentCp(src[p])) p++;
+      identStart = s;
+      identEnd = p;
+      continue;
+    }
+    if (c === C_LPAREN) {
+      if (depth === 0) {
+        out.trigger = "(";
+        out.triggerAt = p;
+        break;
+      }
+      depth++;
+      p++;
+      continue;
+    }
+    if (c === C_LBRACE) {
+      if (depth === 0) {
+        out.trigger = "{";
+        out.triggerAt = p;
+        break;
+      }
+      depth++;
+      p++;
+      continue;
+    }
+    if (c === 91 /* [ */ || c === C_LT) {
+      depth++;
+      p++;
+      continue;
+    }
+    if (c === 41 /* ) */ || c === 125 /* } */ || c === 93 /* ] */ || c === 0x3e /* > */) {
+      depth--;
+      p++;
+      continue;
+    }
+    if (depth === 0 && c === 0x3d /* = */ && src[p + 1] !== 0x3d && (p === start || (src[p - 1] !== 0x3d && src[p - 1] !== 0x21 /* ! */ && src[p - 1] !== C_LT && src[p - 1] !== 0x3e))) {
+      out.trigger = "=";
+      out.triggerAt = p;
+      break;
+    }
+    p++;
+  }
+  if (identStart !== -1) {
+    out.nameAt = identStart;
+    out.nameLen = identEnd - identStart;
+    out.typeAt = start;
+    out.typeLen = identStart - start;
+  }
+  return out;
+}
+
+/** True when `name` looks like a hook name (U-02 rule 2: `Use[A-Z]\w*`) — the exact predicate
+ *  legacy parseHook's UETKX2203 warn already uses. */
+function looksLikeHookName(name: string): boolean {
+  return name.startsWith("Use") && name.length >= 4 && name[3] >= "A" && name[3] <= "Z";
+}
+
+/** Find the top-level `;` terminating a value-export initializer starting at `start` (just past
+ *  '='). Only `()[]{}` nest (EXPRESSION position — `<`/`>` are real operators here, unlike a decl
+ *  head). Returns -1 when unterminated. C++-identical (FindValueEnd). */
+function findValueEnd(src: number[], start: number): number {
+  const n = src.length;
+  let depth = 0;
+  let p = start;
+  while (p < n) {
+    const j = skipNoncode(src, p);
+    if (j !== p) {
+      p = j;
+      continue;
+    }
+    const c = src[p];
+    if (c === C_LPAREN || c === 91 /* [ */ || c === C_LBRACE) {
+      depth++;
+      p++;
+      continue;
+    }
+    if (c === 41 /* ) */ || c === 93 /* ] */ || c === 125 /* } */) {
+      depth--;
+      p++;
+      continue;
+    }
+    if (depth === 0 && c === 0x3b /* ; */) return p;
+    p++;
+  }
+  return -1;
+}
+
+/** §4.3 HMR protection: markup ranges are EXCLUDED — hooks are illegal inside markup
+ *  (UETKX0013), so markup text must never perturb the hook signature: editing a value-markup
+ *  child would otherwise flip the signature and spuriously reset live state on a HMR swap.
+ *  C++-identical (ScanHookCalls). */
+function scanHookCalls(setup: readonly number[], skipRanges?: readonly MarkupRange[]): string[] {
   const out: string[] = [];
   const n = setup.length;
   let i = 0;
   while (i < n) {
+    if (skipRanges) {
+      const skip = jsxSkipTo(skipRanges, i);
+      if (skip !== -1) {
+        i = skip;
+        continue;
+      }
+    }
     const j = skipNoncode(setup, i);
     if (j !== i) {
       i = j;
@@ -434,6 +1180,34 @@ function advancePastLine(src: number[], i: number): number {
  *  duplicate-import diagnostics (UETKX2303); importedFrom tracks name -> first specifier for
  *  named imports and payload -> payload for host includes (keyspaces cannot collide). Returns
  *  the index past the import (or resync point). C++-identical (ParseImport). */
+/** ES-modules (G-05): parse the common `from "specifier"` tail shared by every import form. */
+function parseFromSpecifier(
+  src: number[],
+  f: number,
+  out: UetkxFileScanResult,
+): { ok: true; specifier: string; specifierAt: number; end: number } | { ok: false; end: number } {
+  const n = src.length;
+  f = skipWsOnly(src, f);
+  if (!keywordAt(src, f, "from")) {
+    pushDiag(out, "UETKX0303", 0, 'import expects `from "specifier"`', Math.min(f, n - 1));
+    return { ok: false, end: advancePastLine(src, f) };
+  }
+  f = skipWsOnly(src, f + 4);
+  if (f >= n || (src[f] !== C_QUOTE && src[f] !== C_APOS)) {
+    pushDiag(out, "UETKX0303", 0, 'import specifier must be a quoted path, e.g. `"./Foo"`', Math.min(f, n - 1));
+    return { ok: false, end: advancePastLine(src, f) };
+  }
+  const quote = src[f];
+  const specifierAt = f;
+  let q = f + 1;
+  while (q < n && src[q] !== quote && src[q] !== C_NL) q++;
+  if (q >= n || src[q] !== quote) {
+    pushDiag(out, "UETKX0300", 0, "unterminated import specifier string", f);
+    return { ok: false, end: advancePastLine(src, f) };
+  }
+  return { ok: true, specifier: fromCodePoints(src, f + 1, q - (f + 1)), specifierAt, end: q + 1 };
+}
+
 function parseImport(src: number[], start: number, out: UetkxFileScanResult, importedFrom: Map<string, string>): number {
   const n = src.length;
   let k = skipWsOnly(src, start + 6); // past "import"
@@ -458,10 +1232,18 @@ function parseImport(src: number[], start: number, out: UetkxFileScanResult, imp
     const hostImp: UetkxImportDecl = {
       names: [],
       nameAts: [],
+      localNames: [],
+      localNameAts: [],
       specifier: payload.slice(1), // strip the leading '@'
       specifierAt: quoteAt,
       at: start,
       hostInclude: true,
+      isNamespace: false,
+      namespaceAlias: "",
+      namespaceAliasAt: -1,
+      isDefault: false,
+      defaultAlias: "",
+      defaultAliasAt: -1,
     };
     // Duplicate-payload check (2303 rule, applied to host includes): importedFrom is keyed by
     // NAME for named imports and by PAYLOAD here — the keyspaces never collide (names are bare
@@ -475,7 +1257,92 @@ function parseImport(src: number[], start: number, out: UetkxFileScanResult, imp
     return end;
   }
 
-  const imp: UetkxImportDecl = { names: [], nameAts: [], specifier: "", specifierAt: -1, at: start, hostInclude: false };
+  // ES-modules (G-05): `import * as X from "spec"` — namespace import.
+  if (k < n && src[k] === 0x2a /* * */) {
+    let p = skipWsOnly(src, k + 1);
+    if (!keywordAt(src, p, "as")) {
+      pushDiag(out, "UETKX0303", 0, 'namespace import expects `* as Name from "..."`', Math.min(p, n - 1));
+      return advancePastLine(src, p);
+    }
+    p = skipWsOnly(src, p + 2);
+    const s = p;
+    while (p < n && isIdentCp(src[p])) p++;
+    if (p === s) {
+      pushDiag(out, "UETKX0300", 0, "missing namespace import alias after `as`", p);
+      return advancePastLine(src, p);
+    }
+    const nsImp: UetkxImportDecl = {
+      names: [],
+      nameAts: [],
+      localNames: [],
+      localNameAts: [],
+      specifier: "",
+      specifierAt: -1,
+      at: start,
+      hostInclude: false,
+      isNamespace: true,
+      namespaceAlias: fromCodePoints(src, s, p - s),
+      namespaceAliasAt: s,
+      isDefault: false,
+      defaultAlias: "",
+      defaultAliasAt: -1,
+    };
+    const spec = parseFromSpecifier(src, p, out);
+    if (!spec.ok) return spec.end;
+    nsImp.specifier = spec.specifier;
+    nsImp.specifierAt = spec.specifierAt;
+    // Local-alias collisions (against other imports and against declarations) are ALL resolved
+    // in one end-of-scan pass (UETKX2325) — see scanFile's two-pass block.
+    out.imports.push(nsImp);
+    return spec.end;
+  }
+
+  // ES-modules (G-05): `import Name from "spec"` — default import (a bare identifier where the
+  // named form always starts `{`).
+  if (k < n && isIdentCp(src[k]) && !(src[k] >= 48 && src[k] <= 57)) {
+    const s = k;
+    let p = k;
+    while (p < n && isIdentCp(src[p])) p++;
+    const defImp: UetkxImportDecl = {
+      names: [],
+      nameAts: [],
+      localNames: [],
+      localNameAts: [],
+      specifier: "",
+      specifierAt: -1,
+      at: start,
+      hostInclude: false,
+      isNamespace: false,
+      namespaceAlias: "",
+      namespaceAliasAt: -1,
+      isDefault: true,
+      defaultAlias: fromCodePoints(src, s, p - s),
+      defaultAliasAt: s,
+    };
+    const spec = parseFromSpecifier(src, p, out);
+    if (!spec.ok) return spec.end;
+    defImp.specifier = spec.specifier;
+    defImp.specifierAt = spec.specifierAt;
+    out.imports.push(defImp);
+    return spec.end;
+  }
+
+  const imp: UetkxImportDecl = {
+    names: [],
+    nameAts: [],
+    localNames: [],
+      localNameAts: [],
+    specifier: "",
+    specifierAt: -1,
+    at: start,
+    hostInclude: false,
+    isNamespace: false,
+    namespaceAlias: "",
+    namespaceAliasAt: -1,
+    isDefault: false,
+    defaultAlias: "",
+    defaultAliasAt: -1,
+  };
   if (k >= n || src[k] !== C_LBRACE) {
     pushDiag(out, "UETKX0303", 0, 'import expects `{ Name, ... }` or a `"@Header.h"` host include after `import`', Math.min(k, n - 1));
     return advancePastLine(src, k);
@@ -485,8 +1352,19 @@ function parseImport(src: number[], start: number, out: UetkxFileScanResult, imp
     pushDiag(out, "UETKX0304", 0, "unclosed `{` in import list", k);
     return n;
   }
+  // Skip whitespace AND comments between names — a `//`/`/* */` inside the brace list must not
+  // be misread as a bad name that drops the whole import (bughunt SCAN-2; the C++ scanner has
+  // had this since M1 — the TS twin silently diverged, audit 2026-07-18).
+  const skipWsAndComments = (p: number): number => {
+    for (;;) {
+      p = skipWsOnly(src, p);
+      const nc = skipNoncode(src, p);
+      if (nc === p) return p;
+      p = nc;
+    }
+  };
   for (let p = k + 1; p < bclose; ) {
-    p = skipWsOnly(src, p);
+    p = skipWsAndComments(p);
     if (p >= bclose) break;
     if (src[p] === C_COMMA) {
       p++;
@@ -495,35 +1373,41 @@ function parseImport(src: number[], start: number, out: UetkxFileScanResult, imp
     const s = p;
     while (p < bclose && isIdentCp(src[p])) p++;
     if (p === s) {
-      pushDiag(out, "UETKX0300", 0, "import list expects bare names — named exports only (no `*`, no default)", s);
+      pushDiag(out, "UETKX0300", 0, "import list expects bare names, optionally renamed (`Name as Alias`)", s);
       return advancePastLine(src, bclose);
     }
-    imp.names.push(fromCodePoints(src, s, p - s));
+    const importedName = fromCodePoints(src, s, p - s);
+    imp.names.push(importedName);
     imp.nameAts.push(s);
+    // ES-modules (G-05): `{ A as B }` — rename-on-import. localNames stays 1:1 with names; no
+    // `as` means the local binding is the imported name itself (alias token == name token —
+    // localNameAts mirrors that for the LSP index, TD-033).
+    let localName = importedName;
+    let localNameAt = s;
+    let afterName = skipWsAndComments(p);
+    if (afterName < bclose && keywordAt(src, afterName, "as")) {
+      const aliasStart = skipWsAndComments(afterName + 2);
+      let ap = aliasStart;
+      while (ap < bclose && isIdentCp(src[ap])) ap++;
+      if (ap === aliasStart) {
+        pushDiag(out, "UETKX0300", 0, "missing local alias after `as`", aliasStart);
+        return advancePastLine(src, bclose);
+      }
+      localName = fromCodePoints(src, aliasStart, ap - aliasStart);
+      localNameAt = aliasStart;
+      p = ap;
+    }
+    imp.localNames.push(localName);
+    imp.localNameAts.push(localNameAt);
   }
   if (imp.names.length === 0) {
     pushDiag(out, "UETKX0303", 0, 'import must name at least one binding: `import { Name } from "..."`', k);
   }
-  let f = skipWsOnly(src, bclose + 1);
-  if (!keywordAt(src, f, "from")) {
-    pushDiag(out, "UETKX0303", 0, 'import expects `from "specifier"`', Math.min(f, n - 1));
-    return advancePastLine(src, f);
-  }
-  f = skipWsOnly(src, f + 4);
-  if (f >= n || (src[f] !== C_QUOTE && src[f] !== C_APOS)) {
-    pushDiag(out, "UETKX0303", 0, 'import specifier must be a quoted path, e.g. `"./Foo"`', Math.min(f, n - 1));
-    return advancePastLine(src, f);
-  }
-  const quote = src[f];
-  imp.specifierAt = f;
-  let q = f + 1;
-  while (q < n && src[q] !== quote && src[q] !== C_NL) q++;
-  if (q >= n || src[q] !== quote) {
-    pushDiag(out, "UETKX0300", 0, "unterminated import specifier string", f);
-    return advancePastLine(src, f);
-  }
-  imp.specifier = fromCodePoints(src, f + 1, q - (f + 1));
-  const end = q + 1;
+  const spec = parseFromSpecifier(src, bclose + 1, out);
+  if (!spec.ok) return spec.end;
+  imp.specifier = spec.specifier;
+  imp.specifierAt = spec.specifierAt;
+  const end = spec.end;
 
   const thisImport = new Set<string>();
   for (let idx = 0; idx < imp.names.length; idx++) {
@@ -584,6 +1468,11 @@ function parseComponent(src: number[], ci: number, exported: boolean, out: Uetkx
   // Wave G: collect ALL markup returns (early returns); the FINAL span must be top-level —
   // it anchors the window/setup split (T1.4 last-wins). C++-identical (ParseComponent).
   const returns = collectMarkupReturns(body);
+  // §4 markup-everywhere: the jsx-range list of record for this body. Computed before the
+  // no-return early-out so a paren-less `return <Tag/>` gets its precise 0114 instead of a
+  // bare 2101. C++-identical (ScanComponentBody).
+  const jsxRanges = bodyJsxRanges(body);
+  diagnoseBareMarkupReturn(body, jsxRanges, bodyAt, out);
   if (returns.length === 0) {
     pushDiag(out, "UETKX2101", 0, "component has no `return ( ... )` markup return", ci, 9);
     return -1;
@@ -594,6 +1483,7 @@ function parseComponent(src: number[], ci: number, exported: boolean, out: Uetkx
     return -1;
   }
   const setup = fromCodePoints(body, 0, final.returnAt);
+  diagnoseUnreachableAfterReturn(body, returns, jsxRanges, bodyAt, out);
   let windowNodes: UetkxNode[] = [];
   for (const span of returns) {
     const parsed = parseMarkup(body, span.mStart, span.mEnd);
@@ -609,6 +1499,8 @@ function parseComponent(src: number[], ci: number, exported: boolean, out: Uetkx
     span.root = renderRoots[0];
     if (span === final) windowNodes = parsed.nodes; // the final window keeps the formatter contract
   }
+  // §4 rules of hooks (family 0013-0016) — needs the parsed window roots, so it runs last.
+  validateHookPlacement(body, jsxRanges, returns, bodyAt, out);
   const idx = out.components.length;
   out.components.push({
     name,
@@ -623,11 +1515,348 @@ function parseComponent(src: number[], ci: number, exported: boolean, out: Uetkx
     bodyAt,
     windowNodes,
     returns,
-    hookCalls: scanHookCalls(body.slice(0, final.returnAt)),
+    hookCalls: scanHookCalls(body.slice(0, final.returnAt), jsxRanges),
     next: bclose + 1,
+    legacySyntax: true,
   });
   out.order.push({ kind: "component", index: idx });
   return bclose + 1;
+}
+
+/** ES-modules (U-02): `[export] FRuiNode Name(Type Param = Default, ...) { body }` — the new
+ *  plain-declaration component form. The BODY parsing (markup returns, jsx-range scan, hook-call
+ *  scan, rules-of-hooks) is IDENTICAL to the legacy wrapper's tail — kept as a separate
+ *  near-duplicate rather than refactored into a shared helper (the legacy path is load-bearing
+ *  and untouched by this leg). C++-identical (ParseNewComponent). */
+function parseNewComponent(
+  src: number[],
+  declStart: number,
+  type: string,
+  head: UetkxDeclHead,
+  paramText: string,
+  parenClose: number,
+  exported: boolean,
+  out: UetkxFileScanResult,
+): number {
+  const n = src.length;
+  const name = fromCodePoints(src, head.nameAt, head.nameLen);
+  if (!name || !(name[0] >= "A" && name[0] <= "Z")) {
+    pushDiag(out, "UETKX2100", 0, `component name \`${name}\` must be PascalCase`, head.nameAt, name.length);
+  }
+  const params = parseNewParams(paramText);
+  const k = skipWsOnly(src, parenClose + 1);
+  if (k >= n || src[k] !== C_LBRACE) {
+    pushDiag(out, "UETKX0303", 0, "component body `{ ... }` expected", Math.min(k, n - 1));
+    return -1;
+  }
+  const bclose = findMatchingMarkup(src, k);
+  if (bclose === -1) {
+    pushDiag(out, "UETKX0304", 0, "unclosed component body", k);
+    return -1;
+  }
+  const bodyAt = k + 1;
+  const body = src.slice(bodyAt, bclose);
+  const returns = collectMarkupReturns(body);
+  const jsxRanges = bodyJsxRanges(body);
+  diagnoseBareMarkupReturn(body, jsxRanges, bodyAt, out);
+  if (returns.length === 0) {
+    pushDiag(out, "UETKX2101", 0, "component has no `return ( ... )` markup return", declStart, 1);
+    return -1;
+  }
+  const final = returns[returns.length - 1];
+  if (!final.topLevel) {
+    pushDiag(out, "UETKX3007", 0, "the component's final markup `return ( ... )` must be at the top level of the body", bodyAt + final.returnAt, 6);
+    return -1;
+  }
+  const setup = fromCodePoints(body, 0, final.returnAt);
+  diagnoseUnreachableAfterReturn(body, returns, jsxRanges, bodyAt, out);
+  let windowNodes: UetkxNode[] = [];
+  for (const span of returns) {
+    const parsed = parseMarkup(body, span.mStart, span.mEnd);
+    if (parsed.errorCode) {
+      pushDiag(out, parsed.errorCode, 0, parsed.errorMsg, bodyAt + Math.max(0, parsed.errorAt));
+      return -1;
+    }
+    const renderRoots = parsed.nodes.filter((node) => node.type !== "comment");
+    if (renderRoots.length !== 1) {
+      pushDiag(out, "UETKX0108", 0, `a component must return exactly one root element (got ${renderRoots.length})`, bodyAt + span.mStart);
+      return -1;
+    }
+    span.root = renderRoots[0];
+    if (span === final) windowNodes = parsed.nodes;
+  }
+  validateHookPlacement(body, jsxRanges, returns, bodyAt, out);
+  const idx = out.components.length;
+  out.components.push({
+    name,
+    exported,
+    at: head.typeAt,
+    exportAt: exported ? declStart : -1,
+    nameAt: head.nameAt,
+    params,
+    setup,
+    setupAt: bodyAt,
+    body: fromCodePoints(body, 0, body.length),
+    bodyAt,
+    windowNodes,
+    returns,
+    hookCalls: scanHookCalls(body.slice(0, final.returnAt), jsxRanges),
+    next: bclose + 1,
+    legacySyntax: false,
+  });
+  out.order.push({ kind: "component", index: idx });
+  return bclose + 1;
+}
+
+/** ES-modules (U-02): `[export] <Ret> UseName(params) { body }` — the new plain-declaration hook
+ *  form (return type LEADS; no `->`; `void` must be written explicitly). C++-identical
+ *  (ParseNewHook). */
+function parseNewHook(
+  src: number[],
+  declStart: number,
+  retType: string,
+  head: UetkxDeclHead,
+  paramText: string,
+  parenClose: number,
+  exported: boolean,
+  out: UetkxFileScanResult,
+): number {
+  const n = src.length;
+  const name = fromCodePoints(src, head.nameAt, head.nameLen);
+  const params = paramText.trim();
+  const k = skipWsOnly(src, parenClose + 1);
+  if (k >= n || src[k] !== C_LBRACE) {
+    pushDiag(out, "UETKX2202", 0, `hook \`${name}\` body \`{ ... }\` expected`, Math.min(k, n - 1));
+    return -1;
+  }
+  const bclose = findMatching(src, k);
+  if (bclose === -1) {
+    pushDiag(out, "UETKX0304", 0, "unclosed hook body", k);
+    return -1;
+  }
+  const idx = out.hooks.length;
+  out.hooks.push({
+    name,
+    exported,
+    at: head.typeAt,
+    exportAt: exported ? declStart : -1,
+    nameAt: head.nameAt,
+    params,
+    ret: retType,
+    body: fromCodePoints(src, k + 1, bclose - k - 1),
+    bodyAt: k + 1,
+    next: bclose + 1,
+    legacySyntax: false,
+  });
+  out.order.push({ kind: "hook", index: idx });
+  return bclose + 1;
+}
+
+/** ES-modules (U-02): `[export] <Ret> Name(params) { body }` — a module-level UTIL function (not
+ *  `Use`-prefixed, not FRuiNode-returning). C++-identical (ParseNewUtil). */
+function parseNewUtil(
+  src: number[],
+  declStart: number,
+  retType: string,
+  head: UetkxDeclHead,
+  paramText: string,
+  parenClose: number,
+  exported: boolean,
+  out: UetkxFileScanResult,
+): number {
+  const n = src.length;
+  const name = fromCodePoints(src, head.nameAt, head.nameLen);
+  const params = paramText.trim();
+  const k = skipWsOnly(src, parenClose + 1);
+  if (k >= n || src[k] !== C_LBRACE) {
+    pushDiag(out, "UETKX0303", 0, `function \`${name}\` body \`{ ... }\` expected`, Math.min(k, n - 1));
+    return -1;
+  }
+  const bclose = findMatching(src, k);
+  if (bclose === -1) {
+    pushDiag(out, "UETKX0304", 0, "unclosed function body", k);
+    return -1;
+  }
+  const idx = out.utils.length;
+  out.utils.push({
+    name,
+    nameAt: head.nameAt,
+    retType,
+    retTypeAt: head.typeAt,
+    params,
+    body: fromCodePoints(src, k + 1, bclose - k - 1),
+    bodyAt: k + 1,
+    exported,
+    exportAt: exported ? declStart : -1,
+    at: head.typeAt,
+    next: bclose + 1,
+  });
+  out.order.push({ kind: "util", index: idx });
+  return bclose + 1;
+}
+
+/** ES-modules (U-01): `[export] <Type> Name = <Init>;` — a module-level VALUE export. `type` may
+ *  be empty (inference sugar — UETKX2322 when the initializer doesn't name its own type).
+ *  C++-identical (ParseNewValue). */
+function parseNewValue(src: number[], declStart: number, type: string, head: UetkxDeclHead, exported: boolean, out: UetkxFileScanResult): number {
+  const n = src.length;
+  const name = fromCodePoints(src, head.nameAt, head.nameLen);
+  const initStart = skipWsOnly(src, head.triggerAt + 1);
+  if (!type) {
+    let p = initStart;
+    const s = p;
+    while (p < n && isIdentCp(src[p])) p++;
+    const isIdent = p > s;
+    const q = skipWsOnly(src, p);
+    const namesType = isIdent && q < n && (src[q] === C_LPAREN || src[q] === C_LBRACE || src[q] === C_LT);
+    if (!namesType) {
+      pushDiag(
+        out,
+        "UETKX2322",
+        0,
+        `cannot infer the type of \`${name}\` — the initializer must name the type (\`T(...)\` / \`T{...}\`), or declare it: \`export <Type> ${name} = ...\``,
+        initStart,
+      );
+    }
+  }
+  const semiAt = findValueEnd(src, initStart);
+  if (semiAt === -1) {
+    pushDiag(out, "UETKX0304", 0, "unterminated value declaration — expected `;`", initStart);
+    return -1;
+  }
+  const idx = out.values.length;
+  out.values.push({
+    name,
+    nameAt: head.nameAt,
+    type,
+    typeAt: type ? head.typeAt : -1,
+    init: fromCodePoints(src, initStart, semiAt - initStart).trim(),
+    initAt: initStart,
+    exported,
+    exportAt: exported ? declStart : -1,
+    at: head.typeAt,
+    next: semiAt + 1,
+  });
+  out.order.push({ kind: "value", index: idx });
+  return semiAt + 1;
+}
+
+/** ES-modules (U-02): try to parse a NEW plain declaration at `start` (just past the optional
+ *  `export`) — signature-only classification. Returns the index past the declaration on success,
+ *  -1 on a fatal parse error (diag already recorded), or -2 when the head doesn't classify as any
+ *  declaration kind at all (the caller falls back to the legacy 2101). C++-identical
+ *  (ParseNewFormDecl). */
+function parseNewFormDecl(src: number[], start: number, exported: boolean, declStart: number, out: UetkxFileScanResult): number {
+  const head = scanDeclHead(src, start);
+  if (head.trigger === "" || head.trigger === "{" || head.nameAt === -1) {
+    return -2;
+  }
+  const name = fromCodePoints(src, head.nameAt, head.nameLen);
+  const type = fromCodePoints(src, head.typeAt, Math.max(0, head.typeLen)).trim();
+  const looksLikeHook = looksLikeHookName(name);
+
+  if (head.trigger === "(") {
+    const pc = findMatching(src, head.triggerAt);
+    if (pc === -1) {
+      pushDiag(out, "UETKX0304", 0, "unclosed `(` in parameter list", head.triggerAt);
+      return -1;
+    }
+    const paramText = fromCodePoints(src, head.triggerAt + 1, pc - head.triggerAt - 1);
+
+    if (type === "FRuiNode") {
+      if (looksLikeHook) {
+        pushDiag(
+          out,
+          "UETKX2321",
+          0,
+          `\`${name}\` is \`Use\`-prefixed but returns FRuiNode — did you mean a component? (hooks must not return markup nodes)`,
+          head.nameAt,
+          name.length,
+        );
+      }
+      return parseNewComponent(src, declStart, type, head, paramText, pc, exported, out);
+    }
+    if (looksLikeHook) {
+      return parseNewHook(src, declStart, type, head, paramText, pc, exported, out);
+    }
+    return parseNewUtil(src, declStart, type, head, paramText, pc, exported, out);
+  }
+
+  // head.trigger === "="
+  return parseNewValue(src, declStart, type, head, exported, out);
+}
+
+/** ES-modules (U-09): one name requested by a deferred `export { ... };` list, awaiting
+ *  end-of-scan resolution. */
+interface PendingExportName {
+  name: string;
+  at: number;
+}
+
+/** ES-modules (U-09): `export { a, b };` — a deferred export-list STATEMENT, not a declaration.
+ *  `braceAt` is the `{`; names are recorded into pendingList for end-of-scan resolution
+ *  (UETKX2323/2324). Returns the index past an optional trailing `;`. C++-identical
+ *  (ParseExportList). */
+function parseExportList(src: number[], braceAt: number, out: UetkxFileScanResult, pendingList: PendingExportName[]): number {
+  const n = src.length;
+  const bclose = findMatching(src, braceAt);
+  if (bclose === -1) {
+    pushDiag(out, "UETKX0304", 0, "unclosed `{` in export list", braceAt);
+    return n;
+  }
+  for (let p = braceAt + 1; p < bclose; ) {
+    const j = skipNoncode(src, p);
+    if (j !== p) {
+      p = j;
+      continue;
+    }
+    const c = src[p];
+    if (c === C_SPACE || c === C_TAB || c === C_NL || c === C_CR) {
+      p++;
+      continue;
+    }
+    if (c === C_COMMA) {
+      p++;
+      continue;
+    }
+    const s = p;
+    while (p < bclose && isIdentCp(src[p])) p++;
+    if (p === s) {
+      pushDiag(out, "UETKX0300", 0, "export list expects bare names: `export { A, B };`", s);
+      return advancePastLine(src, bclose);
+    }
+    pendingList.push({ name: fromCodePoints(src, s, p - s), at: s });
+  }
+  let end = bclose + 1;
+  const sc = skipWsOnly(src, end);
+  if (sc < n && src[sc] === 0x3b /* ; */) end = sc + 1;
+  return end;
+}
+
+/** ES-modules (U-08): `export default Name;` — a STATEMENT, one per file (a second is UETKX2327,
+ *  checked immediately). `defaultAt` is the `default` keyword; `exportKeywordAt` anchors the 2327
+ *  diag at the offending statement's `export`. Whether the named decl actually EXISTS is resolved
+ *  at end-of-scan (UETKX2323), like export lists. C++-identical (ParseExportDefault). */
+function parseExportDefault(src: number[], defaultAt: number, exportKeywordAt: number, out: UetkxFileScanResult): number {
+  const n = src.length;
+  let k = skipWsOnly(src, defaultAt + 7); // past "default"
+  const s = k;
+  while (k < n && isIdentCp(src[k])) k++;
+  if (k === s) {
+    pushDiag(out, "UETKX0300", 0, "`export default` expects a declared name", k);
+    return advancePastLine(src, k);
+  }
+  const name = fromCodePoints(src, s, k - s);
+  if (out.defaultExportName) {
+    pushDiag(out, "UETKX2327", 0, "duplicate `export default` (a file has at most one default export)", exportKeywordAt, 6);
+  } else {
+    out.defaultExportName = name;
+    out.defaultExportAt = s;
+  }
+  let end = k;
+  const sc = skipWsOnly(src, end);
+  if (sc < n && src[sc] === 0x3b /* ; */) end = sc + 1;
+  return end;
 }
 
 /** Parse a `hook UseName(params) [-> Ret] { body }` decl at `hi`. Returns Next, or -1 on error. */
@@ -677,7 +1906,7 @@ function parseHook(src: number[], hi: number, exported: boolean, out: UetkxFileS
     return -1;
   }
   const idx = out.hooks.length;
-  out.hooks.push({ name, exported, at: hi, exportAt: -1, nameAt, params, ret, body: fromCodePoints(src, k + 1, bclose - k - 1), bodyAt: k + 1, next: bclose + 1 });
+  out.hooks.push({ name, exported, at: hi, exportAt: -1, nameAt, params, ret, body: fromCodePoints(src, k + 1, bclose - k - 1), bodyAt: k + 1, next: bclose + 1, legacySyntax: true });
   out.order.push({ kind: "hook", index: idx });
   return bclose + 1;
 }
@@ -718,7 +1947,11 @@ function resyncToNextDecl(src: number[], from: number): number {
   for (; i < src.length; i++) {
     if (src[i] !== C_NL) continue;
     const s = skipWsOnly(src, i + 1);
-    if (keywordAt(src, s, "export") || keywordAt(src, s, "component") || keywordAt(src, s, "hook") || keywordAt(src, s, "module")) {
+    if (s >= src.length) continue;
+    // ES-modules (U-01): a new-form declaration can start with ANY type identifier, so this can
+    // no longer key off a fixed keyword list — any non-blank line start is a resync candidate
+    // (same reasoning as scanFile's preamble-end fix).
+    if (skipNoncode(src, s) === s && src[s] !== C_SPACE && src[s] !== C_TAB && src[s] !== C_CR) {
       return s;
     }
   }
@@ -736,8 +1969,13 @@ export function scanFile(source: string, basename: string, resyncOnBodyError = f
     components: [],
     hooks: [],
     modules: [],
+    values: [],
+    utils: [],
     order: [],
     diags: [],
+    defaultExportName: "",
+    defaultExportAt: -1,
+    exportListEntries: [],
   };
   const src: number[] = [];
   for (const ch of source) src.push(ch.codePointAt(0)!);
@@ -763,8 +2001,16 @@ export function scanFile(source: string, basename: string, resyncOnBodyError = f
       i = parseImport(src, i, out, importedFrom);
       continue;
     }
-    if (keywordAt(src, i, "export") || keywordAt(src, i, "component") || keywordAt(src, i, "hook") || keywordAt(src, i, "module")) break;
-    i++;
+    if (src[i] === C_SPACE || src[i] === C_TAB || src[i] === C_NL || src[i] === C_CR) {
+      i++;
+      continue;
+    }
+    // ES-modules (U-01): nothing else is legal in the preamble — the first declaration may be a
+    // legacy wrapper keyword OR a new-form typed declaration (which can start with ANY type
+    // identifier, so it can no longer be recognized by an explicit keyword list here). Anything
+    // that isn't whitespace/a comment/an import IS the first declaration; the declaration loop
+    // below classifies it. C++-identical (FUetkxFileScan::Scan preamble loop).
+    break;
   }
 
   // UETKX2317 (hint): a #include or `import "@X.h"` naming a header the generated prelude
@@ -796,7 +2042,14 @@ export function scanFile(source: string, basename: string, resyncOnBodyError = f
     }
   }
 
-  // declarations: a SEQUENCE of components/hooks/modules in any order (FULL MIXED-DECL v1)
+  // ES-modules (U-09): `export { a, b };` requests, resolved once every decl kind is scanned.
+  // Kept on the result (exportListEntries) for the LSP rename/references index (TD-033).
+  const pendingExportList: PendingExportName[] = out.exportListEntries;
+
+  const wrapperDeprecation =
+    "wrapper syntax is deprecated — write a plain typed declaration (`export FRuiNode Name(...)` / `export <Type> UseName(...)` / `export <Type> Name = ...`); run `-run=RUIMigrateEsModules`. Removed in the next minor.";
+
+  // declarations: a SEQUENCE of components/hooks/modules/values/utils in any order (mixed-decl v1)
   while (i < n) {
     const j = skipNoncode(src, i);
     if (j !== i) {
@@ -819,28 +2072,49 @@ export function scanFile(source: string, basename: string, resyncOnBodyError = f
       exported = true;
       i = skipWsOnly(src, i + 6);
     }
+
+    // ES-modules (U-09): `export { a, b };` — a deferred export list, not a declaration.
+    if (exported && i < n && src[i] === C_LBRACE) {
+      i = parseExportList(src, i, out, pendingExportList);
+      continue;
+    }
+    // ES-modules (U-08): `export default Name;` — a statement, not a declaration.
+    if (exported && keywordAt(src, i, "default")) {
+      i = parseExportDefault(src, i, declStart, out);
+      continue;
+    }
+
     let next = -1;
     if (keywordAt(src, i, "component")) {
+      pushDiag(out, "UETKX2320", 1, `\`component\` ${wrapperDeprecation}`, i, 9);
       next = parseComponent(src, i, exported, out);
       if (next >= 0 && exported) out.components[out.components.length - 1].exportAt = declStart; // the decl's true start
     } else if (keywordAt(src, i, "hook")) {
+      pushDiag(out, "UETKX2320", 1, `\`hook\` ${wrapperDeprecation}`, i, 4);
       next = parseHook(src, i, exported, out);
       if (next >= 0 && exported) out.hooks[out.hooks.length - 1].exportAt = declStart; // the decl's true start
     } else if (keywordAt(src, i, "module")) {
+      pushDiag(out, "UETKX2320", 1, `\`module\` ${wrapperDeprecation}`, i, 6);
       next = parseModule(src, i, exported, out);
       if (next >= 0 && exported) out.modules[out.modules.length - 1].exportAt = declStart; // the decl's true start
     }
     else {
-      pushDiag(
-        out,
-        "UETKX2101",
-        0,
-        exported
-          ? "`export` must be followed by `component`, `hook`, or `module`"
-          : "expected a declaration (`component`, `hook`, or `module`)",
-        declStart,
-      );
-      return out;
+      // ES-modules (U-02): not a wrapper keyword — try the new plain-declaration grammar
+      // (signature-only classification). Falls through to the legacy catch-all 2101 when the
+      // head doesn't resolve to any declaration kind at all (e.g. EOF, a bare `{`).
+      next = parseNewFormDecl(src, i, exported, declStart, out);
+      if (next === -2) {
+        pushDiag(
+          out,
+          "UETKX2101",
+          0,
+          exported
+            ? "`export` must be followed by `component`, `hook`, `module`, or a typed declaration"
+            : "expected a declaration (`component`, `hook`, `module`, or a typed declaration)",
+          declStart,
+        );
+        return out;
+      }
     }
     if (next < 0) {
       // Signature-list mode recovers to the next declaration so a body error does not truncate the
@@ -856,9 +2130,95 @@ export function scanFile(source: string, basename: string, resyncOnBodyError = f
     i = next;
   }
 
-  if (out.components.length === 0 && out.hooks.length === 0 && out.modules.length === 0) {
+  if (
+    out.components.length === 0 &&
+    out.hooks.length === 0 &&
+    out.modules.length === 0 &&
+    out.values.length === 0 &&
+    out.utils.length === 0
+  ) {
     pushDiag(out, "UETKX2101", 0, "no `component`, `hook`, or `module` declaration found", -1);
     return out;
+  }
+
+  // ── ES-modules (U-08/U-09) two-pass resolution: `export { … }` / `export default` may name a
+  // declaration anywhere in the file (forward or backward) — resolve now that every kind's array
+  // is fully populated. Import-alias-vs-declaration collisions (2325) resolve here too, since
+  // declarations aren't known yet while imports are still being scanned (preamble-only, always
+  // preceding every declaration). C++-identical (FUetkxFileScan::Scan's two-pass block).
+  {
+    type AnyDecl = { name: string; exported: boolean; exportAt: number };
+    const allDecls = (): AnyDecl[] => [...out.components, ...out.hooks, ...out.modules, ...out.values, ...out.utils];
+    const findDecl = (name: string): AnyDecl | undefined => allDecls().find((d) => d.name === name);
+
+    // exportAt stays -1 for a LIST-exported decl (U-09) — `exported && exportAt < 0` is how the
+    // formatter's form-preservation distinguishes "exported via `export { … };`" from an inline
+    // `export` prefix (C++-identical — MarkExported).
+    for (const e of pendingExportList) {
+      const decl = findDecl(e.name);
+      if (!decl) {
+        pushDiag(out, "UETKX2323", 0, `\`export\` names \`${e.name}\`, which is not declared in this file`, e.at, e.name.length);
+        continue;
+      }
+      if (decl.exported) {
+        pushDiag(
+          out,
+          "UETKX2324",
+          0,
+          `duplicate export of \`${e.name}\` (already exported inline or in a previous export list)`,
+          e.at,
+          e.name.length,
+        );
+        continue;
+      }
+      decl.exported = true;
+    }
+
+    if (out.defaultExportName) {
+      const decl = findDecl(out.defaultExportName);
+      if (!decl) {
+        pushDiag(
+          out,
+          "UETKX2323",
+          0,
+          `\`export\` names \`${out.defaultExportName}\`, which is not declared in this file`,
+          out.defaultExportAt,
+          out.defaultExportName.length,
+        );
+      }
+    }
+
+    // 2325: import local-alias collisions — against every declared name (any visibility), and
+    // against EACH OTHER. The "against each other" axis deliberately EXCLUDES a plain-vs-plain
+    // collision (a named import with no `as`) — that shape is UETKX2303's job (dedup by imported
+    // name) and already fires for it; a plain alias colliding with a RENAMED/namespace/default
+    // alias (a shape 2303 can't see, since it keys on the imported name) still gets 2325.
+    const localAliasSeen = new Map<string, boolean>(); // local name -> was its FIRST occurrence "plain"?
+    const checkAlias = (local: string, at: number, plain: boolean) => {
+      if (!local) return;
+      const collidesWithDecl = findDecl(local) !== undefined;
+      const prevPlain = localAliasSeen.get(local);
+      const collidesWithImport = prevPlain !== undefined && !(plain && prevPlain);
+      if (collidesWithDecl || collidesWithImport) {
+        pushDiag(out, "UETKX2325", 0, `import alias \`${local}\` collides with a declaration or another import in this file`, at, local.length);
+      }
+      if (prevPlain === undefined) localAliasSeen.set(local, plain);
+    };
+    for (const imp of out.imports) {
+      if (imp.hostInclude) continue;
+      if (imp.isNamespace) {
+        checkAlias(imp.namespaceAlias, imp.namespaceAliasAt, false);
+        continue;
+      }
+      if (imp.isDefault) {
+        checkAlias(imp.defaultAlias, imp.defaultAliasAt, false);
+        continue;
+      }
+      for (let idx2 = 0; idx2 < imp.localNames.length; idx2++) {
+        const plain = imp.localNames[idx2] === imp.names[idx2];
+        checkAlias(imp.localNames[idx2], imp.nameAts[idx2] ?? imp.at, plain);
+      }
+    }
   }
 
   // component/file-name nudge (0103) — kept for the one-component ergonomic; multi-component

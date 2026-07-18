@@ -179,17 +179,28 @@ jobs:
       - name: Generate README.md from centralized changelog
         if: steps.check.outputs.skip == 'false'
         run: node ide-extensions/scripts/changelog.mjs extract-overview --ide vscode --template ide-extensions/vscode-uetkx/readme-template.md --out ide-extensions/vscode-uetkx/README.md
-      - name: Package VSIX
+      - name: Stage bundled clangd (pinned 22.1.6, sha256-verified — §5)
+        if: steps.check.outputs.skip == 'false'
+        run: node ide-extensions/scripts/fetch-clangd.mjs --target vscode
+      - name: Package BOTH VSIX flavors (win32-x64 with clangd + universal without)
         if: steps.check.outputs.skip == 'false'
         working-directory: ide-extensions/vscode-uetkx
-        run: npx --yes @vscode/vsce package --no-dependencies -o uetkx.vsix
-      - name: Publish to VS Marketplace
+        run: |
+          # platform flavor first (clangd/ staged in), then the universal one with the staging
+          # dir moved aside — vsce has one .vscodeignore, so the gate is physical (§5.2).
+          npx --yes @vscode/vsce package --no-dependencies --target win32-x64 -o uetkx-win32-x64.vsix
+          mv clangd ../.clangd-staged-aside
+          npx --yes @vscode/vsce package --no-dependencies -o uetkx.vsix
+          mv ../.clangd-staged-aside clangd
+      - name: Publish to VS Marketplace (both flavors — the marketplace routes per platform)
         id: publish-vsce
         if: steps.check.outputs.skip == 'false'
         working-directory: ide-extensions/vscode-uetkx
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
-        run: npx --yes @vscode/vsce publish --no-dependencies --packagePath uetkx.vsix --pat "$VSCE_PAT"
+        run: |
+          npx --yes @vscode/vsce publish --no-dependencies --packagePath uetkx-win32-x64.vsix --pat "$VSCE_PAT"
+          npx --yes @vscode/vsce publish --no-dependencies --packagePath uetkx.vsix --pat "$VSCE_PAT"
       - name: Publish to Open VSX (only if OVSX_TOKEN is set — optional community marketplace)
         if: steps.check.outputs.skip == 'false'
         working-directory: ide-extensions/vscode-uetkx
@@ -200,6 +211,7 @@ jobs:
             echo "::notice::OVSX_TOKEN not set — skipping Open VSX (the VS Marketplace publish above is unaffected)."
             exit 0
           fi
+          npx --yes ovsx publish uetkx-win32-x64.vsix -p "$OVSX_TOKEN"
           npx --yes ovsx publish uetkx.vsix -p "$OVSX_TOKEN"
         continue-on-error: true
       - name: Tag on VS Marketplace success
@@ -209,12 +221,14 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag "vscode-v${{ steps.check.outputs.version }}"
           git push origin "vscode-v${{ steps.check.outputs.version }}"
-      - name: Upload VSIX artifact
+      - name: Upload VSIX artifacts (both flavors)
         if: steps.check.outputs.skip == 'false'
         uses: actions/upload-artifact@v4
         with:
           name: uetkx-vscode-${{ steps.check.outputs.version }}
-          path: ide-extensions/vscode-uetkx/uetkx.vsix
+          path: |
+            ide-extensions/vscode-uetkx/uetkx.vsix
+            ide-extensions/vscode-uetkx/uetkx-win32-x64.vsix
 
   # VS2022 extension — Windows (msbuild + VsixPublisher). Idempotent via `vs2022-v<ver>`; tags only on
   # a confirmed marketplace upload. The server + a pinned Node runtime are bundled so the VSIX is
@@ -255,6 +269,10 @@ jobs:
           Push-Location ide-extensions/vscode-uetkx; npm ci; node scripts/bundle-server.mjs; Pop-Location
           Copy-Item -Recurse -Force ide-extensions/vscode-uetkx/server ide-extensions/visual-studio/UetkxVsix/server
           & ide-extensions/visual-studio/UetkxVsix/fetch-node.ps1
+      - name: Stage bundled clangd (pinned 22.1.6, sha256-verified — §5)
+        if: steps.check.outputs.skip == 'false'
+        shell: pwsh
+        run: node ide-extensions/scripts/fetch-clangd.mjs --target vs2022
       - name: Generate overview.md from centralized changelog
         if: steps.check.outputs.skip == 'false'
         shell: pwsh
@@ -288,7 +306,9 @@ jobs:
           if (-not $server) { Write-Host "::error::VSIX is missing server/server.js!"; Get-ChildItem $tmp -Recurse | ForEach-Object { Write-Host $_.FullName }; exit 1 }
           $node = Get-ChildItem $tmp -Recurse -Filter "node.exe" | Where-Object { $_.Directory.Name -eq 'server' }
           if (-not $node) { Write-Host "::error::VSIX is missing server/node.exe (fetch-node.ps1 failed)."; exit 1 }
-          Write-Host "Verified: VSIX contains server.js + bundled node.exe"
+          $clangd = Get-ChildItem $tmp -Recurse -Filter "clangd.exe" | Where-Object { $_.Directory.Name -eq 'bin' }
+          if (-not $clangd) { Write-Host "::error::VSIX is missing clangd/bin/clangd.exe (fetch-clangd.mjs failed)."; exit 1 }
+          Write-Host "Verified: VSIX contains server.js + bundled node.exe + bundled clangd.exe"
       - name: Locate VSIX
         if: steps.check.outputs.skip == 'false'
         id: find_vsix

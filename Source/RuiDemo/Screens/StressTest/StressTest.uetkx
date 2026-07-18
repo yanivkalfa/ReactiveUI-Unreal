@@ -1,6 +1,6 @@
 import "@RuiDemoSupport.h"
 
-export component StressTest {
+export FRuiNode StressTest() {
 	auto [CountText, SetCountText] = UseState<FString>(FString(TEXT("300")));
 	auto [DurationText, SetDurationText] = UseState<FString>(FString(TEXT("10")));
 	auto [bRunning, SetRunning] = UseState<bool>(false);
@@ -17,7 +17,7 @@ export component StressTest {
 	// The frame loop: a self-re-arming RequestFrame chain (the Suspense poll-driver pattern).
 	UseEffect(
 		[bRunning, CountText, DurationText, Boxes, Host, SetStats, SetRenderTick, SetRunning,
-		 Version]() -> TFunction<void()> {
+			Version]() -> TFunction<void()> {
 			if (!bRunning)
 			{
 				return []() {};
@@ -48,7 +48,7 @@ export component StressTest {
 
 			TSharedRef<TFunction<void()>> Loop = MakeShared<TFunction<void()>>();
 			*Loop = [Cancelled, Start, Last, Frames, Tick, Boxes, Host, Duration, SetStats, SetRenderTick,
-					 SetRunning, Loop]() {
+						SetRunning, Loop]() {
 				if (*Cancelled)
 				{
 					return;
@@ -96,12 +96,12 @@ export component StressTest {
 	if (S.bFinished)
 	{
 		Status = FString::Printf(TEXT("DONE -- %d boxes | Avg FPS: %.1f | Duration: %.1fs | Frames: %d"),
-								 Boxes->Current.Num(), S.AvgFps, S.Elapsed, S.Frames);
+									Boxes->Current.Num(), S.AvgFps, S.Elapsed, S.Frames);
 	}
 	else if (bRunning)
 	{
 		Status = FString::Printf(TEXT("Stress -- %d boxes | Avg FPS: %.1f | %.1fs | Frames: %d"), Boxes->Current.Num(),
-								 S.AvgFps, S.Elapsed, S.Frames);
+									S.AvgFps, S.Elapsed, S.Frames);
 	}
 	else
 	{
@@ -117,15 +117,27 @@ export component StressTest {
 	};
 
 	return (
-		<Border Padding="12" BorderImage="WhiteBrush" BorderBackgroundColor={ FLinearColor(0.02f, 0.02f, 0.03f, 0.85f) } Slot.Padding="0,10,0,0">
+		<Border
+			Padding="12"
+			BorderImage="WhiteBrush"
+			BorderBackgroundColor={ FLinearColor(0.02f, 0.02f, 0.03f, 0.85f) }
+			Slot.Padding="0,10,0,0"
+		>
 			<VerticalBox>
-				<TextBlock Text={ FText::FromString(Status) } Font.Size={ 12.0f } ColorAndOpacity={ FLinearColor(1.0f, 0.85f, 0.5f) } />
+				<TextBlock
+					Text={ FText::FromString(Status) }
+					Font.Size={ 12.0f }
+					ColorAndOpacity={ FLinearColor(1.0f, 0.85f, 0.5f) } />
 				<Spacer Size={ FVector2D(1.0f, 6.0f) } />
 				<HorizontalBox>
 					<TextBlock Text="Duration(s): " />
-					<EditableTextBox Text={ FText::FromString(DurationText) } OnTextChanged={ SetDurationText(Value.TextValue.ToString()) } />
+					<EditableTextBox
+						Text={ FText::FromString(DurationText) }
+						OnTextChanged={ SetDurationText(Value.TextValue.ToString()) } />
 					<TextBlock Text="  Boxes: " />
-					<EditableTextBox Text={ FText::FromString(CountText) } OnTextChanged={ SetCountText(Value.TextValue.ToString()) } />
+					<EditableTextBox
+						Text={ FText::FromString(CountText) }
+						OnTextChanged={ SetCountText(Value.TextValue.ToString()) } />
 					<Button OnClicked={ StartRun() } ContentPadding="12,4" Slot.Padding="8,0,0,0">
 						<TextBlock Text={ FText::FromString(bRunning ? TEXT("Running...") : (S.bFinished ? TEXT("Restart") : TEXT("Start"))) } />
 					</Button>
@@ -135,7 +147,14 @@ export component StressTest {
 					<Overlay>
 						@for (const RuiDemo::FStressBox& StressBox : Boxes->Current) {
 							return (
-								<Box key={ StressBox.Id } WidthOverride={ StressBox.Size } HeightOverride={ StressBox.Size } RenderTranslation={ StressBox.Pos } Slot.HAlign="left" Slot.VAlign="top">
+								<Box
+									key={ StressBox.Id }
+									WidthOverride={ StressBox.Size }
+									HeightOverride={ StressBox.Size }
+									RenderTranslation={ StressBox.Pos }
+									Slot.HAlign="left"
+									Slot.VAlign="top"
+								>
 									<Border BorderImage="WhiteBrush" BorderBackgroundColor={ StressBox.Color } />
 								</Box>
 							);

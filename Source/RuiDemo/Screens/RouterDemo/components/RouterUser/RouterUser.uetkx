@@ -1,12 +1,14 @@
 // The "/users/:id" route — reads its :id segment via UseParams, navigates back.
-export component RouterUser {
+export FRuiNode RouterUser() {
 	const TMap<FString, FString>& Params = UseParams();
 	auto Navigate = UseNavigate();
 
 	return (
 		<VerticalBox>
 			<TextBlock Text={ RUI::Fmt(TEXT("User {}"), Params[TEXT("id")]) } />
-			<Button OnClicked={ Navigate(TEXT("/"), false) } ContentPadding="12,4" Slot.Padding="0,6,0,0">Back home</Button>
+			<Button OnClicked={ Navigate(TEXT("/"), false) } ContentPadding="12,4" Slot.Padding="0,6,0,0">
+				Back home
+			</Button>
 		</VerticalBox>
 	);
 }

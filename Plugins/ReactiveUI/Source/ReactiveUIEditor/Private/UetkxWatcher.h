@@ -29,7 +29,8 @@ public:
 
 private:
 	void OnDirectoryChanged(const TArray<struct FFileChangeData>& Changes);
-	void ReportDiags(const FString& UetkxPath, const TArray<FString>& Errors);
+	void ReportDiags(const FString& UetkxPath, const TArray<FString>& Errors,
+					 const TArray<struct FUetkxDiag>* ErrorDiags = nullptr);
 
 	FTSTicker::FDelegateHandle TickerHandle;
 	TArray<FString> Roots; // resolved watched roots (settings.WatchedRoots at Start, else default)

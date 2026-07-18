@@ -32,6 +32,10 @@ public:
 	/** All declarations of a resolved key: name -> (kind, exported). false if unreadable. */
 	virtual bool GetDecls(const FString& Key, TMap<FString, FUetkxTargetDecl>& Out) const = 0;
 
+	/** ES-modules (U-08): the key's `export default <Name>` target ("" = no default export) —
+	 *  default-import resolution (the alias plane's target lookup) + the 2326 diagnostic. */
+	virtual FString DefaultExportOf(const FString& Key) const = 0;
+
 	/** True when Key lives OUTSIDE ImporterPath's module/root — imports are module-scoped (2308). */
 	virtual bool CrossesModuleBoundary(const FString& ImporterPath, const FString& Key) const = 0;
 
@@ -64,6 +68,7 @@ public:
 
 	virtual FString Resolve(const FString& Spec, const FString& ImporterPath) const override;
 	virtual bool GetDecls(const FString& Key, TMap<FString, FUetkxTargetDecl>& Out) const override;
+	virtual FString DefaultExportOf(const FString& Key) const override;
 	virtual bool CrossesModuleBoundary(const FString& ImporterPath, const FString& Key) const override;
 	virtual uint32 ExportHashOf(const FString& Key) const override;
 	virtual FString LabelForKey(const FString& Key) const override;

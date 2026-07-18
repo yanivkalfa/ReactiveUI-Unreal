@@ -95,9 +95,11 @@ bool FRuiUetkxSchemaTest::RunTest(const FString&)
 		TestTrue(TEXT("template created"), !Created.IsEmpty() && IFileManager::Get().FileExists(*Created));
 		FString Source;
 		FFileHelper::LoadFileToString(Source, *Created);
-		TestTrue(TEXT("declares the component"), Source.Contains(TEXT("component MyPanel {")));
+		// ES-modules (M7): the scaffold uses the NEW plain-declaration grammar — no wrapper, no 2320.
+		TestTrue(TEXT("declares the component (new plain grammar)"),
+				 Source.Contains(TEXT("export FRuiNode MyPanel() {")));
 		const FUetkxCompileOutput Out = FUetkxCodegen::CompileSource(Source, TEXT("MyPanel"));
-		TestTrue(TEXT("template compiles clean"), Out.bOk && Out.Diags.Num() == 0);
+		TestTrue(TEXT("template compiles clean (zero diagnostics)"), Out.bOk && Out.Diags.Num() == 0);
 
 		TestTrue(TEXT("never overwrites"), FUetkxFileActions::CreateComponentFile(Scratch, TEXT("MyPanel")).IsEmpty());
 		TestTrue(TEXT("rejects lowercase (UETKX2100 grammar)"),

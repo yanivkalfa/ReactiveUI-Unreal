@@ -55,7 +55,7 @@ static FRuiNodeArray DoomHUD_UetkxImpl(FRuiContext& Ctx, const FDoomHUDUetkxProp
 	const auto& KillTotal = Props.KillTotal;
 	const auto& MapName = Props.MapName;
 	const auto& FaceState = Props.FaceState;
-#line 24 "Source/RuiDemo/Screens/DoomDemo/components/DoomHUD/DoomHUD.uetkx"
+#line 11 "Source/RuiDemo/Screens/DoomDemo/components/DoomHUD/DoomHUD.uetkx"
 	const FLinearColor BarBg(0.12f, 0.10f, 0.08f, 1.0f);
 		const FLinearColor PanelBg(0.20f, 0.16f, 0.10f, 1.0f);
 		const FLinearColor TopBorder(0.85f, 0.55f, 0.20f, 1.0f);
@@ -66,7 +66,7 @@ static FRuiNodeArray DoomHUD_UetkxImpl(FRuiContext& Ctx, const FDoomHUDUetkxProp
 	
 		static const TCHAR* AmmoLabels[] = {TEXT("BUL"), TEXT("SHL"), TEXT("RKT"), TEXT("CEL")};
 		const int32 AmmoMax[] = {RuiDoom::C::MAX_BULLETS, RuiDoom::C::MAX_SHELLS, RuiDoom::C::MAX_ROCKETS,
-								 RuiDoom::C::MAX_CELLS};
+									RuiDoom::C::MAX_CELLS};
 	
 		// Current-weapon ammo readout (the Unity CurrentAmmoLabel switch, verbatim mapping).
 		auto AmmoAt = [&](int32 i) { return Ammo.IsValidIndex(i) ? Ammo[i] : 0; };

@@ -7,20 +7,7 @@ import { DoomFace } from "../DoomFace/DoomFace"
 // read off state.Player / state at the call site and passed in as VALUE props, so plain
 // props equality re-renders exactly when a number changes. Panel proportions carry the
 // Unity flex-grow weights via Slot.Fill.
-export component DoomHUD(
-	Health: int32 = 100,
-	Armor: int32 = 0,
-	ArmorClass: int32 = 0,
-	Weapon: RuiDoom::EWeaponType = RuiDoom::EWeaponType::Pistol,
-	Ammo: TArray<int32> = TArray<int32>(),
-	OwnedWeapons: TArray<bool> = TArray<bool>(),
-	Keys: RuiDoom::EKeyCard = RuiDoom::EKeyCard::None,
-	Score: int32 = 0,
-	KillCount: int32 = 0,
-	KillTotal: int32 = 0,
-	MapName: FString = FString(),
-	FaceState: int32 = 0
-) {
+export FRuiNode DoomHUD(int32 Health = 100, int32 Armor = 0, int32 ArmorClass = 0, RuiDoom::EWeaponType Weapon = RuiDoom::EWeaponType::Pistol, TArray<int32> Ammo = TArray<int32>(), TArray<bool> OwnedWeapons = TArray<bool>(), RuiDoom::EKeyCard Keys = RuiDoom::EKeyCard::None, int32 Score = 0, int32 KillCount = 0, int32 KillTotal = 0, FString MapName = FString(), int32 FaceState = 0) {
 	const FLinearColor BarBg(0.12f, 0.10f, 0.08f, 1.0f);
 	const FLinearColor PanelBg(0.20f, 0.16f, 0.10f, 1.0f);
 	const FLinearColor TopBorder(0.85f, 0.55f, 0.20f, 1.0f);
@@ -31,7 +18,7 @@ export component DoomHUD(
 
 	static const TCHAR* AmmoLabels[] = {TEXT("BUL"), TEXT("SHL"), TEXT("RKT"), TEXT("CEL")};
 	const int32 AmmoMax[] = {RuiDoom::C::MAX_BULLETS, RuiDoom::C::MAX_SHELLS, RuiDoom::C::MAX_ROCKETS,
-							 RuiDoom::C::MAX_CELLS};
+								RuiDoom::C::MAX_CELLS};
 
 	// Current-weapon ammo readout (the Unity CurrentAmmoLabel switch, verbatim mapping).
 	auto AmmoAt = [&](int32 i) { return Ammo.IsValidIndex(i) ? Ammo[i] : 0; };
@@ -67,42 +54,102 @@ export component DoomHUD(
 	const bool bHasRed = EnumHasAnyFlags(Keys, RuiDoom::EKeyCard::Red);
 
 	return (
-		<Box WidthOverride={ static_cast<float>(RuiDoom::C::VIEWPORT_W) } HeightOverride={ static_cast<float>(RuiDoom::C::HUD_HEIGHT) }>
+		<Box
+			WidthOverride={ static_cast<float>(RuiDoom::C::VIEWPORT_W) }
+			HeightOverride={ static_cast<float>(RuiDoom::C::HUD_HEIGHT) }
+		>
 			<!-- Top border 3px (Unity BorderTopWidth=3) + the bar background. -->
 			<Border BorderImage="WhiteBrush" BorderBackgroundColor={ TopBorder } Padding="0,3,0,0">
 				<Border BorderImage="WhiteBrush" BorderBackgroundColor={ BarBg } Padding="8,6">
 					<HorizontalBox>
 						<!-- AMMO panel (current weapon). -->
-						<Border BorderImage="WhiteBrush" BorderBackgroundColor={ TopBorder } Padding="1" Slot.Fill={ 2.0f } Slot.Padding="0,0,4,0">
+						<Border
+							BorderImage="WhiteBrush"
+							BorderBackgroundColor={ TopBorder }
+							Padding="1"
+							Slot.Fill={ 2.0f }
+							Slot.Padding="0,0,4,0"
+						>
 							<Border BorderImage="WhiteBrush" BorderBackgroundColor={ PanelBg } Padding="6,4">
 								<VerticalBox>
-									<TextBlock Text="AMMO" Font.Size={ 10.0f } ColorAndOpacity={ LabelClr } Justification="center" Slot.HAlign="center" Slot.Padding="0,2,0,0" />
-									<TextBlock Text={ FText::FromString(CurrentAmmo) } Font.Size={ 24.0f } ColorAndOpacity={ RedNum } Justification="center" Slot.HAlign="center" Slot.Padding="0,4,0,0" />
+									<TextBlock
+										Text="AMMO"
+										Font.Size={ 10.0f }
+										ColorAndOpacity={ LabelClr }
+										Justification="center"
+										Slot.HAlign="center"
+										Slot.Padding="0,2,0,0" />
+									<TextBlock
+										Text={ FText::FromString(CurrentAmmo) }
+										Font.Size={ 24.0f }
+										ColorAndOpacity={ RedNum }
+										Justification="center"
+										Slot.HAlign="center"
+										Slot.Padding="0,4,0,0" />
 								</VerticalBox>
 							</Border>
 						</Border>
 						<!-- HEALTH panel. -->
-						<Border BorderImage="WhiteBrush" BorderBackgroundColor={ TopBorder } Padding="1" Slot.Fill={ 2.5f } Slot.Padding="0,0,4,0">
+						<Border
+							BorderImage="WhiteBrush"
+							BorderBackgroundColor={ TopBorder }
+							Padding="1"
+							Slot.Fill={ 2.5f }
+							Slot.Padding="0,0,4,0"
+						>
 							<Border BorderImage="WhiteBrush" BorderBackgroundColor={ PanelBg } Padding="6,4">
 								<VerticalBox>
-									<TextBlock Text="HEALTH" Font.Size={ 10.0f } ColorAndOpacity={ LabelClr } Justification="center" Slot.HAlign="center" Slot.Padding="0,2,0,0" />
-									<TextBlock Text={ RUI::Fmt(TEXT("{}%"), Health) } Font.Size={ 24.0f } ColorAndOpacity={ RedNum } Justification="center" Slot.HAlign="center" Slot.Padding="0,4,0,0" />
+									<TextBlock
+										Text="HEALTH"
+										Font.Size={ 10.0f }
+										ColorAndOpacity={ LabelClr }
+										Justification="center"
+										Slot.HAlign="center"
+										Slot.Padding="0,2,0,0" />
+									<TextBlock
+										Text={ RUI::Fmt(TEXT("{}%"), Health) }
+										Font.Size={ 24.0f }
+										ColorAndOpacity={ RedNum }
+										Justification="center"
+										Slot.HAlign="center"
+										Slot.Padding="0,4,0,0" />
 								</VerticalBox>
 							</Border>
 						</Border>
 						<!-- ARMS grid: weapon slots 2..7, lit when owned. -->
-						<Border BorderImage="WhiteBrush" BorderBackgroundColor={ TopBorder } Padding="1" Slot.Fill={ 3.0f } Slot.Padding="0,0,4,0">
+						<Border
+							BorderImage="WhiteBrush"
+							BorderBackgroundColor={ TopBorder }
+							Padding="1"
+							Slot.Fill={ 3.0f }
+							Slot.Padding="0,0,4,0"
+						>
 							<Border BorderImage="WhiteBrush" BorderBackgroundColor={ PanelBg } Padding="6,4">
 								<VerticalBox>
-									<TextBlock Text="ARMS" Font.Size={ 10.0f } ColorAndOpacity={ LabelClr } Justification="center" Slot.HAlign="center" Slot.Padding="0,2,0,0" />
+									<TextBlock
+										Text="ARMS"
+										Font.Size={ 10.0f }
+										ColorAndOpacity={ LabelClr }
+										Justification="center"
+										Slot.HAlign="center"
+										Slot.Padding="0,2,0,0" />
 									<!-- Wraps onto a second line when the panel is narrower than
 										 six cells — the Unity original's FlexWrap, verbatim. -->
-									<WrapBox bUseAllottedSize={ true } InnerSlotPadding={ FVector2D(2.0f, 1.0f) } Slot.HAlign="center" Slot.Padding="0,2,0,0">
+									<WrapBox
+										bUseAllottedSize={ true }
+										InnerSlotPadding={ FVector2D(2.0f, 1.0f) }
+										Slot.HAlign="center"
+										Slot.Padding="0,2,0,0"
+									>
 										@for (int32 i = 1; i <= 6; ++i) {
 											const bool bOwned = OwnedWeapons.IsValidIndex(i) && OwnedWeapons[i];
 											return (
 												<Box key={ FName(*FString::Printf(TEXT("arm%d"), i)) } WidthOverride={ 20.0f }>
-													<TextBlock Text={ RUI::Fmt(TEXT("{}"), i + 1) } Font.Size={ 11.0f } ColorAndOpacity={ bOwned ? RedNum : DimClr } Justification="center" />
+													<TextBlock
+														Text={ RUI::Fmt(TEXT("{}"), i + 1) }
+														Font.Size={ 11.0f }
+														ColorAndOpacity={ bOwned ? RedNum : DimClr }
+														Justification="center" />
 												</Box>
 											);
 										}
@@ -113,46 +160,104 @@ export component DoomHUD(
 						<!-- Face mug. -->
 						<DoomFace Frame={ FaceState } />
 						<!-- ARMOR panel (MEGA when blue armor). -->
-						<Border BorderImage="WhiteBrush" BorderBackgroundColor={ TopBorder } Padding="1" Slot.Fill={ 2.5f } Slot.Padding="0,0,4,0">
+						<Border
+							BorderImage="WhiteBrush"
+							BorderBackgroundColor={ TopBorder }
+							Padding="1"
+							Slot.Fill={ 2.5f }
+							Slot.Padding="0,0,4,0"
+						>
 							<Border BorderImage="WhiteBrush" BorderBackgroundColor={ PanelBg } Padding="6,4">
 								<VerticalBox>
-									<TextBlock Text={ ArmorClass == 2 ? INVTEXT("MEGA") : INVTEXT("ARMOR") } Font.Size={ 10.0f } ColorAndOpacity={ LabelClr } Justification="center" Slot.HAlign="center" Slot.Padding="0,2,0,0" />
-									<TextBlock Text={ RUI::Fmt(TEXT("{}%"), Armor) } Font.Size={ 24.0f } ColorAndOpacity={ RedNum } Justification="center" Slot.HAlign="center" Slot.Padding="0,4,0,0" />
+									<TextBlock
+										Text={ ArmorClass == 2 ? INVTEXT("MEGA") : INVTEXT("ARMOR") }
+										Font.Size={ 10.0f }
+										ColorAndOpacity={ LabelClr }
+										Justification="center"
+										Slot.HAlign="center"
+										Slot.Padding="0,2,0,0" />
+									<TextBlock
+										Text={ RUI::Fmt(TEXT("{}%"), Armor) }
+										Font.Size={ 24.0f }
+										ColorAndOpacity={ RedNum }
+										Justification="center"
+										Slot.HAlign="center"
+										Slot.Padding="0,4,0,0" />
 								</VerticalBox>
 							</Border>
 						</Border>
 						<!-- KEYS column: blue / yellow / red card dots. -->
-						<Border BorderImage="WhiteBrush" BorderBackgroundColor={ TopBorder } Padding="1" Slot.Fill={ 0.8f } Slot.Padding="0,0,4,0">
+						<Border
+							BorderImage="WhiteBrush"
+							BorderBackgroundColor={ TopBorder }
+							Padding="1"
+							Slot.Fill={ 0.8f }
+							Slot.Padding="0,0,4,0"
+						>
 							<Border BorderImage="WhiteBrush" BorderBackgroundColor={ PanelBg } Padding="6,4">
 								<VerticalBox>
-									<Box WidthOverride={ 14.0f } HeightOverride={ 14.0f } Slot.HAlign="center" Slot.Padding="0,0,0,2">
+									<Box
+										WidthOverride={ 14.0f }
+										HeightOverride={ 14.0f }
+										Slot.HAlign="center"
+										Slot.Padding="0,0,0,2"
+									>
 										<Border BorderImage="WhiteBrush" BorderBackgroundColor={ DotBorder } Padding="1">
-											<Border BorderImage="WhiteBrush" BorderBackgroundColor={ bHasBlue ? BlueKey : KeyOff(BlueKey) } />
+											<Border
+												BorderImage="WhiteBrush"
+												BorderBackgroundColor={ bHasBlue ? BlueKey : KeyOff(BlueKey) } />
 										</Border>
 									</Box>
-									<Box WidthOverride={ 14.0f } HeightOverride={ 14.0f } Slot.HAlign="center" Slot.Padding="0,0,0,2">
+									<Box
+										WidthOverride={ 14.0f }
+										HeightOverride={ 14.0f }
+										Slot.HAlign="center"
+										Slot.Padding="0,0,0,2"
+									>
 										<Border BorderImage="WhiteBrush" BorderBackgroundColor={ DotBorder } Padding="1">
-											<Border BorderImage="WhiteBrush" BorderBackgroundColor={ bHasYellow ? YellowKey : KeyOff(YellowKey) } />
+											<Border
+												BorderImage="WhiteBrush"
+												BorderBackgroundColor={ bHasYellow ? YellowKey : KeyOff(YellowKey) } />
 										</Border>
 									</Box>
-									<Box WidthOverride={ 14.0f } HeightOverride={ 14.0f } Slot.HAlign="center" Slot.Padding="0,0,0,2">
+									<Box
+										WidthOverride={ 14.0f }
+										HeightOverride={ 14.0f }
+										Slot.HAlign="center"
+										Slot.Padding="0,0,0,2"
+									>
 										<Border BorderImage="WhiteBrush" BorderBackgroundColor={ DotBorder } Padding="1">
-											<Border BorderImage="WhiteBrush" BorderBackgroundColor={ bHasRed ? RedKey : KeyOff(RedKey) } />
+											<Border
+												BorderImage="WhiteBrush"
+												BorderBackgroundColor={ bHasRed ? RedKey : KeyOff(RedKey) } />
 										</Border>
 									</Box>
 								</VerticalBox>
 							</Border>
 						</Border>
 						<!-- AMMO breakdown table: BUL/SHL/RKT/CEL have / max. -->
-						<Border BorderImage="WhiteBrush" BorderBackgroundColor={ TopBorder } Padding="1" Slot.Fill={ 3.5f } Slot.Padding="0,0,4,0">
+						<Border
+							BorderImage="WhiteBrush"
+							BorderBackgroundColor={ TopBorder }
+							Padding="1"
+							Slot.Fill={ 3.5f }
+							Slot.Padding="0,0,4,0"
+						>
 							<Border BorderImage="WhiteBrush" BorderBackgroundColor={ PanelBg } Padding="6,4">
 								<VerticalBox>
 									@for (int32 i = 0; i < 4; ++i) {
 										const int32 Have = Ammo.IsValidIndex(i) ? Ammo[i] : 0;
 										return (
 											<HorizontalBox key={ FName(*FString::Printf(TEXT("a%d"), i)) } Slot.Padding="0,0,0,1">
-												<TextBlock Text={ FText::FromString(AmmoLabels[i]) } Font.Size={ 10.0f } ColorAndOpacity={ LabelClr } Slot.Fill={ 1.0f } />
-												<TextBlock Text={ RUI::Fmt(TEXT("{} / {}"), Have, AmmoMax[i]) } Font.Size={ 11.0f } ColorAndOpacity={ RedNum } />
+												<TextBlock
+													Text={ FText::FromString(AmmoLabels[i]) }
+													Font.Size={ 10.0f }
+													ColorAndOpacity={ LabelClr }
+													Slot.Fill={ 1.0f } />
+												<TextBlock
+													Text={ RUI::Fmt(TEXT("{} / {}"), Have, AmmoMax[i]) }
+													Font.Size={ 11.0f }
+													ColorAndOpacity={ RedNum } />
 											</HorizontalBox>
 										);
 									}
@@ -160,12 +265,35 @@ export component DoomHUD(
 							</Border>
 						</Border>
 						<!-- INFO panel: map name, kills, score. -->
-						<Border BorderImage="WhiteBrush" BorderBackgroundColor={ TopBorder } Padding="1" Slot.Fill={ 4.0f }>
+						<Border
+							BorderImage="WhiteBrush"
+							BorderBackgroundColor={ TopBorder }
+							Padding="1"
+							Slot.Fill={ 4.0f }
+						>
 							<Border BorderImage="WhiteBrush" BorderBackgroundColor={ PanelBg } Padding="6,4">
 								<VerticalBox>
-									<TextBlock Text={ FText::FromString(MapName) } Font.Size={ 10.0f } ColorAndOpacity={ LabelClr } Justification="center" Slot.HAlign="center" Slot.Padding="0,4" />
-									<TextBlock Text={ RUI::Fmt(TEXT("KILLS  {} / {}"), KillCount, KillTotal) } Font.Size={ 12.0f } ColorAndOpacity={ RedNum } Justification="center" Slot.HAlign="center" Slot.Padding="0,2,0,0" />
-									<TextBlock Text={ RUI::Fmt(TEXT("SCORE  {}"), Score) } Font.Size={ 12.0f } ColorAndOpacity={ RedNum } Justification="center" Slot.HAlign="center" Slot.Padding="0,2,0,0" />
+									<TextBlock
+										Text={ FText::FromString(MapName) }
+										Font.Size={ 10.0f }
+										ColorAndOpacity={ LabelClr }
+										Justification="center"
+										Slot.HAlign="center"
+										Slot.Padding="0,4" />
+									<TextBlock
+										Text={ RUI::Fmt(TEXT("KILLS  {} / {}"), KillCount, KillTotal) }
+										Font.Size={ 12.0f }
+										ColorAndOpacity={ RedNum }
+										Justification="center"
+										Slot.HAlign="center"
+										Slot.Padding="0,2,0,0" />
+									<TextBlock
+										Text={ RUI::Fmt(TEXT("SCORE  {}"), Score) }
+										Font.Size={ 12.0f }
+										ColorAndOpacity={ RedNum }
+										Justification="center"
+										Slot.HAlign="center"
+										Slot.Padding="0,2,0,0" />
 								</VerticalBox>
 							</Border>
 						</Border>

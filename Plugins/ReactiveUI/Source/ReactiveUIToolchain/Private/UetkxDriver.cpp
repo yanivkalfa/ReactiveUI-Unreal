@@ -44,11 +44,16 @@ namespace
 
 	FString SerializeSidecar(uint32 SrcHash, const TArray<FUetkxDiag>& Diags, const TArray<FString>& ComponentNames,
 							 const FString& InlName, const TArray<FString>& Uses, bool bSupportFile, uint32 ExportHash,
-							 const TMap<FString, uint32>& DepHashes)
+							 const TMap<FString, uint32>& DepHashes, const FString& DefaultExportName)
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		Root->SetNumberField(TEXT("v"), 3);
 		Root->SetNumberField(TEXT("src_hash"), static_cast<double>(SrcHash));
+		// ES-modules (U-08): the file's `export default` target — additive field, schema v3 stays.
+		if (!DefaultExportName.IsEmpty())
+		{
+			Root->SetStringField(TEXT("default"), DefaultExportName);
+		}
 		// v3 staleness graph (M8): this file's export shape hash + the export hash of every resolved
 		// dependency at compile time. An importer re-stales when a dep's export_hash moves (A5d).
 		Root->SetNumberField(TEXT("export_hash"), static_cast<double>(ExportHash));
@@ -137,6 +142,47 @@ namespace
 		double H = 0.0;
 		Root->TryGetNumberField(TEXT("export_hash"), H);
 		return static_cast<uint32>(H);
+	}
+
+	/** ES-modules (U-06): does this import bind an EAGER symbol (hook/module/value/util — consumed
+	 *  at load, TDZ semantics)? Component-only bindings stay LAZY (the two-phase pass legalizes
+	 *  component cycles). Named imports check each target name's kind; `* as X` is eager when the
+	 *  target exports ANY eager kind (`X::` can reach all of them); a default import follows its
+	 *  target's default-export decl kind. Shared by the 2306 cycle DFS and the aggregator's
+	 *  remainder ordering — the two eager-edge consumers must never disagree. */
+	bool ImportBindsEagerSymbol(const FUetkxImportDecl& Imp, const TMap<FString, FUetkxTargetDecl>& Decls,
+								const FString& TargetDefaultName)
+	{
+		auto IsEager = [](EUetkxDeclKind K)
+		{
+			return K == EUetkxDeclKind::Hook || K == EUetkxDeclKind::Module || K == EUetkxDeclKind::Value ||
+				   K == EUetkxDeclKind::Util;
+		};
+		if (Imp.bNamespace)
+		{
+			for (const TPair<FString, FUetkxTargetDecl>& D : Decls)
+			{
+				if (D.Value.bExported && IsEager(D.Value.Kind))
+				{
+					return true;
+				}
+			}
+			return false;
+		}
+		if (Imp.bDefault)
+		{
+			const FUetkxTargetDecl* T = TargetDefaultName.IsEmpty() ? nullptr : Decls.Find(TargetDefaultName);
+			return T != nullptr && IsEager(T->Kind);
+		}
+		for (const FString& Name : Imp.Names)
+		{
+			const FUetkxTargetDecl* T = Decls.Find(Name);
+			if (T != nullptr && IsEager(T->Kind))
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/** True when any dependency this file recorded (dep_hashes) now has a DIFFERENT export_hash in
@@ -281,14 +327,12 @@ namespace
 					{
 						continue; // a self-import is not a value cycle (bughunt IMPORT-4) — never a self-edge
 					}
-					for (const FString& Name : Imp.Names)
+					// ES-modules (U-06): eager edges widen from hook/module to value/util/namespace/
+					// default bindings — the shared predicate keeps this DFS and the aggregator's
+					// remainder ordering in lockstep.
+					if (ImportBindsEagerSymbol(Imp, Decls, Resolver.DefaultExportOf(Target)))
 					{
-						const FUetkxTargetDecl* T = Decls.Find(Name);
-						if (T && (T->Kind == EUetkxDeclKind::Hook || T->Kind == EUetkxDeclKind::Module))
-						{
-							Edges.AddUnique(NormTarget);
-							break;
-						}
+						Edges.AddUnique(NormTarget);
 					}
 				}
 			}
@@ -469,6 +513,7 @@ FUetkxFileResult FUetkxDriver::CompileFile(const FString& UetkxPath, bool bForce
 	Out.Diags = Compiled.Diags;
 	Out.ComponentNames = Compiled.ComponentNames;
 	Out.ExportedNames = Compiled.ExportedNames;
+	Out.bSupportFile = Compiled.bSupportFile;
 	if (Compiled.bOk)
 	{
 		// Unconditional write: the fresh mtime IS the staleness ledger (see WriteIfChanged).
@@ -494,7 +539,8 @@ FUetkxFileResult FUetkxDriver::CompileFile(const FString& UetkxPath, bool bForce
 	}
 	WriteIfChanged(SidecarPathFor(UetkxPath),
 				   SerializeSidecar(Hash, Out.Diags, Compiled.ComponentNames, FPaths::GetCleanFilename(Out.InlPath),
-									Compiled.Uses, Compiled.bSupportFile, Compiled.ExportHash, Compiled.DepHashes));
+									Compiled.Uses, Compiled.bSupportFile, Compiled.ExportHash, Compiled.DepHashes,
+									Compiled.DefaultExportName));
 	return Out;
 }
 
@@ -697,14 +743,10 @@ TMap<FString, FString> FUetkxDriver::BuildAggregators(const TArray<FString>& Uet
 							{
 								continue;
 							}
-							for (const FString& Name : Imp.Names)
+							// ES-modules (U-06): the same eager-edge predicate as the 2306 DFS.
+							if (ImportBindsEagerSymbol(Imp, Decls, Resolver.DefaultExportOf(Target)))
 							{
-								const FUetkxTargetDecl* T = Decls.Find(Name);
-								if (T && (T->Kind == EUetkxDeclKind::Hook || T->Kind == EUetkxDeclKind::Module))
-								{
-									VDeps.AddUnique(*Dep);
-									break;
-								}
+								VDeps.AddUnique(*Dep);
 							}
 						}
 					}
@@ -869,6 +911,11 @@ FUetkxCheckResult FUetkxDriver::CheckDrift(const TArray<FString>& Roots)
 										 *FString::Join(Cycle, TEXT(" -> "))));
 	}
 	return Out;
+}
+
+FString FUetkxDriver::ProjectRelPath(const FString& UetkxPath)
+{
+	return ProjectRelPathFor(UetkxPath);
 }
 
 TArray<FString> FUetkxDriver::ImportersOf(const FString& ProjRelPath, const TArray<FString>& Roots)

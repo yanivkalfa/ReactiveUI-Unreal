@@ -1,22 +1,36 @@
-export component StyledPanels {
+export FRuiNode StyledPanels() {
 	auto [bDim, SetDim] = UseState<bool>(false);
 	auto [Text, SetText] = UseState<FString>(FString(TEXT("type here")));
 
 	return (
-		<Border Padding="12" BorderImage="WhiteBrush" BorderBackgroundColor={ FLinearColor(0.02f, 0.02f, 0.03f, 0.85f) } Slot.Padding="0,10,0,0">
+		<Border
+			Padding="12"
+			BorderImage="WhiteBrush"
+			BorderBackgroundColor={ FLinearColor(0.02f, 0.02f, 0.03f, 0.85f) }
+			Slot.Padding="0,10,0,0"
+		>
 			<VerticalBox>
-				<TextBlock Text="Styled panels" Font.Size={ 16.0f } ColorAndOpacity={ FLinearColor(0.6f, 1.0f, 0.6f) } />
+				<TextBlock
+					Text="Styled panels"
+					Font.Size={ 16.0f }
+					ColorAndOpacity={ FLinearColor(0.6f, 1.0f, 0.6f) } />
 				<Spacer Size={ FVector2D(1.0f, 6.0f) } />
 				<CheckBox bIsChecked={ bDim } OnCheckStateChanged={ SetDim(Value.BoolValue) }>
 					<TextBlock Text="dim the mirror" />
 				</CheckBox>
 				<Spacer Size={ FVector2D(1.0f, 6.0f) } />
-				<EditableTextBox Text={ FText::FromString(Text) } OnTextChanged={ SetText(Value.TextValue.ToString()) } />
+				<EditableTextBox
+					Text={ FText::FromString(Text) }
+					OnTextChanged={ SetText(Value.TextValue.ToString()) } />
 				<Spacer Size={ FVector2D(1.0f, 6.0f) } />
 				@if (bDim) {
-					return ( <TextBlock Text={ RUI::Fmt(TEXT("mirror: {}"), Text) } classes="rui-demo-dim" /> );
+					return (
+						<TextBlock Text={ RUI::Fmt(TEXT("mirror: {}"), Text) } classes="rui-demo-dim" />
+					);
 				} @else {
-					return ( <TextBlock Text={ RUI::Fmt(TEXT("mirror: {}"), Text) } /> );
+					return (
+						<TextBlock Text={ RUI::Fmt(TEXT("mirror: {}"), Text) } />
+					);
 				}
 			</VerticalBox>
 		</Border>

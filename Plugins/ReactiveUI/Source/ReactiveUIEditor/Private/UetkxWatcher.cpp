@@ -5,8 +5,11 @@
 #include "DirectoryWatcherModule.h"
 #include "Framework/Application/SlateApplication.h"
 #include "HAL/FileManager.h"
+#include "HAL/PlatformProcess.h"
 #include "IDirectoryWatcher.h"
 #include "Logging/MessageLog.h"
+#include "Logging/TokenizedMessage.h"
+#include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Modules/ModuleManager.h"
 #include "RUICompileCommandlet.h"
@@ -170,7 +173,65 @@ void FUetkxWatcher::OnDirectoryChanged(const TArray<FFileChangeData>& Changes)
 	}
 }
 
-void FUetkxWatcher::ReportDiags(const FString& UetkxPath, const TArray<FString>& Errors)
+namespace
+{
+	/** 1-based line/col from a code-point offset (scanner offsets are code points; low
+	 *  surrogates don't count). A jump aid, not a contract — astral chars shift col by design. */
+	void UetkxLineColFromOffset(const FString& Contents, int32 CodePointOffset, int32& OutLine, int32& OutCol)
+	{
+		OutLine = 1;
+		OutCol = 1;
+		int32 Seen = 0;
+		for (int32 i = 0; i < Contents.Len() && Seen < CodePointOffset; ++i)
+		{
+			const TCHAR C = Contents[i];
+			if (C >= 0xDC00 && C <= 0xDFFF)
+			{
+				continue; // low surrogate — same code point as the preceding high surrogate
+			}
+			++Seen;
+			if (C == TEXT('\n'))
+			{
+				++OutLine;
+				OutCol = 1;
+			}
+			else
+			{
+				++OutCol;
+			}
+		}
+	}
+
+	/** TB-8: open the .uetkx at line:col in the owner's editor — `code --goto` when VS Code is
+	 *  on PATH (checked lazily, once), else the OS default app for the file. */
+	void UetkxOpenAtLine(const FString& UetkxPath, int32 Line, int32 Col)
+	{
+		static int32 CachedHasCode = -1; // -1 unknown, 0 no, 1 yes
+		if (CachedHasCode == -1)
+		{
+			int32 ReturnCode = 1;
+			FString StdOut, StdErr;
+			FPlatformProcess::ExecProcess(TEXT("cmd.exe"), TEXT("/c where code"), &ReturnCode, &StdOut, &StdErr);
+			CachedHasCode = ReturnCode == 0 ? 1 : 0;
+		}
+		if (CachedHasCode == 1)
+		{
+			const FString Args = FString::Printf(TEXT("/c code --goto \"%s:%d:%d\""), *UetkxPath, Line, Col);
+			FProcHandle Handle = FPlatformProcess::CreateProc(TEXT("cmd.exe"), *Args, /*bLaunchDetached*/ true,
+															  /*bLaunchHidden*/ true, /*bLaunchReallyHidden*/ true,
+															  nullptr, 0, nullptr, nullptr);
+			if (Handle.IsValid())
+			{
+				FPlatformProcess::CloseProc(Handle);
+				return;
+			}
+		}
+		FPlatformProcess::LaunchFileInDefaultExternalApplication(*UetkxPath);
+	}
+} // namespace
+
+void FUetkxWatcher::ReportDiags(const FString& UetkxPath, const TArray<FString>& Errors,
+								const TArray<FUetkxDiag>* ErrorDiags)
 {
 	const FString Body = FString::Join(Errors, TEXT("\n"));
 	FString* Last = LastDiags.Find(UetkxPath);
@@ -192,9 +253,28 @@ void FUetkxWatcher::ReportDiags(const FString& UetkxPath, const TArray<FString>&
 	}
 	LastDiags.Add(UetkxPath, Body);
 	FMessageLog Log(MessageLogName);
-	for (const FString& Error : Errors)
+	// TB-8 (TESTING_BUGS.md): tokenized rows — message text + a `File(line,col)` ACTION token
+	// that opens the file at the error (Unity's double-click-the-console parity). Falls back to
+	// the plain-text row when structured diags are unavailable.
+	FString FileContents;
+	const bool bHaveContents =
+		ErrorDiags && ErrorDiags->Num() == Errors.Num() && FFileHelper::LoadFileToString(FileContents, *UetkxPath);
+	for (int32 e = 0; e < Errors.Num(); ++e)
 	{
-		Log.Error(FText::FromString(Error));
+		if (!bHaveContents)
+		{
+			Log.Error(FText::FromString(Errors[e]));
+			continue;
+		}
+		int32 Line = 1;
+		int32 Col = 1;
+		UetkxLineColFromOffset(FileContents, (*ErrorDiags)[e].Offset, Line, Col);
+		const FString Path = UetkxPath;
+		TSharedRef<FTokenizedMessage> Msg = Log.Error(FText::FromString(Errors[e]));
+		Msg->AddToken(FActionToken::Create(
+			FText::FromString(FString::Printf(TEXT("→ %s(%d,%d)"), *FPaths::GetCleanFilename(UetkxPath), Line, Col)),
+			FText::FromString(TEXT("Open this file at the error line in your editor")),
+			FOnActionTokenExecuted::CreateLambda([Path, Line, Col]() { UetkxOpenAtLine(Path, Line, Col); })));
 	}
 	Log.Notify(FText::FromString(
 				   FString::Printf(TEXT("ReactiveUI: %s failed to compile"), *FPaths::GetCleanFilename(UetkxPath))),
@@ -232,15 +312,31 @@ int32 FUetkxWatcher::Sweep(const TCHAR* Reason)
 				continue;
 			}
 			TArray<FString> FileErrors;
+			TArray<FUetkxDiag> FileErrorDiags; // parallel to FileErrors — feeds the TB-8 jump tokens
 			for (const FUetkxDiag& Diag : File.Diags)
 			{
 				if (Diag.Severity == 0)
 				{
-					FileErrors.Add(FString::Printf(TEXT("%s: %s: %s (offset %d)"), *File.UetkxPath, *Diag.Code,
-												   *Diag.Message, Diag.Offset));
+					FileErrors.Add(FString::Printf(TEXT("%s: %s: %s"), *File.UetkxPath, *Diag.Code, *Diag.Message));
+					FileErrorDiags.Add(Diag);
 				}
 			}
-			ReportDiags(File.UetkxPath, FileErrors);
+			ReportDiags(File.UetkxPath, FileErrors, &FileErrorDiags);
+			// ES-modules (M5): a recompiled SUPPORT file (values/hooks/modules/utils — no markup of
+			// its own) patches THROUGH its importers; name them so the author knows the HMR blast
+			// radius. Sidecar dep graph = the sweep that just ran, so the answer is current.
+			if (File.bOk && File.bSupportFile)
+			{
+				const TArray<FString> Importers =
+					FUetkxDriver::ImportersOf(FUetkxDriver::ProjectRelPath(File.UetkxPath), Roots);
+				if (Importers.Num() > 0)
+				{
+					UE_LOG(LogUetkxWatcher, Display,
+						   TEXT("[RUI] hmr: %s is a support file — the rebuild patches its "
+								"importer(s): %s"),
+						   *FPaths::GetCleanFilename(File.UetkxPath), *FString::Join(Importers, TEXT(", ")));
+				}
+			}
 		}
 	}
 	// HMR v2: codegen regenerated the committed .inl (keeps the tree fresh regardless of HMR). Hand the
