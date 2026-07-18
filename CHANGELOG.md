@@ -20,6 +20,18 @@ resync with `cp CHANGELOG.md Plugins/ReactiveUI/CHANGELOG.md` (CI byte-compares 
   independently), colored, and duplicate-checked across all parts
   (`import a, { b as a }` is UETKX2325).
 
+### Changed — UETKX2304 (unused import) is now an ERROR
+
+Severity bump (**BREAKING** for builds that carried unused imports as warnings; family-wide
+owner decision): an unused imported binding — named, `* as`, or default, including the
+individual parts of a combined declaration — now fails the compile like the other import
+diagnostics, in the compiler, the sidecar, and everything the LSP relays. The promotion is
+safe from false positives: the reference scan OVER-approximates "used" (declaration bodies,
+value initializers, markup attribute/directive expressions, and — closed in this release —
+param defaults all join the reference universe), so a firing 2304 means the binding truly
+appears nowhere. The finding also now spans the whole binding token, and a renamed entry
+anchors its LOCAL alias — the token the author must delete.
+
 ### Fixed
 
 - **A default-exported declaration now emits publicly.** `export default X;` on an

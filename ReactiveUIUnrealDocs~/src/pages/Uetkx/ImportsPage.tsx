@@ -47,7 +47,7 @@ const DIAGS: Array<[string, string, string]> = [
   ['UETKX2301', 'err', '`X` is not exported by that file — add `export` to its declaration'],
   ['UETKX2302', 'err', '`X` is not declared in that file'],
   ['UETKX2303', 'err', 'duplicate import of `X` (or duplicate host include of the same header)'],
-  ['UETKX2304', 'warn', 'unused import `X` (usage counts the local alias)'],
+  ['UETKX2304', 'err', 'unused import `X` (usage counts the local alias) — error since 0.13.0; the reference scan over-approximates "used", so this only fires when the binding truly appears nowhere'],
   ['UETKX2305', 'err', '`X` is defined elsewhere but not imported (with a fix-it import line)'],
   ['UETKX2306', 'err', 'value-import cycle (hooks/modules/values/utils load eagerly — break the chain)'],
   ['UETKX2307', 'err', '`X` is used like a component/hook but no file exports it'],

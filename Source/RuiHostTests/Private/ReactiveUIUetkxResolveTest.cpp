@@ -280,10 +280,44 @@ bool FRuiUetkxResolveTest::RunTest(const FString&)
 					  TEXT(");\n}\n"),
 				  Rel, R3),
 			TEXT("UETKX2301"));
-		// Unused PLAIN default binding warns — and pins that a binding never self-counts: the
+		// Unused PLAIN default binding fires — and pins that a binding never self-counts: the
 		// reference walk scans declaration bodies only, never the preamble's import lines.
 		Has(Codes(TEXT("import Home from \"./Screen\"\ncomponent T {\n\treturn ( <Spacer /> );\n}\n"), Rel, R3),
 			TEXT("UETKX2304"));
+
+		// UETKX2304 is ERROR-tier (owner decision, family f130cbbb): an unused binding fails the
+		// build like the other import diagnostics, and the finding spans the WHOLE binding token —
+		// a renamed entry anchors its LOCAL alias (what the author must delete), not the target.
+		{
+			const FString Src2304 =
+				TEXT("import { Chip as Badge } from \"./Chip\"\ncomponent T {\n\treturn ( <Spacer /> );\n}\n");
+			const FUetkxCompileOutput Out4 = FUetkxCodegen::CompileSource(Src2304, TEXT("T"), Rel, &R3);
+			const FUetkxDiag* D2304 =
+				Out4.Diags.FindByPredicate([](const FUetkxDiag& D) { return D.Code == TEXT("UETKX2304"); });
+			if (TestNotNull(TEXT("unused renamed import diagnosed"), D2304))
+			{
+				TestEqual(TEXT("2304 is error-tier"), D2304->Severity, 0);
+				TestEqual(TEXT("2304 anchors the LOCAL alias token"), D2304->Offset, Src2304.Find(TEXT("Badge")));
+				TestEqual(TEXT("2304 spans the whole alias token"), D2304->Length, 5);
+			}
+			TestFalse(TEXT("an unused import fails the compile (error tier)"), Out4.bOk);
+		}
+		// Error-tier safety: the "used" scan OVER-approximates — param DEFAULTS are real uses
+		// that live outside the scanned bodies (they emit into the generated code).
+		{ // a value used ONLY in a component param default is used
+			const TArray<FString> C =
+				Codes(TEXT("import { Tint } from \"./Deck\"\nexport FRuiNode T(FLinearColor C2 = Tint) {\n")
+						  TEXT("\treturn ( <Spacer /> );\n}\n"),
+					  Rel, R3);
+			HasNot(C, TEXT("UETKX2304"));
+		}
+		{ // a value used ONLY in a util's param default is used
+			const TArray<FString> C =
+				Codes(TEXT("import { Tint } from \"./Deck\"\nexport FString F2(FLinearColor C2 = Tint) {\n")
+						  TEXT("\treturn FString();\n}\nexport FRuiNode T() {\n\treturn ( <Spacer /> );\n}\n"),
+					  Rel, R3);
+			HasNot(C, TEXT("UETKX2304"));
+		}
 
 		// Value/util strict usage: an exported value/util referenced WITHOUT an import is 2305.
 		Has(Codes(TEXT("component T {\n\tauto X = Cool;\n\treturn ( <Spacer /> );\n}\n"), Rel, R3), TEXT("UETKX2305"));
