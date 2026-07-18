@@ -4,7 +4,7 @@ import { CodeBlock } from '../../components/CodeBlock/CodeBlock'
 import { ROADMAP_URL } from '../../links'
 import Styles from './IntroductionPage.style'
 
-const QUICK_SAMPLE = `component Counter {
+const QUICK_SAMPLE = `export FRuiNode Counter() {
 	auto [Count, SetCount] = UseState<int32>(0);
 	return (
 		<VerticalBox>

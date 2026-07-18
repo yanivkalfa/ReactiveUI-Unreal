@@ -5,7 +5,7 @@ import { CodeBlock } from '../../components/CodeBlock/CodeBlock'
 const PREAMBLE = `import "@MyTypes.h"                        // your own C++ header — library headers are auto-included
 import { StatusChip } from "./StatusChip"  // cross-file declarations
 
-export component Screen(Title: FText, Count: int32 = 0) {
+export FRuiNode Screen(FText Title, int32 Count = 0) {
 	// ...component body...
 }`
 
@@ -24,7 +24,7 @@ const FLOW = `<VerticalBox>
 	}
 </VerticalBox>`
 
-const EARLY_RETURNS = `export component Status(Count: int32 = 0) {
+const EARLY_RETURNS = `export FRuiNode Status(int32 Count = 0) {
 	if (Count < 0) {
 		return ( <TextBlock Text="invalid" /> );   // guard clause — plain C++ if
 	}
@@ -51,8 +51,11 @@ export const LanguageReferencePage: FC = () => (
     </Typography>
     <Typography variant="body1" paragraph>
       A <code>.uetkx</code> file compiles to committed C++. It is a preamble followed by a free
-      sequence of <strong>component</strong>, <strong>hook</strong> and <strong>module</strong>{' '}
-      declarations. This page is the syntax at a glance; the guides cover each area in depth.
+      sequence of plain typed declarations — the signature decides the kind:{' '}
+      <strong>component</strong> (returns <code>FRuiNode</code>), <strong>hook</strong>{' '}
+      (<code>Use</code>-prefixed), <strong>value</strong> (name followed by <code>=</code>) or{' '}
+      <strong>util function</strong>. This page is the syntax at a glance; the guides cover each
+      area in depth.
     </Typography>
 
     <Typography variant="h5" component="h2" gutterBottom sx={{ mt: 3 }}>

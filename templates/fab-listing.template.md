@@ -28,8 +28,10 @@ shipping.
 **Supported:** UE __ENGINE_VERSIONS__ · Win64 + Linux (tested), Mac (best-effort), consoles &
 mobile compile from source (untested — pure C++/AOT, no JIT requirements).
 
-**Source & license:** MIT on GitHub — __GITHUB_URL__ (Fab downloads additionally governed by
-the Fab EULA). Code generated from your `.uetkx` files belongs to your project.
+**Source & license:** PolyForm Shield 1.0.0 on GitHub — __GITHUB_URL__ (free to use and ship
+in your games and projects; not to be redistributed or sold as a competing product; Fab
+downloads additionally governed by the Fab EULA). Code generated from your `.uetkx` files
+belongs to your project.
 
 **Support:** GitHub Issues — __ISSUES_URL__ · Discord — __DISCORD_URL__ (#unreal)
 

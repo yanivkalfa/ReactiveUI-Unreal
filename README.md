@@ -96,5 +96,7 @@ a docs site, with every performance claim measured before it's printed.
 
 ## License
 
-[MIT](LICENSE) on GitHub. Fab downloads (when the listing exists) are additionally governed by
-the Fab EULA. Code generated from **your** `.uetkx` files belongs to **your** project.
+[PolyForm Shield 1.0.0](LICENSE) — free to use, modify, and ship inside your games and
+projects (commercial included); not to be redistributed or sold as a competing product. Fab
+downloads (when the listing exists) are additionally governed by the Fab EULA. Code generated
+from **your** `.uetkx` files belongs to **your** project.

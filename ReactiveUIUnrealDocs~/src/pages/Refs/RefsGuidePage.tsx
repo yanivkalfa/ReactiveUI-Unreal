@@ -2,7 +2,7 @@ import type { FC } from 'react'
 import { Alert, Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../components/CodeBlock/CodeBlock'
 
-const REF = `export component Stopwatch {
+const REF = `export FRuiNode Stopwatch() {
 	// A ref is a mutable box whose .current survives every render and never
 	// triggers one — perfect for a timer handle, a previous value, or a counter.
 	const TSharedRef<TRuiRef<int32>>& Renders = UseRef<int32>(0);

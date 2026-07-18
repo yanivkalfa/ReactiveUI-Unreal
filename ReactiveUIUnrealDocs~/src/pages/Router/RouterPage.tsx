@@ -2,14 +2,12 @@ import type { FC } from 'react'
 import { Alert, Box, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from '@mui/material'
 import { CodeBlock } from '../../components/CodeBlock/CodeBlock'
 
-const ROUTES = `#include "RuiRouter.h"
-
-import { HomeScreen } from "./HomeScreen"
+const ROUTES = `import { HomeScreen } from "./HomeScreen"
 import { UserScreen } from "./UserScreen"
 
 // A Router owns an in-memory history; Routes renders the best match for the
 // current location. Routes are data (FRuiRoute), not tags.
-export component AppShell {
+export FRuiNode AppShell() {
 	TArray<RUI::FRuiRoute> RouteList;
 	RouteList.Add(RUI::FRuiRoute{ TEXT("/"),          HomeScreen() });
 	RouteList.Add(RUI::FRuiRoute{ TEXT("/users/:id"), UserScreen() });
@@ -22,7 +20,7 @@ export component AppShell {
 }`
 
 const HOOKS_SAMPLE = `// Inside a routed component — the compiler passes Ctx to every Use* call for you.
-export component UserScreen {
+export FRuiNode UserScreen() {
 	const FString Path = UsePathname();
 	const TMap<FString, FString>& Params = UseParams();   // { "id": "42" }
 	auto Navigate = UseNavigate();                        // Navigate(TEXT("/users/7"), false)

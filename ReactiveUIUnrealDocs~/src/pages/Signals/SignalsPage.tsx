@@ -10,7 +10,7 @@ TSharedRef<TRuiSignal<int32>> Signal = RUI::GetOrCreateSignal<int32>(GDemoCounte
 <Button OnClicked={ Signal->Set(0) }>Reset</Button>`
 
 const READ = `// Any component reads a signal by key and re-renders when it changes.
-export component CounterLabel {
+export FRuiNode CounterLabel() {
 	const int32 Count = RUI::UseSignalKey<int32>(Ctx, GDemoCounterSignal, 0);
 	return <TextBlock Text={ RUI::Fmt(TEXT("Count: {}"), Count) } />;
 }`

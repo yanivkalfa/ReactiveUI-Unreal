@@ -118,9 +118,9 @@ export const sections: DocSection[] = [
         canonicalId: 'concepts',
         title: 'Concepts & Environment',
         path: '/concepts',
-        keywords: ['concepts', 'reconciler', 'components', 'hooks', 'modules', 'companion', 'cvars'],
+        keywords: ['concepts', 'reconciler', 'components', 'hooks', 'values', 'utils', 'companion', 'cvars'],
         searchContent:
-          'concepts environment react-style function components fiber reconciler diffs patches slate widgets pure c++ no javascript no uobject in core components hooks modules declaration kinds companion files .hooks.uetkx export hook UseCounter export module Styles synchronous rendering keyed reconciliation bailout effects after commit positional hooks call order unconditional top level IRuiHostConfig umg commonui mvvm rui.StrictMode rui.HookValidation rui.StrictDiagnostics rui.TimeSlicing rui.FrameBudgetMs rui.HostNodePool stat ReactiveUI console variables cvars',
+          'concepts environment react-style function components fiber reconciler diffs patches slate widgets pure c++ no javascript no uobject in core components hooks values utils signature classification file is a module companion files .hooks.uetkx export FRuiNode Use-prefixed value export util function synchronous rendering keyed reconciliation bailout effects after commit positional hooks call order unconditional top level IRuiHostConfig umg commonui mvvm rui.StrictMode rui.HookValidation rui.StrictDiagnostics rui.TimeSlicing rui.FrameBudgetMs rui.HostNodePool stat ReactiveUI console variables cvars',
         element: () => <ConceptsPage />,
       },
       {
@@ -130,7 +130,7 @@ export const sections: DocSection[] = [
         path: '/guides/migration',
         keywords: ['migration', 'adoption', 'existing project', 'incremental', 'umg', 'convert'],
         searchContent:
-          'migration adoption existing project incremental nobody rewrites shipping ui leaf islands panel URuiHostWidget ReactiveUI Host designer ComponentName registered component whole screens URuiActivatableScreen commonui stack AddWidgetInstance MountNamed URuiWorldSubsystem overlay inversion ReactiveUI owns tree RUI::Umg::UserWidget legacy widgets UseField viewmodels feed data convert hand-written c++ components RUI:: builder calls to .uetkx markup mechanical same reconciler hooks gallery reference RUIMigrateImports strict imports codemod deprecation policy VERSIONING changelog',
+          'migration adoption existing project incremental nobody rewrites shipping ui leaf islands panel URuiHostWidget ReactiveUI Host designer ComponentName registered component whole screens URuiActivatableScreen commonui stack AddWidgetInstance MountNamed URuiWorldSubsystem overlay inversion ReactiveUI owns tree RUI::Umg::UserWidget legacy widgets UseField viewmodels feed data convert hand-written c++ components RUI:: builder calls to .uetkx markup mechanical same reconciler hooks gallery reference RUIMigrateEsModules es modules codemod deprecation policy VERSIONING changelog',
         element: () => <MigrationPage />,
       },
       {
@@ -140,7 +140,7 @@ export const sections: DocSection[] = [
         path: '/uetkx/imports',
         keywords: ['import', 'export', 'module', 'strict', 'codemod', 'uetkx', 'privacy', 'root alias'],
         searchContent:
-          'uetkx imports exports static import export module strict resolution codemod RUIMigrateImports ~/ root alias specifier relative extensionless named export privacy tree-shaken UETKX2106 2300 2301 2302 2303 2304 2305 2306 2307 2308 2309 duplicate export binding unknown specifier not exported not declared duplicate unused used not imported value cycle module boundary preamble uetkx.config.json root key',
+          'uetkx imports exports static import export module strict resolution codemod RUIMigrateEsModules ~/ root alias specifier relative extensionless named export rename as namespace import star as default import export default export list privacy tree-shaken UETKX2106 2300 2301 2302 2303 2304 2305 2306 2307 2308 2309 2316 2317 2320 2321 2322 2323 2324 2325 2326 2327 duplicate export binding unknown specifier not exported not declared duplicate unused used not imported value cycle module boundary preamble wrapper deprecated uetkx.config.json root key',
         element: () => <ImportsPage />,
       },
       {
@@ -160,7 +160,7 @@ export const sections: DocSection[] = [
         path: '/guides/companion-files',
         keywords: ['companion', 'hooks', 'module', 'style', '.hooks.uetkx', '.style.uetkx'],
         searchContent:
-          'companion files beside component same base name role suffix .uetkx extension Name.uetkx Name.hooks.uetkx custom Use hooks reusable state effect logic Name.style.uetkx module shared constants colors sizes brushes export hook UseCounter export module ContextDemoStyle static const FLinearColor compiles committed c++ convention not special kind export what other files need private',
+          'companion files beside component same base name role suffix .uetkx extension Name.uetkx Name.hooks.uetkx custom Use hooks reusable state effect logic Name.style.uetkx shared constants colors sizes brushes value exports util functions export UseCounter Use-prefixed export FLinearColor CoolTheme import * as namespace compiles committed c++ convention not special kind export what other files need private',
         element: () => <CompanionFilesPage />,
       },
       {
