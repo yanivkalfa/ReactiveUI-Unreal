@@ -141,8 +141,7 @@ bool FRuiUetkxResolveTest::RunTest(const FString&)
 					  TEXT("export default Card;\n"));
 		Write(Root / TEXT("Screens/Deck2.uetkx"),
 			  TEXT("export FLinearColor Hue = FLinearColor(0.5f, 0.5f, 0.5f, 1.0f);\n")
-				  TEXT("FString FmtD(int32 S) {\n\treturn FString::FromInt(S);\n}\n")
-					  TEXT("export default FmtD;\n"));
+				  TEXT("FString FmtD(int32 S) {\n\treturn FString::FromInt(S);\n}\n") TEXT("export default FmtD;\n"));
 		const FUetkxFsResolver R3(Root, {Root}, /*bFixtureMode*/ true);
 
 		// Rename import: TARGET validated, LOCAL used — clean modulo the legacy-wrapper 2320.
@@ -221,8 +220,8 @@ bool FRuiUetkxResolveTest::RunTest(const FString&)
 			HasNot(C, TEXT("UETKX2326"));
 		}
 		{ // only the default used → exactly ONE 2304, on the named part
-			const TArray<FString> C =
-				Codes(TEXT("import Home, { Tint } from \"./Deck\"\ncomponent T {\n\treturn ( <Home /> );\n}\n"), Rel, R3);
+			const TArray<FString> C = Codes(
+				TEXT("import Home, { Tint } from \"./Deck\"\ncomponent T {\n\treturn ( <Home /> );\n}\n"), Rel, R3);
 			TestEqual(TEXT("combined: unused NAMED part alone warns"), CountOf(C, TEXT("UETKX2304")), 1);
 		}
 		{ // only the named part used → exactly ONE 2304, on the default
@@ -260,7 +259,7 @@ bool FRuiUetkxResolveTest::RunTest(const FString&)
 		// rename at all: the .inl carries the bare reference and NO declaration of the binding.
 		{
 			const FString Src = TEXT("import FmtD, { Hue } from \"./Deck2\"\nexport FRuiNode T() {\n")
-									TEXT("\tauto X = Hue;\n\tauto S = FmtD(1);\n\treturn ( <Spacer /> );\n}\n");
+				TEXT("\tauto X = Hue;\n\tauto S = FmtD(1);\n\treturn ( <Spacer /> );\n}\n");
 			const FUetkxCompileOutput Out2 = FUetkxCodegen::CompileSource(Src, TEXT("T"), Rel, &R3);
 			TArray<FString> C;
 			for (const FUetkxDiag& D : Out2.Diags)

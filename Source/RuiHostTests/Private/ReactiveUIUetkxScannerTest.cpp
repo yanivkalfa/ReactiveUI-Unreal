@@ -132,9 +132,9 @@ bool FRuiUetkxScannerTest::RunTest(const FString&)
 		}
 		return FString::Join(Pieces, TEXT("|"));
 	};
-	auto ComposeImportKey =
-		[&NamedPieces](bool bDefault, const FString& Def, bool bNamespace, const FString& Ns,
-					   const TArray<FString>& Names, const TArray<FString>& Locals, const FString& Spec) -> FString
+	auto ComposeImportKey = [&NamedPieces](bool bDefault, const FString& Def, bool bNamespace, const FString& Ns,
+										   const TArray<FString>& Names, const TArray<FString>& Locals,
+										   const FString& Spec) -> FString
 	{
 		TArray<FString> Parts;
 		if (bDefault)

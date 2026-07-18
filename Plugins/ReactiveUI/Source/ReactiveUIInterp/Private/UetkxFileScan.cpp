@@ -1172,8 +1172,7 @@ namespace
 	 *  Returns the index past the closing `}` on success; on failure emits the diag itself and
 	 *  returns the bitwise-NOT of the resync index (callers `return ~R` — 0 stays valid). Shared
 	 *  by the plain named form and the ES COMBINED form (`import Def, { A, B } from`). */
-	int32 ParseImportNameList(const TArray<int32>& Src, int32 BraceAt, FUetkxImportDecl& Imp,
-							  FUetkxFileScanResult& Out)
+	int32 ParseImportNameList(const TArray<int32>& Src, int32 BraceAt, FUetkxImportDecl& Imp, FUetkxFileScanResult& Out)
 	{
 		const int32 Bclose = FUetkxLexer::FindMatching(Src, BraceAt);
 		if (Bclose == -1)

@@ -1017,14 +1017,13 @@ FUetkxFormatResult FUetkxFormatter::Format(const FString& Source, const FUetkxFo
 					for (int32 n = 0; n < Imp.Names.Num(); ++n)
 					{
 						const FString& Local = Imp.LocalNames.IsValidIndex(n) ? Imp.LocalNames[n] : Imp.Names[n];
-						Pieces.Add(Local == Imp.Names[n]
-									   ? Imp.Names[n]
-									   : FString::Printf(TEXT("%s as %s"), *Imp.Names[n], *Local));
+						Pieces.Add(Local == Imp.Names[n] ? Imp.Names[n]
+														 : FString::Printf(TEXT("%s as %s"), *Imp.Names[n], *Local));
 					}
 					Heads.Add(FString::Printf(TEXT("{ %s }"), *FString::Join(Pieces, TEXT(", "))));
 				}
-				Block += FString::Printf(TEXT("import %s from \"%s\"\n"), *FString::Join(Heads, TEXT(", ")),
-										 *Imp.Specifier);
+				Block +=
+					FString::Printf(TEXT("import %s from \"%s\"\n"), *FString::Join(Heads, TEXT(", ")), *Imp.Specifier);
 			}
 		}
 		if (!Block.IsEmpty())
