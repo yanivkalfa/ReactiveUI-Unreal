@@ -103,7 +103,7 @@ namespace
 				R.End = Src.Num();
 			}
 		}
-		const FUetkxScopedLocals Locals(Src, ParamSeed);
+		const FUetkxScopedLocals Locals(Src, ParamSeed, &Ranges);
 		const int32 N = Src.Num();
 		int32 i = 0;
 		while (i < N)
@@ -240,8 +240,12 @@ namespace
 			CollectExternalRefs(BodyMarkup, Base < 0 ? FallbackAt : Base, IslandSeed, Out, Base >= 0, &IslandSeed);
 			return;
 		}
-		CollectExternalRefs(FUetkxLexer::FromCodePoints(Body, 0, Split.ReturnAt), Base < 0 ? FallbackAt : Base,
-							IslandSeed, Out, Base >= 0, &IslandSeed);
+		const FString Lead = FUetkxLexer::FromCodePoints(Body, 0, Split.ReturnAt);
+		CollectExternalRefs(Lead, Base < 0 ? FallbackAt : Base, IslandSeed, Out, Base >= 0, &IslandSeed);
+		// the lead's own declarations are live inside the nested window (audit: a lead local
+		// shadowing an exported name must not 2305 from an attr expression)
+		const FUetkxScopedLocals LeadLocals(FUetkxLexer::ToCodePoints(Lead), IslandSeed);
+		const TArray<FString> NestedSeed = LeadLocals.AllDeclNames();
 		FUetkxMarkup Parser;
 		FUetkxParseResult Pr = Parser.Parse(Body, Split.MStart, Split.MEnd);
 		if (Pr.IsOk())
@@ -250,7 +254,7 @@ namespace
 			{
 				if (Nd.IsValid())
 				{
-					CollectMarkupNodeRefs(*Nd, Base < 0 ? -1 : Base, Base < 0 ? FallbackAt : Base, IslandSeed, Out);
+					CollectMarkupNodeRefs(*Nd, Base < 0 ? -1 : Base, Base < 0 ? FallbackAt : Base, NestedSeed, Out);
 				}
 			}
 		}
@@ -765,7 +769,9 @@ void FUetkxResolve::Apply(const FUetkxFileScanResult& Scan, const TMap<FString, 
 		// N5 (TD-034 #3): scan the WHOLE body, markup-aware — return windows and value-markup
 		// ranges are parsed and their attr/child expressions + directive code join the reference
 		// set. Islands see the conservative locals union (setup locals are live inside markup).
-		const FUetkxScopedLocals BodyLocals(FUetkxLexer::ToCodePoints(D.Body), Seed);
+		const TArray<int32> BodyCp = FUetkxLexer::ToCodePoints(D.Body);
+		TArray<FUetkxMarkupRange> BodyRanges = FUetkxJsxScan::FindMarkupRanges(BodyCp, 0, BodyCp.Num());
+		const FUetkxScopedLocals BodyLocals(BodyCp, Seed, &BodyRanges);
 		const TArray<FString> IslandSeed = BodyLocals.AllDeclNames();
 		CollectExternalRefs(D.Body, D.BodyAt, Seed, Refs, /*bExactBase*/ true, &IslandSeed);
 	}
@@ -970,7 +976,9 @@ void FUetkxResolve::MissingImports(const FUetkxFileScanResult& Scan, const TSet<
 		// N5 (TD-034 #3): scan the WHOLE body, markup-aware — return windows and value-markup
 		// ranges are parsed and their attr/child expressions + directive code join the reference
 		// set. Islands see the conservative locals union (setup locals are live inside markup).
-		const FUetkxScopedLocals BodyLocals(FUetkxLexer::ToCodePoints(D.Body), Seed);
+		const TArray<int32> BodyCp = FUetkxLexer::ToCodePoints(D.Body);
+		TArray<FUetkxMarkupRange> BodyRanges = FUetkxJsxScan::FindMarkupRanges(BodyCp, 0, BodyCp.Num());
+		const FUetkxScopedLocals BodyLocals(BodyCp, Seed, &BodyRanges);
 		const TArray<FString> IslandSeed = BodyLocals.AllDeclNames();
 		CollectExternalRefs(D.Body, D.BodyAt, Seed, Refs, /*bExactBase*/ true, &IslandSeed);
 	}

@@ -35,11 +35,14 @@ export function declStartCpOf(scan: ReturnType<typeof scanFile>, name: string): 
  *  the binding (with its comma) — or the WHOLE import line when it is the only binding /
  *  a namespace / a default import. */
 export function unusedImportRemoval(scan: ReturnType<typeof scanFile>, text: string, diagCp: number): { start: number; end: number } | null {
-  const lineSpanAt = (cp: number): { start: number; end: number } => {
-    const cps = [...text].map((c) => c.codePointAt(0)!);
-    let s = cp;
+  const cps = [...text].map((c) => c.codePointAt(0)!);
+  // The whole-import span: from the `import` keyword's line start to the end of the line the
+  // SPECIFIER closes on — a multi-line name list must not leave a dangling `} from "…"`
+  // behind (audit: the single-line assumption produced broken source).
+  const wholeImportSpan = (imp: { at: number; specifierAt: number; specifier: string }): { start: number; end: number } => {
+    let s = imp.at;
     while (s > 0 && cps[s - 1] !== 10) s--;
-    let e = cp;
+    let e = Math.max(imp.at, imp.specifierAt + imp.specifier.length);
     while (e < cps.length && cps[e] !== 10) e++;
     if (e < cps.length) e++;
     return { start: s, end: e };
@@ -47,10 +50,10 @@ export function unusedImportRemoval(scan: ReturnType<typeof scanFile>, text: str
   for (const imp of scan.imports) {
     if (imp.hostInclude) continue;
     if (imp.isNamespace && diagCp >= imp.namespaceAliasAt && diagCp <= imp.namespaceAliasAt + imp.namespaceAlias.length) {
-      return lineSpanAt(imp.at);
+      return wholeImportSpan(imp);
     }
     if (imp.isDefault && diagCp >= imp.defaultAliasAt && diagCp <= imp.defaultAliasAt + imp.defaultAlias.length) {
-      return lineSpanAt(imp.at);
+      return wholeImportSpan(imp);
     }
     for (let n = 0; n < imp.names.length; n++) {
       const localAt = imp.localNameAts[n] ?? imp.nameAts[n];
@@ -58,11 +61,10 @@ export function unusedImportRemoval(scan: ReturnType<typeof scanFile>, text: str
       const onName = diagCp >= imp.nameAts[n] && diagCp <= imp.nameAts[n] + imp.names[n].length;
       const onLocal = diagCp >= localAt && diagCp <= localAt + local.length;
       if (!onName && !onLocal) continue;
-      if (imp.names.length === 1) return lineSpanAt(imp.at);
+      if (imp.names.length === 1) return wholeImportSpan(imp);
       // remove `Name[ as Local]` plus one adjacent comma
       const startCp = imp.nameAts[n];
       const endCp = localAt + local.length;
-      const cps = [...text].map((c) => c.codePointAt(0)!);
       let s = startCp;
       let e = endCp;
       // prefer trailing `, ` (keeps `{ A, B }` shapes tidy), else a leading `, `
@@ -70,7 +72,7 @@ export function unusedImportRemoval(scan: ReturnType<typeof scanFile>, text: str
       while (t < cps.length && (cps[t] === 32 || cps[t] === 9)) t++;
       if (t < cps.length && cps[t] === 44) {
         e = t + 1;
-        while (e < cps.length && cps[e] === 32) e++;
+        while (e < cps.length && (cps[e] === 32 || cps[e] === 9)) e++;
       } else {
         let h = s - 1;
         while (h >= 0 && (cps[h] === 32 || cps[h] === 9)) h--;

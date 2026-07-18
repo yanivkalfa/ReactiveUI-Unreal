@@ -526,6 +526,97 @@ component CardStack(Names: TArray<FString>) {
 			}
 		}
 
+		// TD-034 #1 (N4 audit): the shadow tracker must hold inside MARKUP EXPRESSIONS and across
+		// value-markup fragmentation — a setup local is live in attr exprs (the impl body scope),
+		// and a declaration BEFORE a value-markup range is still visible after it.
+		{
+			// A setup local shadowing a rename alias, referenced from an ATTR expression: the
+			// attr must emit the LOCAL spelling (rewriting to the target would silently read the
+			// imported value instead of the local).
+			const FUetkxCompileOutput AttrShadow = FUetkxCodegen::CompileSource(
+				TEXT("import { Cool as Primary } from \"./Palette2\"\n") TEXT("export FRuiNode ShadowAttr() {\n")
+					TEXT("\tFLinearColor Primary = FLinearColor(1.0f, 0.0f, 0.0f, 1.0f);\n")
+						TEXT("\treturn ( <Border BorderBackgroundColor={ Primary } /> );\n}\n"),
+				TEXT("ShadowAttr"));
+			if (TestTrue(TEXT("attr-shadow sample compiles"), AttrShadow.bOk))
+			{
+				TestTrue(TEXT("attr expr keeps the shadowing local"),
+						 AttrShadow.Inl.Contains(TEXT("FRuiValue(Primary)")) ||
+							 AttrShadow.Inl.Contains(TEXT("( Primary )")) ||
+							 AttrShadow.Inl.Contains(TEXT("(Primary)")));
+				TestFalse(TEXT("attr expr does NOT rewrite to the alias target"),
+						  AttrShadow.Inl.Contains(TEXT("FRuiValue(Cool)")) ||
+							  AttrShadow.Inl.Contains(TEXT("( Cool )")));
+			}
+
+			// Value-markup fragmentation: a local declared BEFORE an embedded markup value stays
+			// visible in the setup code AFTER it (the emitter splits the region around the range).
+			const FUetkxCompileOutput FragShadow = FUetkxCodegen::CompileSource(
+				TEXT("import { Cool as Primary } from \"./Palette2\"\n") TEXT("export FRuiNode ShadowFrag() {\n")
+					TEXT("\tFLinearColor Primary = FLinearColor(1.0f, 0.0f, 0.0f, 1.0f);\n")
+						TEXT("\tFRuiNode Chip = <Spacer />;\n") TEXT("\tauto After = Primary;\n")
+							TEXT("\treturn ( <VerticalBox>{ Chip }</VerticalBox> );\n}\n"),
+				TEXT("ShadowFrag"));
+			if (TestTrue(TEXT("fragmented-shadow sample compiles"), FragShadow.bOk))
+			{
+				TestTrue(TEXT("post-range reference keeps the local"),
+						 FragShadow.Inl.Contains(TEXT("auto After = Primary;")));
+			}
+		}
+
+		// N4 audit round 2: range-for vars, lambda params, directive-frame locals, and the
+		// comma rule — every recognized tracker pattern pinned at the EMISSION plane.
+		{
+			// A range-for variable shadowing the alias keeps its bare spelling in the loop body.
+			const FUetkxCompileOutput RangeFor = FUetkxCodegen::CompileSource(
+				TEXT("import { Cool as Primary } from \"./Palette2\"\n") TEXT("export FRuiNode ShadowRange() {\n")
+					TEXT("\tTArray<FLinearColor> Tints;\n")
+						TEXT("\tfor (const FLinearColor& Primary : Tints) {\n\t\tauto V = Primary;\n\t}\n")
+							TEXT("\treturn ( <Spacer /> );\n}\n"),
+				TEXT("ShadowRange"));
+			if (TestTrue(TEXT("range-for shadow compiles"), RangeFor.bOk))
+			{
+				TestTrue(TEXT("range-for var stays bare"), RangeFor.Inl.Contains(TEXT("auto V = Primary;")));
+			}
+
+			// A lambda parameter shadowing the alias keeps its bare spelling in the lambda body.
+			const FUetkxCompileOutput Lambda = FUetkxCodegen::CompileSource(
+				TEXT("import { Cool as Primary } from \"./Palette2\"\n") TEXT("export FRuiNode ShadowLambda() {\n")
+					TEXT("\tauto Fn = [](const FLinearColor& Primary) { return Primary.R; };\n")
+						TEXT("\treturn ( <Spacer /> );\n}\n"),
+				TEXT("ShadowLambda"));
+			if (TestTrue(TEXT("lambda-param shadow compiles"), Lambda.bOk))
+			{
+				TestTrue(TEXT("lambda param stays bare"), Lambda.Inl.Contains(TEXT("return Primary.R;")));
+			}
+
+			// An @for loop var shadowing the alias stays bare inside a NESTED attr expression.
+			const FUetkxCompileOutput LoopAttr = FUetkxCodegen::CompileSource(
+				TEXT("import { Cool as Primary } from \"./Palette2\"\n") TEXT("export FRuiNode ShadowLoopAttr() {\n")
+					TEXT("\treturn (\n\t\t<VerticalBox>\n")
+						TEXT("\t\t\t@for (int32 Primary = 0; Primary < 3; ++Primary) {\n")
+							TEXT("\t\t\t\treturn ( <TextBlock Text={ FText::AsNumber(Primary) } /> )\n\t\t\t}\n")
+								TEXT("\t\t</VerticalBox>\n\t);\n}\n"),
+				TEXT("ShadowLoopAttr"));
+			if (TestTrue(TEXT("loop-var attr shadow compiles"), LoopAttr.bOk))
+			{
+				TestTrue(TEXT("nested attr keeps the loop var"),
+						 LoopAttr.Inl.Contains(TEXT("FText::AsNumber(Primary)")));
+			}
+
+			// The comma RESETS type-ish (audit: `MakeTuple(1, Primary)` must still rewrite its
+			// second argument — keeping type-ish through `,` mis-declared it as a local).
+			const FUetkxCompileOutput Comma = FUetkxCodegen::CompileSource(
+				TEXT("import { Cool as Primary } from \"./Palette2\"\n") TEXT("export FRuiNode CommaArg() {\n")
+					TEXT("\tauto T = MakeTuple(1, Primary);\n\treturn ( <Spacer /> );\n}\n"),
+				TEXT("CommaArg"));
+			if (TestTrue(TEXT("comma-arg sample compiles"), Comma.bOk))
+			{
+				TestTrue(TEXT("second argument rewrites to the target"),
+						 Comma.Inl.Contains(TEXT("MakeTuple(1, Cool)")));
+			}
+		}
+
 		// Mixed 5-kind file: source order preserved within each phase region.
 		const FUetkxCompileOutput Mixed = FUetkxCodegen::CompileSource(
 			TEXT("export FRuiNode Widget5() {\n\treturn ( <Spacer /> );\n}\n")
