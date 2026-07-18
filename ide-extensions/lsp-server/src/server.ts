@@ -173,7 +173,7 @@ const CLANGD_TYPE_MAP: Record<string, number> = {
  *  is one), so we hover each distinct variable name once per doc version and re-type the ones
  *  whose type spells callable. */
 const callableVarCache = new Map<string, { version: number; callable: Set<string>; checked: Set<string> }>();
-const CALLABLE_TYPE_RE = /TFunction<|FRuiCallback|TDelegate<|TUniqueFunction</;
+const CALLABLE_TYPE_RE = /TRuiSetter<|TFunction<|FRuiCallback|TDelegate<|TUniqueFunction<|\(lambda\)/;
 
 connection.languages.semanticTokens.on(async (params) => {
   const doc = documents.get(params.textDocument.uri);
@@ -226,25 +226,45 @@ connection.languages.semanticTokens.on(async (params) => {
             if (startOff === null || endOff === null || endOff - startOff !== d.len) continue; // glue
             mapped.push({ srcStart: startOff, len: d.len, type: ourType, typeName: d.typeName, vpos: { line: d.vline, character: d.vchar } });
           }
-          // hover the distinct unchecked variable names (cap keeps the pass cheap)
-          const byName = new Map<string, Array<(typeof mapped)[number]>>();
-          for (const m of mapped) {
-            if (m.typeName !== "variable" && m.typeName !== "parameter") continue;
-            const name = text.slice(m.srcStart, m.srcStart + m.len);
-            if (!/^[A-Za-z_]/.test(name)) continue;
-            if (!byName.has(name)) byName.set(name, []);
-            byName.get(name)!.push(m);
-          }
-          let budget = 16;
-          for (const [name, occurrences] of byName) {
-            if (cache.checked.has(name)) continue;
-            if (budget-- <= 0) break;
-            cache.checked.add(name);
-            const hov = (await proxy.positionRequest("textDocument/hover", vuri, occurrences[0].vpos)) as {
-              contents?: { value?: string } | string;
-            } | null;
-            const hovText = typeof hov?.contents === "string" ? hov.contents : hov?.contents?.value ?? "";
-            if (CALLABLE_TYPE_RE.test(hovText)) cache.callable.add(name);
+          // R7 — COMPILER-truth callables via inlay hints (the owner's dig-deeper call): the
+          // AST types structured bindings fine; hover just can't show them. Two exact signals:
+          //   TYPE hints (`: TRuiSetter<bool>`) anchor right after a declared name — match the
+          //   framework's callable vocabulary (family setter/callback/delegate/lambda types);
+          //   PARAMETER hints (`NewValue:`) only appear inside calls the compiler RESOLVED —
+          //   the callee is callable by proof, whatever its type spells.
+          if (!cache.checked.has("__hints__")) {
+            cache.checked.add("__hints__");
+            const vLines = view.virtualText.split("\n");
+            const hints = await proxy.inlayHints(vuri, {
+              start: { line: 0, character: 0 },
+              end: { line: vLines.length - 1, character: 0 },
+            });
+            for (const h of hints ?? []) {
+              const label = Array.isArray(h.label) ? h.label.map((p) => p.value).join("") : h.label;
+              const lineText = vLines[h.position.line] ?? "";
+              if (h.kind === 1 && CALLABLE_TYPE_RE.test(label)) {
+                // type hint: the declared name ends right at the hint position
+                let e = h.position.character;
+                let s = e;
+                while (s > 0 && /[A-Za-z0-9_]/.test(lineText[s - 1])) s--;
+                if (e > s) cache.callable.add(lineText.slice(s, e));
+              } else if (h.kind === 2) {
+                // parameter hint: walk back to the call's `(` and take the callee name
+                let k = h.position.character - 1;
+                while (k >= 0 && /[\s]/.test(lineText[k])) k--;
+                if (k >= 0 && (lineText[k] === "(" || lineText[k] === ",")) {
+                  if (lineText[k] === ",") {
+                    // not the first argument — the callee was already recorded by arg 1
+                    continue;
+                  }
+                  let e2 = k;
+                  while (e2 > 0 && /\s/.test(lineText[e2 - 1])) e2--;
+                  let s2 = e2;
+                  while (s2 > 0 && /[A-Za-z0-9_]/.test(lineText[s2 - 1])) s2--;
+                  if (e2 > s2) cache.callable.add(lineText.slice(s2, e2));
+                }
+              }
+            }
           }
           for (const m of mapped) {
             const name = text.slice(m.srcStart, m.srcStart + m.len);

@@ -215,3 +215,27 @@ same first char, ≥5 chars → warn `unknown name 'SetPrimsary' — did you mea
 **Verified:** the exact reported scenario (UseSstate broken + SetPrimsary use) flags 2310;
 gallery-wide sweep over all 36 demo files: exactly ONE hit — the real typo saved in
 ContextDemo — zero false positives. Smoke pin added.
+
+---
+
+# Round 7 (2026-07-19): coloring from COMPILER TRUTH — the dig-deeper answer
+
+The owner rejected "clangd can't type it" — correctly. The AST types those bindings fine
+(the identical generated code compiles); only clangd's HOVER can't present structured-
+binding types. The surface that CAN: **inlay hints** — clangd emits the exact deduced type
+(`: TRuiSetter<bool>` for SetPrimary) at every auto/binding decl, and parameter-name hints
+(`NewValue:`) inside every call the compiler successfully RESOLVED.
+
+The overlay now runs on those two exact signals instead of hover:
+- a TYPE hint whose label is in the framework's callable vocabulary (TRuiSetter, TFunction,
+  FRuiCallback, TDelegate, TUniqueFunction, lambdas) marks the declared name callable —
+  note the REAL type is `TRuiSetter<bool>`, which the old hover regex would have missed;
+- a PARAMETER hint proves the compiler resolved `Name(...)` as a call — callable by proof,
+  whatever the type spells.
+
+Custom .uetkx hooks flow through the same pipe: their shims carry the DECLARED return type
+from the scan, clang deduces the binding, the hint reports it.
+
+**Verified both ways:** clean file → `SetPrimary` colors as function (compiler-derived);
+hook name broken → the binding doesn't type → honest variable/blue (and the 2310 typo lint
+covers the diagnostics side). No pattern-matching anywhere in the chain.

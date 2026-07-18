@@ -440,6 +440,7 @@ export class ClangdProxy {
           textDocument: {
             publishDiagnostics: { relatedInformation: false, tagSupport: { valueSet: [1, 2] } },
             // R5 embedded coloring: without this clangd never enables its token provider.
+            inlayHint: {}, // R7: type/param hints — the compiler's OWN types for auto/bindings
             semanticTokens: {
               requests: { full: true },
               tokenTypes: [
@@ -538,6 +539,23 @@ export class ClangdProxy {
   /** clangd's semantic-token legend, or null before initialize / when unsupported. */
   semanticLegend(): { tokenTypes: string[]; tokenModifiers: string[] } | null {
     return this.tokenLegend;
+  }
+
+  /** textDocument/inlayHint over a virtual-doc range — the compiler's deduced TYPES for
+   *  auto/structured bindings and resolved-call parameter names (R7: type-true coloring). */
+  async inlayHints(
+    uri: string,
+    range: { start: ClangdPosition; end: ClangdPosition },
+  ): Promise<Array<{ position: ClangdPosition; kind?: number; label: string | Array<{ value: string }> }> | null> {
+    if (!this.available) {
+      return null;
+    }
+    try {
+      const res = await this.request("textDocument/inlayHint", { textDocument: { uri }, range });
+      return Array.isArray(res) ? (res as Array<{ position: ClangdPosition; kind?: number; label: string | Array<{ value: string }> }>) : null;
+    } catch {
+      return null;
+    }
   }
 
   /** textDocument/semanticTokens/full for a virtual doc — null on degradation. Long timeout:
