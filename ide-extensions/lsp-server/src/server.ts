@@ -609,7 +609,7 @@ function validate(doc: TextDocument): void {
         const key = `UETKX2310@${r.start}:${r.len}`;
         if (!seen.has(key)) {
           seen.add(key);
-          push(r.start, r.len, 1, "UETKX2310", `unknown name '${name}' — did you mean the local '${best}'?`);
+          push(r.start, r.len, 0, "UETKX2310", `unknown name '${name}' — did you mean the local '${best}'?`);
         }
       }
     }
