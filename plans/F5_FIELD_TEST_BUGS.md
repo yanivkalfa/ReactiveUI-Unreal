@@ -183,3 +183,35 @@ Component tags now validate attrs against the component's PARAMS — same-file o
 through the import (default imports included) — plus the pass-through set (style keys, slot
 keys, key/classes/Ref). Unresolvable targets skip (never guess). Verified on the owner's
 actual saved file: `unknown prop 'Labsssssssssel' on <DemoContextPanel>`; smoke pin added.
+
+---
+
+# Round 6 (2026-07-19): the owner called out an assumption — course correction
+
+Report: (a) `SetPrimsary(!bPrimary)` still silent when the hook is ALSO broken — "and it
+should" flag; (b) the setter colored yellow even with a TYPO'D hook name — "there's some
+kind of assumption going on… instead of properly fixing stuff you patch them?"
+
+The criticism was right on (b). Resolution, properly this time:
+
+## R6-1 — the family-rule coloring REMOVED (it was an assumption)
+
+The `auto [X, SetX] = Use\w+` regex colored SetX as a function by PATTERN, firing even when
+the hook was broken/nonexistent. Removed. Coloring is now strictly type-driven: the hover
+overlay re-types a variable only when clang REPORTS a callable type. Probe evidence of the
+hard limit: clangd types TTuple structured bindings as "NULL TYPE" at the decl and returns
+NO hover at the use — so `SetPrimary` colors as a variable (blue), which is what the
+compiler actually knows. Honest > pretty.
+
+## R6-2 — the local-typo lint (LSP-only UETKX2310) — the PROPER fix for (a)
+
+clang suppresses an undeclared-CALLEE error once an argument is error-typed (the broken-
+initializer cascade) — upstream, probe-proven in plain C++. But OUR scope tracker knows the
+locals. New lint: a code reference that resolves to NOTHING (not a local/import/decl/
+builtin/workspace export) within edit distance 1 (2 from 9 chars) of an IN-SCOPE local,
+same first char, ≥5 chars → warn `unknown name 'SetPrimsary' — did you mean the local
+'SetPrimary'?`. Deterministic, cascade-proof, markup-fast (no clang round-trip).
+
+**Verified:** the exact reported scenario (UseSstate broken + SetPrimsary use) flags 2310;
+gallery-wide sweep over all 36 demo files: exactly ONE hit — the real typo saved in
+ContextDemo — zero false positives. Smoke pin added.

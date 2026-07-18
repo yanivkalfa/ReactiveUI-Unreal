@@ -37,7 +37,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { codePointToUtf16, toCodePoints, utf16ToCodePoint } from "./codePoints";
 import { findMarkupRanges } from "./jsxScan";
-import { sweepMarkupElements } from "./uetkxIndex";
+import { collectFileReferences, paramNamesOf, sweepMarkupElements, UetkxScopedLocals } from "./uetkxIndex";
 import { classifyCursor, DIRECTIVES } from "./context";
 import { enclosingAttrName, fieldForKind, PAYLOAD_FIELDS } from "./eventPayload";
 import { readSidecarDiags } from "./diagsSidecar";
@@ -215,13 +215,6 @@ connection.languages.semanticTokens.on(async (params) => {
           let cache = callableVarCache.get(doc.uri);
           if (!cache || cache.version !== doc.version) {
             cache = { version: doc.version, callable: new Set(), checked: new Set() };
-            // FAMILY RULE (R5): the SECOND binding of `auto [X, SetX] = Use…()` is the setter
-            // callable — clangd hovers these as "NULL TYPE" (structured bindings over TTuple),
-            // so the domain convention decides where clang cannot.
-            for (const m of text.matchAll(/auto\s*\[\s*\w+\s*,\s*(\w+)\s*\]\s*=\s*Use\w+/g)) {
-              cache.callable.add(m[1]);
-              cache.checked.add(m[1]);
-            }
             callableVarCache.set(doc.uri, cache);
           }
           const mapped: Array<{ srcStart: number; len: number; type: number; typeName: string; vpos: { line: number; character: number } }> = [];
@@ -536,6 +529,69 @@ function validate(doc: TextDocument): void {
         else merged.push([s[0], s[1]]);
       }
       sweepSpans(bodyCp, comp.bodyAt, merged);
+    }
+  }
+  // R6: local-typo lint (LSP-only UETKX2310). collectFileReferences suppresses true locals,
+  // so every CODE ref here already failed to resolve as one — measure the leftovers against
+  // the local names and flag near-misses. Guards: >=5 chars, same first char (case matters),
+  // distance <= 1 (<=2 from 9 chars), not an import/decl/builtin, not exported anywhere.
+  {
+    const localNames = new Set<string>();
+    for (const comp of scan.components) {
+      const bodyCp = toCodePoints(comp.body);
+      const ranges = findMarkupRanges(bodyCp, 0, bodyCp.length).map((r) => ({ start: r.start, end: r.end === -1 ? bodyCp.length : r.end }));
+      for (const n of new UetkxScopedLocals(bodyCp, comp.params.map((p) => p.name), ranges).allDeclNames()) localNames.add(n);
+    }
+    for (const h of scan.hooks) for (const n of new UetkxScopedLocals(toCodePoints(h.body), paramNamesOf(h.params)).allDeclNames()) localNames.add(n);
+    for (const u of scan.utils) for (const n of new UetkxScopedLocals(toCodePoints(u.body), paramNamesOf(u.params)).allDeclNames()) localNames.add(n);
+    if (localNames.size > 0) {
+      const known = new Set<string>();
+      for (const d of [...scan.components, ...scan.hooks, ...scan.modules, ...scan.values, ...scan.utils]) known.add(d.name);
+      for (const imp of scan.imports) {
+        if (imp.hostInclude) continue;
+        for (const l of imp.localNames) known.add(l);
+        if (imp.namespaceAlias) known.add(imp.namespaceAlias);
+        if (imp.defaultAlias) known.add(imp.defaultAlias);
+      }
+      for (const hk of schemaOf(doc).hooks) known.add(hk);
+      const dist = (a: string, b: string, max: number): number => {
+        if (Math.abs(a.length - b.length) > max) return max + 1;
+        const prev = new Array(b.length + 1).fill(0).map((_, i) => i);
+        for (let i = 1; i <= a.length; i++) {
+          let diag = prev[0];
+          prev[0] = i;
+          let rowMin = prev[0];
+          for (let j = 1; j <= b.length; j++) {
+            const tmp = prev[j];
+            prev[j] = Math.min(prev[j] + 1, prev[j - 1] + 1, diag + (a[i - 1] === b[j - 1] ? 0 : 1));
+            diag = tmp;
+            if (prev[j] < rowMin) rowMin = prev[j];
+          }
+          if (rowMin > max) return max + 1;
+        }
+        return prev[b.length];
+      };
+      for (const r of collectFileReferences(scan, text)) {
+        if (r.kind !== "code") continue;
+        const name = r.name;
+        if (name.length < 5 || known.has(name) || localNames.has(name)) continue;
+        const max = name.length >= 9 ? 2 : 1;
+        let best: string | null = null;
+        for (const local of localNames) {
+          if (local[0] !== name[0] || local === name) continue;
+          if (dist(name, local, max) <= max) {
+            best = local;
+            break;
+          }
+        }
+        if (!best) continue;
+        if (findExporter(name, fsPathOf(doc))) continue; // a real workspace symbol — 2305's business
+        const key = `UETKX2310@${r.start}:${r.len}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          push(r.start, r.len, 1, "UETKX2310", `unknown name '${name}' — did you mean the local '${best}'?`);
+        }
+      }
     }
   }
   if (!scan.diags.some((d) => d.severity === 0)) {

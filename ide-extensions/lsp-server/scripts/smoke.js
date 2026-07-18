@@ -184,6 +184,17 @@ const settle = (ms = 300) => new Promise((r) => setTimeout(r, ms));
   if (!propDiags.some((d) => String(d.code) === "UETKX0105" && /Labsssel/.test(d.message)))
     fail("unknown component prop must 0105: " + JSON.stringify(propDiags.map((d) => d.code)));
   console.log("component-prop validation OK (0105 on an unknown prop)");
+
+  // R6: local-typo lint — a near-miss of an in-scope LOCAL flags 2310 even when the
+  // binding initializer is broken (clang suppresses the callee error in that cascade)
+  const typoUri = "file:///tmp/Typo.uetkx";
+  notify("textDocument/didOpen", { textDocument: { uri: typoUri, languageId: "uetkx", version: 1,
+    text: "export FRuiNode Typo() {\n\tauto [bOpen, SetOpen] = UseSstate<bool>(true);\n\treturn ( <Button OnClicked={ SetOpsen(!bOpen) }>x</Button> );\n}\n" } });
+  await settle();
+  const typoDiags = diagnostics[typoUri] || [];
+  if (!typoDiags.some((d) => String(d.code) === "UETKX2310" && /SetOpsen/.test(d.message)))
+    fail("local-typo lint missing 2310: " + JSON.stringify(typoDiags.map((d) => d.code)));
+  console.log("local-typo lint OK (2310 did-you-mean, cascade-proof)");
   fs.rmSync(cpDir, { recursive: true, force: true });
 
   // import intelligence: a real on-disk workspace (.uproject root + exporter B + importer A) —
