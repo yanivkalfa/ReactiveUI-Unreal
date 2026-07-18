@@ -37,6 +37,9 @@ Discord: <https://discord.gg/Knedqu4Wyv> (`#unreal`)
 
 ## License
 
-PolyForm Shield 1.0.0 (see `LICENSE`) — free to use, modify, and ship inside your games and
-projects (commercial included); not to be redistributed or sold as a competing product. Code
-generated from **your** `.uetkx` files belongs to **your** project.
+ReactiveUI Community License 1.0 (see `LICENSE`) — free to use, modify, and ship inside your
+games and projects (commercial included) if your company earned under US $250k in the last
+12 months; above that, shipping needs a commercial license ($2,000/title or
+$2,500/studio/year — see the repo's `LICENSE-COMMERCIAL.md`). Credit "Made with ReactiveUI";
+not to be redistributed or sold as a competing product. Code generated from **your** `.uetkx`
+files belongs to **your** project.

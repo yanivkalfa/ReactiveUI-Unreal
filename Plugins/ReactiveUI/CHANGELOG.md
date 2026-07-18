@@ -7,7 +7,23 @@ resync with `cp CHANGELOG.md Plugins/ReactiveUI/CHANGELOG.md` (CI byte-compares 
 `scripts/verify-mirror.mjs`). The IDE extensions are NOT covered here — they use
 `ide-extensions/changelog.json` (Lane B; see the release-process skill).
 
-## [0.13.0] — Unreleased
+## [0.13.0] — 2026-07-18
+
+### Changed — License: PolyForm Shield 1.0.0 → ReactiveUI Community License 1.0
+
+From this release, ReactiveUI for Unreal ships under the **ReactiveUI Community
+License 1.0** (`LICENSE`): free to use, modify, and ship commercially for any company
+under **US $250,000** gross revenue plus funding in the trailing 12 months; above that,
+shipping a product requires a commercial license — **$2,000 per title** (perpetual) or
+**$2,500 per studio per year** — see `LICENSE-COMMERCIAL.md` (new). Development,
+evaluation, and education stay free at any company size; the obligation attaches only
+to shipping. The license asks every shipped product for a "Made with ReactiveUI"
+credits line, and carries the noncompete forward (reselling the library as a competing
+product remains prohibited — a game built with it is never a competing product). Every
+previously released version keeps the license it shipped with. Also new: `CLA.md`
+(contributor license agreement, required for outside contributions; see
+`CONTRIBUTING.md`), and the VS2022 extension now ships the license inside the VSIX. No
+code or feature changes in this entry — same library, all features, for everyone.
 
 ### Added
 

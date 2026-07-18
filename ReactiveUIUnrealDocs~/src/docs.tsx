@@ -32,6 +32,7 @@ import { RouterPage } from './pages/Router/RouterPage'
 import { SuspensePage } from './pages/Suspense/SuspensePage'
 import { DebuggingPage } from './pages/Debugging/DebuggingPage'
 import { FAQPage } from './pages/FAQ/FAQPage'
+import { LicensingPage } from './pages/Licensing/LicensingPage'
 import { KnownIssuesPage } from './pages/KnownIssues/KnownIssuesPage'
 import { RoadmapPage } from './pages/Roadmap/RoadmapPage'
 import { HmrPage } from './pages/Tooling/HMR/HmrPage'
@@ -501,6 +502,22 @@ export const sections: DocSection[] = [
         searchContent:
           'faq frequently asked questions what is reactiveui for unreal react-style ui library pure c++ fiber reconciler slate widgets .uetkx compiles committed c++ which unreal versions 5.6 plugin no external native dependency no external runtime production ready beta pre-1.0 docs release scripting vm no javascript engine bridge reflection-free existing umg widgets UUserWidget RUI::Umg::UserWidget MVVM view-models FieldNotify UseField CommonUI activatable event props OnClicked not onClick loyal to unreal hot reload live coding windows state preserved editor support vs code visual studio 2022 extensions offline',
         element: () => <FAQPage />,
+      },
+    ],
+  },
+  {
+    id: 'licensing',
+    title: 'Licensing',
+    pages: [
+      {
+        id: 'licensing',
+        canonicalId: 'licensing',
+        title: 'Licensing',
+        path: '/licensing',
+        keywords: ['license', 'licensing', 'pricing', 'commercial', 'free tier'],
+        searchContent:
+          'licensing license free tier 250k threshold reactiveui community license 1.0 commercial license per-title 2000 studio 2500 per year revenue funding trailing 12 months ship commercially credits made with reactiveui noncompete competing product reselling old versions keep their terms grandfather contractor client revenue 60-day cure window nonprofit edge case certificate pdf publisher platform paperwork LICENSE LICENSE-COMMERCIAL.md CLA contributor license agreement fab eula',
+        element: () => <LicensingPage />,
       },
     ],
   },

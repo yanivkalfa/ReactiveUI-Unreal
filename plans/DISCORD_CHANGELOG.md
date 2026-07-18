@@ -12,6 +12,21 @@ first announcement post lives at the BOTTOM of this file.
 
 **Hard limit: ≤ 2000 characters per entry** (Discord message cap).
 
+## [0.13.0] - 2026-07-18
+
+### ReactiveUI is staying free — here's the plan that keeps it alive
+
+**TL;DR: nothing changes for almost everyone.** From 0.13.0 the plugin ships under the **ReactiveUI Community License 1.0** (previously PolyForm Shield): free to use, modify, and ship commercially for any team earning under **$250k/year**. Above that, shipping a game takes a commercial license — **$2,000 per title** (one-time, perpetual) or **$2,500/studio/year** — same terms and prices on every engine we support (Godot, Unity, Unreal). Development, evaluation, jams, and learning stay free at ANY company size; the threshold only applies when you *ship*.
+
+**What stays exactly the same:** the full plugin, all features, all updates — no feature-gated "pro version", no telemetry, no code gate. Everything you've already downloaded keeps the license it shipped with, forever.
+
+**What we ask of everyone:** a "Made with ReactiveUI" line in your credits, next to your other middleware — that's how the project gets found.
+
+**Also in 0.13.0:** unused imports (UETKX2304) are now error-tier family-wide, ES combined import forms (`import Def, { a, b as c } from`), and the ES-modules field-wave fixes.
+
+Update to **ReactiveUI 0.13.0** (Unreal). **Tooling:** UETKX 0.7.0 (VS Code + VS 2022). Weird case (nonprofit, just-over-the-line)? Email us — we'd rather you ship with ReactiveUI than not.
+
+---
 ## [0.12.0] - 2026-07-18
 
 ### ES modules — a .uetkx file IS a module now

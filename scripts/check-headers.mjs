@@ -11,8 +11,8 @@
  *  - .ps1 — same, `#` comment form.
  *  - Scanned trees: Source/, Plugins/<plugin>/Source/, templates/, scripts/, ide-extensions/
  *    (excluding node_modules/, out/, dist/ — third-party and build output are not ours to stamp).
- *  - ReactiveUIUnrealDocs~/ is deliberately NOT scanned: the docs site is a vendored family shell (MIT'd wholesale
- *    by the repo LICENSE); stamping every .tsx there adds noise without a Fab requirement.
+ *  - ReactiveUIUnrealDocs~/ is deliberately NOT scanned: the docs site is a vendored family shell (covered
+ *    wholesale by the repo LICENSE); stamping every .tsx there adds noise without a Fab requirement.
  */
 import { readFileSync, readdirSync, statSync } from 'fs';
 import { resolve, dirname, extname, join, relative } from 'path';

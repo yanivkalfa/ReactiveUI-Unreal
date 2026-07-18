@@ -19,7 +19,7 @@ description: The house development methodology for ReactiveUI-Unreal — the res
 - **Plans govern**: locked decisions live in `plans/MASTER_PLAN.md` §1 — don't re-litigate them
   mid-phase. If one proves wrong, banner the plan and ask the owner. Phase finished ⇒ run the
   `plan-progress` skill. Behavior/UX changed ⇒ run the `docs-sync` skill.
-- **Never commit engine-derived source or Epic-owned content** to this MIT repo (D-32d); demo
+- **Never commit engine-derived source or Epic-owned content** to this repo (D-32d); demo
   `Content/` is original/redistributable assets only, each listed in `THIRD_PARTY_NOTICES.md`.
 
 ## The UE gate ladder (in order — there IS a compile step here, unlike Godot)

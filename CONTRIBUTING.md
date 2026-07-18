@@ -20,6 +20,12 @@ at the right phase of [plans/MASTER_PLAN.md](plans/MASTER_PLAN.md) and save you 
 - No Epic-owned content or engine-derived source in the repo, ever (`THIRD_PARTY_NOTICES.md`
   covers everything third-party that IS allowed).
 
+## CLA
+
+Outside contributions require the one-time [Contributor License Agreement](CLA.md) — state
+"I have read and agree to the CLA in CLA.md" in your first PR. The project offers commercial
+licenses over the combined work, so this is a merge precondition, not a formality.
+
 ## Setup
 
 UE 5.6+ and VS2022 (C++ workload). Commands live in [CLAUDE.md](CLAUDE.md) — the same file the
