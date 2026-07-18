@@ -4,7 +4,7 @@ import { CodeBlock } from '../../components/CodeBlock/CodeBlock'
 
 const SUSPENSE = `// Suspense is a RUI:: call (a structural primitive, not a tag). You drive
 // readiness explicitly — the IsReady callable decides fallback vs content.
-export component LoadingScreen {
+export FRuiNode LoadingScreen() {
 	auto [bReady, SetReady] = UseState<bool>(false);
 	UseEffect([SetReady]() { StartStreaming([SetReady]() { SetReady(true); }); }, RUI::Deps());
 	const bool bReadyNow = bReady;

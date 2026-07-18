@@ -7,7 +7,7 @@ const USEFIELD = `#include "RuiFieldHooks.h"
 // Read a FieldNotify field reactively — from the MvvmDemo gallery screen.
 // Works on ANY INotifyFieldValueChanged UObject: Epic-MVVM viewmodels,
 // UMVVMViewModelBase subclasses, or stock FieldNotify-enabled widgets.
-export component HealthBar(Vm: UObject*) {
+export FRuiNode HealthBar(UObject* Vm) {
 	const float Health = RUI::Umg::UseField<float>(Ctx, Vm, FName(TEXT("Health")), 100.0f);
 	return (
 		<ProgressBar Percent={ Health / 100.0f } />

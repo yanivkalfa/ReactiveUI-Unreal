@@ -105,7 +105,7 @@ Supporting a new engine version is a process, not a hope — see
 
 | Channel | What | Pricing |
 |---------|------|---------|
-| GitHub (this repo) | ReactiveUI plugin, source | Free (MIT) |
+| GitHub (this repo) | ReactiveUI plugin, source | Free (PolyForm Shield 1.0.0) |
 | Fab | ReactiveUI plugin, per-engine-version listing | Free (Fab EULA applies) |
 | VS Code Marketplace | UETKX VS Code extension | Free |
 | Open VSX | UETKX VS Code extension | Free |

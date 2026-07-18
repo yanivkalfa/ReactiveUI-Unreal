@@ -29,7 +29,7 @@ FRuiNodeArray ScoreRow(FRuiContext& Ctx, const FRuiEmptyProps&, const TArray<FRu
 }
 
 // ...becomes a .uetkx file (same reconciler, same hooks — readable markup):
-export component ScoreRow {
+export FRuiNode ScoreRow() {
 	auto [Score, SetScore] = UseState<int32>(0);
 	return (
 		<HorizontalBox>
@@ -87,14 +87,14 @@ export const MigrationPage: FC = () => (
     <Typography variant="body1" paragraph>
       If you started with C++ <code>RUI::</code> builder calls, moving to markup is mechanical —
       the reconciler and hooks are identical; only the authoring changes. The demo gallery&apos;s
-      18 screens are all compiled <code>.uetkx</code> and double as conversion references.
+      19 screens are all compiled <code>.uetkx</code> and double as conversion references.
     </Typography>
     <CodeBlock code={CONVERT} language="uetkx" />
 
     <Alert severity="info" sx={{ mt: 2 }}>
-      Upgrading an existing <code>.uetkx</code> tree to strict imports is one command —{' '}
-      <code>-run=RUIMigrateImports</code> — covered on the <strong>Imports &amp; exports</strong>{' '}
-      page. Version-to-version API changes follow the deprecation policy in{' '}
+      Upgrading an existing <code>.uetkx</code> tree to the ES-modules grammar (strict imports
+      included) is one command — <code>-run=RUIMigrateEsModules</code> — covered on the{' '}
+      <strong>Imports &amp; exports</strong> page. Version-to-version API changes follow the deprecation policy in{' '}
       <code>VERSIONING.md</code> (one minor version of warnings before removal) and are always
       listed in the CHANGELOG.
     </Alert>

@@ -2,7 +2,7 @@ import type { FC } from 'react'
 import { Alert, Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../components/CodeBlock/CodeBlock'
 
-const PROVIDE = `export component ThemeRoot {
+const PROVIDE = `export FRuiNode ThemeRoot() {
 	auto [bDark, SetDark] = UseState<bool>(true);
 	const FLinearColor Theme = bDark ? CoolTheme : WarmTheme;
 
@@ -18,7 +18,7 @@ const PROVIDE = `export component ThemeRoot {
 }`
 
 const CONSUME = `// Any descendant reads the nearest provided value with UseContext.
-export component Panel {
+export FRuiNode Panel() {
 	const FLinearColor Theme = UseContext(GDemoThemeCtx);
 	return <Border BorderBackgroundColor={ Theme }><TextBlock Text="Themed" /></Border>;
 }`
@@ -40,7 +40,8 @@ export const ContextPage: FC = () => (
     <Typography variant="body1" paragraph>
       <code>ProvideContext(Key, Value)</code> is a statement in the component body — it makes{' '}
       <code>Value</code> visible to everything this component renders. The key is a stable context
-      handle (typically declared once in a shared module), which also fixes the value&apos;s type.
+      handle (typically declared once in a shared C++ header and host-included with{' '}
+      <code>import &quot;@Header.h&quot;</code>), which also fixes the value&apos;s type.
     </Typography>
     <CodeBlock code={PROVIDE} language="uetkx" />
 

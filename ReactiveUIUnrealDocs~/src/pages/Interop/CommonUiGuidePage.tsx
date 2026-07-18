@@ -13,7 +13,7 @@ Stack->AddWidgetInstance(*Screen);   // UCommonActivatableWidgetContainerBase
 // input method changes (mouse/keyboard <-> gamepad <-> touch).`
 
 const HOOKS = `// Inside the hosted component — react to what CommonUI decides.
-export component PauseMenu {
+export FRuiNode PauseMenu() {
 	const bool bActive = RUI::CommonUI::UseIsActive();
 	const ERuiInputMethod Input = RUI::CommonUI::UseInputMethod();
 
