@@ -1582,8 +1582,9 @@ namespace
 		FUetkxComponentDecl Decl;
 		Decl.bExported = bExported;
 		Decl.bLegacySyntax = false;
-		Decl.At = Head.TypeAt;						// the decl's own start (sans `export`) — the new-form analog of the
-													// legacy `component` keyword position
+		// the decl's own start (sans `export`) — the new-form analog of the legacy `component`
+		// keyword position
+		Decl.At = Head.TypeAt;
 		Decl.ExportAt = bExported ? DeclStart : -1; // DeclStart == the `export` keyword itself
 		Decl.NameAt = Head.NameAt;
 		Decl.Name = FUetkxLexer::FromCodePoints(Src, Head.NameAt, Head.NameLen);
