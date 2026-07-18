@@ -15,14 +15,19 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "UetkxJsxScan.h"
 #include "UetkxLexer.h"
 
 class FUetkxScopedLocals
 {
 public:
 	/** Pre-walk `RegionCp` (code points). `ParamSeed` = names visible for the whole region
-	 *  (function/component parameters). */
-	FUetkxScopedLocals(const TArray<int32>& RegionCp, const TArray<FString>& ParamSeed)
+	 *  (function/component parameters). `SkipRanges` (optional) = markup ranges the walk must
+	 *  jump over (a COMPONENT BODY holds return windows — walking their tags/attrs as raw C++
+	 *  would mint junk declarations like `Text` from `Text={…}`; hole-local declarations are
+	 *  hole-local anyway, so skipping loses nothing the cross-region seed needs). */
+	FUetkxScopedLocals(const TArray<int32>& RegionCp, const TArray<FString>& ParamSeed,
+					   const TArray<FUetkxMarkupRange>* SkipRanges = nullptr)
 	{
 		// scope 0 spans the whole region
 		Scopes.Add({0, RegionCp.Num(), -1});
@@ -30,7 +35,7 @@ public:
 		{
 			Decls.Add({Param, 0, 0});
 		}
-		Walk(RegionCp);
+		Walk(RegionCp, SkipRanges);
 	}
 
 	/** True when `Name` has a local declaration in scope at `Offset` (declared at or before it,
@@ -50,6 +55,28 @@ public:
 			}
 		}
 		return false;
+	}
+
+	/** The names with a local declaration IN SCOPE at `Offset` (params included) — the precise
+	 *  cross-region seed (N4 audit): a markup expression at body offset X runs in the impl body
+	 *  where exactly these locals are live, so seeding a region's own tracker with them keeps
+	 *  shadows suppressed there while pre-declaration references still rewrite/diagnose. */
+	TArray<FString> NamesInScopeAt(int32 Offset) const
+	{
+		TSet<FString> Names;
+		for (const FDeclRec& D : Decls)
+		{
+			if (D.At > Offset)
+			{
+				continue;
+			}
+			const FScope& S = Scopes[D.ScopeIdx];
+			if (Offset >= S.Start && Offset < S.End)
+			{
+				Names.Add(D.Name);
+			}
+		}
+		return Names.Array();
 	}
 
 	/** Every declared local name, scope/offset-agnostic (union incl. the param seed) — the
@@ -158,7 +185,7 @@ private:
 	static bool IsWsCp(int32 C) { return C == ' ' || C == '\t' || C == '\n' || C == '\r'; }
 	static bool IsIdentStartCp(int32 C) { return FUetkxLexer::IsIdentCode(C) && !(C >= '0' && C <= '9'); }
 
-	void Walk(const TArray<int32>& Cp)
+	void Walk(const TArray<int32>& Cp, const TArray<FUetkxMarkupRange>* SkipRanges = nullptr)
 	{
 		const int32 N = Cp.Num();
 		int32 Current = 0; // scope index
@@ -166,6 +193,25 @@ private:
 		int32 i = 0;
 		while (i < N)
 		{
+			if (SkipRanges)
+			{
+				bool bJumped = false;
+				for (const FUetkxMarkupRange& R : *SkipRanges)
+				{
+					const int32 End = R.End == -1 ? N : R.End;
+					if (i >= R.Start && i < End)
+					{
+						i = End;
+						bPrevTypeish = false;
+						bJumped = true;
+						break;
+					}
+				}
+				if (bJumped)
+				{
+					continue;
+				}
+			}
 			const int32 j = FUetkxLexer::SkipNoncode(Cp, i);
 			if (j != i)
 			{
@@ -270,8 +316,12 @@ private:
 					p2 < N && Cp[p2] == '=' && (p2 + 1 >= N || Cp[p2 + 1] != '=') &&
 					(s == 0 || (Cp[s - 1] != '=' && Cp[s - 1] != '!' && Cp[s - 1] != '<' && Cp[s - 1] != '>'));
 				const bool bSemi = p2 < N && Cp[p2] == ';';
+				// Range-for + bitfields (LSP audit): `for (const F& Name : Xs)` / `int32 X : 4;` —
+				// a LONE colon after a type-ish juxtaposition declares. `::` never triggers (a
+				// qual), and ternary arms are safe (the `?` reset kills type-ish first).
+				const bool bColon = p2 < N && Cp[p2] == ':' && (p2 + 1 >= N || Cp[p2 + 1] != ':');
 				const bool bBrace = p2 < N && Cp[p2] == '{';
-				if (!bMember && !bScope && bPrevTypeish && (bEq || bSemi || bBrace))
+				if (!bMember && !bScope && bPrevTypeish && (bEq || bSemi || bBrace || bColon))
 				{
 					Decls.Add({Ident, Current, s});
 					bPrevTypeish = false;
@@ -284,12 +334,73 @@ private:
 							   Ident != TEXT("new") && Ident != TEXT("delete") && Ident != TEXT("sizeof");
 				continue;
 			}
+			// Lambda parameters (resolver audit): `[caps](int32 A, const F& B) { … }` declares its
+			// params. Recognized when `[` sits at an EXPRESSION boundary (never after an ident /
+			// `)` / `]` / `}` — a subscript — except after `return`); params land in the CURRENT
+			// scope at the `[` offset — visible through the body; after the lambda they
+			// over-suppress, the documented silent direction. Capture-list/param TEXT is skipped
+			// (declarations, not references).
+			if (C == '[')
+			{
+				bool bLambda = true;
+				for (int32 k = i - 1; k >= 0; --k)
+				{
+					const int32 P = Cp[k];
+					if (P == ' ' || P == '\t')
+					{
+						continue;
+					}
+					if (P == ')' || P == ']' || P == '}')
+					{
+						bLambda = false;
+					}
+					else if (FUetkxLexer::IsIdentCode(P))
+					{
+						int32 ks = k;
+						while (ks > 0 && FUetkxLexer::IsIdentCode(Cp[ks - 1]))
+						{
+							--ks;
+						}
+						bLambda = FUetkxLexer::FromCodePoints(Cp, ks, k - ks + 1) == TEXT("return");
+					}
+					break;
+				}
+				const int32 CloseB = bLambda ? FUetkxLexer::FindMatching(Cp, i) : -1;
+				if (CloseB != -1)
+				{
+					int32 p = CloseB + 1;
+					while (p < N && IsWsCp(Cp[p]))
+					{
+						++p;
+					}
+					if (p < N && Cp[p] == '(')
+					{
+						const int32 CloseP = FUetkxLexer::FindMatching(Cp, p);
+						if (CloseP != -1)
+						{
+							for (const FString& Param :
+								 ParamNamesOf(FUetkxLexer::FromCodePoints(Cp, p + 1, CloseP - p - 1)))
+							{
+								Decls.Add({Param, Current, i});
+							}
+							bPrevTypeish = false;
+							i = CloseP + 1;
+							continue;
+						}
+					}
+					bPrevTypeish = false;
+					i = CloseB + 1;
+					continue;
+				}
+			}
 			// whitespace + type decorations keep the type-ish lookbehind alive (the TS bughunt:
-			// a space between the type and the name must not reset it); commas keep it for
-			// `Type A = 1, B = 2`; everything else resets. A colon keeps it ONLY as part of a
-			// `::` qual (`std::atomic X`) — a LONE ternary/label colon resets (the IMPORT-3 rule;
+			// a space between the type and the name must not reset it); everything else resets —
+			// a COMMA included (resolver audit: keeping type-ish through `,` mis-declared `B` in
+			// `Func(A, B = 1)`, the dangerous direction; the cost is missing the second declarator
+			// of `Type A = X, B = Y;`, the silent one). A colon keeps it ONLY as part of a `::`
+			// qual (`std::atomic X`) — a LONE ternary/label colon resets (the IMPORT-3 rule;
 			// `U = a ? B : B;` otherwise reads the second arm as a `Type Name;` declaration).
-			if (IsWsCp(C) || C == '<' || C == '>' || C == '&' || C == '*' || C == ',' ||
+			if (IsWsCp(C) || C == '<' || C == '>' || C == '&' || C == '*' ||
 				(C == ':' && ((i + 1 < N && Cp[i + 1] == ':') || (i > 0 && Cp[i - 1] == ':'))))
 			{
 				++i;

@@ -543,6 +543,14 @@ function normAbsPath(p: string): string {
   return path.resolve(p).replace(/\\/g, "/");
 }
 
+/** Path EQUALITY for reference/rename resolution — case-insensitive on win32 (audit: a
+ *  mis-cased specifier like `./chip` for `Chip.uetkx` passes existsSync but a case-sensitive
+ *  compare silently dropped the importer from the rename set → incomplete rename). */
+function samePath(a: string, b: string): boolean {
+  if (a === b) return true;
+  return process.platform === "win32" && a.toLowerCase() === b.toLowerCase();
+}
+
 /** Resolve the symbol at a cursor offset (code points). Null = not on a referenceable token. */
 export function resolveSymbolAt(fsPath: string, cpOffset: number, overlay?: TextOverlay): UetkxSymbol | null {
   const index = getFileIndex(fsPath, overlay);
@@ -648,7 +656,7 @@ export function findReferencesTo(symbol: UetkxSymbol, originFsPath: string, over
   // every other swept file: bindings whose import resolves to the declaring file
   for (const file of sweptUetkxFiles(originFsPath)) {
     const fileNorm = normAbsPath(file);
-    if (fileNorm === targetFile) continue;
+    if (samePath(fileNorm, targetFile)) continue;
     const index = getFileIndex(file, overlay);
     if (!index) continue;
     // which of this file's imports point at the declaring file?
@@ -656,7 +664,7 @@ export function findReferencesTo(symbol: UetkxSymbol, originFsPath: string, over
     index.scan.imports.forEach((imp, idx) => {
       if (imp.hostInclude) return;
       const key = resolveSpecifier(file, imp.specifier);
-      if (!key || normAbsPath(key) !== targetFile) return;
+      if (!key || !samePath(normAbsPath(key), targetFile)) return;
       if (imp.isNamespace) pointing.set(idx, "namespace");
       else if (imp.isDefault) pointing.set(idx, "default");
       else {
@@ -737,23 +745,25 @@ export function renameSymbolAt(
   }
   const refs = findReferencesTo(symbol, fsPath, overlay);
 
-  // N-05 validation over every file an edit would touch.
-  const touched = new Set<string>(refs.map((r) => r.file));
-  if (symbol.type !== "local-alias") touched.add(symbol.type === "import-binding" ? symbol.targetFile : symbol.file);
+  // N-05 validation over every file an edit would ACTUALLY touch (audit: an import-binding
+  // rename edits only the importer — inserting `A as NewLocal` — so a name bound or exported
+  // ELSEWHERE is perfectly legal there, exactly like a local alias).
+  const touched =
+    symbol.type === "import-binding" ? new Set<string>([symbol.file]) : new Set<string>(refs.map((r) => r.file));
+  if (symbol.type === "global") touched.add(symbol.file);
   for (const file of touched) {
     if (fileBindsName(file, newName, overlay)) {
       return { error: `\`${newName}\` is already bound in ${path.basename(file)} — pick another name` };
     }
   }
-  if (symbol.type !== "local-alias") {
+  if (symbol.type === "global") {
     // 2106 shape: an EXPORTED name must stay globally unique.
     const exporter = findExporter(newName, fsPath);
     if (exporter) {
       return { error: `\`${newName}\` is already exported by ${path.basename(exporter.file)} (one exported name, one file)` };
     }
     // a component renamed to a host tag would shadow the vocabulary in tag position
-    const declFile = symbol.type === "import-binding" ? symbol.targetFile : symbol.file;
-    const declIndex = getFileIndex(declFile, overlay);
+    const declIndex = getFileIndex(symbol.file, overlay);
     const isComponent = declIndex?.scan.components.some((d) => d.name === symbol.name) ?? false;
     if (isComponent && hostTags.has(newName)) {
       return { error: `\`${newName}\` is a host element name — components cannot shadow the markup vocabulary` };

@@ -66,21 +66,214 @@ const NON_TYPEISH = new Set([
   "new", "delete", "sizeof",
 ]);
 
-// ── the scope-aware code-reference collector (N-07 TS half) ─────────────────────────────────
+// ── the scope-aware local-declaration tracker (N-07 TS half) ────────────────────────────────
+// MUST mirror FUetkxScopedLocals (UetkxScopedLocals.h) exactly — one pre-walk records brace
+// scopes + the locals declared in each (params, `Type Name =/;/{/:`, `auto`, structured
+// bindings, lambda parameters), skipping markup ranges so tags/attrs never mint junk
+// declarations. Consumers ask isLocal(name, offset) / namesInScopeAt(offset).
 
-interface ScopeState {
-  stack: Array<Set<string>>;
+interface ScopeRec {
+  start: number;
+  end: number;
+  parent: number;
+}
+interface DeclRec {
+  name: string;
+  scope: number;
+  at: number;
 }
 
-function declareLocal(scopes: ScopeState, name: string): void {
-  scopes.stack[scopes.stack.length - 1].add(name);
-}
+export class UetkxScopedLocals {
+  private readonly scopes: ScopeRec[] = [];
+  private readonly decls: DeclRec[] = [];
 
-function isLocal(scopes: ScopeState, name: string): boolean {
-  for (let i = scopes.stack.length - 1; i >= 0; i--) {
-    if (scopes.stack[i].has(name)) return true;
+  constructor(
+    cp: readonly number[],
+    paramSeed: readonly string[],
+    skipRanges?: ReadonlyArray<{ start: number; end: number }>,
+  ) {
+    this.scopes.push({ start: 0, end: cp.length, parent: -1 });
+    for (const p of paramSeed) this.decls.push({ name: p, scope: 0, at: 0 });
+    this.walk(cp, skipRanges);
   }
-  return false;
+
+  isLocal(name: string, offset: number): boolean {
+    for (const d of this.decls) {
+      if (d.name !== name || d.at > offset) continue;
+      const s = this.scopes[d.scope];
+      if (offset >= s.start && offset < s.end) return true;
+    }
+    return false;
+  }
+
+  /** The names with a local declaration IN SCOPE at `offset` — the precise cross-region seed
+   *  for markup islands (a phantom ref here would be EDITED by rename — corruption). */
+  namesInScopeAt(offset: number): string[] {
+    const names = new Set<string>();
+    for (const d of this.decls) {
+      if (d.at > offset) continue;
+      const s = this.scopes[d.scope];
+      if (offset >= s.start && offset < s.end) names.add(d.name);
+    }
+    return [...names];
+  }
+
+  /** Scope/offset-agnostic union — the conservative fallback when an offset is unknown. */
+  allDeclNames(): string[] {
+    return [...new Set(this.decls.map((d) => d.name))];
+  }
+
+  private walk(cp: readonly number[], skipRanges?: ReadonlyArray<{ start: number; end: number }>): void {
+    const n = cp.length;
+    let current = 0;
+    let prevTypeish = false;
+    let i = 0;
+    while (i < n) {
+      if (skipRanges) {
+        let jumped = false;
+        for (const r of skipRanges) {
+          const end = r.end === -1 ? n : r.end;
+          if (i >= r.start && i < end) {
+            i = end;
+            prevTypeish = false;
+            jumped = true;
+            break;
+          }
+        }
+        if (jumped) continue;
+      }
+      const j = skipNoncode(cp, i);
+      if (j !== i) {
+        i = j;
+        continue;
+      }
+      const c = cp[i];
+      if (c === 123 /* { */) {
+        this.scopes.push({ start: i, end: n, parent: current });
+        current = this.scopes.length - 1;
+        prevTypeish = false;
+        i++;
+        continue;
+      }
+      if (c === 125 /* } */) {
+        if (current !== 0) {
+          this.scopes[current].end = i;
+          current = this.scopes[current].parent;
+        }
+        prevTypeish = false;
+        i++;
+        continue;
+      }
+      if (isIdentStartCp(c) && (i === 0 || !isIdentCp(cp[i - 1]))) {
+        const s = i;
+        while (i < n && isIdentCp(cp[i])) i++;
+        const ident = fromCodePoints(cp, s, i - s);
+
+        // `auto [A, B] = …` — structured bindings declare every bound name.
+        if (ident === "auto") {
+          let p = i;
+          while (p < n && isWs(cp[p])) p++;
+          while (p < n && (cp[p] === 38 /* & */ || cp[p] === 42 /* * */)) p++;
+          while (p < n && isWs(cp[p])) p++;
+          if (p < n && cp[p] === 91 /* [ */) {
+            const close = findMatching(cp, p);
+            if (close !== -1) {
+              let q = p + 1;
+              while (q < close) {
+                while (q < close && !isIdentStartCp(cp[q])) q++;
+                const bs = q;
+                while (q < close && isIdentCp(cp[q])) q++;
+                if (q > bs) this.decls.push({ name: fromCodePoints(cp, bs, q - bs), scope: current, at: bs });
+              }
+              i = close + 1;
+              prevTypeish = false;
+              continue;
+            }
+          }
+          prevTypeish = true;
+          continue;
+        }
+
+        // member/scope prefixes never start a declaration name (IMPORT-3 lone-colon rule)
+        let member = false;
+        let scoped = false;
+        for (let k = s - 1; k >= 0; k--) {
+          const p = cp[k];
+          if (p === 32 || p === 9) continue;
+          member = p === 46 /* . */ || (p === 62 /* > */ && k > 0 && cp[k - 1] === 45 /* - */);
+          scoped = p === 58 /* : */ && k > 0 && cp[k - 1] === 58;
+          break;
+        }
+        let p2 = i;
+        while (p2 < n && (cp[p2] === 32 || cp[p2] === 9)) p2++;
+        const eq =
+          p2 < n &&
+          cp[p2] === 61 /* = */ &&
+          (p2 + 1 >= n || cp[p2 + 1] !== 61) &&
+          (s === 0 || (cp[s - 1] !== 61 && cp[s - 1] !== 33 && cp[s - 1] !== 60 && cp[s - 1] !== 62));
+        const semi = p2 < n && cp[p2] === 59; /* ; */
+        // range-for + bitfields: a LONE colon after a type-ish juxtaposition declares (`::`
+        // never does; ternary arms are safe — the `?` reset kills type-ish first)
+        const colon = p2 < n && cp[p2] === 58 && (p2 + 1 >= n || cp[p2 + 1] !== 58);
+        const brace = p2 < n && cp[p2] === 123; /* { */
+        if (!member && !scoped && prevTypeish && (eq || semi || brace || colon)) {
+          this.decls.push({ name: ident, scope: current, at: s });
+          prevTypeish = false;
+          continue;
+        }
+        prevTypeish = !NON_TYPEISH.has(ident);
+        continue;
+      }
+      // Lambda parameters: `[caps](int32 A, const F& B) { … }` declares its params — recognized
+      // at an EXPRESSION boundary (never after an ident/`)`/`]`/`}` — a subscript — except after
+      // `return`); params land in the CURRENT scope at the `[` offset.
+      if (c === 91 /* [ */) {
+        let lambda = true;
+        for (let k = i - 1; k >= 0; k--) {
+          const p = cp[k];
+          if (p === 32 || p === 9) continue;
+          if (p === 41 /* ) */ || p === 93 /* ] */ || p === 125 /* } */) lambda = false;
+          else if (isIdentCp(p)) {
+            let ks = k;
+            while (ks > 0 && isIdentCp(cp[ks - 1])) ks--;
+            lambda = fromCodePoints(cp, ks, k - ks + 1) === "return";
+          }
+          break;
+        }
+        const closeB = lambda ? findMatching(cp, i) : -1;
+        if (closeB !== -1) {
+          let p = closeB + 1;
+          while (p < n && isWs(cp[p])) p++;
+          if (p < n && cp[p] === 40 /* ( */) {
+            const closeP = findMatching(cp, p);
+            if (closeP !== -1) {
+              for (const param of paramNamesOf(fromCodePoints(cp, p + 1, closeP - p - 1))) {
+                this.decls.push({ name: param, scope: current, at: i });
+              }
+              prevTypeish = false;
+              i = closeP + 1;
+              continue;
+            }
+          }
+          prevTypeish = false;
+          i = closeB + 1;
+          continue;
+        }
+      }
+      // whitespace + type decorations keep type-ish alive; everything else resets — a COMMA
+      // included (keeping it through `,` mis-declared `B` in `Func(A, B = 1)`); a colon keeps
+      // it ONLY as part of a `::` qual (the IMPORT-3 rule).
+      if (
+        isWs(c) || c === 60 /* < */ || c === 62 /* > */ || c === 38 /* & */ || c === 42 /* * */ ||
+        (c === 58 /* : */ && (cp[i + 1] === 58 || (i > 0 && cp[i - 1] === 58)))
+      ) {
+        i++;
+        continue;
+      }
+      prevTypeish = false;
+      i++;
+    }
+  }
 }
 
 /** Parse a parameter-list TEXT (verbatim C++ or the new-form `Type Name = Default` grammar) and
@@ -124,10 +317,12 @@ export function paramNamesOf(paramText: string): string[] {
   return names;
 }
 
-/** Collect code references from a verbatim-C++ region. Scope-tracked: identifiers with a local
- *  declaration in scope are NOT emitted (TD-034 #1/#2 semantics — locals are never symbol
- *  references). `namespaceAliases` maps a `* as X` alias to its scan.imports index so
- *  `X::Member` emits a qual-member ref. BaseAt = the region's absolute code-point offset. */
+/** Collect code references from a verbatim-C++ region. Scope-tracked via the SHARED
+ *  UetkxScopedLocals pre-walk (the N-07 twin — one heuristic, two consumers): identifiers with
+ *  a local declaration in scope are NOT emitted (TD-034 — locals are never symbol references).
+ *  `paramSeed` = the names live at the region's start (params + any cross-region in-scope
+ *  seed). `namespaceAliases` maps a `* as X` alias to its scan.imports index so `X::Member`
+ *  emits a qual-member ref. BaseAt = the region's absolute code-point offset. */
 export function collectCodeRefs(
   regionCp: readonly number[],
   baseAt: number,
@@ -136,15 +331,8 @@ export function collectCodeRefs(
   out: UetkxFileRef[],
 ): void {
   const n = regionCp.length;
-  const scopes: ScopeState = { stack: [new Set(paramSeed)] };
+  const locals = new UetkxScopedLocals(regionCp, paramSeed);
   let i = 0;
-  // one-token lookbehind for the declaration heuristic
-  let prevIdent: string | null = null; // the identifier immediately before the current one
-  let prevIdentWasTypeish = false; // prevIdent looked like a type head (ident possibly with ::<>&*)
-  const resetDeclState = () => {
-    prevIdent = null;
-    prevIdentWasTypeish = false;
-  };
   while (i < n) {
     const j = skipNoncode(regionCp, i);
     if (j !== i) {
@@ -152,51 +340,12 @@ export function collectCodeRefs(
       continue;
     }
     const c = regionCp[i];
-    if (c === 123 /* { */) {
-      scopes.stack.push(new Set());
-      resetDeclState();
-      i++;
-      continue;
-    }
-    if (c === 125 /* } */) {
-      if (scopes.stack.length > 1) scopes.stack.pop();
-      resetDeclState();
-      i++;
-      continue;
-    }
     if (isIdentStartCp(c) && (i === 0 || !isIdentCp(regionCp[i - 1]))) {
       const s = i;
       while (i < n && isIdentCp(regionCp[i])) i++;
       const ident = fromCodePoints(regionCp, s, i - s);
 
-      // `auto [A, B] = …` — structured bindings declare every bound name.
-      if (ident === "auto") {
-        let p = i;
-        while (p < n && isWs(regionCp[p])) p++;
-        // reference decorations: auto& / auto&& / auto*
-        while (p < n && (regionCp[p] === 38 /* & */ || regionCp[p] === 42 /* * */)) p++;
-        while (p < n && isWs(regionCp[p])) p++;
-        if (p < n && regionCp[p] === 91 /* [ */) {
-          const close = findMatching(regionCp, p);
-          if (close !== -1) {
-            let q = p + 1;
-            while (q < close) {
-              while (q < close && !isIdentStartCp(regionCp[q])) q++;
-              const bs = q;
-              while (q < close && isIdentCp(regionCp[q])) q++;
-              if (q > bs) declareLocal(scopes, fromCodePoints(regionCp, bs, q - bs));
-            }
-            i = close + 1;
-            resetDeclState();
-            continue;
-          }
-        }
-        prevIdent = ident;
-        prevIdentWasTypeish = true;
-        continue;
-      }
-
-      // scan-back: member access / scope qual (the IMPORT-3 colon rule)
+      // scan-back: member access / scope qual (the IMPORT-3 lone-colon rule)
       let member = false;
       let scoped = false;
       for (let k = s - 1; k >= 0; k--) {
@@ -206,78 +355,41 @@ export function collectCodeRefs(
         scoped = p === 58 /* : */ && k > 0 && regionCp[k - 1] === 58;
         break;
       }
-      // lookahead: `::` (qual) or the declaration trigger
+      if (member || scoped) continue;
+      // a local (param, declaration, structured binding, range-for var, lambda param) is never
+      // a symbol reference — its DECL token included (at <= offset at the decl site itself)
+      if (locals.isLocal(ident, s)) continue;
+
       let p2 = i;
       while (p2 < n && (regionCp[p2] === 32 || regionCp[p2] === 9)) p2++;
       const followedByQual = p2 + 1 < n && regionCp[p2] === 58 && regionCp[p2 + 1] === 58;
-      const followedByEq =
-        p2 < n &&
-        regionCp[p2] === 61 /* = */ &&
-        regionCp[p2 + 1] !== 61 &&
-        (s === 0 || (regionCp[s - 1] !== 61 && regionCp[s - 1] !== 33 && regionCp[s - 1] !== 60 && regionCp[s - 1] !== 62));
-      const followedBySemi = p2 < n && regionCp[p2] === 59; /* ; */
-      const followedByBrace = p2 < n && regionCp[p2] === 123; /* { */
-
-      // Declaration heuristic: `<type-ish> Name =` / `<type-ish> Name;` / `<type-ish> Name{…}`
-      // declares Name (covers `const FLinearColor X = …`, `FString S;`, `TArray<int32> A{…}`,
-      // for-init decls — conservative: declared into the CURRENT scope).
-      if (!member && !scoped && prevIdentWasTypeish && (followedByEq || followedBySemi || followedByBrace)) {
-        declareLocal(scopes, ident);
-        resetDeclState();
-        continue; // a declaration is not a reference
-      }
-
-      if (!member && !scoped) {
-        if (isLocal(scopes, ident)) {
-          // a local — never a symbol reference (TD-034)
-        } else if (followedByQual && namespaceAliases.has(ident)) {
-          // Base::Member through a namespace alias: emit the base as code + the member as
-          // qual-member (rename of the TARGET decl edits the member token; rename of the
-          // ALIAS edits base tokens).
-          out.push({ kind: "code", name: ident, start: baseAt + s, len: ident.length, importIndex: namespaceAliases.get(ident) });
-          let m2 = p2 + 2;
-          while (m2 < n && (regionCp[m2] === 32 || regionCp[m2] === 9)) m2++;
-          const ms = m2;
-          while (m2 < n && isIdentCp(regionCp[m2])) m2++;
-          if (m2 > ms) {
-            out.push({
-              kind: "qual-member",
-              name: fromCodePoints(regionCp, ms, m2 - ms),
-              start: baseAt + ms,
-              len: m2 - ms,
-              importIndex: namespaceAliases.get(ident),
-              qualBase: ident,
-            });
-          }
-          i = m2;
-          resetDeclState();
-          continue;
-        } else if (!CODE_NOISE.has(ident)) {
-          out.push({ kind: "code", name: ident, start: baseAt + s, len: ident.length });
+      if (followedByQual && namespaceAliases.has(ident)) {
+        // Base::Member through a namespace alias: emit the base as code + the member as
+        // qual-member (rename of the TARGET decl edits the member token; rename of the
+        // ALIAS edits base tokens).
+        out.push({ kind: "code", name: ident, start: baseAt + s, len: ident.length, importIndex: namespaceAliases.get(ident) });
+        let m2 = p2 + 2;
+        while (m2 < n && (regionCp[m2] === 32 || regionCp[m2] === 9)) m2++;
+        const ms = m2;
+        while (m2 < n && isIdentCp(regionCp[m2])) m2++;
+        if (m2 > ms) {
+          out.push({
+            kind: "qual-member",
+            name: fromCodePoints(regionCp, ms, m2 - ms),
+            start: baseAt + ms,
+            len: m2 - ms,
+            importIndex: namespaceAliases.get(ident),
+            qualBase: ident,
+          });
         }
+        i = m2;
+        continue;
       }
-
-      // update decl-lookbehind: an identifier (possibly to-be-decorated) may be a type head.
-      prevIdent = ident;
-      prevIdentWasTypeish = !NON_TYPEISH.has(ident);
+      if (!CODE_NOISE.has(ident)) {
+        out.push({ kind: "code", name: ident, start: baseAt + s, len: ident.length });
+      }
       continue;
     }
-    // whitespace and type decorations keep the type-ish state alive; other punctuation resets.
-    // A colon keeps it ONLY as part of a `::` qual — a LONE ternary/label colon resets (the
-    // IMPORT-3 rule; `U = a ? B : B;` otherwise reads the second arm as a declaration).
-    if (
-      isWs(c) || c === 60 /* < */ || c === 62 /* > */ || c === 38 /* & */ || c === 42 /* * */ ||
-      (c === 58 /* : */ && (regionCp[i + 1] === 58 || (i > 0 && regionCp[i - 1] === 58)))
-    ) {
-      i++;
-      continue;
-    }
-    if (c === 44 /* , */) {
-      // `Type A = 1, B = 2` — keep type-ish so B declares too (rare but real)
-      i++;
-      continue;
-    }
-    resetDeclState();
     i++;
   }
 }
@@ -326,40 +438,54 @@ function collectTagRefs(bodyCp: readonly number[], spanStart: number, spanEnd: n
   }
 }
 
-/** Walk a parsed markup node tree, collecting code refs from every embedded expression: attr
- *  exprs (events included), expr children, directive headers/conditions/subjects/case values,
- *  and directive BODIES (leading statements + the nested markup, recursively — the
- *  ValidateDirectiveBodyHooks split). Tag refs come from collectTagRefs (positional, includes
- *  close tags), NOT from here. */
+/** Walk one parsed markup node's EMBEDDED CODE (N-08): attr/spread exprs (events included),
+ *  expr children, directive headers/conditions/subjects/case values, and directive BODIES
+ *  (leading statements + the nested markup, recursively — the ValidateDirectiveBodyHooks
+ *  split). Tag refs come from collectTagRefs (positional, includes close tags), NOT from here.
+ *  SEEDS (audit): each island is seeded with the locals IN SCOPE at its body offset
+ *  (`seedAt`) plus the accumulated directive-frame locals (`extraSeed`: @for headers +
+ *  directive-lead declarations) — a phantom ref for a live local would be EDITED by rename. */
 function walkMarkupNodeCode(
   node: UetkxNode,
-  bodyBase: number, // absolute offset of the BODY the node offsets are relative to
-  paramSeed: readonly string[],
+  bodyBase: number, // absolute offset of the frame buffer the node offsets are relative to
+  bodyAt: number, // absolute offset of the COMPONENT BODY (seedAt's coordinate origin)
+  seedAt: (bodyRel: number) => readonly string[],
+  extraSeed: readonly string[],
   namespaceAliases: ReadonlyMap<string, number>,
   out: UetkxFileRef[],
 ): void {
-  const code = (text: string | undefined, at: number | undefined) => {
+  const code = (text: string | undefined, at: number | undefined, extra: readonly string[] = extraSeed) => {
     if (!text || at === undefined || at < 0) return;
-    collectCodeRefs(toCodePoints(text), bodyBase + at, paramSeed, namespaceAliases, out);
+    const abs = bodyBase + at;
+    const seed = [...seedAt(abs - bodyAt), ...extra];
+    collectCodeRefs(toCodePoints(text), abs, seed, namespaceAliases, out);
   };
-  const markupBody = (text: string | undefined, at: number | undefined) => {
+  const markupBody = (text: string | undefined, at: number | undefined, extra: readonly string[] = extraSeed) => {
     if (!text || at === undefined || at < 0) return;
     const cp = toCodePoints(text);
     // A directive body = leading C++ statements + (optionally) a markup return window.
     const split = splitMarkupReturn(cp, false);
     if (split.ok) {
-      code(fromCodePoints(cp, 0, split.returnAt), at);
+      const lead = fromCodePoints(cp, 0, split.returnAt);
+      code(lead, at, extra);
+      // the lead's own declarations are live inside the nested window (audit)
+      const leadLocals = new UetkxScopedLocals(toCodePoints(lead), []);
+      const nested = [...extra, ...leadLocals.allDeclNames()];
       const parsed = parseMarkup(cp, split.mStart, split.mEnd);
       if (!parsed.errorCode) {
-        for (const child of parsed.nodes) walkMarkupNodeCode(child, bodyBase + at, paramSeed, namespaceAliases, out);
+        for (const child of parsed.nodes) {
+          walkMarkupNodeCode(child, bodyBase + at, bodyAt, seedAt, nested, namespaceAliases, out);
+        }
       }
     } else {
       // no return window: the body is markup nodes directly (the @if { <T/> } shape)
       const parsed = parseMarkup(cp, 0, cp.length);
       if (!parsed.errorCode) {
-        for (const child of parsed.nodes) walkMarkupNodeCode(child, bodyBase + at, paramSeed, namespaceAliases, out);
+        for (const child of parsed.nodes) {
+          walkMarkupNodeCode(child, bodyBase + at, bodyAt, seedAt, extra, namespaceAliases, out);
+        }
       } else {
-        code(text, at); // unparseable as markup — treat as code (best-effort)
+        code(text, at, extra); // unparseable as markup — treat as code (best-effort)
       }
     }
   };
@@ -373,7 +499,7 @@ function walkMarkupNodeCode(
         }
       }
       for (const child of node.children ?? []) {
-        walkMarkupNodeCode(child, bodyBase, paramSeed, namespaceAliases, out);
+        walkMarkupNodeCode(child, bodyBase, bodyAt, seedAt, extraSeed, namespaceAliases, out);
       }
       break;
     case "expr":
@@ -387,10 +513,13 @@ function walkMarkupNodeCode(
       markupBody(node.elseBody, node.elseBodyAt);
       break;
     case "for":
-    case "while":
+    case "while": {
       code(node.header, node.headerAt);
-      markupBody(node.bodyMarkup, node.bodyAt);
+      // the header's declarations (loop vars — index AND range form) are live in the body
+      const headerLocals = new UetkxScopedLocals(toCodePoints(node.header ?? ""), []);
+      markupBody(node.bodyMarkup, node.bodyAt, [...extraSeed, ...headerLocals.allDeclNames()]);
       break;
+    }
     case "match":
       code(node.subject, node.subjectAt);
       for (const c of node.cases ?? []) {
@@ -472,12 +601,18 @@ export function collectFileReferences(scan: UetkxFileScanResult, srcText: string
     }
     // tag refs inside each span (offsets are body-relative; comp.bodyAt makes them absolute)
     for (const [s, e] of merged) collectTagRefs(bodyCp, s, e, comp.bodyAt, out);
+    // the body-wide in-scope oracle (audit): markup ranges are SKIPPED (no junk decls from
+    // tags/attrs); islands and post-range fragments are seeded from it so setup locals used
+    // inside markup are never phantom refs (rename would edit them).
+    const bodyLocals = new UetkxScopedLocals(bodyCp, paramSeed, merged.map(([s, e]) => ({ start: s, end: e })));
+    const seedAt = (bodyRel: number): readonly string[] =>
+      bodyRel >= 0 && bodyRel <= bodyCp.length ? bodyLocals.namesInScopeAt(bodyRel) : bodyLocals.allDeclNames();
     // expression code inside the parsed trees: return windows come pre-parsed on the scan…
     const windowSpans: Array<[number, number]> = (comp.returns ?? [])
       .filter((sp) => sp.mStart >= 0 && sp.mEnd >= 0)
       .map((sp) => [sp.mStart, sp.mEnd] as [number, number]);
     for (const span of comp.returns ?? []) {
-      if (span.root) walkMarkupNodeCode(span.root, comp.bodyAt, paramSeed, namespaceAliases, out);
+      if (span.root) walkMarkupNodeCode(span.root, comp.bodyAt, comp.bodyAt, seedAt, [], namespaceAliases, out);
     }
     // …value-markup ranges (setup AND tails between early returns) are parsed on demand — the
     // scan stores trees only for return windows.
@@ -486,17 +621,17 @@ export function collectFileReferences(scan: UetkxFileScanResult, srcText: string
       if (windowSpans.some(([ws, we]) => r.start >= ws && r.start < we)) continue; // a return window, already walked
       const parsed = parseMarkup(bodyCp, r.start, end);
       if (!parsed.errorCode) {
-        for (const nd of parsed.nodes) walkMarkupNodeCode(nd, comp.bodyAt, paramSeed, namespaceAliases, out);
+        for (const nd of parsed.nodes) walkMarkupNodeCode(nd, comp.bodyAt, comp.bodyAt, seedAt, [], namespaceAliases, out);
       }
     }
     // code OUTSIDE the merged spans
     let cursor = 0;
     for (const [s, e] of merged) {
-      if (cursor < s) collectCodeRefs(bodyCp.slice(cursor, s), comp.bodyAt + cursor, paramSeed, namespaceAliases, out);
+      if (cursor < s) collectCodeRefs(bodyCp.slice(cursor, s), comp.bodyAt + cursor, seedAt(cursor), namespaceAliases, out);
       cursor = e;
     }
     if (cursor < bodyCp.length) {
-      collectCodeRefs(bodyCp.slice(cursor), comp.bodyAt + cursor, paramSeed, namespaceAliases, out);
+      collectCodeRefs(bodyCp.slice(cursor), comp.bodyAt + cursor, seedAt(cursor), namespaceAliases, out);
     }
   }
 

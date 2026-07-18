@@ -223,6 +223,44 @@ bool FRuiUetkxResolveTest::RunTest(const FString&)
 											Rel, R3);
 			Has(C, TEXT("UETKX2305"));
 		}
+		{ // a RANGE-FOR variable named like an exported value is a local — no 2305 (audit)
+			const TArray<FString> C =
+				Codes(TEXT("export FRuiNode T() {\n\tTArray<FLinearColor> Tints;\n")
+						  TEXT("\tfor (const FLinearColor& Cool : Tints) {\n\t\tauto X = Cool;\n\t}\n")
+							  TEXT("\treturn ( <Spacer /> );\n}\n"),
+					  Rel, R3);
+			HasNot(C, TEXT("UETKX2305"));
+		}
+		{ // a LAMBDA parameter named like an exported value is a local — no 2305 (audit)
+			const TArray<FString> C =
+				Codes(TEXT("export FRuiNode T() {\n")
+						  TEXT("\tauto Fn = [](const FLinearColor& Cool) { auto X = Cool; return X; };\n")
+							  TEXT("\treturn ( <Spacer /> );\n}\n"),
+					  Rel, R3);
+			HasNot(C, TEXT("UETKX2305"));
+		}
+		{ // an attr NAME never masks a real missing-import (audit: the junk-decl bug) — `Value`
+		  // is exported, appears as a Slider prop in an early window, and the TAIL's bare use
+		  // must still 2305
+			Write(Root / TEXT("Screens/Props.uetkx"),
+				  TEXT("export FLinearColor Value = FLinearColor(0.5f, 0.5f, 0.5f, 1.0f);\n"));
+			const FUetkxFsResolver R4(Root, {Root}, /*bFixtureMode*/ true);
+			const TArray<FString> C = Codes(TEXT("export FRuiNode T(bool bOn) {\n")
+												TEXT("\tif (bOn) {\n\t\treturn ( <Slider Value={ 0.5f } /> );\n\t}\n")
+													TEXT("\tauto X = Value;\n\treturn ( <Spacer /> );\n}\n"),
+											Rel, R4);
+			Has(C, TEXT("UETKX2305"));
+		}
+		{ // a directive-lead local shadowing an exported value stays local inside the nested
+		  // window's attr expression — no 2305 (audit)
+			const TArray<FString> C =
+				Codes(TEXT("export FRuiNode T() {\n\treturn (\n\t\t<VerticalBox>\n") TEXT("\t\t\t@if (true) {\n")
+						  TEXT("\t\t\t\tFLinearColor Cool = FLinearColor(0.1f, 0.1f, 0.1f, 1.0f);\n")
+							  TEXT("\t\t\t\treturn ( <Border BorderBackgroundColor={ Cool } /> )\n\t\t\t}\n")
+								  TEXT("\t\t</VerticalBox>\n\t);\n}\n"),
+					  Rel, R3);
+			HasNot(C, TEXT("UETKX2305"));
+		}
 
 		// N5 (TD-034 #3): markup-window usage joins the reference set — attr expressions,
 		// directive headers/bodies. Text children never count (N-08).

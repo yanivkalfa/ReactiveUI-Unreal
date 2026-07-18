@@ -1015,6 +1015,13 @@ namespace
 			{
 				ComponentParamNames.Add(Param.Name);
 			}
+			// N4 audit: ONE body-wide tracker (markup ranges skipped — no junk decls from tags/
+			// attrs) answers "which locals are live at offset X?" so markup-expression regions and
+			// value-markup-fragmented setup segments see the setup locals that shadow alias/
+			// private names (a rewrite there would silently read the WRONG symbol).
+			BodyCp = FUetkxLexer::ToCodePoints(Decl.Body);
+			BodyRanges = FUetkxJsxScan::FindMarkupRanges(BodyCp, 0, BodyCp.Num());
+			BodyLocals = MakeUnique<FUetkxScopedLocals>(BodyCp, ComponentParamNames, &BodyRanges);
 		}
 
 		FEmittedDecl Emit();
@@ -1040,20 +1047,52 @@ namespace
 
 		/** Hook auto-prefix (built-in → Ctx.*, user hooks → Ctx first arg), plus same-file PRIVATE
 		 *  reference qualification (private hook calls + `Module::` quals → RuiPriv_<Basename>::…),
-		 *  plus the ES-modules import-alias plane (U-03 — rename / `X::` strip pre-pass). */
-		FString PrefixHooks(const FString& Code)
+		 *  plus the ES-modules import-alias plane (U-03 — rename / `X::` strip pre-pass).
+		 *  `OriginAbs` = the FILE-absolute offset of Code[0] when known (-1 detached): the region's
+		 *  tracker is seeded with the locals IN SCOPE at that body position (N4 audit), so a setup
+		 *  local shadowing an alias/private name stays itself inside markup expressions and across
+		 *  value-markup fragmentation — a rewrite there reads the WRONG symbol silently. */
+		static int32 TrimmedOrigin(const FString& Raw, int32 Origin)
 		{
+			if (Origin < 0)
+			{
+				return -1;
+			}
+			int32 Lead = 0;
+			while (Lead < Raw.Len() && FChar::IsWhitespace(Raw[Lead]))
+			{
+				++Lead;
+			}
+			return Origin + Lead;
+		}
+
+		FString PrefixHooks(const FString& Code, int32 OriginAbs = -1)
+		{
+			if (OriginAbs >= 0 && BodyLocals.IsValid())
+			{
+				TArray<FString> Seed = BodyLocals->NamesInScopeAt(OriginAbs - Decl.BodyAt);
+				Seed.Append(DirectiveSeed);
+				return PrefixHookCalls(Code, Qualified, &Aliases, &Seed);
+			}
+			if (DirectiveSeed.Num() > 0)
+			{
+				TArray<FString> Seed = ComponentParamNames;
+				Seed.Append(DirectiveSeed);
+				return PrefixHookCalls(Code, Qualified, &Aliases, &Seed);
+			}
 			return PrefixHookCalls(Code, Qualified, &Aliases, &ComponentParamNames);
 		}
 
-		/** An embedded expression: rewrite nested markup ranges (jsx scan) to element exprs. */
-		FString EmitExpr(const FString& Expr, int32 AbsAt)
+		/** An embedded expression: rewrite nested markup ranges (jsx scan) to element exprs.
+		 *  `OriginAbs` = the file-absolute offset of Expr[0] when the caller knows it (attr Vat /
+		 *  setup start) — seeds the scope tracker; AbsAt stays the DIAG anchor (goldens pin it). */
+		FString EmitExpr(const FString& Expr, int32 AbsAt, int32 OriginAbs = -1)
 		{
 			const TArray<int32> Src = FUetkxLexer::ToCodePoints(Expr);
 			TArray<FUetkxMarkupRange> Ranges = FUetkxJsxScan::FindMarkupRanges(Src, 0, Src.Num());
 			if (Ranges.IsEmpty())
 			{
-				return PrefixHooks(Expr);
+				return PrefixHooks(Expr, OriginAbs);
 			}
 			FString Out;
 			int32 Cursor = 0;
@@ -1071,7 +1110,8 @@ namespace
 				// condition text is safe on the left of the emitted ternary.
 				const bool bShortCircuit = !Range.Op.IsEmpty();
 				Out += PrefixHooks(
-					FUetkxLexer::FromCodePoints(Src, Cursor, (bShortCircuit ? Range.OpPos : Range.Start) - Cursor));
+					FUetkxLexer::FromCodePoints(Src, Cursor, (bShortCircuit ? Range.OpPos : Range.Start) - Cursor),
+					OriginAbs >= 0 ? OriginAbs + Cursor : -1);
 				FUetkxMarkup Parser;
 				FUetkxParseResult Pr = Parser.Parse(Src, Range.Start, Range.End);
 				if (!Pr.IsOk() || Pr.Nodes.Num() != 1)
@@ -1091,55 +1131,64 @@ namespace
 				}
 				Cursor = Range.End;
 			}
-			Out += PrefixHooks(FUetkxLexer::FromCodePoints(Src, Cursor, Src.Num() - Cursor));
+			Out += PrefixHooks(FUetkxLexer::FromCodePoints(Src, Cursor, Src.Num() - Cursor),
+							   OriginAbs >= 0 ? OriginAbs + Cursor : -1);
 			return Out;
 		}
 
 		/** One node as a C++ FRuiNode expression. */
-		FString EmitNodeExpr(const FUetkxNode& Node, int32 AbsAt);
+		FString EmitNodeExpr(const FUetkxNode& Node, int32 AbsAt, int32 TrueBase = -1);
 
 		/** Children statements appending into `Ch`. */
 		void EmitChildren(FString& Out, const TArray<TSharedPtr<FUetkxNode>>& Children, const FString& Indent,
-						  int32 AbsAt);
+						  int32 AbsAt, int32 TrueBase = -1);
 
 		/** A directive body: C++ statements ending in `return ( <markup> )` — leading
 		 *  statements splice verbatim, the returned markup lowers to Ch.Add(...). */
-		void EmitBody(FString& Out, const FString& BodyMarkup, const FString& Indent, int32 AbsAt);
+		void EmitBody(FString& Out, const FString& BodyMarkup, const FString& Indent, int32 AbsAt,
+					  int32 TrueOrigin = -1);
 
 		const FString& Basename;
 		const FUetkxComponentDecl& Decl;
 		TArray<FUetkxDiag>& Diags;
-		TSet<FString>& Uses;					 // component tags this component references (aggregator topo order)
-		TMap<FString, int32>& UseAts;			 // tag -> first reference offset (strict-import diagnostics, M4)
-		const TMap<FString, FString>& Qualified; // private same-file decl name -> RuiPriv_<Basename>::name
-		const FLineCtx& Line;					 // #line directive context (M7)
-		const FUetkxAliasPlane& Aliases;		 // ES-modules import-alias substitution plane (U-03)
-		TArray<FString> ComponentParamNames;	 // scope-tracker seed for every code region (N4)
+		TSet<FString>& Uses;					   // component tags this component references (aggregator topo order)
+		TMap<FString, int32>& UseAts;			   // tag -> first reference offset (strict-import diagnostics, M4)
+		const TMap<FString, FString>& Qualified;   // private same-file decl name -> RuiPriv_<Basename>::name
+		const FLineCtx& Line;					   // #line directive context (M7)
+		const FUetkxAliasPlane& Aliases;		   // ES-modules import-alias substitution plane (U-03)
+		TArray<FString> ComponentParamNames;	   // scope-tracker seed for every code region (N4)
+		TArray<int32> BodyCp;					   // the component body, code points (N4 audit)
+		TArray<FUetkxMarkupRange> BodyRanges;	   // its markup ranges (skipped by BodyLocals)
+		TUniquePtr<FUetkxScopedLocals> BodyLocals; // body-wide in-scope-at-offset oracle
+		TArray<FString> DirectiveSeed;			   // @for headers + directive-lead locals live in NESTED islands
 		int32 TextKeyCounter = 0;
 		bool bError = false;
 	};
 
-	FString FEmitter::EmitNodeExpr(const FUetkxNode& Node, int32 AbsAt)
+	FString FEmitter::EmitNodeExpr(const FUetkxNode& Node, int32 AbsAt, int32 TrueBase)
 	{
 		switch (Node.Type)
 		{
 		case EUetkxNodeType::Text:
 			return FString::Printf(TEXT("RUI::TextBlock(%s)"), *NsLocText(Node.Value));
 		case EUetkxNodeType::Expr:
-			return FString::Printf(TEXT("(%s)"), *EmitExpr(Node.Code, AbsAt));
+			return FString::Printf(
+				TEXT("(%s)"), *EmitExpr(Node.Code, AbsAt, TrueBase >= 0 && Node.Vat >= 0 ? TrueBase + Node.Vat : -1));
 		case EUetkxNodeType::Comment:
 			return FString(); // comments emit nothing
 		case EUetkxNodeType::Frag:
 		{
 			FString Out = TEXT("[&]() -> FRuiNode {\n\t\tTArray<FRuiNode> Ch;\n");
-			EmitChildren(Out, Node.Children, TEXT("\t\t"), AbsAt);
+			EmitChildren(Out, Node.Children, TEXT("\t\t"), AbsAt, TrueBase);
 			FString Key = TEXT("FRuiKey()");
 			for (const FUetkxAttr& Attr : Node.Attrs)
 			{
 				if (Attr.Name == TEXT("key"))
 				{
 					Key = Attr.Kind == EUetkxAttrKind::Expr
-							  ? FString::Printf(TEXT("FRuiKey(%s)"), *EmitExpr(Attr.Value, AbsAt))
+							  ? FString::Printf(TEXT("FRuiKey(%s)"),
+												*EmitExpr(Attr.Value, AbsAt,
+														  TrueBase >= 0 && Attr.Vat >= 0 ? TrueBase + Attr.Vat : -1))
 							  : FString::Printf(TEXT("FRuiKey(FName(TEXT(\"%s\")))"), *CppStringLiteral(Attr.Value));
 				}
 			}
@@ -1155,7 +1204,7 @@ namespace
 			FString Out = TEXT("[&]() -> FRuiNode {\n\t\tTArray<FRuiNode> Ch;\n");
 			TArray<TSharedPtr<FUetkxNode>> Self;
 			Self.Add(MakeShared<FUetkxNode>(Node));
-			EmitChildren(Out, Self, TEXT("\t\t"), AbsAt);
+			EmitChildren(Out, Self, TEXT("\t\t"), AbsAt, TrueBase);
 			Out += TEXT("\t\treturn Ch.Num() == 1 ? MoveTemp(Ch[0]) : RUI::Fragment(MoveTemp(Ch));\n\t}()");
 			return Out;
 		}
@@ -1217,14 +1266,19 @@ namespace
 				}
 				if (Attr.Name == TEXT("Text"))
 				{
-					TextExpr = Attr.Kind == EUetkxAttrKind::Str
-								   ? NsLocText(Attr.Value)
-								   : FString::Printf(TEXT("(%s)"), *EmitExpr(Attr.Value, AbsAt));
+					TextExpr =
+						Attr.Kind == EUetkxAttrKind::Str
+							? NsLocText(Attr.Value)
+							: FString::Printf(TEXT("(%s)"),
+											  *EmitExpr(Attr.Value, AbsAt,
+														TrueBase >= 0 && Attr.Vat >= 0 ? TrueBase + Attr.Vat : -1));
 				}
 				else if (Attr.Name == TEXT("key"))
 				{
 					Key = Attr.Kind == EUetkxAttrKind::Expr
-							  ? FString::Printf(TEXT("FRuiKey(%s)"), *EmitExpr(Attr.Value, AbsAt))
+							  ? FString::Printf(TEXT("FRuiKey(%s)"),
+												*EmitExpr(Attr.Value, AbsAt,
+														  TrueBase >= 0 && Attr.Vat >= 0 ? TrueBase + Attr.Vat : -1))
 							  : FString::Printf(TEXT("FRuiKey(FName(TEXT(\"%s\")))"), *CppStringLiteral(Attr.Value));
 				}
 				else if (Attr.Name == TEXT("classes"))
@@ -1232,7 +1286,9 @@ namespace
 					bStyled = true;
 					if (Attr.Kind == EUetkxAttrKind::Expr)
 					{
-						ClassStmts += FString::Printf(TEXT("\t\t__P->Classes = (%s);\n"), *EmitExpr(Attr.Value, AbsAt));
+						ClassStmts += FString::Printf(
+							TEXT("\t\t__P->Classes = (%s);\n"),
+							*EmitExpr(Attr.Value, AbsAt, TrueBase >= 0 && Attr.Vat >= 0 ? TrueBase + Attr.Vat : -1));
 					}
 					else
 					{
@@ -1251,7 +1307,9 @@ namespace
 					if (Attr.Kind == EUetkxAttrKind::Expr)
 					{
 						bStyled = true;
-						RefStmts += FString::Printf(TEXT("\t\t__P->Ref = (%s);\n"), *EmitExpr(Attr.Value, AbsAt));
+						RefStmts += FString::Printf(
+							TEXT("\t\t__P->Ref = (%s);\n"),
+							*EmitExpr(Attr.Value, AbsAt, TrueBase >= 0 && Attr.Vat >= 0 ? TrueBase + Attr.Vat : -1));
 					}
 					else
 					{
@@ -1266,7 +1324,9 @@ namespace
 					const bool bSlot = Attr.Name.StartsWith(TEXT("Slot."));
 					const FString Value =
 						Attr.Kind == EUetkxAttrKind::Expr
-							? FString::Printf(TEXT("FRuiValue(%s)"), *EmitExpr(Attr.Value, AbsAt))
+							? FString::Printf(TEXT("FRuiValue(%s)"),
+											  *EmitExpr(Attr.Value, AbsAt,
+														TrueBase >= 0 && Attr.Vat >= 0 ? TrueBase + Attr.Vat : -1))
 							: FString::Printf(TEXT("FRuiValue(TEXT(\"%s\"))"), *CppStringLiteral(Attr.Value));
 					StyleStmts += FString::Printf(TEXT("\t\t__%s->Add(FName(TEXT(\"%s\")), %s);\n"),
 												  bSlot ? TEXT("Slot") : TEXT("Style"), *Attr.Name, *Value);
@@ -1319,7 +1379,9 @@ namespace
 			if (Attr.Name == TEXT("key"))
 			{
 				Key = Attr.Kind == EUetkxAttrKind::Expr
-						  ? FString::Printf(TEXT("FRuiKey(%s)"), *EmitExpr(Attr.Value, AbsAt))
+						  ? FString::Printf(
+								TEXT("FRuiKey(%s)"),
+								*EmitExpr(Attr.Value, AbsAt, TrueBase >= 0 && Attr.Vat >= 0 ? TrueBase + Attr.Vat : -1))
 						  : FString::Printf(TEXT("FRuiKey(FName(TEXT(\"%s\")))"), *CppStringLiteral(Attr.Value));
 				continue;
 			}
@@ -1334,7 +1396,9 @@ namespace
 				// where the expression yields a TArray<FName>.
 				if (Attr.Kind == EUetkxAttrKind::Expr)
 				{
-					Out += FString::Printf(TEXT("\t\tP.Classes = (%s);\n"), *EmitExpr(Attr.Value, AbsAt));
+					Out += FString::Printf(
+						TEXT("\t\tP.Classes = (%s);\n"),
+						*EmitExpr(Attr.Value, AbsAt, TrueBase >= 0 && Attr.Vat >= 0 ? TrueBase + Attr.Vat : -1));
 				}
 				else
 				{
@@ -1357,7 +1421,9 @@ namespace
 				// handle's `.Ref`. Expr-only: a string form has no meaning for a callable.
 				if (Attr.Kind == EUetkxAttrKind::Expr)
 				{
-					Out += FString::Printf(TEXT("\t\tP.Ref = (%s);\n"), *EmitExpr(Attr.Value, AbsAt));
+					Out += FString::Printf(
+						TEXT("\t\tP.Ref = (%s);\n"),
+						*EmitExpr(Attr.Value, AbsAt, TrueBase >= 0 && Attr.Vat >= 0 ? TrueBase + Attr.Vat : -1));
 				}
 				else
 				{
@@ -1373,7 +1439,9 @@ namespace
 				const bool bSlot = Attr.Name.StartsWith(TEXT("Slot."));
 				const FString Value =
 					Attr.Kind == EUetkxAttrKind::Expr
-						? FString::Printf(TEXT("FRuiValue(%s)"), *EmitExpr(Attr.Value, AbsAt))
+						? FString::Printf(
+							  TEXT("FRuiValue(%s)"),
+							  *EmitExpr(Attr.Value, AbsAt, TrueBase >= 0 && Attr.Vat >= 0 ? TrueBase + Attr.Vat : -1))
 						: FString::Printf(TEXT("FRuiValue(TEXT(\"%s\"))"), *CppStringLiteral(Attr.Value));
 				StyleStmts += FString::Printf(TEXT("\t\t__%s->Add(FName(TEXT(\"%s\")), %s);\n"),
 											  bSlot ? TEXT("Slot") : TEXT("Style"), *Attr.Name, *Value);
@@ -1382,10 +1450,12 @@ namespace
 			if (bComponent)
 			{
 				// component props are plain fields on the generated struct
-				const FString Value = Attr.Kind == EUetkxAttrKind::Expr ? EmitExpr(Attr.Value, AbsAt)
-									  : Attr.Kind == EUetkxAttrKind::Bool
-										  ? FString(TEXT("true"))
-										  : FString::Printf(TEXT("TEXT(\"%s\")"), *CppStringLiteral(Attr.Value));
+				const FString Value =
+					Attr.Kind == EUetkxAttrKind::Expr
+						? EmitExpr(Attr.Value, AbsAt, TrueBase >= 0 && Attr.Vat >= 0 ? TrueBase + Attr.Vat : -1)
+					: Attr.Kind == EUetkxAttrKind::Bool
+						? FString(TEXT("true"))
+						: FString::Printf(TEXT("TEXT(\"%s\")"), *CppStringLiteral(Attr.Value));
 				Out += FString::Printf(TEXT("\t\tP.%s = %s;\n"), *Attr.Name, *Value);
 				continue;
 			}
@@ -1402,9 +1472,12 @@ namespace
 				// Events: the handler body sees the payload as `Value` (FRuiValue — text/bool/
 				// float of the widget event); zero-payload events simply ignore it.
 				Value = *AttrType == EAttrType::Event
-							? FString::Printf(TEXT("FRuiCallback::Create([=](const FRuiValue& Value) { %s; })"),
-											  *PrefixHooks(Attr.Value))
-							: FString::Printf(TEXT("(%s)"), *EmitExpr(Attr.Value, AbsAt));
+							? FString::Printf(
+								  TEXT("FRuiCallback::Create([=](const FRuiValue& Value) { %s; })"),
+								  *PrefixHooks(Attr.Value, TrueBase >= 0 && Attr.Vat >= 0 ? TrueBase + Attr.Vat : -1))
+							: FString::Printf(TEXT("(%s)"),
+											  *EmitExpr(Attr.Value, AbsAt,
+														TrueBase >= 0 && Attr.Vat >= 0 ? TrueBase + Attr.Vat : -1));
 			}
 			else if (Attr.Kind == EUetkxAttrKind::Bool)
 			{
@@ -1466,13 +1539,13 @@ namespace
 			return Out;
 		}
 		Out += TEXT("\t\tTArray<FRuiNode> Ch;\n");
-		EmitChildren(Out, Node.Children, TEXT("\t\t"), AbsAt);
+		EmitChildren(Out, Node.Children, TEXT("\t\t"), AbsAt, TrueBase);
 		Out += FString::Printf(TEXT("\t\treturn %s(MoveTemp(P), MoveTemp(Ch), %s);\n\t}()"), *Factory, *Key);
 		return Out;
 	}
 
 	void FEmitter::EmitChildren(FString& Out, const TArray<TSharedPtr<FUetkxNode>>& Children, const FString& Indent,
-								int32 AbsAt)
+								int32 AbsAt, int32 TrueBase)
 	{
 		for (const TSharedPtr<FUetkxNode>& ChildPtr : Children)
 		{
@@ -1491,14 +1564,17 @@ namespace
 				{
 					const FUetkxIfBranch& Branch = Child.Branches[b];
 					Out += FString::Printf(TEXT("%s%s (%s)\n%s{\n"), *Indent, b == 0 ? TEXT("if") : TEXT("else if"),
-										   *EmitExpr(Branch.Cond, AbsAt), *Indent);
-					EmitBody(Out, Branch.BodyMarkup, Indent + TEXT("\t"), AbsAt + Child.At);
+										   *EmitExpr(Branch.Cond, AbsAt, TrueBase >= 0 ? TrueBase + Child.At : -1),
+										   *Indent);
+					EmitBody(Out, Branch.BodyMarkup, Indent + TEXT("\t"), AbsAt + Child.At,
+							 TrueBase >= 0 && Branch.BodyAt >= 0 ? TrueBase + Branch.BodyAt : -1);
 					Out += Indent + TEXT("}\n");
 				}
 				if (Child.ElseBody.IsSet())
 				{
 					Out += Indent + TEXT("else\n") + Indent + TEXT("{\n");
-					EmitBody(Out, Child.ElseBody.GetValue(), Indent + TEXT("\t"), AbsAt + Child.At);
+					EmitBody(Out, Child.ElseBody.GetValue(), Indent + TEXT("\t"), AbsAt + Child.At,
+							 TrueBase >= 0 && Child.ElseBodyAt >= 0 ? TrueBase + Child.ElseBodyAt : -1);
 					Out += Indent + TEXT("}\n");
 				}
 				break;
@@ -1508,24 +1584,33 @@ namespace
 			{
 				Out += FString::Printf(TEXT("%s%s (%s)\n%s{\n"), *Indent,
 									   Child.Type == EUetkxNodeType::For ? TEXT("for") : TEXT("while"),
-									   *PrefixHooks(Child.Header), *Indent);
-				EmitBody(Out, Child.BodyMarkup, Indent + TEXT("\t"), AbsAt + Child.At);
+									   *PrefixHooks(Child.Header, TrueBase >= 0 ? TrueBase + Child.At : -1), *Indent);
+				const int32 SeedMark = DirectiveSeed.Num();
+				DirectiveSeed.Append(
+					FUetkxScopedLocals(FUetkxLexer::ToCodePoints(Child.Header), TArray<FString>()).AllDeclNames());
+				EmitBody(Out, Child.BodyMarkup, Indent + TEXT("\t"), AbsAt + Child.At,
+						 TrueBase >= 0 && Child.BodyAt >= 0 ? TrueBase + Child.BodyAt : -1);
+				DirectiveSeed.SetNum(SeedMark);
 				Out += Indent + TEXT("}\n");
 				break;
 			}
 			case EUetkxNodeType::Match:
 			{
-				Out += FString::Printf(TEXT("%sswitch (%s)\n%s{\n"), *Indent, *EmitExpr(Child.Subject, AbsAt), *Indent);
+				Out +=
+					FString::Printf(TEXT("%sswitch (%s)\n%s{\n"), *Indent,
+									*EmitExpr(Child.Subject, AbsAt, TrueBase >= 0 ? TrueBase + Child.At : -1), *Indent);
 				for (const FUetkxMatchCase& Case : Child.Cases)
 				{
 					Out += FString::Printf(TEXT("%scase %s:\n%s{\n"), *Indent, *Case.Value, *Indent);
-					EmitBody(Out, Case.BodyMarkup, Indent + TEXT("\t"), AbsAt + Child.At);
+					EmitBody(Out, Case.BodyMarkup, Indent + TEXT("\t"), AbsAt + Child.At,
+							 TrueBase >= 0 && Case.BodyAt >= 0 ? TrueBase + Case.BodyAt : -1);
 					Out += Indent + TEXT("\tbreak;\n") + Indent + TEXT("}\n");
 				}
 				if (Child.DefaultBody.IsSet())
 				{
 					Out += Indent + TEXT("default:\n") + Indent + TEXT("{\n");
-					EmitBody(Out, Child.DefaultBody.GetValue(), Indent + TEXT("\t"), AbsAt + Child.At);
+					EmitBody(Out, Child.DefaultBody.GetValue(), Indent + TEXT("\t"), AbsAt + Child.At,
+							 TrueBase >= 0 && Child.DefaultBodyAt >= 0 ? TrueBase + Child.DefaultBodyAt : -1);
 					Out += Indent + TEXT("\tbreak;\n") + Indent + TEXT("}\n");
 				}
 				Out += Indent + TEXT("}\n");
@@ -1540,7 +1625,7 @@ namespace
 					Out += Indent + TEXT("Ch.Append(children);\n");
 					break;
 				}
-				const FString Expr = EmitNodeExpr(Child, AbsAt);
+				const FString Expr = EmitNodeExpr(Child, AbsAt, TrueBase);
 				if (!Expr.IsEmpty())
 				{
 					Out += FString::Printf(TEXT("%sCh.Add(%s);\n"), *Indent, *Expr);
@@ -1551,7 +1636,8 @@ namespace
 		}
 	}
 
-	void FEmitter::EmitBody(FString& Out, const FString& BodyMarkup, const FString& Indent, int32 AbsAt)
+	void FEmitter::EmitBody(FString& Out, const FString& BodyMarkup, const FString& Indent, int32 AbsAt,
+							int32 TrueOrigin)
 	{
 		const TArray<int32> Body = FUetkxLexer::ToCodePoints(BodyMarkup);
 		// the (last) top-level markup return inside the body — bodies are code blocks whose
@@ -1564,13 +1650,15 @@ namespace
 		{
 			// no return -> pure statements (rare; e.g. a guard `continue;`) — splice via EmitExpr so
 			// markup-as-value inside a directive body lowers too (§4 markup-everywhere).
-			Out += Indent + EmitExpr(BodyMarkup, AbsAt).TrimStartAndEnd() + TEXT("\n");
+			Out += Indent + EmitExpr(BodyMarkup, AbsAt, TrueOrigin).TrimStartAndEnd() + TEXT("\n");
 			return;
 		}
 		const FString Lead = FUetkxLexer::FromCodePoints(Body, 0, RetAt).TrimStartAndEnd();
 		if (!Lead.IsEmpty())
 		{
-			Out += Indent + EmitExpr(Lead, AbsAt) + TEXT("\n");
+			Out += Indent +
+				   EmitExpr(Lead, AbsAt, TrimmedOrigin(FUetkxLexer::FromCodePoints(Body, 0, RetAt), TrueOrigin)) +
+				   TEXT("\n");
 		}
 		FUetkxMarkup Parser;
 		FUetkxParseResult Pr = Parser.Parse(Body, MStart, MEnd);
@@ -1579,6 +1667,8 @@ namespace
 			Fail(*Pr.ErrorCode, Pr.ErrorMsg, AbsAt);
 			return;
 		}
+		const int32 SeedMark = DirectiveSeed.Num();
+		DirectiveSeed.Append(FUetkxScopedLocals(FUetkxLexer::ToCodePoints(Lead), TArray<FString>()).AllDeclNames());
 		for (const TSharedPtr<FUetkxNode>& Node : Pr.Nodes)
 		{
 			if (Node.IsValid() && Node->Type != EUetkxNodeType::Comment)
@@ -1588,9 +1678,10 @@ namespace
 					Out += Indent + TEXT("Ch.Append(children);\n"); // TD-015 children splice (directive body)
 					continue;
 				}
-				Out += FString::Printf(TEXT("%sCh.Add(%s);\n"), *Indent, *EmitNodeExpr(*Node, AbsAt));
+				Out += FString::Printf(TEXT("%sCh.Add(%s);\n"), *Indent, *EmitNodeExpr(*Node, AbsAt, TrueOrigin));
 			}
 		}
+		DirectiveSeed.SetNum(SeedMark);
 	}
 
 	FEmittedDecl FEmitter::Emit()
@@ -1661,10 +1752,12 @@ namespace
 			const FString Setup = Decl.Setup.TrimStartAndEnd();
 			if (!Setup.IsEmpty())
 			{
-				Impl += WithLine(TEXT("\t") + IndentRegion(EmitExpr(Setup, Decl.SetupAt)) + TEXT("\n"),
-								 SrcLineOfRegion(Decl.Setup, Decl.SetupAt, Line), Line);
+				Impl += WithLine(
+					TEXT("\t") + IndentRegion(EmitExpr(Setup, Decl.SetupAt, TrimmedOrigin(Decl.Setup, Decl.SetupAt))) +
+						TEXT("\n"),
+					SrcLineOfRegion(Decl.Setup, Decl.SetupAt, Line), Line);
 			}
-			Impl += FString::Printf(TEXT("\treturn { %s };\n}\n"), *EmitNodeExpr(*Decl.Root, Decl.BodyAt));
+			Impl += FString::Printf(TEXT("\treturn { %s };\n}\n"), *EmitNodeExpr(*Decl.Root, Decl.BodyAt, Decl.BodyAt));
 		}
 		else
 		{
@@ -1682,7 +1775,8 @@ namespace
 					Impl += WithLine(TEXT("\t") + IndentRegion(EmitExpr(Segment, Decl.BodyAt + Cursor)) + TEXT("\n"),
 									 SrcLineOfRegion(Raw, Decl.BodyAt + Cursor, Line), Line);
 				}
-				Impl += FString::Printf(TEXT("\treturn { %s };\n"), *EmitNodeExpr(*Span.Root, Decl.BodyAt));
+				Impl +=
+					FString::Printf(TEXT("\treturn { %s };\n"), *EmitNodeExpr(*Span.Root, Decl.BodyAt, Decl.BodyAt));
 				// step past the authored `;` (we emit our own)
 				Cursor = Span.AfterParen;
 				while (Cursor < Body.Num() &&
