@@ -209,7 +209,7 @@ clang suppresses an undeclared-CALLEE error once an argument is error-typed (the
 initializer cascade) — upstream, probe-proven in plain C++. But OUR scope tracker knows the
 locals. New lint: a code reference that resolves to NOTHING (not a local/import/decl/
 builtin/workspace export) within edit distance 1 (2 from 9 chars) of an IN-SCOPE local,
-same first char, ≥5 chars → warn `unknown name 'SetPrimsary' — did you mean the local
+same first char, ≥5 chars → ERROR (red — owner call, consistent with clangd whether or not the cascade suppresses it): `unknown name 'SetPrimsary' — did you mean the local
 'SetPrimary'?`. Deterministic, cascade-proof, markup-fast (no clang round-trip).
 
 **Verified:** the exact reported scenario (UseSstate broken + SetPrimsary use) flags 2310;
