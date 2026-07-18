@@ -16,9 +16,12 @@ export interface ClangdPosition {
   character: number;
 }
 
-/** A clangd publishDiagnostics payload (virtual-doc coordinates — the server maps them back). */
+/** A clangd publishDiagnostics payload (virtual-doc coordinates — the server maps them back).
+ *  `version` echoes the didOpen/didChange version the diagnostics were computed FOR — the N6
+ *  rename guard synchronizes on it (stale diagnostics must never gate a fresh rename). */
 export interface ClangdPublishedDiagnostics {
   uri: string;
+  version?: number;
   diagnostics: Array<{
     range: { start: ClangdPosition; end: ClangdPosition };
     severity?: number;
@@ -328,6 +331,10 @@ export class ClangdProxy {
   /** Open virtual docs → last sent version (didOpen once, didChange after — clangd re-runs
    *  diagnostics per version; re-sending didOpen would leak duplicate TUs). */
   private readonly openVersions = new Map<string, number>();
+  /** Open virtual docs → hash of the last sent text: an identical re-send is a no-op (N6 —
+   *  the rename path syncs the doc before its guard; without dedup every rename would bump
+   *  the version and force a full clangd re-parse of unchanged text). */
+  private readonly openTextHashes = new Map<string, number>();
 
   /** TB-10: clangd's publishDiagnostics for a VIRTUAL doc land here (virtual coordinates —
    *  the server maps them back through the source map before publishing). */
@@ -417,12 +424,18 @@ export class ClangdProxy {
   }
 
   /** Sync the virtual C++ doc: didOpen on first sight, versioned didChange after (clangd
-   *  re-diagnoses per version — the TB-10 diagnostics loop rides this). */
+   *  re-diagnoses per version — the TB-10 diagnostics loop rides this). An UNCHANGED text is
+   *  a no-op (see openTextHashes). */
   didOpen(uri: string, text: string): void {
     if (!this.available) {
       return;
     }
+    const hash = ClangdProxy.textHash(text);
     const prev = this.openVersions.get(uri);
+    if (prev !== undefined && this.openTextHashes.get(uri) === hash) {
+      return; // same text clangd already holds — don't force a re-parse
+    }
+    this.openTextHashes.set(uri, hash);
     if (prev === undefined) {
       this.openVersions.set(uri, 1);
       this.notify("textDocument/didOpen", {
@@ -438,22 +451,40 @@ export class ClangdProxy {
     });
   }
 
+  /** The version clangd currently holds for a virtual doc (0 = never opened) — the N6 rename
+   *  guard waits for THIS version's diagnostics before trusting the TU's health. */
+  versionOf(uri: string): number {
+    return this.openVersions.get(uri) ?? 0;
+  }
+
   /** Close a virtual doc (its .uetkx closed) so clangd drops the TU and clears diagnostics. */
   didClose(uri: string): void {
     if (!this.available || !this.openVersions.has(uri)) {
       return;
     }
     this.openVersions.delete(uri);
+    this.openTextHashes.delete(uri);
     this.notify("textDocument/didClose", { textDocument: { uri } });
   }
 
-  /** Forward a position request; null on any degradation (unavailable / timeout / error). */
-  async positionRequest(method: string, uri: string, position: ClangdPosition): Promise<unknown | null> {
+  /** FNV-1a over UTF-16 units — cheap dedup key for didOpen (not cryptographic). */
+  private static textHash(text: string): number {
+    let h = 2166136261;
+    for (let i = 0; i < text.length; i++) {
+      h = (h ^ text.charCodeAt(i)) >>> 0;
+      h = Math.imul(h, 16777619) >>> 0;
+    }
+    return h;
+  }
+
+  /** Forward a position request; null on any degradation (unavailable / timeout / error).
+   *  `extra` merges additional request params (N6: rename's `newName`). */
+  async positionRequest(method: string, uri: string, position: ClangdPosition, extra?: object): Promise<unknown | null> {
     if (!this.available) {
       return null;
     }
     try {
-      return await this.request(method, { textDocument: { uri }, position });
+      return await this.request(method, { textDocument: { uri }, position, ...(extra ?? {}) });
     } catch {
       return null;
     }

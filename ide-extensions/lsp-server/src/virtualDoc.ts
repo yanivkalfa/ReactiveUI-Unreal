@@ -34,6 +34,18 @@ const guarded = (h: string): string => `#if __has_include("${h}")\n#include "${h
 const PRELUDE = [
   "// GENERATED virtual C++ for .uetkx embedded-code intelligence (TD-020). Do not edit.",
   '#include "CoreMinimal.h"',
+  // HEADERLESS fallback (N6): without a compile database CoreMinimal.h does not resolve and
+  // UE's numeric typedefs are unknown types — clang's recovery then DROPS whole statements
+  // from the AST, so clangd's rename returns partial edit sets (bughunt: `int32 X` renamed
+  // only its declaration). Native typedefs keep those statements parsing; deliberately NO
+  // class stubs (a fake FString would poison overload resolution the moment real headers
+  // appear) — statements over unresolved class types stay broken and the rename guard
+  // refuses them instead.
+  '#if !__has_include("CoreMinimal.h")',
+  "typedef signed char int8; typedef short int16; typedef int int32; typedef long long int64;",
+  "typedef unsigned char uint8; typedef unsigned short uint16; typedef unsigned int uint32; typedef unsigned long long uint64;",
+  "typedef wchar_t TCHAR;",
+  "#endif",
   '#include "RuiContext.h"',
   '#include "RuiCoreElements.h"',
   '#include "RuiSignal.h"',

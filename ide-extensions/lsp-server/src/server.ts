@@ -65,8 +65,11 @@ import {
   isEmbeddedOffset,
   realUriOfVirtual,
   translateEmbeddedCompletion,
+  translateEmbeddedRename,
   virtualUriOf,
 } from "./embeddedIntel";
+
+const IDENT_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 const connection = createConnection(ProposedFeatures.all);
 const documents = new TextDocuments(TextDocument);
@@ -166,6 +169,33 @@ function schemaOf(doc: TextDocument): UetkxSchema {
  *  markup pass and the async clangd pass never clobber each other. */
 const markupDiagsByUri = new Map<string, Diagnostic[]>();
 const embeddedDiagsByUri = new Map<string, Diagnostic[]>();
+/** The virtual-doc VERSION the stored embedded diagnostics were computed for (N6): the rename
+ *  guard must never gate on stale diagnostics, so it waits until this catches the version it
+ *  just synced. */
+const embeddedDiagsVersionByUri = new Map<string, number>();
+const embeddedDiagsWaiters: Array<() => void> = [];
+
+/** Resolve when the stored embedded diagnostics for `uri` reach `minVersion`; false on timeout
+ *  (clangd still parsing — first parse of an engine-includes TU can take >10s). */
+function waitForEmbeddedDiags(uri: string, minVersion: number, timeoutMs: number): Promise<boolean> {
+  if ((embeddedDiagsVersionByUri.get(uri) ?? -1) >= minVersion) return Promise.resolve(true);
+  return new Promise<boolean>((resolve) => {
+    const timer = setTimeout(() => {
+      const i = embeddedDiagsWaiters.indexOf(check);
+      if (i >= 0) embeddedDiagsWaiters.splice(i, 1);
+      resolve(false);
+    }, timeoutMs);
+    const check = () => {
+      if ((embeddedDiagsVersionByUri.get(uri) ?? -1) >= minVersion) {
+        clearTimeout(timer);
+        const i = embeddedDiagsWaiters.indexOf(check);
+        if (i >= 0) embeddedDiagsWaiters.splice(i, 1);
+        resolve(true);
+      }
+    };
+    embeddedDiagsWaiters.push(check);
+  });
+}
 
 function publishMerged(uri: string): void {
   const merged = [...(markupDiagsByUri.get(uri) ?? []), ...(embeddedDiagsByUri.get(uri) ?? [])];
@@ -176,7 +206,7 @@ function publishMerged(uri: string): void {
  *  translated through the source map; anything landing in the prelude/scaffolding (missing
  *  headers, wrapper braces) is DROPPED — those are the virtual doc's problems, not the
  *  user's. Tags (Unnecessary/Deprecated) pass through, so clangd-detected dead code fades. */
-function publishEmbeddedDiagnostics(params: { uri: string; diagnostics: ClangdPublishedDiagnostics["diagnostics"] }): void {
+function publishEmbeddedDiagnostics(params: ClangdPublishedDiagnostics): void {
   const realUri = realUriOfVirtual(params.uri);
   if (!realUri) return;
   // clangd RE-SERIALIZES URIs (drive-letter case, `%3A` vs `:`), so a raw string lookup misses
@@ -219,6 +249,14 @@ function publishEmbeddedDiagnostics(params: { uri: string; diagnostics: ClangdPu
     });
   }
   embeddedDiagsByUri.set(doc.uri, mapped); // keyed by the CLIENT's uri spelling, not clangd's
+  if (typeof params.version === "number") {
+    embeddedDiagsVersionByUri.set(doc.uri, params.version);
+  } else {
+    // A clangd that omits `version`: advance to whatever the proxy last sent — arrival still
+    // means "diagnostics for the current text" in the fully-serialized single-doc flow.
+    embeddedDiagsVersionByUri.set(doc.uri, clangd?.versionOf(params.uri) ?? 0);
+  }
+  for (const w of [...embeddedDiagsWaiters]) w();
   publishMerged(doc.uri);
 }
 
@@ -288,6 +326,7 @@ documents.onDidChangeContent((change) => {
 documents.onDidClose((e) => {
   markupDiagsByUri.delete(e.document.uri);
   embeddedDiagsByUri.delete(e.document.uri);
+  embeddedDiagsVersionByUri.delete(e.document.uri);
   clangd?.didClose(virtualUriOf(e.document.uri));
   connection.sendDiagnostics({ uri: e.document.uri, diagnostics: [] });
 });
@@ -805,29 +844,141 @@ connection.onReferences((params): Location[] => {
   return out;
 });
 
-connection.onPrepareRename((params) => {
+/** The C++/uetkx identifier at a utf16 offset — the prepare-rename range fallback for embedded
+ *  locals (clangd's prepareRename may answer `defaultBehavior`). Null when not on an identifier. */
+function identRangeAt(text: string, offset: number): { start: number; end: number } | null {
+  const isIdent = (ch: string) => /[A-Za-z0-9_]/.test(ch);
+  let s = offset;
+  while (s > 0 && isIdent(text[s - 1])) s--;
+  let e = offset;
+  while (e < text.length && isIdent(text[e])) e++;
+  if (s === e || /[0-9]/.test(text[s])) return null;
+  return { start: s, end: e };
+}
+
+connection.onPrepareRename(async (params) => {
   const doc = documents.get(params.textDocument.uri);
   if (!doc) return null;
   const overlay = liveOverlay();
   const text = doc.getText();
-  const cpOff = utf16ToCodePoint(text, doc.offsetAt(params.position));
+  const u16Off = doc.offsetAt(params.position);
+  const cpOff = utf16ToCodePoint(text, u16Off);
   const symbol = resolveSymbolAt(fsPathOf(doc), cpOff, overlay);
-  if (!symbol) return null;
-  // The token under the cursor (its own file's index has the exact range).
-  const index = getFileIndex(fsPathOf(doc), overlay);
-  if (!index) return null;
-  const hit = index.refs.find((r) => cpOff >= r.start && cpOff <= r.start + r.len);
-  if (!hit) return null;
-  const startU16 = codePointToUtf16(text, hit.start);
-  const endU16 = codePointToUtf16(text, hit.start + hit.len);
-  return { range: { start: doc.positionAt(startU16), end: doc.positionAt(endU16) }, placeholder: hit.name };
+  if (symbol) {
+    // The token under the cursor (its own file's index has the exact range).
+    const index = getFileIndex(fsPathOf(doc), overlay);
+    if (!index) return null;
+    const hit = index.refs.find((r) => cpOff >= r.start && cpOff <= r.start + r.len);
+    if (!hit) return null;
+    const startU16 = codePointToUtf16(text, hit.start);
+    const endU16 = codePointToUtf16(text, hit.start + hit.len);
+    return { range: { start: doc.positionAt(startU16), end: doc.positionAt(endU16) }, placeholder: hit.name };
+  }
+  // N6: not a .uetkx symbol — an embedded-C++ LOCAL is still renamable through clangd. Offer the
+  // identifier range under the cursor; the rename request itself does the real (refusable) work.
+  if (isEmbeddedOffset(text, u16Off)) {
+    const proxy = await embeddedProxy(doc);
+    if (proxy) {
+      const r = identRangeAt(text, u16Off);
+      if (r) {
+        return {
+          range: { start: doc.positionAt(r.start), end: doc.positionAt(r.end) },
+          placeholder: text.slice(r.start, r.end),
+        };
+      }
+    }
+  }
+  return null;
 });
 
-connection.onRenameRequest((params): WorkspaceEdit | null => {
+connection.onRenameRequest(async (params): Promise<WorkspaceEdit | null> => {
   const doc = documents.get(params.textDocument.uri);
   if (!doc) return null;
   const overlay = liveOverlay();
-  const cpOff = utf16ToCodePoint(doc.getText(), doc.offsetAt(params.position));
+  const text = doc.getText();
+  const u16Off = doc.offsetAt(params.position);
+  const cpOff = utf16ToCodePoint(text, u16Off);
+  const symbol = resolveSymbolAt(fsPathOf(doc), cpOff, overlay);
+  if (!symbol) {
+    // N6 (N-10): a cursor on embedded C++ that is NOT a .uetkx symbol — a body local, a member,
+    // an engine name — forwards to clangd over the virtual doc. The translation is all-or-
+    // nothing: any edit outside this file or inside generated glue refuses the whole rename.
+    if (!isEmbeddedOffset(text, u16Off)) {
+      connection.window.showWarningMessage("Rename refused: not a renamable symbol (imports, declarations, tags, aliases, or embedded C++ locals)");
+      return null;
+    }
+    if (!IDENT_RE.test(params.newName)) {
+      connection.window.showWarningMessage(`Rename refused: \`${params.newName}\` is not a valid identifier`);
+      return null;
+    }
+    const proxy = await embeddedProxy(doc);
+    if (!proxy) {
+      connection.window.showWarningMessage("Rename refused: embedded C++ rename needs clangd (set `uetkx.clangd.path`)");
+      return null;
+    }
+    const view = buildEmbeddedView(text, fsPathOf(doc));
+    const virtualPosition = view.positionInVirtual(u16Off);
+    if (virtualPosition === null) return null;
+    const vuri = virtualUriOf(doc.uri);
+    proxy.didOpen(vuri, view.virtualText); // no-op when clangd already holds this text
+    // Partial-AST guard (N6 bughunt): clang's recovery DROPS statements it cannot type (an
+    // unresolved engine type without a compile database), and clangd then renames only the
+    // occurrences still in the AST — a silently PARTIAL rename. Two layers, evaluated against
+    // diagnostics for the CURRENT version (waited for — stale diags must not gate):
+    //   1. the enclosing embedded block carries clangd ERROR diagnostics → refuse;
+    //   2. clangd's edits inside the block cover fewer word-boundary occurrences of the old
+    //      name than the block's text holds → refuse (catches statements dropped past clang's
+    //      error limit, where no mapped diagnostic survives). A same-name SHADOW in one block
+    //      legitimately trips 2 — rare, and a refusal is safe where a partial rename corrupts.
+    if (!(await waitForEmbeddedDiags(doc.uri, proxy.versionOf(vuri), 15000))) {
+      connection.window.showWarningMessage(
+        "Rename refused: clangd is still analyzing this file — try again in a moment.",
+      );
+      return null;
+    }
+    const region = view.sourceRegionOf(u16Off);
+    if (region) {
+      const hasRegionError = (embeddedDiagsByUri.get(doc.uri) ?? []).some((d) => {
+        if (d.severity !== DiagnosticSeverity.Error) return false;
+        const s = doc.offsetAt(d.range.start);
+        const e = doc.offsetAt(d.range.end);
+        return s < region.end && e > region.start;
+      });
+      if (hasRegionError) {
+        connection.window.showWarningMessage(
+          "Rename refused: this embedded C++ block has unresolved errors (clangd) — a rename could be partial. Fix them (or add a compile database for engine types) first.",
+        );
+        return null;
+      }
+    }
+    const raw = await proxy.positionRequest("textDocument/rename", vuri, virtualPosition, {
+      newName: params.newName,
+    });
+    const translated = translateEmbeddedRename(raw, doc.uri, text, fsPathOf(doc));
+    if (!translated) return null; // clangd had nothing to rename here
+    if (translated.kind === "refused") {
+      connection.window.showWarningMessage(`Rename refused: ${translated.reason}`);
+      return null;
+    }
+    if (region) {
+      const oldIdent = identRangeAt(text, u16Off);
+      const oldName = oldIdent ? text.slice(oldIdent.start, oldIdent.end) : null;
+      if (oldName) {
+        const occurrences = (text.slice(region.start, region.end).match(new RegExp(`\\b${oldName}\\b`, "g")) ?? []).length;
+        const editsInRegion = translated.edits.filter((e) => {
+          const s = doc.offsetAt(e.range.start);
+          return s >= region.start && s < region.end;
+        }).length;
+        if (editsInRegion < occurrences) {
+          connection.window.showWarningMessage(
+            `Rename refused: only ${editsInRegion} of ${occurrences} \`${oldName}\` occurrences in this block could be verified — clangd's view of this code is incomplete (unresolved types?).`,
+          );
+          return null;
+        }
+      }
+    }
+    return { changes: { [doc.uri]: translated.edits.map((e) => ({ range: e.range, newText: e.newText })) } };
+  }
   const hostTags = new Set(Object.keys(schemaOf(doc).elements));
   const result = renameSymbolAt(fsPathOf(doc), cpOff, params.newName, hostTags, overlay);
   if ("error" in result) {
