@@ -21,30 +21,30 @@ declaration's kind is read from its plain C++ signature: `export FRuiNode Card(F
 is a component, `export int32 UseTick(...)` a hook, `export FLinearColor Cool = ...;` a **value
 export**, any other function a util. Style modules become plain value exports.
 
-**The full ES import surface:**
-- `import { Chip as Badge } from "./Chip"` — rename-on-import (tags too: `<Badge/>`)
-- `import * as Palette from "./Palette"` — then `Palette::Cool`
-- `import Home from "./Screen"` — default imports + `export default Screen;`
-- `export { A, B };` deferred export lists
+**The full ES import surface:** `import { Chip as Badge }` (tags too: `<Badge/>`),
+`import * as Palette` → `Palette::Cool`, default imports + `export default`, and
+`export { A, B };` lists.
 
-**Privacy is real at runtime now.** A private (non-exported) component's identity is
-file-qualified — two files' private `Row`s can never collide in HMR again (the old
-last-swap-wins bug). Heads-up: renaming a FILE remounts its privates (state reset); exported
-members keep identity.
+**Privacy is real at runtime now.** Private components get file-qualified identity — no more
+HMR last-swap-wins collisions. Heads-up: renaming a FILE remounts its privates (state reset);
+exported members keep identity.
 
-**One command migrates your whole project:** `-run=RUIMigrateEsModules` — idempotent,
-record-driven (never regex), flips wrappers to plain declarations, hoists modules to value
-exports (importers auto-flip to `* as`), and gates on a zero-diagnostics compile. Old syntax
-still parses this one minor (warns UETKX2320) — then it's removed.
+**One command migrates your project:** `-run=RUIMigrateEsModules` — idempotent,
+record-driven, flips wrappers to plain declarations, hoists modules to value exports,
+gates on a zero-diagnostics compile. Old syntax parses this one minor (warns UETKX2320).
 
-**IDE:** completions/hover/F12 resolve through aliases; embedded-C++ intel types imported
-values/utils; new diagnostics 2320–2327 live. Also fixed: compiler diagnostics silently
-stopped reaching the editor after a sidecar schema bump — they're back.
+**IDE:** completions/hover/F12 resolve through aliases; diagnostics 2320–2327 live. NEW —
+find-all-references, rename (a declaration rename updates every importer, `as` aliases
+included; embedded-C++ LOCALS rename via clangd, all-or-nothing), document/workspace
+symbols, and quickfixes for missing/unused imports, unexported names, and wrapper migration.
+Locals shadowing exported names no longer false-diagnose, markup-only usage finally counts
+(no phantom 2304/2305). Also fixed: compiler diagnostics silently stopped reaching the
+editor after a sidecar schema bump — they're back.
 
 Update: reinstall the plugin zip + grab UETKX 0.6.0 (VS Code + VS 2022). Re-run the codemod
 per the docs' "Migrating to ES modules" page.
 
-**Tooling:** UETKX 0.6.0 (VS Code + VS 2022) · battery 128/128 · LSP 49/49 · 31 contract
+**Tooling:** UETKX 0.6.0 (VS Code + VS 2022) · battery 128/128 · LSP 71/71 · 32 contract
 goldens · corpus pinned tri-repo
 
 ---

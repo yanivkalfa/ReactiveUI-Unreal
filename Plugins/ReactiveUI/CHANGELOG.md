@@ -63,6 +63,22 @@ redesign (locked G-01..G-13), Unreal leg first.
   `:` was mis-read as a `::` scope qual, so the second reference kept its alias and emitted
   broken C++; the same latent bug skipped `RuiPriv_::` qualification after a ternary).
   Region-scanned with the IMPORT-3 rule everywhere (only a real `::` blocks).
+- **Local variables shadowing an import alias / private name / exported value are locals now
+  (TD-034)**: a new scope tracker (`FUetkxScopedLocals` — brace scopes; params, `Type Name =`,
+  `auto`, structured bindings) runs under every rewrite plane and the reference collector, so
+  a shadowing local is no longer alias-rewritten, `RuiPriv_::`-qualified, `Ctx`-injected as a
+  hook, or false-2305'd — while references BEFORE the shadowing declaration still are. The
+  tracker is a pinned heuristic (contract fixture `ShadowedNames.uetkx`); an exotic
+  declaration shape it misses keeps the old behavior (documented residual). Its type-ish
+  lookbehind applies the ternary lone-`:` rule too — `U = a ? B : B;` no longer mis-reads
+  the second arm as a declaration.
+- **Usage policing now sees markup expressions (TD-034)**: attr/spread expressions, `@if`
+  conditions and bodies, `@for`/`@while` headers and bodies, and `@match` subjects/cases join
+  the external-reference walk (text children never scanned). A value/util/hook used ONLY
+  inside markup no longer warns `UETKX2304` unused, and using one WITHOUT its import now
+  diagnoses `UETKX2305` at edit time instead of failing later in the C++ compile.
+  `RUIMigrateEsModules` inherits both through the shared collector. An `@for` loop variable
+  named like an exported value stays a local (its header declarations scope into the body).
 
 ## [0.11.0] — 2026-07-17
 

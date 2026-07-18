@@ -856,7 +856,17 @@ referenced from plans/PRs.
   rename at the DECLARATION renames every importer's binding (or inserts `as` to pin locals);
   rename at a LOCAL alias edits only the importer. Family-symmetric (the Godot/Unity servers
   lack rename too — candidate for a family fast-follow).
-- **Status:** OPEN (deferred with the plan's blessing; owner decides v-next vs fast-follow)
+- **Status:** **RESOLVED (2026-07-18)** — shipped by the LSP-completion campaign
+  (`plans/LSP_COMPLETION_PLAN.md`, N0–N3 + N6, same branch as ES-modules): a workspace
+  reference index (`uetkxIndex.ts` — tags incl. close tags, code refs via the N-07 scope
+  tracker, import/alias/export-list tokens) feeds find-all-references, prepareRename + rename
+  with the N-04 semantics (decl rename edits every importer incl. `as`-target spellings;
+  local-alias rename stays importer-local; plain-binding rename inserts `A as New`), refusal
+  validation (N-05), document/workspace symbols, and four quickfix code actions
+  (2305/2304/2301/2320 — the 2320 rewrite byte-matches the codemod). The N6 stretch landed
+  too: embedded-C++ LOCALS rename through clangd over the virtual doc, all-or-nothing
+  (cross-file/glue edits and partial-AST shapes refuse with a reason). The rename surfaces are
+  family-firsts — the Godot/Unity servers remain candidates for the fast-follow port.
 
 ## TD-034 — ES-modules accepted caveats: alias/value reference rewriting limits (M2/M4)
 - **Where:** `UetkxCodegen.cpp` (`RewriteAliases`, the generalized private-qualification branch),
@@ -872,4 +882,15 @@ referenced from plans/PRs.
   severity; pre-existing hook behavior, now more visible with values).
 - **Production-grade resolution:** scope-aware reference analysis in the rewrite planes (track
   local declarations in the brace walk) + jsx-aware attr-expr scanning for usage accounting.
-- **Status:** OPEN (accepted caveat, documented in the migration guide)
+- **Status:** **RESOLVED (2026-07-18, with a documented residual)** — the LSP-completion
+  campaign (`plans/LSP_COMPLETION_PLAN.md` N4/N5) shipped exactly that resolution:
+  (a)+(b) `FUetkxScopedLocals` (N-07; TS twin in `uetkxIndex.ts`, behaviorally identical and
+  twin-pinned) tracks brace scopes + local declarations (params, `Type Name =/;/{`, `auto`,
+  structured bindings) — locals shadowing an alias/private/exported name are no longer
+  rewritten, qualified, Ctx-injected, or 2305'd (pre-declaration references still are);
+  (c) `CollectExternalRefs` is markup-aware (N-08): attr/directive expressions join the
+  reference set, so markup-only usage marks imports USED and missing imports diagnose 2305.
+  **Residual (accepted):** the tracker is a heuristic, not a C++ parser — an unrecognized
+  declaration shape stays invisible (its shadow still rewrites), and markup islands see a
+  conservative locals-union seed (over-suppression = a silently missed diagnostic, never a
+  false one). Contract-pinned by `ShadowedNames.uetkx`; corpus untouched.

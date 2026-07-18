@@ -1,6 +1,17 @@
 {
   "entries": [
     {
+      "date": "2026-07-18",
+      "versions": {
+        "vscode": "0.6.0",
+        "vs2022": "0.6.0"
+      },
+      "shared": [
+        "Workspace language features land: find-all-references (tags, code references, import/export tokens — close tags included), rename with the family's ES semantics (renaming a declaration updates every importer including `A as B` target spellings; renaming a local alias stays in the importer; renaming a plain imported binding inserts `A as NewName` so the export is untouched — invalid names, collisions and host-tag shadowing refuse with a reason), document + workspace symbols, and four quickfixes: add the missing import (UETKX2305), remove the unused import (UETKX2304), add `export` in the TARGET file (UETKX2301), and migrate a deprecated wrapper to the plain declaration form (UETKX2320 — byte-identical to the codemod's rewrite). Reference analysis is scope-aware: a local variable shadowing an exported name is never miscounted as a symbol reference.",
+        "Embedded-C++ locals rename too: a cursor on a body local forwards the rename to clangd over the virtual document and translates the edits back into your .uetkx — all-or-nothing by design (an engine-header symbol, an occurrence in generated glue, or a block whose C++ has unresolved errors refuses with a reason instead of applying a partial rename). Works without a compile database for UE's numeric types; engine types need one (the refusal says so)."
+      ]
+    },
+    {
       "date": "2026-07-17",
       "versions": {
         "vscode": "0.6.0",

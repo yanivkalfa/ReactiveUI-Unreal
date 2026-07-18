@@ -1,5 +1,10 @@
 # LSP feature completion + scope-aware rewrites — EXECUTION PLAN (TD-033 + TD-034)
 
+> **✅ COMPLETE (2026-07-18):** N0–N7 all landed on `feat/es-modules` (commits `0030779`
+> N0–N3, `3f4dc57` N4, `792d227` N5, `f07a7d0` N6 incl. the clangd-rename stretch, plus the
+> N7 close-out). TD-033 RESOLVED; TD-034 RESOLVED-with-residual (`plans/TECH_DEBT.md`).
+> Corpus hash re-verified `f8ae9961…` — unmoved.
+>
 > **Status:** EXECUTION-GRADE, authored 2026-07-18 against the live tree at `feat/es-modules`
 > HEAD (post-ES-modules M0–M9; plugin **0.12.0** / extensions **0.6.0**, both UNRELEASED).
 > Every file:line anchor below was verified against the working tree on 2026-07-18.
@@ -239,15 +244,15 @@ Verify: N4's block + full battery `Automation RunTests ReactiveUI`.
 
 ## §4 — Sync-surface checklist (all gating)
 
-- [ ] Workspace index + references + rename + prepareRename + symbols + code actions (TS) — N0–N3
-- [ ] Scope tracker C++ + TS mirror; rewrite planes + ref collection wired — N4
-- [ ] Markup-window usage walk C++ + TS — N5
-- [ ] ShadowedNames fixture + golden; ResolveTest/CodegenTest/LSP test extensions — N4/N5
-- [ ] Family corpus hash UNCHANGED (`f8ae9961…`) — verified every milestone (N-09)
-- [ ] TECH_DEBT TD-033/TD-034 closed (TD-034 with residual note) — N7
-- [ ] Lane A/B/C extended in place (no version bump — N-01); mirrors + verify green — N7
-- [ ] vsix rebuilds (both vscode flavors + vs2022) — N7
-- [ ] Full M9-style ordered verify block green — N7
+- [x] Workspace index + references + rename + prepareRename + symbols + code actions (TS) — N0–N3 (commit 0030779)
+- [x] Scope tracker C++ + TS mirror; rewrite planes + ref collection wired — N4 (commit 3f4dc57)
+- [x] Markup-window usage walk C++ (TS index already walked markup; 2304/2305 flow from the C++ sidecar) — N5 (commit 792d227)
+- [x] ShadowedNames fixture + golden; ResolveTest/CodegenTest/LSP test extensions — N4/N5
+- [x] Family corpus hash UNCHANGED (`f8ae9961…`) — re-verified at close-out 2026-07-18 (N-09)
+- [x] TECH_DEBT TD-033/TD-034 closed (TD-034 with residual note) — N7
+- [x] Lane A/B/C extended in place (no version bump — N-01); mirrors + verify green — N7
+- [x] vsix rebuilds (both vscode flavors + vs2022; all three verified to embed the new server) — N7
+- [x] Full M9-style ordered verify block green — N7 (2026-07-18: node gates ✓, corpus f8ae9961 ✓, LSP 71/71 + smoke ✓, RUICompile 42/0 ✓, Contract 32/0 ✓, battery 128/128 ✓)
 
 ## §5 — Guardrails + STOP-AND-ASK
 
