@@ -67,3 +67,50 @@
 1. Reload the dev host (fresh server pickup). 2. Open the gallery files — CPU should stay
    quiet after the first per-file TU parses. 3. Mangle ContextDemo again — expect immediate
    2307/0105/0302 squiggles at the typos. 4. LabCard's `LasCard` — no basename warn.
+
+---
+
+# Round 3 (2026-07-19, owner typing session): latency arc + vanishing features
+
+Report: "diagnostics/hovers/autocomplete come 2-5 seconds after; they disappear if I play
+long enough; some typos (`PsssrovideContsext`, `SetPrssssimary`) NEVER get red; markup
+diagnostics are near-instant."
+
+## B5 — unread clangd stderr wedged the pipe (the "disappear over time" arc) — FIXED
+
+The proxy never consumed clangd's stderr. clangd logs `IncludeCleaner: Failed to get an
+entry …` lines on EVERY parse of our virtual TUs; the OS pipe buffer is 64KB, and once it
+filled, clangd BLOCKED mid-write — latency climbs, then every embedded feature dies.
+Stderr is now drained continuously (a 2KB tail is kept for post-mortems).
+
+## B6 — a dead clangd masqueraded as alive — FIXED
+
+No `exit` handler: a crashed/killed clangd left `available=true` and every request just
+timed out forever. Exit now fails in-flight requests, surfaces the stderr tail to the log,
+and resets the spawn latch so the next request lazily respawns a fresh clangd.
+
+## B7 — per-keystroke TU rebuilds + a preamble-cache killer — FIXED (the 2-5s itself)
+
+Two stacked causes:
+- `syncEmbeddedDoc` ran on every keystroke (no debounce) — every character queued a full
+  clangd rebuild. Now debounced 300ms trailing per document; position requests are
+  unaffected (they sync the current text themselves, hash-deduped).
+- **The N6 headerless typedef block sat BETWEEN the prelude #includes.** clang's preamble
+  ends at the first non-directive token, so the typedefs cut the cached preamble off right
+  after CoreMinimal.h — every rebuild re-parsed the ENTIRE engine include set (~5-10s).
+  Moved below the last #include; the preamble now covers all heavy includes.
+
+**Measured (typing-load simulation, real ContextDemo, 40 keystrokes/round × 4 rounds):**
+hover after typing stops: 5018ms (timeout) → **~290ms**; fresh embedded diagnostics:
+**~290ms** after typing stops; stable across rounds, no degradation, no server errors.
+
+## B8 — `PsssrovideContsext` / `SetPrssssimary` never red — UPSTREAM CLANG, DOCUMENTED
+
+Probe-verified: when a call's ARGUMENTS contain errors (`RuiDsemo::…`, `Themse`,
+`bPsssrimary` — all flagged), clang's recovery SUPPRESSES the undeclared-CALLEE error
+(unqualified lookup defers to ADL, which gives up on error-typed args). The line still
+shows red via the argument errors; this is standard clangd behavior in any C++ editor and
+not something the server layer can fix without degrading recovery elsewhere.
+
+## Verify (owner): reload the dev host → type freely in a big file — squiggles/hovers should
+track within ~⅓s of pausing, and nothing should degrade or die over a long session.

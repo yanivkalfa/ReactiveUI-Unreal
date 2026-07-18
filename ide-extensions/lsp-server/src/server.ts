@@ -410,9 +410,25 @@ function validate(doc: TextDocument): void {
   }
   markupDiagsByUri.set(doc.uri, diags);
   publishMerged(doc.uri);
-  // Async clangd pass republishes merged when its diagnostics arrive. The catch is
-  // load-bearing (§1): a floating rejection is a PROCESS KILL in Node.
-  syncEmbeddedDoc(doc).catch((e) => logServerError("syncEmbeddedDoc", e));
+  // Async clangd pass republishes merged when its diagnostics arrive — DEBOUNCED (B7):
+  // per-keystroke didChange forced a TU rebuild per character, so the rebuild queue lagged
+  // seconds behind the buffer. Position requests are unaffected — embeddedPositionRequest
+  // syncs the CURRENT text itself before every query (hash-deduped).
+  scheduleEmbeddedSync(doc);
+}
+
+const embedSyncTimers = new Map<string, ReturnType<typeof setTimeout>>();
+function scheduleEmbeddedSync(doc: TextDocument): void {
+  const prior = embedSyncTimers.get(doc.uri);
+  if (prior) clearTimeout(prior);
+  embedSyncTimers.set(
+    doc.uri,
+    setTimeout(() => {
+      embedSyncTimers.delete(doc.uri);
+      // The catch is load-bearing (§1): a floating rejection is a PROCESS KILL in Node.
+      syncEmbeddedDoc(doc).catch((e) => logServerError("syncEmbeddedDoc", e));
+    }, 300),
+  );
 }
 
 documents.onDidChangeContent((change) => {
@@ -423,6 +439,11 @@ documents.onDidChangeContent((change) => {
   }
 });
 documents.onDidClose((e) => {
+  const timer = embedSyncTimers.get(e.document.uri);
+  if (timer) {
+    clearTimeout(timer);
+    embedSyncTimers.delete(e.document.uri);
+  }
   markupDiagsByUri.delete(e.document.uri);
   embeddedDiagsByUri.delete(e.document.uri);
   embeddedDiagsVersionByUri.delete(e.document.uri);

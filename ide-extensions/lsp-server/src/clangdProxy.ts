@@ -335,6 +335,8 @@ export class ClangdProxy {
    *  the rename path syncs the doc before its guard; without dedup every rename would bump
    *  the version and force a full clangd re-parse of unchanged text). */
   private readonly openTextHashes = new Map<string, number>();
+  /** The last ~2KB of clangd's stderr — drained continuously (B5) and surfaced on exit. */
+  private stderrTail = "";
 
   /** TB-10: clangd's publishDiagnostics for a VIRTUAL doc land here (virtual coordinates —
    *  the server maps them back through the source map before publishing). */
@@ -402,6 +404,28 @@ export class ClangdProxy {
       });
       // Keep stdout as raw Buffers (no setEncoding) so LSP framing can slice by BYTE length (LSP-1).
       proc.stdout.on("data", (chunk: Buffer) => this.onData(chunk));
+      // DRAIN stderr (F5 field test B5 — LOAD-BEARING): clangd logs lines like
+      // "IncludeCleaner: Failed to get an entry …" on EVERY parse of our virtual TUs. Unread,
+      // the OS pipe buffer (64KB) fills after enough edits and clangd BLOCKS mid-write — the
+      // owner-reported arc of "2-5s latency, then features disappear entirely". Keep a small
+      // tail for post-mortems; never let the pipe back up.
+      proc.stderr.on("data", (chunk: Buffer) => {
+        this.stderrTail = (this.stderrTail + chunk.toString("utf8")).slice(-2000);
+      });
+      // A DEAD clangd must not masquerade as a live one (B6): mark unavailable, fail the
+      // in-flight requests, and reset the spawn latch so the NEXT request lazily respawns a
+      // fresh clangd (crash resilience without a supervision loop).
+      proc.on("exit", (code, signal) => {
+        if (this.proc !== proc) return; // an old instance we already replaced
+        this.available = false;
+        this.proc = null;
+        this.starting = null;
+        this.openVersions.clear();
+        this.openTextHashes.clear();
+        for (const [, respond] of this.pending) respond(null);
+        this.pending.clear();
+        this.onError?.("clangd exited", `code=${code} signal=${signal} stderr-tail: ${this.stderrTail.slice(-400)}`);
+      });
       this.proc = proc;
 
       this.request("initialize", {
