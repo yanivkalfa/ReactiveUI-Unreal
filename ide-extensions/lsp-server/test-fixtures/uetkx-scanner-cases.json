@@ -665,6 +665,46 @@
       "name": "S5/es-modules 2322: cannot infer the type -- initializer does not name a type",
       "input": "export Bad = 5;\n",
       "expect": { "diags": ["UETKX2322"] }
+    },
+    {
+      "name": "ES combined: default + named list parse as ONE declaration (rename kept)",
+      "input": "import Chip, { StatusChip, Cool as Warm } from \"./StatusChip\"\nexport FRuiNode Foo() {\n\treturn ( <Spacer /> );\n}\n",
+      "expect": {
+        "imports": [
+          {
+            "default": "Chip",
+            "names": ["StatusChip", "Cool"],
+            "localNames": ["StatusChip", "Warm"],
+            "specifier": "./StatusChip"
+          }
+        ],
+        "diags": [],
+        "noError": true
+      }
+    },
+    {
+      "name": "ES combined: default + namespace star parse as ONE declaration",
+      "input": "import Chip, * as Palette from \"./Palette\"\nexport FRuiNode Foo() {\n\treturn ( <Spacer /> );\n}\n",
+      "expect": {
+        "imports": [{ "default": "Chip", "namespace": "Palette", "specifier": "./Palette" }],
+        "diags": [],
+        "noError": true
+      }
+    },
+    {
+      "name": "ES combined: duplicate binding `import a, { b as a }` is UETKX2325",
+      "input": "import a, { b as a } from \"./x\"\nexport FRuiNode Foo() {\n\treturn ( <Spacer /> );\n}\n",
+      "expect": { "diags": ["UETKX2325"] }
+    },
+    {
+      "name": "ES combined: a name repeated inside the combined braces is UETKX2303",
+      "input": "import D, { A, A } from \"./x\"\nexport FRuiNode Foo() {\n\treturn ( <Spacer /> );\n}\n",
+      "expect": { "diags": ["UETKX2303"] }
+    },
+    {
+      "name": "ES combined: junk after the default comma is UETKX0303",
+      "input": "import D, x from \"./x\"\nexport FRuiNode Foo() {\n\treturn ( <Spacer /> );\n}\n",
+      "expect": { "diags": ["UETKX0303"] }
     }
   ]
 }

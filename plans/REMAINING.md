@@ -99,6 +99,12 @@
   **TD-016** event payload single-`Value` surface; **TD-019** hook-state value migration
   (superseded in practice by HMR v2's whole-project recompile); **TD-026** accepted
   interp-era divergences (record only).
+- **Combined imports vs the LEGACY hoist codemod**: `-run=RUIMigrateImports`'s hoisted-module
+  pass (RUIMigrateImportsCommandlet ~L877) deliberately skips a COMBINED import's named part
+  when converting `{ M }` -> `import * as M` — combined syntax postdates every legacy `module`
+  tree, and the ES codemod's zero-diagnostics compile gate catches the unconverted import
+  rather than silently corrupting it. Revisit only if a field report shows a combined import
+  naming a legacy hoisted module (then: reprint the combined head in the conversion).
 
 ## 7. Open product questions (owner call, from the audit's §9)
 

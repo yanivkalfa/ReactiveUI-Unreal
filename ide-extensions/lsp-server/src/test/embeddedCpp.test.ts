@@ -178,6 +178,38 @@ test("ES-modules: virtual doc declares rename/namespace/default bindings + value
   fs.rmSync(root, { recursive: true, force: true });
 });
 
+test("ES combined: one declaration declares default AND named AND star surfaces (no part dropped)", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "uetkx-comb-"));
+  fs.writeFileSync(path.join(root, "Demo.uproject"), "{}");
+  const dir = path.join(root, "Source", "Demo");
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, "Palette.uetkx"),
+    "export FLinearColor Cool = FLinearColor(0.2f, 0.6f, 0.9f, 1.0f);\nexport FString FmtP(int32 S) {\n\treturn FString::FromInt(S);\n}\nexport default FmtP;\n",
+  );
+  const importer = path.join(dir, "App.uetkx");
+  const src = [
+    'import Fmt, { Cool as Primary } from "./Palette"',
+    'import Fmt2, * as Palette from "./Palette"',
+    "export FRuiNode App() {",
+    "\tauto A = Primary;",
+    "\tauto B = Fmt(1);",
+    "\tauto C = Fmt2(2);",
+    "\tauto D = Palette::Cool;",
+    "\treturn ( <Spacer /> );",
+    "}",
+    "",
+  ].join("\n");
+  fs.writeFileSync(importer, src);
+  const { buildEmbeddedView } = require("../embeddedIntel") as typeof import("../embeddedIntel");
+  const view = buildEmbeddedView(src, importer);
+  assert.ok(view.virtualText.includes("FString Fmt(int32 S);"), "combined DEFAULT part declared (util shape)");
+  assert.ok(view.virtualText.includes("extern const FLinearColor Primary;"), "combined NAMED part declared under the alias");
+  assert.ok(view.virtualText.includes("FString Fmt2(int32 S);"), "combined default beside a STAR part declared");
+  assert.ok(view.virtualText.includes("namespace Palette {"), "combined STAR part declared as a namespace");
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
 test("ES-modules: own value initializers + util bodies are mapped C++ regions", () => {
   const src = [
     "export FLinearColor Accent = FLinearColor(0.9f, 0.2f, 0.2f, 1.0f);",

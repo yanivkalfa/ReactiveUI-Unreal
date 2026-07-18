@@ -677,13 +677,9 @@ void FUetkxResolve::Apply(const FUetkxFileScanResult& Scan, const TMap<FString, 
 		}
 		TMap<FString, FUetkxTargetDecl> Decls;
 		Resolver.GetDecls(Key, Decls);
-		if (Imp.bNamespace)
-		{
-			ImportedNames.Add(Imp.NamespaceAlias);
-			NamespaceLabels.Add(Imp.NamespaceAlias, Label);
-			NamespaceTargets.Add(Imp.NamespaceAlias, MoveTemp(Decls));
-			continue;
-		}
+		// No exclusive branching — an ES COMBINED import (`import Def, { A } from` / `import Def,
+		// * as X from`) carries default + named/star parts in one declaration; every part yields
+		// its bindings and its diagnostics. The namespace part runs LAST (it MoveTemps Decls).
 		if (Imp.bDefault)
 		{
 			ImportedNames.Add(Imp.DefaultAlias);
@@ -694,7 +690,6 @@ void FUetkxResolve::Apply(const FUetkxFileScanResult& Scan, const TMap<FString, 
 									*Label, *Imp.Specifier),
 					Imp.DefaultAliasAt, Imp.DefaultAlias.Len());
 			}
-			continue;
 		}
 		for (int32 n = 0; n < Imp.Names.Num(); ++n)
 		{
@@ -714,6 +709,12 @@ void FUetkxResolve::Apply(const FUetkxFileScanResult& Scan, const TMap<FString, 
 									*Label),
 					NameAt, Name.Len());
 			}
+		}
+		if (Imp.bNamespace)
+		{
+			ImportedNames.Add(Imp.NamespaceAlias);
+			NamespaceLabels.Add(Imp.NamespaceAlias, Label);
+			NamespaceTargets.Add(Imp.NamespaceAlias, MoveTemp(Decls));
 		}
 	}
 
@@ -855,29 +856,23 @@ void FUetkxResolve::Apply(const FUetkxFileScanResult& Scan, const TMap<FString, 
 
 	// 3. Unused imports (2304, warn): an imported LOCAL binding never referenced (ES-modules M4:
 	// usage counts the local alias — what the author actually spells in tags/code).
+	// No exclusive branching — a COMBINED import's default, star, and named bindings are
+	// independently used or unused (each part gets its own 2304 on its own token).
 	for (const FUetkxImportDecl& Imp : Scan.Imports)
 	{
 		if (Imp.bHostInclude)
 		{
 			continue;
 		}
-		if (Imp.bNamespace)
+		if (Imp.bDefault && !Referenced.Contains(Imp.DefaultAlias))
 		{
-			if (!Referenced.Contains(Imp.NamespaceAlias))
-			{
-				Add(TEXT("UETKX2304"), 1, FString::Printf(TEXT("unused import `%s`"), *Imp.NamespaceAlias),
-					Imp.NamespaceAliasAt, Imp.NamespaceAlias.Len());
-			}
-			continue;
+			Add(TEXT("UETKX2304"), 1, FString::Printf(TEXT("unused import `%s`"), *Imp.DefaultAlias),
+				Imp.DefaultAliasAt, Imp.DefaultAlias.Len());
 		}
-		if (Imp.bDefault)
+		if (Imp.bNamespace && !Referenced.Contains(Imp.NamespaceAlias))
 		{
-			if (!Referenced.Contains(Imp.DefaultAlias))
-			{
-				Add(TEXT("UETKX2304"), 1, FString::Printf(TEXT("unused import `%s`"), *Imp.DefaultAlias),
-					Imp.DefaultAliasAt, Imp.DefaultAlias.Len());
-			}
-			continue;
+			Add(TEXT("UETKX2304"), 1, FString::Printf(TEXT("unused import `%s`"), *Imp.NamespaceAlias),
+				Imp.NamespaceAliasAt, Imp.NamespaceAlias.Len());
 		}
 		for (int32 n = 0; n < Imp.Names.Num(); ++n)
 		{

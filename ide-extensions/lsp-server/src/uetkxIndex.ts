@@ -545,16 +545,16 @@ export function collectFileReferences(scan: UetkxFileScanResult, srcText: string
     if (imp.isNamespace) namespaceAliases.set(imp.namespaceAlias, idx);
   });
 
-  // imports: target tokens + local-alias tokens
+  // imports: target tokens + local-alias tokens. No exclusive branching — an ES COMBINED
+  // import (`import Def, { A } from` / `import Def, * as X from`) carries default + named/star
+  // parts in one declaration and EVERY part's tokens join the reference index.
   scan.imports.forEach((imp, idx) => {
     if (imp.hostInclude) return;
-    if (imp.isNamespace) {
-      out.push({ kind: "import-alias", name: imp.namespaceAlias, start: imp.namespaceAliasAt, len: imp.namespaceAlias.length, importIndex: idx });
-      return;
-    }
     if (imp.isDefault) {
       out.push({ kind: "import-alias", name: imp.defaultAlias, start: imp.defaultAliasAt, len: imp.defaultAlias.length, importIndex: idx });
-      return;
+    }
+    if (imp.isNamespace) {
+      out.push({ kind: "import-alias", name: imp.namespaceAlias, start: imp.namespaceAliasAt, len: imp.namespaceAlias.length, importIndex: idx });
     }
     for (let n = 0; n < imp.names.length; n++) {
       out.push({ kind: "import-target", name: imp.names[n], start: imp.nameAts[n], len: imp.names[n].length, importIndex: idx });

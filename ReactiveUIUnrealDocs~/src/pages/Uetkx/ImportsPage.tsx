@@ -17,6 +17,8 @@ import { StatusChip } from "./StatusChip"          // named import
 import { UseCounter as UseTick } from "~/Hooks"    // rename-on-import
 import * as Palette from "./Palette"               // namespace import — Palette::Cool
 import Screen from "./Screen"                      // default import
+import Card, { UseDeck } from "./Deck"             // combined: default + named
+import Fallback, * as Deck from "./Deck"           // combined: default + namespace
 
 export FLinearColor Cool = FLinearColor(0.2f, 0.6f, 0.9f, 1.0f);  // value export (typed)
 export Accent = FLinearColor(0.9f, 0.2f, 0.2f, 1.0f);             // inference: T(...) / T{...}
@@ -94,8 +96,11 @@ export const ImportsPage: FC = () => (
       Specifiers are relative (<code>./</code>, <code>../</code>) or use the family root alias{' '}
       <code>~/</code>, and are extensionless (<code>.uetkx</code> implied). The full ES surface is
       available: named imports, rename-on-import (<code>{'{ A as B }'}</code>), namespace imports
-      (<code>import * as X</code> — members reachable as <code>X::Member</code>), and default
-      imports binding a file&apos;s <code>export default</code>. <code>~/</code> anchors at the
+      (<code>import * as X</code> — members reachable as <code>X::Member</code>), default
+      imports binding a file&apos;s <code>export default</code>, and the combined forms{' '}
+      <code>{'import Def, { a, b as c } from'}</code> /{' '}
+      <code>import Def, * as X from</code> — one declaration carrying the default binding plus
+      the named or namespace surface, exactly as in ES. <code>~/</code> anchors at the
       file&apos;s Unreal module root by default, or at the <code>&quot;root&quot;</code> directory
       declared in the nearest <code>uetkx.config.json</code>. Engine-native forms (
       <code>res://</code>, <code>Assets/</code>, <code>Source/</code>) are forbidden in specifiers.

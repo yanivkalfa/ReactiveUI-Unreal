@@ -1937,10 +1937,12 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 		{
 			continue;
 		}
+		// No exclusive branching — an ES COMBINED import (`import Def, { A as B } from` /
+		// `import Def, * as X from`) carries default + named/star parts in one declaration and
+		// EVERY part must land in the alias plane.
 		if (Imp.bNamespace)
 		{
 			Aliases.NamespaceStrip.Add(Imp.NamespaceAlias);
-			continue;
 		}
 		if (Imp.bDefault)
 		{
@@ -1958,7 +1960,6 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 					Aliases.Rename.Add(Imp.DefaultAlias, DefName);
 				}
 			}
-			continue;
 		}
 		for (int32 n = 0; n < Imp.Names.Num(); ++n)
 		{

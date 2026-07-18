@@ -7,6 +7,19 @@ resync with `cp CHANGELOG.md Plugins/ReactiveUI/CHANGELOG.md` (CI byte-compares 
 `scripts/verify-mirror.mjs`). The IDE extensions are NOT covered here — they use
 `ide-extensions/changelog.json` (Lane B; see the release-process skill).
 
+## [0.13.0] — Unreleased
+
+### Added
+
+- **ES combined import forms**: `import Def, { a, b as c } from "./file"` and
+  `import Def, * as X from "./file"` — one declaration carrying the default binding plus the
+  named/namespace surface, exactly as in ES. Parsed (C++ scanner + the LSP's TS mirror,
+  corpus-locked), formatted (one canonical line — an exclusive-branch reprint would have
+  silently dropped the named part), lowered (the codegen alias plane, the resolver's
+  binding/usage/2326 diagnostics, and the eager-edge cycle analysis treat every part
+  independently), colored, and duplicate-checked across all parts
+  (`import a, { b as a }` is UETKX2325).
+
 ## [0.12.0] — 2026-07-18
 
 ES modules: a `.uetkx` file IS a module. Plain C++-typed declarations replace the wrapper

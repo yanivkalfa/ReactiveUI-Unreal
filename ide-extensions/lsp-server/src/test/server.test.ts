@@ -287,6 +287,83 @@ test("importCursorAt: name-list vs specifier vs not-an-import", () => {
   assert.strictEqual((multiCtx as { partial: string }).partial, "Be");
 });
 
+test("importCursorAt: ES COMBINED braces classify — listed bindings + the default alias captured", () => {
+  // Ctrl+Space inside the empty braces of a combined declaration (Unity 0.9.1 field find: a
+  // bare-`import`-prefix check returned nothing here).
+  const empty = 'import Chip, {} from "./B"\n';
+  const emptyCtx = importCursorAt(empty, empty.indexOf("{}") + 1);
+  assert.strictEqual(emptyCtx?.kind, "import-name");
+  const emptyName = emptyCtx as { specifier: string; partial: string; listed: string[]; defaultAlias: string | null };
+  assert.strictEqual(emptyName.specifier, "./B");
+  assert.strictEqual(emptyName.partial, "");
+  assert.deepStrictEqual(emptyName.listed, []);
+  assert.strictEqual(emptyName.defaultAlias, "Chip");
+
+  // Already-listed entries (with an `as` rename) land in `listed`; `as` itself never does.
+  const listed = 'import Chip, { Alpha as Al, Be } from "./B"\n';
+  const listedCtx = importCursorAt(listed, listed.indexOf("Be") + 2);
+  assert.strictEqual(listedCtx?.kind, "import-name");
+  const listedName = listedCtx as { partial: string; listed: string[]; defaultAlias: string | null };
+  assert.strictEqual(listedName.partial, "Be");
+  assert.deepStrictEqual(listedName.listed, ["Alpha", "Al", "Be"]);
+  assert.strictEqual(listedName.defaultAlias, "Chip");
+
+  // A plain named import carries no default alias.
+  const plain = 'import { Be } from "./B"\n';
+  const plainCtx = importCursorAt(plain, plain.indexOf("Be") + 2) as { defaultAlias: string | null };
+  assert.strictEqual(plainCtx.defaultAlias, null);
+});
+
+test("semantic tokens: imported bindings color by the KIND of the export they bind", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "uetkx-sem-"));
+  fs.writeFileSync(path.join(root, "Demo.uproject"), "{}");
+  fs.writeFileSync(
+    path.join(root, "B2.uetkx"),
+    [
+      "export FRuiNode Badge() {",
+      "\treturn ( <Spacer /> );",
+      "}",
+      "export int32 UseThing() {",
+      "\treturn 1;",
+      "}",
+      "export FLinearColor Cool = FLinearColor(1.0f, 1.0f, 1.0f, 1.0f);",
+      "export FString Fmt(int32 S) {",
+      "\treturn FString::FromInt(S);",
+      "}",
+      "export default Badge;",
+      "",
+    ].join("\n"),
+  );
+  const importer = path.join(root, "A2.uetkx");
+  const src = [
+    'import Home, { Badge, UseThing, Cool as Warm, Fmt } from "./B2"',
+    'import * as P from "./B2"',
+    "export FRuiNode App() {",
+    "\treturn ( <Badge /> );",
+    "}",
+    "",
+  ].join("\n");
+  fs.writeFileSync(importer, src);
+  const { importBindingTokens, SEMANTIC_TOKEN_TYPES } = require("../semanticTokens") as typeof import("../semanticTokens");
+  const scan = scanFile(src, "A2", true);
+  const tokens = importBindingTokens(scan, importer);
+  const typeAt = (cp: number) => {
+    const t = tokens.find((x) => x.cpStart === cp);
+    return t ? SEMANTIC_TOKEN_TYPES[t.type] : null;
+  };
+  assert.strictEqual(typeAt(src.indexOf("Badge")), "class", "component binding colors as a type");
+  assert.strictEqual(typeAt(src.indexOf("UseThing")), "function", "hook binding colors as a function");
+  assert.strictEqual(typeAt(src.indexOf("Cool")), "variable", "value binding colors as a variable");
+  assert.strictEqual(typeAt(src.indexOf("Warm")), "variable", "the rename ALIAS carries the target's kind");
+  assert.strictEqual(typeAt(src.indexOf("Fmt")), "function", "util binding colors as a function");
+  assert.strictEqual(typeAt(src.indexOf("Home")), "class", "default alias follows the default export's kind");
+  assert.strictEqual(typeAt(src.indexOf("P from")), "namespace", "star alias colors as a namespace (spelled X::M)");
+  // An unresolvable target degrades silently — no tokens, no throw.
+  const broken = 'import { Nope } from "./Missing"\nexport FRuiNode T() {\n\treturn ( <Spacer /> );\n}\n';
+  assert.deepStrictEqual(importBindingTokens(scanFile(broken, "T", true), importer), []);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
 test("drainMessages: frames by UTF-8 BYTE length, not UTF-16 units (LSP-1)", () => {
   // A body with multi-byte chars (é = 2 bytes; 🎉 = 4 bytes / 2 UTF-16 units) must frame by byte length —
   // a UTF-16 string slice would over/under-read and desync the stream.

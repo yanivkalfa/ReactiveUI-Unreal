@@ -550,7 +550,9 @@ export interface UetkxImportDecl {
   hostInclude: boolean; // `import "@Header.h"` — see the interface comment
   // ES-modules (G-05): `import * as X from "./x"` — names/localNames stay EMPTY; namespaceAlias
   // is the local binding "X". `import Y from "./x"` (default) — defaultAlias is the local
-  // binding "Y". A single import statement is exactly one of named/renamed, namespace, default.
+  // binding "Y". The ES COMBINED forms (`import Def, { A, B } from` / `import Def, * as X
+  // from`) are ONE declaration carrying the default binding PLUS the named/star surface —
+  // consumers must treat the parts as independent, never mutually exclusive.
   isNamespace: boolean;
   namespaceAlias: string;
   namespaceAliasAt: number;
@@ -1208,6 +1210,92 @@ function parseFromSpecifier(
   return { ok: true, specifier: fromCodePoints(src, f + 1, q - (f + 1)), specifierAt, end: q + 1 };
 }
 
+/** ES-modules: parse a braced import name list at `braceAt` (the `{`) into imp.names/nameAts/
+ *  localNames/localNameAts (rename-aware; comments between names tolerated — bughunt SCAN-2).
+ *  Returns the index past the closing `}` on success; on failure emits the diag itself and
+ *  returns the bitwise-NOT of the resync index (callers `return ~r` — 0 stays valid). Shared by
+ *  the plain named form and the ES COMBINED form (`import Def, { A, B } from`). C++-identical
+ *  (ParseImportNameList). */
+function parseImportNameList(src: number[], braceAt: number, imp: UetkxImportDecl, out: UetkxFileScanResult): number {
+  const bclose = findMatching(src, braceAt);
+  if (bclose === -1) {
+    pushDiag(out, "UETKX0304", 0, "unclosed `{` in import list", braceAt);
+    return ~src.length;
+  }
+  // Skip whitespace AND comments between names — a `//`/`/* */` inside the brace list must not
+  // be misread as a bad name that drops the whole import (bughunt SCAN-2).
+  const skipWsAndComments = (p: number): number => {
+    for (;;) {
+      p = skipWsOnly(src, p);
+      const nc = skipNoncode(src, p);
+      if (nc === p) return p;
+      p = nc;
+    }
+  };
+  for (let p = braceAt + 1; p < bclose; ) {
+    p = skipWsAndComments(p);
+    if (p >= bclose) break;
+    if (src[p] === C_COMMA) {
+      p++;
+      continue;
+    }
+    const s = p;
+    while (p < bclose && isIdentCp(src[p])) p++;
+    if (p === s) {
+      pushDiag(out, "UETKX0300", 0, "import list expects bare names, optionally renamed (`Name as Alias`)", s);
+      return ~advancePastLine(src, bclose);
+    }
+    const importedName = fromCodePoints(src, s, p - s);
+    imp.names.push(importedName);
+    imp.nameAts.push(s);
+    // ES-modules (G-05): `{ A as B }` — rename-on-import. localNames stays 1:1 with names; no
+    // `as` means the local binding is the imported name itself (alias token == name token —
+    // localNameAts mirrors that for the LSP index, TD-033).
+    let localName = importedName;
+    let localNameAt = s;
+    const afterName = skipWsAndComments(p);
+    if (afterName < bclose && keywordAt(src, afterName, "as")) {
+      const aliasStart = skipWsAndComments(afterName + 2);
+      let ap = aliasStart;
+      while (ap < bclose && isIdentCp(src[ap])) ap++;
+      if (ap === aliasStart) {
+        pushDiag(out, "UETKX0300", 0, "missing local alias after `as`", aliasStart);
+        return ~advancePastLine(src, bclose);
+      }
+      localName = fromCodePoints(src, aliasStart, ap - aliasStart);
+      localNameAt = aliasStart;
+      p = ap;
+    }
+    imp.localNames.push(localName);
+    imp.localNameAts.push(localNameAt);
+  }
+  if (imp.names.length === 0) {
+    pushDiag(out, "UETKX0303", 0, 'import must name at least one binding: `import { Name } from "..."`', braceAt);
+  }
+  return bclose + 1;
+}
+
+/** Duplicate-import diagnostics (2303) for a parsed name list: a name already imported earlier
+ *  in this file, or repeated within this same import's braces; records the names into
+ *  importedFrom. Shared by the plain named form and the ES COMBINED form. C++-identical
+ *  (RecordNamedImportDups). */
+function recordNamedImportDups(imp: UetkxImportDecl, importedFrom: Map<string, string>, out: UetkxFileScanResult): void {
+  const thisImport = new Set<string>();
+  for (let idx = 0; idx < imp.names.length; idx++) {
+    const name = imp.names[idx];
+    const nameAt = imp.nameAts[idx];
+    const prev = importedFrom.get(name);
+    if (prev !== undefined) {
+      pushDiag(out, "UETKX2303", 0, `duplicate import of \`${name}\` (already imported from ${prev})`, nameAt, name.length);
+    } else if (thisImport.has(name)) {
+      pushDiag(out, "UETKX2303", 0, `duplicate import of \`${name}\` (already imported from ${imp.specifier})`, nameAt, name.length);
+    } else {
+      thisImport.add(name);
+    }
+  }
+  for (const name of thisImport) importedFrom.set(name, imp.specifier);
+}
+
 function parseImport(src: number[], start: number, out: UetkxFileScanResult, importedFrom: Map<string, string>): number {
   const n = src.length;
   let k = skipWsOnly(src, start + 6); // past "import"
@@ -1319,10 +1407,45 @@ function parseImport(src: number[], start: number, out: UetkxFileScanResult, imp
       defaultAlias: fromCodePoints(src, s, p - s),
       defaultAliasAt: s,
     };
+    // ES COMBINED forms (family parity, Unity 0.9.1 field find): `import Def, { A, B } from`
+    // and `import Def, * as X from` — ONE declaration carrying the default binding PLUS the
+    // named/star surface (the record models the parts independently). C++-identical.
+    let c = skipWsOnly(src, p);
+    if (c < n && src[c] === C_COMMA) {
+      c = skipWsOnly(src, c + 1);
+      if (c < n && src[c] === C_LBRACE) {
+        const afterList = parseImportNameList(src, c, defImp, out);
+        if (afterList < 0) return ~afterList;
+        p = afterList;
+      } else if (c < n && src[c] === 0x2a /* * */) {
+        let q = skipWsOnly(src, c + 1);
+        if (!keywordAt(src, q, "as")) {
+          pushDiag(out, "UETKX0303", 0, 'namespace import expects `* as Name from "..."`', Math.min(q, n - 1));
+          return advancePastLine(src, q);
+        }
+        q = skipWsOnly(src, q + 2);
+        const s2 = q;
+        while (q < n && isIdentCp(src[q])) q++;
+        if (q === s2) {
+          pushDiag(out, "UETKX0300", 0, "missing namespace import alias after `as`", q);
+          return advancePastLine(src, q);
+        }
+        defImp.isNamespace = true;
+        defImp.namespaceAlias = fromCodePoints(src, s2, q - s2);
+        defImp.namespaceAliasAt = s2;
+        p = q;
+      } else {
+        pushDiag(out, "UETKX0303", 0, "combined import expects `{ Name, ... }` or `* as Name` after the default binding", Math.min(c, n - 1));
+        return advancePastLine(src, c);
+      }
+    }
     const spec = parseFromSpecifier(src, p, out);
     if (!spec.ok) return spec.end;
     defImp.specifier = spec.specifier;
     defImp.specifierAt = spec.specifierAt;
+    // Named-part duplicate diagnostics (2303) apply to a combined name list too; the
+    // default/star aliases resolve collisions in the end-of-scan pass (UETKX2325).
+    recordNamedImportDups(defImp, importedFrom, out);
     out.imports.push(defImp);
     return spec.end;
   }
@@ -1347,84 +1470,15 @@ function parseImport(src: number[], start: number, out: UetkxFileScanResult, imp
     pushDiag(out, "UETKX0303", 0, 'import expects `{ Name, ... }` or a `"@Header.h"` host include after `import`', Math.min(k, n - 1));
     return advancePastLine(src, k);
   }
-  const bclose = findMatching(src, k);
-  if (bclose === -1) {
-    pushDiag(out, "UETKX0304", 0, "unclosed `{` in import list", k);
-    return n;
-  }
-  // Skip whitespace AND comments between names — a `//`/`/* */` inside the brace list must not
-  // be misread as a bad name that drops the whole import (bughunt SCAN-2; the C++ scanner has
-  // had this since M1 — the TS twin silently diverged, audit 2026-07-18).
-  const skipWsAndComments = (p: number): number => {
-    for (;;) {
-      p = skipWsOnly(src, p);
-      const nc = skipNoncode(src, p);
-      if (nc === p) return p;
-      p = nc;
-    }
-  };
-  for (let p = k + 1; p < bclose; ) {
-    p = skipWsAndComments(p);
-    if (p >= bclose) break;
-    if (src[p] === C_COMMA) {
-      p++;
-      continue;
-    }
-    const s = p;
-    while (p < bclose && isIdentCp(src[p])) p++;
-    if (p === s) {
-      pushDiag(out, "UETKX0300", 0, "import list expects bare names, optionally renamed (`Name as Alias`)", s);
-      return advancePastLine(src, bclose);
-    }
-    const importedName = fromCodePoints(src, s, p - s);
-    imp.names.push(importedName);
-    imp.nameAts.push(s);
-    // ES-modules (G-05): `{ A as B }` — rename-on-import. localNames stays 1:1 with names; no
-    // `as` means the local binding is the imported name itself (alias token == name token —
-    // localNameAts mirrors that for the LSP index, TD-033).
-    let localName = importedName;
-    let localNameAt = s;
-    let afterName = skipWsAndComments(p);
-    if (afterName < bclose && keywordAt(src, afterName, "as")) {
-      const aliasStart = skipWsAndComments(afterName + 2);
-      let ap = aliasStart;
-      while (ap < bclose && isIdentCp(src[ap])) ap++;
-      if (ap === aliasStart) {
-        pushDiag(out, "UETKX0300", 0, "missing local alias after `as`", aliasStart);
-        return advancePastLine(src, bclose);
-      }
-      localName = fromCodePoints(src, aliasStart, ap - aliasStart);
-      localNameAt = aliasStart;
-      p = ap;
-    }
-    imp.localNames.push(localName);
-    imp.localNameAts.push(localNameAt);
-  }
-  if (imp.names.length === 0) {
-    pushDiag(out, "UETKX0303", 0, 'import must name at least one binding: `import { Name } from "..."`', k);
-  }
-  const spec = parseFromSpecifier(src, bclose + 1, out);
+  const afterList = parseImportNameList(src, k, imp, out);
+  if (afterList < 0) return ~afterList;
+  const spec = parseFromSpecifier(src, afterList, out);
   if (!spec.ok) return spec.end;
   imp.specifier = spec.specifier;
   imp.specifierAt = spec.specifierAt;
-  const end = spec.end;
-
-  const thisImport = new Set<string>();
-  for (let idx = 0; idx < imp.names.length; idx++) {
-    const name = imp.names[idx];
-    const nameAt = imp.nameAts[idx];
-    const prev = importedFrom.get(name);
-    if (prev !== undefined) {
-      pushDiag(out, "UETKX2303", 0, `duplicate import of \`${name}\` (already imported from ${prev})`, nameAt, name.length);
-    } else if (thisImport.has(name)) {
-      pushDiag(out, "UETKX2303", 0, `duplicate import of \`${name}\` (already imported from ${imp.specifier})`, nameAt, name.length);
-    } else {
-      thisImport.add(name);
-    }
-  }
-  for (const name of thisImport) importedFrom.set(name, imp.specifier);
+  recordNamedImportDups(imp, importedFrom, out);
   out.imports.push(imp);
-  return end;
+  return spec.end;
 }
 
 /** Parse a `component` decl at `ci`; a preceding `export` is passed as `exported`. Pushes to
@@ -2204,15 +2258,16 @@ export function scanFile(source: string, basename: string, resyncOnBodyError = f
       }
       if (prevPlain === undefined) localAliasSeen.set(local, plain);
     };
+    // No exclusive branching — an ES COMBINED import (`import Def, { A } from` / `import Def,
+    // * as X from`) carries default + named/star parts in one declaration, and EVERY part's
+    // local binding joins the collision space (`import a, { b as a }` must 2325).
     for (const imp of out.imports) {
       if (imp.hostInclude) continue;
-      if (imp.isNamespace) {
-        checkAlias(imp.namespaceAlias, imp.namespaceAliasAt, false);
-        continue;
-      }
       if (imp.isDefault) {
         checkAlias(imp.defaultAlias, imp.defaultAliasAt, false);
-        continue;
+      }
+      if (imp.isNamespace) {
+        checkAlias(imp.namespaceAlias, imp.namespaceAliasAt, false);
       }
       for (let idx2 = 0; idx2 < imp.localNames.length; idx2++) {
         const plain = imp.localNames[idx2] === imp.names[idx2];

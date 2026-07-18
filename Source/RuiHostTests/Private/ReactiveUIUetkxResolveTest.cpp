@@ -135,6 +135,10 @@ bool FRuiUetkxResolveTest::RunTest(const FString&)
 					  TEXT("export FString FmtP(int32 S) {\n\treturn FString::FromInt(S);\n}\n"));
 		Write(Root / TEXT("Screens/Screen.uetkx"),
 			  TEXT("export FRuiNode Screen() {\n\treturn ( <Spacer /> );\n}\n") TEXT("export default Screen;\n"));
+		Write(Root / TEXT("Screens/Deck.uetkx"),
+			  TEXT("export FRuiNode Card() {\n\treturn ( <Spacer /> );\n}\n")
+				  TEXT("export FLinearColor Tint = FLinearColor(0.1f, 0.2f, 0.3f, 1.0f);\n")
+					  TEXT("export default Card;\n"));
 		const FUetkxFsResolver R3(Root, {Root}, /*bFixtureMode*/ true);
 
 		// Rename import: TARGET validated, LOCAL used — clean modulo the legacy-wrapper 2320.
@@ -187,6 +191,64 @@ bool FRuiUetkxResolveTest::RunTest(const FString&)
 		}
 		Has(Codes(TEXT("import Home from \"./Chip\"\ncomponent T {\n\treturn ( <Home /> );\n}\n"), Rel, R3),
 			TEXT("UETKX2326")); // Chip.uetkx has no default export
+
+		// ES COMBINED forms: ONE declaration carrying default + named/star — every part resolves,
+		// polices usage, and diagnoses independently (Unity 0.9.1 field-find parity).
+		auto CountOf = [](const TArray<FString>& C, const TCHAR* Code)
+		{
+			int32 N = 0;
+			for (const FString& D : C)
+			{
+				if (D == Code)
+				{
+					++N;
+				}
+			}
+			return N;
+		};
+		{ // default + named, both parts used → clean
+			const TArray<FString> C = Codes(TEXT("import Home, { Tint } from \"./Deck\"\ncomponent T {\n\tauto X = ")
+												TEXT("Tint;\n\treturn ( <Home /> );\n}\n"),
+											Rel, R3);
+			HasNot(C, TEXT("UETKX2301"));
+			HasNot(C, TEXT("UETKX2302"));
+			HasNot(C, TEXT("UETKX2304"));
+			HasNot(C, TEXT("UETKX2305"));
+			HasNot(C, TEXT("UETKX2326"));
+		}
+		{ // only the default used → exactly ONE 2304, on the named part
+			const TArray<FString> C =
+				Codes(TEXT("import Home, { Tint } from \"./Deck\"\ncomponent T {\n\treturn ( <Home /> );\n}\n"), Rel, R3);
+			TestEqual(TEXT("combined: unused NAMED part alone warns"), CountOf(C, TEXT("UETKX2304")), 1);
+		}
+		{ // only the named part used → exactly ONE 2304, on the default
+			const TArray<FString> C = Codes(TEXT("import Home, { Tint } from \"./Deck\"\ncomponent T {\n\tauto X = ")
+												TEXT("Tint;\n\treturn ( <Spacer /> );\n}\n"),
+											Rel, R3);
+			TestEqual(TEXT("combined: unused DEFAULT part alone warns"), CountOf(C, TEXT("UETKX2304")), 1);
+		}
+		{ // default + star, both used → clean; the star's members validate
+			const TArray<FString> C = Codes(TEXT("import Home, * as D from \"./Deck\"\ncomponent T {\n\tauto X = ")
+												TEXT("D::Tint;\n\treturn ( <Home /> );\n}\n"),
+											Rel, R3);
+			HasNot(C, TEXT("UETKX2302"));
+			HasNot(C, TEXT("UETKX2304"));
+			HasNot(C, TEXT("UETKX2326"));
+		}
+		Has(Codes(TEXT("import Home, * as D from \"./Deck\"\ncomponent T {\n\tauto X = D::Ghost;\n\treturn ( <Home /> ")
+					  TEXT(");\n}\n"),
+				  Rel, R3),
+			TEXT("UETKX2302")); // combined star member still validated
+		{ // combined against a default-less target: the DEFAULT part 2326s, the NAMED part stays valid
+			const TArray<FString> C = Codes(TEXT("import P, { Cool } from \"./Palette\"\ncomponent T {\n\tauto X = ")
+												TEXT("Cool;\n\treturn ( <P /> );\n}\n"),
+											Rel, R3);
+			Has(C, TEXT("UETKX2326"));
+			HasNot(C, TEXT("UETKX2302"));
+		}
+		// duplicate binding across the parts (`import a, { b as a }`) is a 2325 collision
+		Has(Codes(TEXT("import a, { b as a } from \"./Deck\"\ncomponent T {\n\treturn ( <Spacer /> );\n}\n"), Rel, R3),
+			TEXT("UETKX2325"));
 
 		// Value/util strict usage: an exported value/util referenced WITHOUT an import is 2305.
 		Has(Codes(TEXT("component T {\n\tauto X = Cool;\n\treturn ( <Spacer /> );\n}\n"), Rel, R3), TEXT("UETKX2305"));

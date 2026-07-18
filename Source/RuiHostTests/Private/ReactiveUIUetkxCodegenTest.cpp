@@ -403,6 +403,23 @@ component CardStack(Names: TArray<FString>) {
 			TestFalse(TEXT("Uses does not record the alias"), Alias.Uses.Contains(TEXT("Chip")));
 		}
 
+		// ES COMBINED forms at the alias plane: ONE declaration carrying default + named/star —
+		// the named renames and the namespace strip must all land even though the declaration
+		// also carries a default binding (exclusive branching dropped them; Unity 0.9.1 parity).
+		const FUetkxCompileOutput Combined = FUetkxCodegen::CompileSource(
+			TEXT("import Def, { Cool as Primary } from \"./Palette2\"\n")
+				TEXT("import Def2, * as Palette from \"./Palette2\"\n") TEXT("export FRuiNode CombinedUser() {\n")
+					TEXT("\tauto B = Primary;\n\tauto C = Palette::Accent;\n\tauto D = Def2(1);\n")
+						TEXT("\treturn ( <Def /> );\n}\n"),
+			TEXT("CombinedUser"));
+		if (TestTrue(TEXT("combined alias sample compiles"), Combined.bOk))
+		{
+			TestTrue(TEXT("combined named rename rewrites beside the default"),
+					 Combined.Inl.Contains(TEXT("auto B = Cool;")));
+			TestTrue(TEXT("combined namespace qual strips beside the default"),
+					 Combined.Inl.Contains(TEXT("auto C = Accent;")));
+		}
+
 		// IMPORT-3 regression at the ALIAS plane (M7 bughunt): a ternary's SECOND arm sits after a
 		// lone `:` — the scan-back must not read it as a `::` scope qual, or the alias survives
 		// into broken C++ (`? Good : LabStyle::Warn` shipped exactly that before the fix).

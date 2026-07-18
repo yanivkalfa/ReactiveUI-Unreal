@@ -120,18 +120,43 @@ bool FRuiUetkxScannerTest::RunTest(const FString&)
 	};
 	// ES-modules (M1): a single canonical import stringification used for BOTH the expected (JSON)
 	// and actual (FUetkxImportDecl) sides, so rename/namespace/default forms compare exactly.
-	auto ExpectedImportKey = [](const TSharedPtr<FJsonObject>& O) -> FString
+	// ES COMBINED forms compose the parts with `+`: `default:Def+a|b=>c<-spec` (default + named),
+	// `default:Def+*X<-spec` (default + star) — mirrored byte-for-byte by contract.test.ts.
+	auto NamedPieces = [](const TArray<FString>& Names, const TArray<FString>& Locals) -> FString
+	{
+		TArray<FString> Pieces;
+		for (int32 n = 0; n < Names.Num(); ++n)
+		{
+			const FString Local = Locals.IsValidIndex(n) ? Locals[n] : Names[n];
+			Pieces.Add(Local == Names[n] ? Names[n] : FString::Printf(TEXT("%s=>%s"), *Names[n], *Local));
+		}
+		return FString::Join(Pieces, TEXT("|"));
+	};
+	auto ComposeImportKey =
+		[&NamedPieces](bool bDefault, const FString& Def, bool bNamespace, const FString& Ns,
+					   const TArray<FString>& Names, const TArray<FString>& Locals, const FString& Spec) -> FString
+	{
+		TArray<FString> Parts;
+		if (bDefault)
+		{
+			Parts.Add(FString::Printf(TEXT("default:%s"), *Def));
+		}
+		if (bNamespace)
+		{
+			Parts.Add(FString::Printf(TEXT("*%s"), *Ns));
+		}
+		if (Names.Num() > 0 || Parts.IsEmpty())
+		{
+			Parts.Add(NamedPieces(Names, Locals));
+		}
+		return FString::Printf(TEXT("%s<-%s"), *FString::Join(Parts, TEXT("+")), *Spec);
+	};
+	auto ExpectedImportKey = [&ComposeImportKey](const TSharedPtr<FJsonObject>& O) -> FString
 	{
 		FString Spec, Ns, Def;
 		O->TryGetStringField(TEXT("specifier"), Spec);
-		if (O->TryGetStringField(TEXT("namespace"), Ns))
-		{
-			return FString::Printf(TEXT("*%s<-%s"), *Ns, *Spec);
-		}
-		if (O->TryGetStringField(TEXT("default"), Def))
-		{
-			return FString::Printf(TEXT("default:%s<-%s"), *Def, *Spec);
-		}
+		const bool bNs = O->TryGetStringField(TEXT("namespace"), Ns);
+		const bool bDef = O->TryGetStringField(TEXT("default"), Def);
 		TArray<FString> Names, Locals;
 		const TArray<TSharedPtr<FJsonValue>>* NArr = nullptr;
 		if (O->TryGetArrayField(TEXT("names"), NArr))
@@ -153,31 +178,12 @@ bool FRuiUetkxScannerTest::RunTest(const FString&)
 		{
 			Locals = Names;
 		}
-		TArray<FString> Pieces;
-		for (int32 n = 0; n < Names.Num(); ++n)
-		{
-			const FString Local = Locals.IsValidIndex(n) ? Locals[n] : Names[n];
-			Pieces.Add(Local == Names[n] ? Names[n] : FString::Printf(TEXT("%s=>%s"), *Names[n], *Local));
-		}
-		return FString::Printf(TEXT("%s<-%s"), *FString::Join(Pieces, TEXT("|")), *Spec);
+		return ComposeImportKey(bDef, Def, bNs, Ns, Names, Locals, Spec);
 	};
-	auto ActualImportKey = [](const FUetkxImportDecl& I) -> FString
+	auto ActualImportKey = [&ComposeImportKey](const FUetkxImportDecl& I) -> FString
 	{
-		if (I.bNamespace)
-		{
-			return FString::Printf(TEXT("*%s<-%s"), *I.NamespaceAlias, *I.Specifier);
-		}
-		if (I.bDefault)
-		{
-			return FString::Printf(TEXT("default:%s<-%s"), *I.DefaultAlias, *I.Specifier);
-		}
-		TArray<FString> Pieces;
-		for (int32 n = 0; n < I.Names.Num(); ++n)
-		{
-			const FString Local = I.LocalNames.IsValidIndex(n) ? I.LocalNames[n] : I.Names[n];
-			Pieces.Add(Local == I.Names[n] ? I.Names[n] : FString::Printf(TEXT("%s=>%s"), *I.Names[n], *Local));
-		}
-		return FString::Printf(TEXT("%s<-%s"), *FString::Join(Pieces, TEXT("|")), *I.Specifier);
+		return ComposeImportKey(I.bDefault, I.DefaultAlias, I.bNamespace, I.NamespaceAlias, I.Names, I.LocalNames,
+								I.Specifier);
 	};
 	auto RunFileScan =
 		[this, &Total, &Join, &KindName, &ExpectedImportKey, &ActualImportKey](const TSharedPtr<FJsonObject>& Case)

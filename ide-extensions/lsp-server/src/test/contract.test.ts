@@ -57,16 +57,34 @@ type FileScanCase = { name: string; input: string; basename?: string; expect: Fi
 
 // ES-modules (M1): a single canonical import stringification used for BOTH the expected (JSON)
 // and actual (UetkxImportDecl) sides, so rename/namespace/default forms compare exactly.
-function expectedImportKey(o: { names?: string[]; localNames?: string[]; namespace?: string; default?: string; specifier: string }): string {
-  if (o.namespace !== undefined) return `*${o.namespace}<-${o.specifier}`;
-  if (o.default !== undefined) return `default:${o.default}<-${o.specifier}`;
-  const names = o.names ?? [];
-  const locals = o.localNames ?? names;
+// ES COMBINED forms compose the parts with `+`: `default:Def+a|b=>c<-spec` (default + named),
+// `default:Def+*X<-spec` (default + star) — mirrored byte-for-byte by the C++ scanner test.
+function namedPieces(names: string[], locals: string[]): string {
   const pieces = names.map((name, n) => {
     const local = locals[n] ?? name;
     return local === name ? name : `${name}=>${local}`;
   });
-  return `${pieces.join("|")}<-${o.specifier}`;
+  return pieces.join("|");
+}
+function composeImportKey(
+  isDefault: boolean,
+  def: string,
+  isNamespace: boolean,
+  ns: string,
+  names: string[],
+  locals: string[],
+  specifier: string,
+): string {
+  const parts: string[] = [];
+  if (isDefault) parts.push(`default:${def}`);
+  if (isNamespace) parts.push(`*${ns}`);
+  if (names.length > 0 || parts.length === 0) parts.push(namedPieces(names, locals));
+  return `${parts.join("+")}<-${specifier}`;
+}
+function expectedImportKey(o: { names?: string[]; localNames?: string[]; namespace?: string; default?: string; specifier: string }): string {
+  const names = o.names ?? [];
+  const locals = o.localNames ?? names;
+  return composeImportKey(o.default !== undefined, o.default ?? "", o.namespace !== undefined, o.namespace ?? "", names, locals, o.specifier);
 }
 function actualImportKey(i: {
   isNamespace: boolean;
@@ -77,13 +95,7 @@ function actualImportKey(i: {
   localNames: string[];
   specifier: string;
 }): string {
-  if (i.isNamespace) return `*${i.namespaceAlias}<-${i.specifier}`;
-  if (i.isDefault) return `default:${i.defaultAlias}<-${i.specifier}`;
-  const pieces = i.names.map((name, n) => {
-    const local = i.localNames[n] ?? name;
-    return local === name ? name : `${name}=>${local}`;
-  });
-  return `${pieces.join("|")}<-${i.specifier}`;
+  return composeImportKey(i.isDefault, i.defaultAlias, i.isNamespace, i.namespaceAlias, i.names, i.localNames, i.specifier);
 }
 
 function orderName(scan: ReturnType<typeof scanFile>, kind: string, index: number): string {

@@ -3,6 +3,18 @@
     {
       "date": "2026-07-18",
       "versions": {
+        "vscode": "0.6.1",
+        "vs2022": "0.6.1"
+      },
+      "shared": [
+        "ES combined import forms land in the editor: `import Def, { a, b as c } from \"./file\"` and `import Def, * as X from \"./file\"` parse, color (grammar + combined-aware highlighting), format (one canonical line — the reprint previously would have dropped the named part), navigate, and complete like every other import head. Every editor consumer treats the default/named/star parts independently: the reference index, find-all-references/rename, the virtual-doc C++ intelligence (all parts declare their surfaces to clangd), tag completion, and the unused-import quickfix — which now removes only the unused PART of a combined line instead of the whole statement.",
+        "Completion inside import braces got smarter: Ctrl+Space in `import Def, {} from \"./file\"` works (the combined form classifies like any name list), and suggestions now exclude bindings the statement already carries — the names/aliases already listed in the braces, plus (for a combined line) the default alias and the member the default export already binds.",
+        "Semantic tokens land: imported binding names now color by the KIND of the export they bind — components as types, hooks and utils as functions, values as variables, `* as X` aliases as namespaces (they are spelled `X::Member`), and a default alias by its target's `export default` kind. The tokens override the grammar's uniform type tint in every LSP client and degrade silently when a target does not resolve."
+      ]
+    },
+    {
+      "date": "2026-07-18",
+      "versions": {
         "vscode": "0.6.0",
         "vs2022": "0.6.0"
       },
