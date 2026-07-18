@@ -65,6 +65,7 @@ const PRELUDE = [
   guarded("RuiActivatableScreen.h"),
   guarded("RuiMvvmViewModel.h"),
   '#include "UObject/StrongObjectPtr.h"',
+  guarded("Engine/Texture2D.h"),
   '#include "Engine/World.h"',
   "using namespace RUI;",
   "",
@@ -145,6 +146,46 @@ function scanQualifiedHookCalls(source: string): Array<{ namespaces: string[]; n
   return [...out.values()];
 }
 
+/** Every BARE `UseX(`/`UseX<` call name in the source (member/scope-prefixed excluded) — the
+ *  hand-written-header hook shape (`UseNavigate()` against RuiRouter.h's
+ *  `UseNavigate(FRuiContext&)`). Codegen injects Ctx into these at emit; the virtual doc
+ *  mirrors it with the SAME variadic decltype adapter the qualified calls get (F5 field
+ *  test: RouterHome's bare router hooks read as "no matching function" without one). The
+ *  CALLER excludes built-ins, same-file hooks, and imported-hook shims. */
+function scanBareHookCalls(source: string): string[] {
+  const cp = toCodePoints(source);
+  const n = cp.length;
+  const isIdent = (c: number) => (c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c === 95;
+  const out = new Set<string>();
+  let i = 0;
+  while (i < n) {
+    const j = skipNoncode(cp, i);
+    if (j !== i) {
+      i = j;
+      continue;
+    }
+    const wordStart = (i === 0 || !isIdent(cp[i - 1])) && isIdent(cp[i]) && !(cp[i] >= 48 && cp[i] <= 57);
+    if (!wordStart) {
+      i++;
+      continue;
+    }
+    const s = i;
+    while (i < n && isIdent(cp[i])) i++;
+    const name = fromCodePoints(cp, s, i - s);
+    if (!/^Use[A-Z]/.test(name) || i >= n || (cp[i] !== 40 /*(*/ && cp[i] !== 60 /*<*/)) continue;
+    // a member/scope prefix means it is NOT the bare hand-header shape
+    let prefixed = false;
+    for (let k = s - 1; k >= 0; k--) {
+      const p = cp[k];
+      if (p === 32 || p === 9) continue;
+      prefixed = p === 46 /* . */ || (p === 62 /* > */ && k > 0 && cp[k - 1] === 45 /* - */) || (p === 58 /* : */ && k > 0 && cp[k - 1] === 58);
+      break;
+    }
+    if (!prefixed) out.add(name);
+  }
+  return [...out];
+}
+
 /** Per-file virtual-doc prefix (TB-10): the fixed PRELUDE, then the file's OWN host includes
  *  (`import "@X.h"` — without them `RuiDemo::…` symbols are undeclared in the virtual TU),
  *  then REAL declarations for the file's cross-file imports (hook signatures + module
@@ -166,6 +207,7 @@ function buildPrefix(scan: ReturnType<typeof scanFile>, source: string, resolveI
   // virtual TU (`auto X = (<VerticalBox>…);` reads `auto X = (__rui_rn);` — X types FRuiNode,
   // exactly what codegen produces). Unmapped glue: it can never squiggle user code.
   lines.push("extern FRuiNode __rui_rn;");
+  const declaredHookShims = new Set<string>();
   if (resolveImport) {
     for (const imp of scan.imports) {
       if (imp.hostInclude) continue;
@@ -204,6 +246,7 @@ function buildPrefix(scan: ReturnType<typeof scanFile>, source: string, resolveI
           if (hook) {
             const ret = hook.ret.trim().length > 0 ? hook.ret.trim() : "void";
             lines.push(`${ret} ${imp.defaultAlias}(${hook.params.trim()});`);
+            declaredHookShims.add(imp.defaultAlias);
           } else if (util) {
             lines.push(`${util.retType.trim()} ${imp.defaultAlias}(${util.params.trim()});`);
           } else if (value) {
@@ -223,6 +266,7 @@ function buildPrefix(scan: ReturnType<typeof scanFile>, source: string, resolveI
         if (local) {
           const ret = h.ret.trim().length > 0 ? h.ret.trim() : "void";
           lines.push(`${ret} ${local}(${h.params.trim()});`);
+          declaredHookShims.add(local);
         }
       }
       for (const m of surface.modules) {
@@ -257,6 +301,14 @@ function buildPrefix(scan: ReturnType<typeof scanFile>, source: string, resolveI
     lines.push(
       `${open}template <typename... TArgs> auto ${q.name}(TArgs&&... Args) -> decltype(${q.name}(Ctx, static_cast<TArgs&&>(Args)...)); ${close}`,
     );
+  }
+  // Bare hand-header hooks (RuiRouter.h et al: free functions taking Ctx first) — codegen
+  // injects Ctx at emit; mirror with the same variadic decltype adapter the qualified calls
+  // get. Built-ins (#define'd below), same-file hooks, and imported shims keep source arity.
+  const bareExcluded = new Set<string>([...CTX_MEMBER_HOOKS, "UseSignal", "UseSignalKey", ...scan.hooks.map((h) => h.name), ...declaredHookShims]);
+  for (const name of scanBareHookCalls(source)) {
+    if (bareExcluded.has(name)) continue;
+    lines.push(`template <typename... TArgs> auto ${name}(TArgs&&... Args) -> decltype(${name}(Ctx, static_cast<TArgs&&>(Args)...));`);
   }
   for (const hook of CTX_MEMBER_HOOKS) {
     lines.push(`#define ${hook} Ctx.${hook}`);
@@ -404,7 +456,7 @@ export function buildVirtualCpp(source: string, basename = "doc", resolveImport?
           if (a.kind === "expr" || a.kind === "spread") {
             if (/^On[A-Z]/.test(a.name)) {
               // The event-handler shape codegen emits (verified: SimpleTextField.uetkx.inl).
-              flushDeferred(emitCode(a.value, base + a.vat, "\n{ (void)[=](const FRuiValue& Value) {\n", "\n; }; }\n"));
+              flushDeferred(emitCode(a.value, base + a.vat, "\n{ (void)[=](const FRuiValue& Value) { (void)(\n", "\n); }; }\n"));
             } else {
               flushDeferred(emitCode(a.value, base + a.vat, "\n{ (void)(\n", "\n); }\n"));
             }

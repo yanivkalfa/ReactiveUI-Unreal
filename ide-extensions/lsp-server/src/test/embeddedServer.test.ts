@@ -258,3 +258,60 @@ test("embeddedPositionRequest: rename's newName rides the extra params to the pr
   await embeddedPositionRequest(proxy, "textDocument/rename", "file:///a.uetkx", SOURCE, off, { newName: "Tripled" });
   assert.deepStrictEqual(proxy.extras, [{ newName: "Tripled" }]);
 });
+
+// ── F5 field-test fixes (2026-07-18): hand-header hooks, event sinks, texture types ─────────
+
+test("virtual doc: a bare hand-header hook call gets the variadic Ctx adapter", () => {
+  const src = [
+    "export FRuiNode RouterHome() {",
+    "\tauto Navigate = UseNavigate();",
+    "\tconst FString Path = UsePathname();",
+    "\treturn ( <Spacer /> );",
+    "}",
+    "",
+  ].join("\n");
+  const { buildVirtualCpp } = require("../virtualDoc") as typeof import("../virtualDoc");
+  const vd = buildVirtualCpp(src, "RouterHome");
+  assert.ok(
+    vd.text.includes("auto UseNavigate(TArgs&&... Args) -> decltype(UseNavigate(Ctx, static_cast<TArgs&&>(Args)...));"),
+    "UseNavigate adapter emitted",
+  );
+  assert.ok(vd.text.includes("decltype(UsePathname(Ctx,"), "UsePathname adapter emitted");
+  // built-ins stay #define'd, never adapted (the adapter would fight the macro)
+  assert.ok(!vd.text.includes("decltype(UseState(Ctx,"), "no adapter for a built-in");
+});
+
+test("virtual doc: same-file and imported hooks keep source arity (no adapter)", () => {
+  const src = [
+    "export int32 UseTick(int32 Start) {",
+    "\treturn Start;",
+    "}",
+    "export FRuiNode Panel() {",
+    "\tauto V = UseTick(1);",
+    "\treturn ( <Spacer /> );",
+    "}",
+    "",
+  ].join("\n");
+  const { buildVirtualCpp } = require("../virtualDoc") as typeof import("../virtualDoc");
+  const vd = buildVirtualCpp(src, "Panel");
+  assert.ok(!vd.text.includes("decltype(UseTick(Ctx,"), "same-file hook keeps its lifted arity");
+});
+
+test("virtual doc: event-attr lifts sink into (void)(…) — bare callback values never warn", () => {
+  const src = [
+    "export FRuiNode Menu() {",
+    "\tFRuiCallback OnStart = UseStableAction([](const FRuiValue&) {});",
+    "\treturn ( <Button OnClicked={ OnStart }>go</Button> );",
+    "}",
+    "",
+  ].join("\n");
+  const { buildVirtualCpp } = require("../virtualDoc") as typeof import("../virtualDoc");
+  const vd = buildVirtualCpp(src, "Menu");
+  assert.ok(vd.text.includes("(void)[=](const FRuiValue& Value) { (void)("), "event lambda body is a void sink");
+});
+
+test("virtual doc: the prelude carries a guarded Engine/Texture2D.h (fwd-declared UTexture2D completes)", () => {
+  const { buildVirtualCpp } = require("../virtualDoc") as typeof import("../virtualDoc");
+  const vd = buildVirtualCpp("export FRuiNode T() {\n\treturn ( <Spacer /> );\n}\n", "T");
+  assert.ok(vd.text.includes('#include "Engine/Texture2D.h"'), "guarded texture include present");
+});
