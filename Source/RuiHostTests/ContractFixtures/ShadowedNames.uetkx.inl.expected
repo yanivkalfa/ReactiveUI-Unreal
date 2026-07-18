@@ -42,14 +42,22 @@ static FRuiNodeArray ShadowedNames_UetkxImpl(FRuiContext& Ctx, const FShadowedNa
 		}
 		auto Outer = RuiPriv_ShadowedNames::RowTint;
 		auto [Shade, SetShade] = Ctx.UseState(Primary);
-#line 46 "ShadowedNames.uetkx.inl"
+		FRuiNode Chip = [&]() -> FRuiNode {
+			FRuiSpacerProps P;
+			return RUI::Slate::Spacer(MoveTemp(P), FRuiKey());
+		}();
+		auto AfterRange = Primary;
+#line 51 "ShadowedNames.uetkx.inl"
 	return { [&]() -> FRuiNode {
 		FRuiVerticalBoxProps P;
 		TArray<FRuiNode> Ch;
 		Ch.Add([&]() -> FRuiNode {
-		FRuiSpacerProps P;
-		return RUI::Slate::Spacer(MoveTemp(P), FRuiKey());
+		FRuiBorderProps P;
+		P.SetBorderBackgroundColor((Primary));
+		TArray<FRuiNode> Ch;
+		return RUI::Slate::Border(MoveTemp(P), MoveTemp(Ch), FRuiKey());
 	}());
+		Ch.Add((Chip));
 		return RUI::Slate::VerticalBox(MoveTemp(P), MoveTemp(Ch), FRuiKey());
 	}() };
 }

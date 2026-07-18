@@ -79,6 +79,15 @@ redesign (locked G-01..G-13), Unreal leg first.
   diagnoses `UETKX2305` at edit time instead of failing later in the C++ compile.
   `RUIMigrateEsModules` inherits both through the shared collector. An `@for` loop variable
   named like an exported value stays a local (its header declarations scope into the body).
+- **Shadowing holds inside markup expressions too (audit)**: the emitter now consults a
+  body-wide in-scope oracle, so a setup local shadowing an import alias or private name keeps
+  its own spelling in attr expressions, across value-markup fragmentation, and inside
+  directive frames — previously those positions rewrote to the alias TARGET and silently read
+  the wrong symbol. The tracker also recognizes range-for variables and lambda parameters
+  (both were false-2305/rewrite candidates), a comma no longer keeps the type-ish lookbehind
+  (`Func(A, B = 1)` mis-declared `B` as a local), and the reference walks skip markup ranges
+  so attribute names like `Value`/`Text` can no longer mint junk locals that masked real
+  missing-import errors.
 
 ## [0.11.0] — 2026-07-17
 

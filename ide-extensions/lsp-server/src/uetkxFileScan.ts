@@ -1352,8 +1352,19 @@ function parseImport(src: number[], start: number, out: UetkxFileScanResult, imp
     pushDiag(out, "UETKX0304", 0, "unclosed `{` in import list", k);
     return n;
   }
+  // Skip whitespace AND comments between names — a `//`/`/* */` inside the brace list must not
+  // be misread as a bad name that drops the whole import (bughunt SCAN-2; the C++ scanner has
+  // had this since M1 — the TS twin silently diverged, audit 2026-07-18).
+  const skipWsAndComments = (p: number): number => {
+    for (;;) {
+      p = skipWsOnly(src, p);
+      const nc = skipNoncode(src, p);
+      if (nc === p) return p;
+      p = nc;
+    }
+  };
   for (let p = k + 1; p < bclose; ) {
-    p = skipWsOnly(src, p);
+    p = skipWsAndComments(p);
     if (p >= bclose) break;
     if (src[p] === C_COMMA) {
       p++;
@@ -1373,9 +1384,9 @@ function parseImport(src: number[], start: number, out: UetkxFileScanResult, imp
     // localNameAts mirrors that for the LSP index, TD-033).
     let localName = importedName;
     let localNameAt = s;
-    let afterName = skipWsOnly(src, p);
+    let afterName = skipWsAndComments(p);
     if (afterName < bclose && keywordAt(src, afterName, "as")) {
-      const aliasStart = skipWsOnly(src, afterName + 2);
+      const aliasStart = skipWsAndComments(afterName + 2);
       let ap = aliasStart;
       while (ap < bclose && isIdentCp(src[ap])) ap++;
       if (ap === aliasStart) {

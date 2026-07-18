@@ -87,3 +87,18 @@ test("firstDeclStartCp: the import-insertion point is the first decl's true star
   const scan = scanFile(src, "T", true);
   assert.strictEqual(firstDeclStartCp(scan), [...src].join("").indexOf("export"));
 });
+
+test("unused-import removal: a MULTI-LINE sole-binding import removes the whole statement (audit)", () => {
+  const src = 'import {\n\tOnly\n} from "./X"\nexport FRuiNode T() {\n\treturn ( <Spacer /> );\n}\n';
+  const scan = scanFile(src, "T", true);
+  const span = unusedImportRemoval(scan, src, src.indexOf("Only"));
+  assert.ok(span, "span offered");
+  assert.strictEqual(cpSlice(src, span!.start, span!.end), 'import {\n\tOnly\n} from "./X"\n', "no dangling `} from` left behind");
+});
+
+test("unused-import removal: a tab after the comma is cleaned up too (audit)", () => {
+  const src = 'import { A,\tB } from "./X"\nexport FRuiNode T() {\n\treturn ( <A /> );\n}\n';
+  const scan = scanFile(src, "T", true);
+  const span = unusedImportRemoval(scan, src, src.indexOf("A,"));
+  assert.strictEqual(cpSlice(src, span!.start, span!.end), "A,\t", "binding + comma + the tab");
+});

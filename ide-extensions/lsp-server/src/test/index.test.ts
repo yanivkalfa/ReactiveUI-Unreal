@@ -273,3 +273,96 @@ test("rename reads DIRTY text through the overlay, never stale disk state", () =
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+// ── audit 2026-07-18: phantom-ref elimination + tracker parity pins ─────────────────────────
+
+test("audit: markup islands see setup locals — no phantom refs (rename must never edit them)", () => {
+  const src = [
+    "export FRuiNode Panel() {",
+    "\tauto Total = Compute();",
+    "\tFRuiNode Chip = <Spacer />;",
+    "\tauto AfterRange = Total;", // post-range fragment still knows Total
+    "\treturn (",
+    "\t\t<VerticalBox>",
+    "\t\t\t<TextBlock Text={ FText::AsNumber(Total) } />",
+    "\t\t\t{ Chip }",
+    "\t\t</VerticalBox>",
+    "\t);",
+    "}",
+    "",
+  ].join("\n");
+  const names = refsOf(src, "Panel").filter((r) => r.kind === "code").map((r) => r.name);
+  assert.ok(!names.includes("Total"), "setup local used in an attr expr is NOT a code ref");
+  assert.ok(!names.includes("Chip"), "value-markup local spliced as a child is NOT a code ref");
+  assert.ok(names.includes("Compute"), "the real call is still referenced");
+});
+
+test("audit: range-for vars, lambda params, and @for loop vars are locals everywhere", () => {
+  const src = [
+    "export FRuiNode Loops(TArray<FString> Items) {",
+    "\tfor (const FString& Item : Items) {",
+    "\t\tUse(Item);",
+    "\t}",
+    "\tauto Fn = [](const FLinearColor& Tint) { return Tint.R; };",
+    "\treturn (",
+    "\t\t<VerticalBox>",
+    "\t\t\t@for (int32 Row = 0; Row < 3; ++Row) {",
+    "\t\t\t\treturn ( <TextBlock Text={ FText::AsNumber(Row) } /> )",
+    "\t\t\t}",
+    "\t\t</VerticalBox>",
+    "\t);",
+    "}",
+    "",
+  ].join("\n");
+  const names = refsOf(src, "Loops").filter((r) => r.kind === "code").map((r) => r.name);
+  assert.ok(!names.includes("Item"), "range-for var is a local (header + body uses)");
+  assert.ok(!names.includes("Tint"), "lambda param is a local");
+  assert.ok(!names.includes("Row"), "@for loop var is a local inside the nested attr expr");
+});
+
+test("audit: directive-lead locals are live in the nested window; comma resets type-ish", () => {
+  const src = [
+    "export FRuiNode Lead() {",
+    "\tauto T = MakeTuple(1, Primary);", // B-arg of a call is a REF, not a decl
+    "\treturn (",
+    "\t\t<VerticalBox>",
+    "\t\t\t@if (true) {",
+    "\t\t\t\tFLinearColor Warm = Palette();",
+    "\t\t\t\treturn ( <Border BorderBackgroundColor={ Warm } /> )",
+    "\t\t\t}",
+    "\t\t</VerticalBox>",
+    "\t);",
+    "}",
+    "",
+  ].join("\n");
+  const names = refsOf(src, "Lead").filter((r) => r.kind === "code").map((r) => r.name);
+  assert.ok(!names.includes("Warm"), "directive-lead local stays local inside the nested attr expr");
+  assert.ok(names.includes("Primary"), "a call argument after a comma is still a reference");
+});
+
+test("audit: comments inside an import name list parse (the C++ SCAN-2 behavior)", () => {
+  const scan = scanFile('import { A, /* note */ B as C, // tail\n\tD } from "./m"\nexport FRuiNode T() {\n\treturn ( <Spacer /> );\n}\n', "T", true);
+  assert.strictEqual(scan.imports.length, 1);
+  assert.deepStrictEqual(scan.imports[0].names, ["A", "B", "D"]);
+  assert.deepStrictEqual(scan.imports[0].localNames, ["A", "C", "D"]);
+  assert.ok(!scan.diags.some((d) => d.code === "UETKX0300"), "no spurious bad-name diagnostic");
+});
+
+test("audit: a plain-binding rename validates only the IMPORTER it edits (no global over-refusal)", () => {
+  const { root, plain } = makeWorkspace();
+  try {
+    // `NsUser` is exported by another file and bound in NsUser.uetkx — but this rename edits
+    // ONLY PlainUser.uetkx (`Cool as NsUser`), so it must be allowed (N-04/N-05: "any EDITED
+    // file"). It still refuses names bound in the importer itself.
+    const plainText = fs.readFileSync(plain, "utf8");
+    const at = plainText.indexOf("Cool");
+    const ok = renameSymbolAt(plain, at, "NsUser", new Set());
+    assert.ok("edits" in ok, "a name bound/exported elsewhere is legal as a local alias");
+    const edits = (ok as { edits: Array<{ file: string; newText: string }> }).edits;
+    assert.ok(edits.some((e) => e.newText === "Cool as NsUser") && edits.every((e) => e.file.endsWith("PlainUser.uetkx")));
+    const clash = renameSymbolAt(plain, at, "PlainUser", new Set());
+    assert.ok("error" in clash, "a name bound in the importer itself still refuses");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

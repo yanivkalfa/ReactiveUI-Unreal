@@ -894,3 +894,15 @@ referenced from plans/PRs.
   declaration shape stays invisible (its shadow still rewrites), and markup islands see a
   conservative locals-union seed (over-suppression = a silently missed diagnostic, never a
   false one). Contract-pinned by `ShadowedNames.uetkx`; corpus untouched.
+  **Audit hardening (2026-07-18, same day):** a deep bughunt closed five gaps the first cut
+  left open — (1) the EMITTER now consults a body-wide in-scope-at-offset oracle so a setup
+  local shadowing an alias/private name survives inside attr expressions, across value-markup
+  fragmentation, and in directive frames (previously it silently emitted the WRONG symbol);
+  (2) the tracker recognizes range-for variables and lambda parameters (both twins); (3) a
+  comma no longer keeps the type-ish lookbehind (`Func(A, B = 1)` mis-declared `B` — the
+  dangerous direction; the cost is the second declarator of `Type A = X, B = Y;`, silent);
+  (4) the resolver/index body walks SKIP markup ranges, so attr names (`Value`, `Text`) no
+  longer mint junk locals that masked real 2305s; (5) the LSP index seeds markup islands from
+  the same oracle, so setup locals used in markup are never phantom refs a rename would edit.
+  Remaining residual: multi-declarator second declarators, and locals visible AFTER a lambda
+  whose parameter shadowed them (over-suppression, silent by design).

@@ -18,9 +18,12 @@ export FRuiNode ShadowedNames(FLinearColor Tint) {
 	}
 	auto Outer = RowTint;
 	auto [Shade, SetShade] = UseState(Primary);
+	FRuiNode Chip = <Spacer />;
+	auto AfterRange = Primary;
 	return (
 		<VerticalBox>
-			<Spacer />
+			<Border BorderBackgroundColor={ Primary } />
+			{ Chip }
 		</VerticalBox>
 	);
 }
