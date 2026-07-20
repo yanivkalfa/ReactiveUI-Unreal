@@ -32,7 +32,13 @@ findings LSP-1..5 + LSW-1..3, and BUILD-1 (corpus hash). The explicit assertions
 
 ---
 
-## §A. HMR — the two dev-loop fixes (~8 min; editor + VS Code, PIE running)
+## §A. HMR — SUPERSEDED: this section describes the DELETED HMR v1 (interp overrides)
+
+> **Do not test against this section.** HMR v2 replaced the interpreter with the
+> Live-Coding-driven controller; the current protocol is [HMR_FIELD_TEST.md](HMR_FIELD_TEST.md).
+
+<details><summary>historical v1 items (architecture no longer exists)</summary>
+
 
 Setup: editor open, PIE running, a gallery `.uetkx` (e.g. `Source/RuiDemo/Screens/SimpleCounter/SimpleCounter.uetkx`)
 open in your editor. This is the one place HMR-1/HMR-2 actually execute (the swap + the Live Coding patch
@@ -50,6 +56,8 @@ are runtime events no headless test forces).
       "rebuild for full behavior" actually takes effect. Before the fix, the interp override permanently
       shadowed the rebuild for the rest of the session. (MessageLog "ReactiveUI" is where the HMR status
       lines print.)
+
+</details>
 
 ## §B. CommonUI input-method — CMU-1 (~5 min; PIE with a gamepad, or split-screen)
 
