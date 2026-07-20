@@ -186,10 +186,12 @@ export FRuiNode DoomGameScreen(int32 Level = 1, int32 Diff = 1, FRuiCallback OnB
 									key="died"
 									BorderImage="WhiteBrush"
 									BorderBackgroundColor={ FLinearColor(0.10f, 0.0f, 0.0f, 0.55f) }
+									HAlign="center"
+									VAlign="center"
 									Slot.HAlign="fill"
 									Slot.VAlign="fill"
 								>
-									<VerticalBox Slot.HAlign="center" Slot.VAlign="center">
+									<VerticalBox>
 										<TextBlock
 											Text="YOU DIED"
 											Font.Size={ 48.0f }
@@ -219,10 +221,12 @@ export FRuiNode DoomGameScreen(int32 Level = 1, int32 Diff = 1, FRuiCallback OnB
 									key="won"
 									BorderImage="WhiteBrush"
 									BorderBackgroundColor={ FLinearColor(0.0f, 0.06f, 0.0f, 0.55f) }
+									HAlign="center"
+									VAlign="center"
 									Slot.HAlign="fill"
 									Slot.VAlign="fill"
 								>
-									<VerticalBox Slot.HAlign="center" Slot.VAlign="center">
+									<VerticalBox>
 										<TextBlock
 											Text="LEVEL COMPLETE"
 											Font.Size={ 42.0f }

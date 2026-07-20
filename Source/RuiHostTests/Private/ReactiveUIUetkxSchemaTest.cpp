@@ -77,7 +77,14 @@ bool FRuiUetkxSchemaTest::RunTest(const FString&)
 		TestTrue(TEXT("Font.Size styled"), HasString(StyleKeys, TEXT("Font.Size")));
 
 		TestEqual(TEXT("slot prefix"), Schema->GetStringField(TEXT("slotPrefix")), FString(TEXT("Slot.")));
-		TestEqual(TEXT("16 canonical slot keys"), Schema->GetArrayField(TEXT("slotKeys")).Num(), 16);
+		// 18 since R12: Slot.Column/Slot.Row were consumed by GridPanel/UniformGridPanel all
+		// along but missing from the canon (the LSP false-flagged them as unknown).
+		TestEqual(TEXT("18 canonical slot keys"), Schema->GetArrayField(TEXT("slotKeys")).Num(), 18);
+		TestTrue(TEXT("Slot.Column canonical"), HasString(Schema->GetArrayField(TEXT("slotKeys")), TEXT("Slot.Column")));
+		// R12 exports: the per-panel consumption map + typed kinds + enum vocabularies
+		TestTrue(TEXT("slotConsumption exported"), Schema->HasField(TEXT("slotConsumption")));
+		TestTrue(TEXT("attrEnums exported"), Schema->HasField(TEXT("attrEnums")));
+		TestTrue(TEXT("attrKinds exported"), Schema->HasField(TEXT("attrKinds")));
 
 		const TArray<TSharedPtr<FJsonValue>>& Hooks = Schema->GetArrayField(TEXT("hooks"));
 		TestEqual(TEXT("all hooks exported"), Hooks.Num(), FUetkxFileScan::HookNames().Num());

@@ -165,6 +165,10 @@ namespace RUI
 		}
 		FRuiSlotBuilder& Alignment(const FVector2D& V) { return Set(FName(TEXT("Slot.Alignment")), FRuiValue(V)); }
 		FRuiSlotBuilder& AutoSize(bool V) { return Set(FName(TEXT("Slot.AutoSize")), FRuiValue(V)); }
+		// R12: GridPanel/UniformGridPanel placement — these were consumed by the adapters all
+		// along but missing from the exported canon (the LSP flagged them as unknown).
+		FRuiSlotBuilder& Column(int32 V) { return Set(FName(TEXT("Slot.Column")), FRuiValue(static_cast<int64>(V))); }
+		FRuiSlotBuilder& Row(int32 V) { return Set(FName(TEXT("Slot.Row")), FRuiValue(static_cast<int64>(V))); }
 		FRuiSlotBuilder& Role(FName V) { return Set(FName(TEXT("Slot.Role")), FRuiValue(V)); }
 		FRuiSlotBuilder& SizeRule(FName V) { return Set(FName(TEXT("Slot.SizeRule")), FRuiValue(V)); }
 		FRuiSlotBuilder& SizeValue(float V) { return Set(FName(TEXT("Slot.SizeValue")), FRuiValue(V)); }

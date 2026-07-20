@@ -716,10 +716,24 @@ export function collectFileReferences(scan: UetkxFileScanResult, srcText: string
 export interface UetkxSweptElement {
   tag: string;
   at: number; // code points, span-buffer-relative
+  /** Index (into the SAME returned array) of the enclosing element, or undefined for a
+   *  span-root element (R12: parent-aware lints — sibling key dupes, slot-key consumption).
+   *  Directive bodies inherit the element enclosing the directive. */
+  parent?: number;
   /** `value`/`valueAt` are present only for STRING-literal values (`Name="…"`) — the R10
    *  value-validation surface. Expression holes and flag attrs carry no value fields; `form`
-   *  (R11) says which shape the attr took: `str` | `expr` | `flag`. */
-  attrs: Array<{ name: string; at: number; value?: string; valueAt?: number; form?: "str" | "expr" | "flag" }>;
+   *  (R11) says which shape the attr took: `str` | `expr` | `flag`. For expr attrs,
+   *  `exprAt`/`exprEnd` (R12) bound the hole CONTENT (between the braces) so consumers can
+   *  lint inside it (event-payload field misuse) without re-lexing. */
+  attrs: Array<{
+    name: string;
+    at: number;
+    value?: string;
+    valueAt?: number;
+    form?: "str" | "expr" | "flag";
+    exprAt?: number;
+    exprEnd?: number;
+  }>;
 }
 
 /** Sweep ONE markup span for OPEN tags and their attribute-name tokens — markup-lexis- and
@@ -727,9 +741,18 @@ export interface UetkxSweptElement {
  *  failed (the B2 masking bug — a single mismatched close tag silenced every unknown-tag/attr
  *  diagnostic). Close tags are skipped (0302 owns mismatches); attr VALUES are skipped whole
  *  (strings by markup lexis, `{ … }` holes by matching). */
-export function sweepMarkupElements(bodyCp: readonly number[], spanStart: number, spanEnd: number): UetkxSweptElement[] {
-  const out: UetkxSweptElement[] = [];
+export function sweepMarkupElements(
+  bodyCp: readonly number[],
+  spanStart: number,
+  spanEnd: number,
+  out: UetkxSweptElement[] = [],
+  seedParent?: number,
+): UetkxSweptElement[] {
   const isAttrChar = (c: number) => isIdentCp(c) || c === 46; /* . */
+  // R12: open-element stack — indexes into `out` — so every element records its enclosing
+  // element (parent-aware lints). Recursive directive-body calls append into the SAME array
+  // (indices stay valid) seeded with the element enclosing the directive.
+  const stack: number[] = [];
   let i = spanStart;
   while (i < spanEnd) {
     const j = skipNoncodeMarkup(bodyCp, i);
@@ -746,7 +769,7 @@ export function sweepMarkupElements(bodyCp: readonly number[], spanStart: number
       }
       if (c === 123 && isDirectiveBodyBrace(bodyCp, i, spanStart)) {
         for (const [rs, re] of directiveMarkupRanges(bodyCp, i, close)) {
-          out.push(...sweepMarkupElements(bodyCp, rs, re));
+          sweepMarkupElements(bodyCp, rs, re, out, stack.length ? stack[stack.length - 1] : seedParent);
         }
       }
       i = close + 1;
@@ -757,7 +780,8 @@ export function sweepMarkupElements(bodyCp: readonly number[], spanStart: number
       continue;
     }
     if (i + 1 < spanEnd && bodyCp[i + 1] === 47 /* / */) {
-      // close tag — skip to `>`
+      // close tag — pop the enclosing element, skip to `>`
+      if (stack.length) stack.pop();
       let k = i + 2;
       while (k < spanEnd && bodyCp[k] !== 62 /* > */) k++;
       i = k + 1;
@@ -770,8 +794,14 @@ export function sweepMarkupElements(bodyCp: readonly number[], spanStart: number
     const ts = i + 1;
     let k = ts;
     while (k < spanEnd && isIdentCp(bodyCp[k])) k++;
-    const el: UetkxSweptElement = { tag: fromCodePoints(bodyCp, ts, k - ts), at: ts, attrs: [] };
+    const el: UetkxSweptElement = {
+      tag: fromCodePoints(bodyCp, ts, k - ts),
+      at: ts,
+      parent: stack.length ? stack[stack.length - 1] : seedParent,
+      attrs: [],
+    };
     // attr scan until the tag bracket closes
+    let selfClosed = false;
     while (k < spanEnd) {
       const nk = skipNoncodeMarkup(bodyCp, k);
       if (nk !== k) {
@@ -786,6 +816,7 @@ export function sweepMarkupElements(bodyCp: readonly number[], spanStart: number
         continue;
       }
       if (ck === 62 /* > */ || (ck === 47 /* / */ && k + 1 < spanEnd && bodyCp[k + 1] === 62)) {
+        selfClosed = ck === 47;
         k += ck === 47 ? 2 : 1;
         break;
       }
@@ -811,6 +842,11 @@ export function sweepMarkupElements(bodyCp: readonly number[], spanStart: number
             }
           } else if (p < spanEnd && bodyCp[p] === 123 /* { */) {
             attr.form = "expr"; // the main loop's hole-skip consumes it
+            const holeClose = findMatching(bodyCp, p);
+            if (holeClose !== -1 && holeClose < spanEnd) {
+              attr.exprAt = p + 1;
+              attr.exprEnd = holeClose;
+            }
           }
         }
         el.attrs.push(attr);
@@ -819,6 +855,7 @@ export function sweepMarkupElements(bodyCp: readonly number[], spanStart: number
       k++;
     }
     out.push(el);
+    if (!selfClosed) stack.push(out.length - 1); // open element — children record it as parent
     i = k;
   }
   return out;

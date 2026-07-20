@@ -756,7 +756,9 @@
 		"Slot.SizeRule",
 		"Slot.SizeValue",
 		"Slot.MinSize",
-		"Slot.Resizable"
+		"Slot.Resizable",
+		"Slot.Column",
+		"Slot.Row"
 	],
 	"hooks": [
 		"UseState",
@@ -959,14 +961,108 @@
 		"Slot.Alignment": "vector2",
 		"Slot.Anchors": "margin",
 		"Slot.AutoSize": "bool",
+		"Slot.Column": "int",
 		"Slot.Fill": "float",
 		"Slot.MinSize": "float",
 		"Slot.Offset": "margin",
 		"Slot.Padding": "margin",
 		"Slot.Position": "vector2",
 		"Slot.Resizable": "bool",
+		"Slot.Row": "int",
 		"Slot.Size": "vector2",
 		"Slot.SizeValue": "float",
 		"Slot.ZOrder": "float"
+	},
+	"slotConsumption":
+	{
+		"BackgroundBlur": [],
+		"Border": [],
+		"Box": [],
+		"Button": [],
+		"Canvas": [
+			"Slot.Position",
+			"Slot.Size",
+			"Slot.HAlign",
+			"Slot.VAlign"
+		],
+		"CheckBox": [],
+		"ConstraintCanvas": [
+			"Slot.Offset",
+			"Slot.Anchors",
+			"Slot.Alignment",
+			"Slot.AutoSize",
+			"Slot.ZOrder"
+		],
+		"DPIScaler": [],
+		"EnableBox": [],
+		"ExpandableButton": [
+			"Slot.Role"
+		],
+		"GridPanel": [
+			"Slot.Column",
+			"Slot.Row",
+			"Slot.Padding",
+			"Slot.HAlign",
+			"Slot.VAlign"
+		],
+		"HorizontalBox": [
+			"Slot.Fill",
+			"Slot.Padding",
+			"Slot.HAlign",
+			"Slot.VAlign"
+		],
+		"InvalidationPanel": [],
+		"LinkedBox": [],
+		"MenuAnchor": [
+			"Slot.Role"
+		],
+		"Overlay": [
+			"Slot.ZOrder",
+			"Slot.Padding",
+			"Slot.HAlign",
+			"Slot.VAlign"
+		],
+		"RadialBox": [],
+		"SafeZone": [],
+		"ScaleBox": [],
+		"ScissorRectBox": [],
+		"ScrollBox": [
+			"Slot.Padding"
+		],
+		"Splitter": [
+			"Slot.SizeRule",
+			"Slot.SizeValue",
+			"Slot.MinSize",
+			"Slot.Resizable"
+		],
+		"Splitter2x2": [
+			"Slot.Role"
+		],
+		"TextScroller": [],
+		"UniformGridPanel": [
+			"Slot.Column",
+			"Slot.Row",
+			"Slot.Padding",
+			"Slot.HAlign",
+			"Slot.VAlign"
+		],
+		"UniformWrapPanel": [],
+		"VerticalBox": [
+			"Slot.Fill",
+			"Slot.Padding",
+			"Slot.HAlign",
+			"Slot.VAlign"
+		],
+		"WidgetSwitcher": [
+			"Slot.Padding",
+			"Slot.HAlign",
+			"Slot.VAlign"
+		],
+		"WindowTitleBarArea": [],
+		"WrapBox": [
+			"Slot.Padding",
+			"Slot.HAlign",
+			"Slot.VAlign"
+		]
 	}
 }

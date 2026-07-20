@@ -45,7 +45,7 @@ import { formatUetkx, UetkxFormatOptions, DEFAULT_FORMAT_OPTIONS } from "./forma
 import { scanFile } from "./uetkxFileScan";
 import { declStartCpOf, firstDeclStartCp, unusedImportRemoval, wrapperRewriteAt } from "./uetkxActions";
 import { importBindingTokens, SEMANTIC_TOKEN_TYPES } from "./semanticTokens";
-import { loadFormatterConfig, schemaForFile, UetkxSchema } from "./uetkxSchema";
+import { engineVersionForFile, loadFormatterConfig, schemaForFile, UetkxSchema } from "./uetkxSchema";
 import {
   defaultExportOf,
   findExporter,
@@ -464,6 +464,7 @@ function validate(doc: TextDocument): void {
     // schema.attrEnums is exported from the same runtime parse tables; FName comparison is
     // case-insensitive, so the check is too. Kind-format checks mirror codegen's lowering.
     const attrEnums = schema.attrEnums ?? {};
+    const engineVer = engineVersionForFile(path.dirname(fsPathOf(doc))); // R12: sinceUE gate
     // R11 — typed style/slot keys: the runtime parses well-formed string literals (SlotValue
     // readers), malformed ones Atof to 0/false SILENTLY (`RenderOpacity="abc"` → invisible).
     // Rules mirror the COMPILER's (strict numerics, no f-suffix — these are runtime literals,
@@ -602,10 +603,97 @@ function validate(doc: TextDocument): void {
       compParamsCache.set(tag, found);
       return found;
     };
+    // R12 — event payload misuse: a handler reads `Value.<Field>` but the event's payload is
+    // a DIFFERENT kind (or void — OnClicked passes a default-constructed FRuiValue), so the
+    // read compiles fine (FRuiValue exposes every field) and is silently empty/0/false at
+    // runtime forever. eventPayloads types each event; PAYLOAD_FIELDS names the members.
+    const eventPayloads = schema.eventPayloads ?? {};
+    const checkEventExpr = (a: SweptAttr & { exprAt?: number; exprEnd?: number }, bodyCp: readonly number[], baseAt: number): void => {
+      if (a.form !== "expr" || a.exprAt === undefined || a.exprEnd === undefined) return;
+      const payloadKind = eventPayloads[a.name];
+      if (payloadKind === undefined) return;
+      const want = fieldForKind(payloadKind);
+      let expr = "";
+      for (let ci = a.exprAt; ci < a.exprEnd; ci++) expr += String.fromCodePoint(bodyCp[ci]);
+      const re = /\bValue\.([A-Za-z_]\w*)/g;
+      for (let m = re.exec(expr); m !== null; m = re.exec(expr)) {
+        // StringValue is a real FRuiValue member but NO event payload kind maps to it —
+        // reading it in any handler is always-empty, same as a mismatched field (R12).
+        const pf = m[1] === "StringValue" ? { field: "StringValue" } : PAYLOAD_FIELDS.find((f) => f.field === m[1]);
+        if (!pf || (want && pf.field === want.field)) continue;
+        const off = baseAt + a.exprAt + [...expr.slice(0, m.index)].length;
+        const len = ("Value." + m[1]).length;
+        const key = `UETKX2312@${off}:${len}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        push(off, len, 0, "UETKX2312", want
+          ? `${a.name}'s payload is ${payloadKind} — read Value.${want.field}; Value.${m[1]} is always default here`
+          : `${a.name} carries no payload — Value.${m[1]} is always default here`);
+      }
+    };
     const sweepSpans = (bodyCp: readonly number[], baseAt: number, merged: Array<[number, number]>) => {
       for (const [s, e] of merged) {
-        for (const el of sweepMarkupElements(bodyCp, s, e)) {
+        const els = sweepMarkupElements(bodyCp, s, e);
+        // R12 — duplicate literal keys among siblings: the reconciler is SILENT (the first
+        // claims the old fiber; the duplicate remounts as new every render — state loss).
+        {
+          const keyGroups = new Map<number, Set<string>>();
+          for (const el of els) {
+            const keyAttr = el.attrs.find((a) => a.name === "key" && a.value !== undefined && a.valueAt !== undefined);
+            if (!keyAttr) continue;
+            const group = el.parent ?? -1;
+            let set = keyGroups.get(group);
+            if (!set) keyGroups.set(group, (set = new Set()));
+            if (set.has(keyAttr.value!)) {
+              const off = baseAt + keyAttr.valueAt!;
+              const len = Math.max(1, [...keyAttr.value!].length);
+              const dk = `UETKX0110@${off}:${len}`;
+              if (!seen.has(dk)) {
+                seen.add(dk);
+                push(off, len, 0, "UETKX0110", `duplicate key "${keyAttr.value}" among siblings — the duplicate remounts every render (state loss)`);
+              }
+            } else {
+              set.add(keyAttr.value!);
+            }
+          }
+        }
+        // R12 — a Slot.* key the PARENT's slot-apply never reads is dropped in total silence
+        // at runtime (no slot-side warning exists). Components re-slot their children — only
+        // a known host container arms the check; span roots stay unchecked (their real parent
+        // may be outside the span or the implicit root Overlay).
+        const checkSlotPlacement = (el: (typeof els)[number], a: { name: string; at: number }): void => {
+          if (!a.name.startsWith("Slot.") || el.parent === undefined) return;
+          const parentTag = els[el.parent].tag;
+          const consumed = schema.slotConsumption?.[parentTag];
+          if (!consumed || consumed.includes(a.name)) return;
+          const off = baseAt + a.at;
+          const len = [...a.name].length;
+          const dk = `UETKX0111@${off}:${len}`;
+          if (seen.has(dk)) return;
+          seen.add(dk);
+          push(off, len, 0, "UETKX0111", consumed.length === 0
+            ? `${a.name} is ignored — <${parentTag}> passes no slot properties to its child`
+            : `${a.name} is ignored by <${parentTag}> — it reads: ${consumed.join(" | ")}`);
+        };
+        for (const el of els) {
           const tagOff = baseAt + el.at;
+          // R12 — duplicate attributes: codegen emits one setter per occurrence (last wins
+          // silently); always an author error, whatever the tag is.
+          {
+            const seenNames = new Set<string>();
+            for (const a of el.attrs) {
+              if (seenNames.has(a.name)) {
+                const off = baseAt + a.at;
+                const dk = `UETKX0109@${off}:${[...a.name].length}`;
+                if (!seen.has(dk)) {
+                  seen.add(dk);
+                  push(off, [...a.name].length, 0, "UETKX0109", `duplicate attribute '${a.name}' on <${el.tag}> — the last one wins`);
+                }
+              } else {
+                seenNames.add(a.name);
+              }
+            }
+          }
           if (!validTags.has(el.tag)) {
             if (!findExporter(el.tag, fsPathOf(doc))) {
               const key = `UETKX2307@${tagOff}:${el.tag.length}`;
@@ -617,6 +705,19 @@ function validate(doc: TextDocument): void {
             continue; // a component tag — its attrs are that component's params, not schema keys
           }
           const schemaEl = schema.elements[el.tag];
+          // R12 — sinceUE: on an older engine the element's ADAPTER is compiled out but the
+          // tag/factory still compile — the widget renders a NULL SLOT at mount with only a
+          // runtime log. Warn the moment it's typed, from the .uproject's EngineAssociation.
+          if (schemaEl?.sinceUE && engineVer) {
+            const need = /^(\d+)\.(\d+)/.exec(schemaEl.sinceUE);
+            if (need && (engineVer[0] < Number(need[1]) || (engineVer[0] === Number(need[1]) && engineVer[1] < Number(need[2])))) {
+              const dk = `UETKX2313@${tagOff}:${el.tag.length}`;
+              if (!seen.has(dk)) {
+                seen.add(dk);
+                push(tagOff, el.tag.length, 0, "UETKX2313", `<${el.tag}> needs UE ${schemaEl.sinceUE}+ — this project targets ${engineVer[0]}.${engineVer[1]} (renders a null slot at runtime)`);
+              }
+            }
+          }
           if (!schemaEl) {
             // R5-4: a COMPONENT tag — its props are the component's params (same-file or
             // resolved through the import); style/slot/key/classes/Ref pass through like the
@@ -626,6 +727,7 @@ function validate(doc: TextDocument): void {
               if (universal.has(a.name)) {
                 // style/slot pass-through — same runtime parse, same closed vocabularies
                 checkAttrValue(el.tag, a, baseAt, undefined);
+                checkSlotPlacement(el, a);
                 continue;
               }
               if (!params) continue; // unresolvable target — never guess at prop names
@@ -665,10 +767,12 @@ function validate(doc: TextDocument): void {
           for (const a of el.attrs) {
             if (a.name in schemaEl.attrs) {
               checkAttrValue(el.tag, a, baseAt, schemaEl.attrs[a.name]);
+              if (schemaEl.attrs[a.name] === "event") checkEventExpr(a, bodyCp, baseAt);
               continue;
             }
             if (universal.has(a.name)) {
               checkAttrValue(el.tag, a, baseAt, undefined);
+              checkSlotPlacement(el, a);
               continue;
             }
             const attrOff = baseAt + a.at;

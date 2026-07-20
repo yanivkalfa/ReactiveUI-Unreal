@@ -328,6 +328,8 @@ static FRuiNodeArray DoomGameScreen_UetkxImpl(FRuiContext& Ctx, const FDoomGameS
 		FRuiBorderProps P;
 		P.SetBorderImage(FName(TEXT("WhiteBrush")));
 		P.SetBorderBackgroundColor((FLinearColor(0.10f, 0.0f, 0.0f, 0.55f)));
+		P.SetHAlign(FName(TEXT("center")));
+		P.SetVAlign(FName(TEXT("center")));
 		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
 		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
 		__Slot->Add(FName(TEXT("Slot.HAlign")), FRuiValue(TEXT("fill")));
@@ -337,12 +339,6 @@ static FRuiNodeArray DoomGameScreen_UetkxImpl(FRuiContext& Ctx, const FDoomGameS
 		TArray<FRuiNode> Ch;
 		Ch.Add([&]() -> FRuiNode {
 		FRuiVerticalBoxProps P;
-		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
-		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
-		__Slot->Add(FName(TEXT("Slot.HAlign")), FRuiValue(TEXT("center")));
-		__Slot->Add(FName(TEXT("Slot.VAlign")), FRuiValue(TEXT("center")));
-		if (!__Style->IsEmpty()) { P.Style = __Style; }
-		if (!__Slot->IsEmpty()) { P.SlotProps = __Slot; }
 		TArray<FRuiNode> Ch;
 		Ch.Add([&]() -> FRuiNode {
 		FRuiNode __N = RUI::TextBlock(NSLOCTEXT("Uetkx.DoomGameScreen", "DoomGameScreen_1", "YOU DIED"), FRuiKey());
@@ -404,6 +400,8 @@ static FRuiNodeArray DoomGameScreen_UetkxImpl(FRuiContext& Ctx, const FDoomGameS
 		FRuiBorderProps P;
 		P.SetBorderImage(FName(TEXT("WhiteBrush")));
 		P.SetBorderBackgroundColor((FLinearColor(0.0f, 0.06f, 0.0f, 0.55f)));
+		P.SetHAlign(FName(TEXT("center")));
+		P.SetVAlign(FName(TEXT("center")));
 		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
 		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
 		__Slot->Add(FName(TEXT("Slot.HAlign")), FRuiValue(TEXT("fill")));
@@ -413,12 +411,6 @@ static FRuiNodeArray DoomGameScreen_UetkxImpl(FRuiContext& Ctx, const FDoomGameS
 		TArray<FRuiNode> Ch;
 		Ch.Add([&]() -> FRuiNode {
 		FRuiVerticalBoxProps P;
-		TSharedRef<FRuiStyleDict> __Style = MakeShared<FRuiStyleDict>();
-		TSharedRef<FRuiStyleDict> __Slot = MakeShared<FRuiStyleDict>();
-		__Slot->Add(FName(TEXT("Slot.HAlign")), FRuiValue(TEXT("center")));
-		__Slot->Add(FName(TEXT("Slot.VAlign")), FRuiValue(TEXT("center")));
-		if (!__Style->IsEmpty()) { P.Style = __Style; }
-		if (!__Slot->IsEmpty()) { P.SlotProps = __Slot; }
 		TArray<FRuiNode> Ch;
 		Ch.Add([&]() -> FRuiNode {
 		FRuiNode __N = RUI::TextBlock(NSLOCTEXT("Uetkx.DoomGameScreen", "DoomGameScreen_4", "LEVEL COMPLETE"), FRuiKey());

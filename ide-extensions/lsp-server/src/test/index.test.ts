@@ -422,8 +422,16 @@ test("R9: tags + attrs INSIDE directive bodies are swept and indexed (the @for b
   const comp = scan.components[0];
   const bodyCp = [...comp.body].map((ch) => ch.codePointAt(0)!);
   const sp = comp.returns[comp.returns.length - 1];
-  const swept = sweepMarkupElements(bodyCp, sp.mStart, sp.mEnd).map((e) => e.tag);
+  const sweptEls = sweepMarkupElements(bodyCp, sp.mStart, sp.mEnd);
+  const swept = sweptEls.map((e) => e.tag);
   assert.ok(swept.includes("HorizontalBox") && swept.includes("Spacer"), "sweep descends directive bodies: " + swept.join(","));
+  // R12: parent links survive the directive descent — the @if's Spacer belongs to the
+  // HorizontalBox that encloses the directive, which belongs to the VerticalBox.
+  const spacer = sweptEls.find((e) => e.tag === "Spacer")!;
+  assert.equal(sweptEls[spacer.parent!]?.tag, "HorizontalBox", "directive-body element inherits the enclosing element as parent");
+  const hbox = sweptEls.find((e) => e.tag === "HorizontalBox")!;
+  assert.equal(sweptEls[hbox.parent!]?.tag, "VerticalBox", "nesting chain intact across the @for body");
+  assert.equal(sweptEls.find((e) => e.tag === "VerticalBox")!.parent, undefined, "span root has no parent");
 });
 
 test("R10: sweep captures STRING attr values; holes and flag attrs stay valueless", () => {

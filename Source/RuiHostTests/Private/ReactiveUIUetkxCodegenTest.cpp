@@ -181,9 +181,36 @@ component RowList(Names: TArray<FString>) {
 		TestTrue(TEXT("0106 flag form on a float style key"),
 				 !BadFlag.bOk && BadFlag.Diags.ContainsByPredicate([](const FUetkxDiag& D)
 																   { return D.Code == TEXT("UETKX0106"); }));
+		// R12 — duplicate attrs (last-wins was silent), duplicate literal sibling keys (silent
+		// remount + state loss), and slot keys the parent's slot-apply never reads.
+		FUetkxCompileOutput DupAttr = FUetkxCodegen::CompileSource(
+			TEXT("component Bad8 { return ( <Border Padding=\"1\" Padding=\"2\"><Spacer /></Border> ); }"),
+			TEXT("Bad8"));
+		TestTrue(TEXT("0109 duplicate attribute"),
+				 !DupAttr.bOk && DupAttr.Diags.ContainsByPredicate([](const FUetkxDiag& D)
+																   { return D.Code == TEXT("UETKX0109"); }));
+		FUetkxCompileOutput DupKey = FUetkxCodegen::CompileSource(
+			TEXT("component Bad9 { return ( <VerticalBox><Spacer key=\"a\" /><Spacer key=\"a\" />")
+				TEXT("</VerticalBox> ); }"),
+			TEXT("Bad9"));
+		TestTrue(TEXT("0110 duplicate sibling key"),
+				 !DupKey.bOk && DupKey.Diags.ContainsByPredicate([](const FUetkxDiag& D)
+																 { return D.Code == TEXT("UETKX0110"); }));
+		FUetkxCompileOutput BadSlot = FUetkxCodegen::CompileSource(
+			TEXT("component Bad10 { return ( <VerticalBox><Spacer Slot.ZOrder=\"2\" /></VerticalBox> ); }"),
+			TEXT("Bad10"));
+		TestTrue(TEXT("0111 slot key the parent never reads"),
+				 !BadSlot.bOk && BadSlot.Diags.ContainsByPredicate([](const FUetkxDiag& D)
+																   { return D.Code == TEXT("UETKX0111"); }));
+		FUetkxCompileOutput GoodSlots = FUetkxCodegen::CompileSource(
+			TEXT("component Ok8 { return ( <GridPanel><Spacer Slot.Column=\"1\" Slot.Row=\"0\" /></GridPanel> ); }"),
+			TEXT("Ok8"));
+		TestTrue(TEXT("Slot.Column/Slot.Row are REAL GridPanel keys (schema-canon fix) and compile"), GoodSlots.bOk);
+
 		FUetkxCompileOutput GoodForms = FUetkxCodegen::CompileSource(
 			TEXT("component Ok7 { return ( <VerticalBox RenderOpacity=\"0.5\" Enabled RenderTranslation=\"5,7\">")
-				TEXT("<Spacer Slot.Padding=\"1,2\" Slot.AutoSize=\"true\" /></VerticalBox> ); }"),
+				TEXT("<Spacer Slot.Padding=\"1,2\" Slot.Fill=\"1\" />")
+				TEXT("<ConstraintCanvas><Spacer Slot.AutoSize=\"true\" /></ConstraintCanvas></VerticalBox> ); }"),
 			TEXT("Ok7"));
 		TestTrue(TEXT("well-formed style/slot strings + bool flag compile"), GoodForms.bOk);
 		if (GoodForms.bOk)

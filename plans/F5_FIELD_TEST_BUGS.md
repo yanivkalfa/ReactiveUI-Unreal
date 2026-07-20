@@ -370,3 +370,61 @@ runtime already warns once per unknown class), `key` (free-form identity), brush
 float/color-string/flag-on-float + well-formed forms compile + `FRuiValue(true)` lowering;
 smoke pins the live 2311/0105 set incl. valid-value false-positive guards. 90/90 node +
 SMOKE + Uetkx/Style/Boot suites + RUICompile -check clean.
+
+---
+
+# Round 12 (2026-07-20): the broadened sweep — five more silent surfaces, one shipped-schema bug, one real demo bug
+
+Owner: "broaden our search and do one more thorough run." Two parallel audits (slot-key
+consumption per panel; classes/duplicates/sinceUE/event payloads) plus the event-payload
+thread. Findings and fixes:
+
+**1. Slot keys the parent never reads — dropped in TOTAL silence.** The audit produced the
+complete consumption map: each MultiSlot panel reads a specific subset (VerticalBox: Fill/
+Padding/HAlign/VAlign; Overlay: ZOrder/…; Canvas: Position/Size/…; Splitter: SizeRule/…),
+SingleContent parents (Border, Button, Box, ScaleBox, +10 more) receive NO slot props at
+all, and no runtime warning exists on the slot side (unlike styles' WarnUnknownKey).
+→ `SlotConsumption` map in the toolchain (30 containers), exported as `slotConsumption`;
+**UETKX0111** at compile for direct children + LSP live (parent-tracked sweep). Directive
+bodies inherit the enclosing element as parent; span roots stay unchecked (their real
+parent may be outside the span). **The gate immediately caught a real demo bug:** DoomHUD's
+"YOU DIED"/"LEVEL COMPLETE" overlays centered their content via `Slot.HAlign="center"` on a
+Border child — silently ignored; the panels were never actually centered. Fixed to Border's
+own content-alignment attrs.
+
+**2. Shipped-schema bug: `Slot.Column`/`Slot.Row` are REAL keys** (GridPanel/UniformGridPanel
+read them) **but were missing from the canon** — the LSP false-flagged them as unknown
+attributes. Added to the slot-key canon (18 now), `attrKinds` (int), the schema export, and
+`RUI::Slot().Column()/.Row()` builder methods (the builders CI gate requires parity).
+
+**3. Duplicate attributes — last-wins silently.** Parser keeps every occurrence; codegen
+emitted one setter per occurrence. → **UETKX0109** at compile (all element paths incl. the
+TextBlock fast path) + LSP live.
+
+**4. Duplicate literal sibling keys — silent remount, state loss.** The reconciler's keyed
+diff lets the first sibling claim the fiber; the duplicate remounts as NEW every render —
+deterministic, no log. → **UETKX0110** at compile (literal keys, direct children) + LSP
+live (parent-grouped, directive bodies included).
+
+**5. Event payload misuse.** `OnClicked` fires a default-constructed FRuiValue (Kind=Null) —
+`Value.TextValue` in that handler compiles (FRuiValue exposes every field) and is empty
+forever; same for a mismatched field on typed events, and `Value.StringValue` everywhere
+(no payload kind maps to it). → **UETKX2312** live (the C++ side cannot catch this — the
+fields are all legal C++).
+
+**6. sinceUE on an older engine = runtime null slot.** The adapter is compiled out
+(`UE_VERSION_OLDER_THAN` guards) but tag/factory/props still compile — mounting logs an
+error and renders a null slot; nothing warned earlier. → **UETKX2313** live, from the
+.uproject's `EngineAssociation` (skipped for custom-engine GUIDs). Currently gates one
+element (SearchableComboBox, 5.7).
+
+**Deliberately NOT validated (open sets, audited as such):** `classes` names — registration
+is runtime C++ (`RegisterStyleClass` from game code / `LoadStylesheet` strings); the
+runtime warns once per unknown class; `@uss` markup lowering is post-v1. `key` — free-form
+identity by design.
+
+**Verified:** codegen pins (0109/0110/0111 + Column/Row compiles + Ok7 restructured);
+smoke pins (parent-aware lints incl. the Column/Row false-positive guard, sinceUE via a
+real .uproject fixture, 2312 void+mismatch+correct-field-clean); index pin (parent links
+across directive descent). 90/90 node + SMOKE + Uetkx/Style/Boot/Demos suites +
+RUICompile -check clean over all 42 files (after the real demo fix).

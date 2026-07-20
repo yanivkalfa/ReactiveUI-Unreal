@@ -229,6 +229,55 @@ const settle = (ms = 300) => new Promise((r) => setTimeout(r, ms));
     fail("valid style strings and bool flags must NOT flag: " + JSON.stringify(valDiags.map((d) => d.message)));
   console.log("attr value validation OK (2311 enums + formats + style/slot strings, live 0105 expr-only)");
 
+  // R12: parent-aware lints — duplicate attrs (last wins silently), duplicate sibling keys
+  // (silent remount + state loss), slot keys the parent never reads (dropped in silence),
+  // and the schema fix: Slot.Column/Slot.Row are REAL GridPanel keys (were false-flagged)
+  const paUri = "file:///tmp/Parents.uetkx";
+  notify("textDocument/didOpen", { textDocument: { uri: paUri, languageId: "uetkx", version: 1,
+    text: 'export FRuiNode Parents() {\n\treturn ( <VerticalBox>\n\t\t<Spacer key="a" Slot.Fill="1" />\n\t\t<Spacer key="a" Slot.ZOrder="2" />\n\t\t<Border Padding="1" Padding="2"><TextBlock Text="x" Slot.Padding="4" /></Border>\n\t\t<GridPanel><Spacer Slot.Column="1" Slot.Row="0" /></GridPanel>\n\t</VerticalBox> );\n}\n' } });
+  await settle();
+  const paDiags = diagnostics[paUri] || [];
+  if (!paDiags.some((d) => String(d.code) === "UETKX0109" && /Padding.*Border/.test(d.message)))
+    fail("duplicate attribute must 0109: " + JSON.stringify(paDiags.map((d) => d.message)));
+  if (!paDiags.some((d) => String(d.code) === "UETKX0110" && /"a".*siblings/.test(d.message)))
+    fail("duplicate sibling key must 0110: " + JSON.stringify(paDiags.map((d) => d.message)));
+  if (!paDiags.some((d) => String(d.code) === "UETKX0111" && /Slot\.ZOrder is ignored by <VerticalBox>/.test(d.message)))
+    fail("unconsumed slot key must 0111: " + JSON.stringify(paDiags.map((d) => d.message)));
+  if (!paDiags.some((d) => String(d.code) === "UETKX0111" && /Slot\.Padding is ignored — <Border> passes no slot/.test(d.message)))
+    fail("slot key under a SingleContent parent must 0111");
+  if (paDiags.some((d) => /^(Slot\.Fill|Slot\.Column|Slot\.Row) is ignored/.test(d.message)))
+    fail("consumed slot keys must NOT flag (Fill under VBox; Column/Row under GridPanel): " + JSON.stringify(paDiags.map((d) => d.message)));
+  console.log("parent-aware lints OK (0109 dup attr, 0110 dup key, 0111 ignored slot keys, Column/Row clean)");
+
+  // R12: sinceUE — a too-new element renders a null slot at runtime; warn from EngineAssociation
+  const suDir = fs.mkdtempSync(path.join(os.tmpdir(), "uetkx-since-"));
+  fs.writeFileSync(path.join(suDir, "Demo.uproject"), '{"EngineAssociation": "5.6"}');
+  const suPath = path.join(suDir, "Old.uetkx").replace(/\\/g, "/");
+  const suUri = "file:///" + suPath;
+  notify("textDocument/didOpen", { textDocument: { uri: suUri, languageId: "uetkx", version: 1,
+    text: "export FRuiNode Old() {\n\treturn ( <SearchableComboBox /> );\n}\n" } });
+  await settle();
+  const suDiags = diagnostics[suUri] || [];
+  if (!suDiags.some((d) => String(d.code) === "UETKX2313" && /needs UE 5\.7\+.*5\.6.*null slot/.test(d.message)))
+    fail("sinceUE element on an older engine must 2313: " + JSON.stringify(suDiags.map((d) => d.message)));
+  fs.rmSync(suDir, { recursive: true, force: true });
+  console.log("sinceUE gate OK (2313 from EngineAssociation)");
+
+  // R12: event payload misuse — reading Value.<Field> that the event never carries compiles
+  // fine (FRuiValue exposes every field) and is silently default at runtime forever
+  const epUri = "file:///tmp/Payload.uetkx";
+  notify("textDocument/didOpen", { textDocument: { uri: epUri, languageId: "uetkx", version: 1,
+    text: 'export FRuiNode Payload() {\n\treturn ( <VerticalBox>\n\t\t<Button OnClicked={ UseLog(Value.TextValue) }>a</Button>\n\t\t<EditableTextBox OnTextChanged={ UseLog(Value.BoolValue) } />\n\t\t<EditableTextBox OnTextCommitted={ UseLog(Value.TextValue) } />\n\t</VerticalBox> );\n}\n' } });
+  await settle();
+  const epDiags = diagnostics[epUri] || [];
+  if (!epDiags.some((d) => String(d.code) === "UETKX2312" && /OnClicked carries no payload.*TextValue/.test(d.message)))
+    fail("payload read on a void event must 2312: " + JSON.stringify(epDiags.map((d) => d.message)));
+  if (!epDiags.some((d) => String(d.code) === "UETKX2312" && /OnTextChanged.*text.*BoolValue/.test(d.message)))
+    fail("wrong payload field must 2312: " + JSON.stringify(epDiags.map((d) => d.message)));
+  if (epDiags.some((d) => String(d.code) === "UETKX2312" && /OnTextCommitted/.test(d.message)))
+    fail("the RIGHT payload field must NOT flag: " + JSON.stringify(epDiags.map((d) => d.message)));
+  console.log("event payload misuse OK (2312 void + mismatch, correct field clean)");
+
   // R10: value completion — ctrl+space inside `HAlign="|"` offers the closed vocabulary
   const vcUri = "file:///tmp/ValComp.uetkx";
   const vcText = 'export FRuiNode ValComp() {\n\treturn ( <Border HAlign="" /> );\n}\n';

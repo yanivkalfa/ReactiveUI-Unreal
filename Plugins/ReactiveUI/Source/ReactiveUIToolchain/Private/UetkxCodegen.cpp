@@ -603,8 +603,60 @@ namespace
 			{TEXT("Slot.MinSize"), TEXT("float")},
 			{TEXT("Slot.AutoSize"), TEXT("bool")},
 			{TEXT("Slot.Resizable"), TEXT("bool")},
+			{TEXT("Slot.Column"), TEXT("int")},
+			{TEXT("Slot.Row"), TEXT("int")},
 		};
 		return Kinds;
+	}
+
+	// R12 — which Slot.* keys each container's slot-apply actually READS (audited from the
+	// adapter code; SingleContent parents receive no SlotProps at all, so their sets are
+	// empty). A slot key the parent never reads is dropped in TOTAL SILENCE at runtime —
+	// no warning exists on the slot side. Exported as `slotConsumption`; enforced here as
+	// UETKX0111 for direct children and live by the LSP (root elements behave as children
+	// of the implicit SOverlay root panel).
+	const TMap<FString, TArray<FString>>& SlotConsumption()
+	{
+		static const TMap<FString, TArray<FString>> Map = {
+			{TEXT("VerticalBox"), {TEXT("Slot.Fill"), TEXT("Slot.Padding"), TEXT("Slot.HAlign"), TEXT("Slot.VAlign")}},
+			{TEXT("HorizontalBox"),
+			 {TEXT("Slot.Fill"), TEXT("Slot.Padding"), TEXT("Slot.HAlign"), TEXT("Slot.VAlign")}},
+			{TEXT("Overlay"), {TEXT("Slot.ZOrder"), TEXT("Slot.Padding"), TEXT("Slot.HAlign"), TEXT("Slot.VAlign")}},
+			{TEXT("Canvas"), {TEXT("Slot.Position"), TEXT("Slot.Size"), TEXT("Slot.HAlign"), TEXT("Slot.VAlign")}},
+			{TEXT("ScrollBox"), {TEXT("Slot.Padding")}},
+			{TEXT("WidgetSwitcher"), {TEXT("Slot.Padding"), TEXT("Slot.HAlign"), TEXT("Slot.VAlign")}},
+			{TEXT("WrapBox"), {TEXT("Slot.Padding"), TEXT("Slot.HAlign"), TEXT("Slot.VAlign")}},
+			{TEXT("GridPanel"),
+			 {TEXT("Slot.Column"), TEXT("Slot.Row"), TEXT("Slot.Padding"), TEXT("Slot.HAlign"), TEXT("Slot.VAlign")}},
+			{TEXT("UniformGridPanel"),
+			 {TEXT("Slot.Column"), TEXT("Slot.Row"), TEXT("Slot.Padding"), TEXT("Slot.HAlign"), TEXT("Slot.VAlign")}},
+			{TEXT("ConstraintCanvas"),
+			 {TEXT("Slot.Offset"), TEXT("Slot.Anchors"), TEXT("Slot.Alignment"), TEXT("Slot.AutoSize"),
+			  TEXT("Slot.ZOrder")}},
+			{TEXT("Splitter"),
+			 {TEXT("Slot.SizeRule"), TEXT("Slot.SizeValue"), TEXT("Slot.MinSize"), TEXT("Slot.Resizable")}},
+			{TEXT("Splitter2x2"), {TEXT("Slot.Role")}},
+			{TEXT("MenuAnchor"), {TEXT("Slot.Role")}},
+			{TEXT("ExpandableButton"), {TEXT("Slot.Role")}},
+			{TEXT("RadialBox"), {}},
+			{TEXT("UniformWrapPanel"), {}},
+			// SingleContent containers: SetContent path — SlotProps never reach the parent.
+			{TEXT("Border"), {}},
+			{TEXT("Box"), {}},
+			{TEXT("Button"), {}},
+			{TEXT("CheckBox"), {}},
+			{TEXT("ScaleBox"), {}},
+			{TEXT("SafeZone"), {}},
+			{TEXT("DPIScaler"), {}},
+			{TEXT("EnableBox"), {}},
+			{TEXT("ScissorRectBox"), {}},
+			{TEXT("BackgroundBlur"), {}},
+			{TEXT("InvalidationPanel"), {}},
+			{TEXT("TextScroller"), {}},
+			{TEXT("WindowTitleBarArea"), {}},
+			{TEXT("LinkedBox"), {}},
+		};
+		return Map;
 	}
 
 	bool IsNumericLiteral(const FString& S)
@@ -1299,9 +1351,11 @@ namespace
 		/** One node as a C++ FRuiNode expression. */
 		FString EmitNodeExpr(const FUetkxNode& Node, int32 AbsAt, int32 TrueBase = -1);
 
-		/** Children statements appending into `Ch`. */
+		/** Children statements appending into `Ch`. `ParentTag` (R12), when it names a known
+		 *  container, arms the direct-child checks: duplicate literal sibling keys (UETKX0110)
+		 *  and slot keys the parent's slot-apply never reads (UETKX0111). */
 		void EmitChildren(FString& Out, const TArray<TSharedPtr<FUetkxNode>>& Children, const FString& Indent,
-						  int32 AbsAt, int32 TrueBase = -1);
+						  int32 AbsAt, int32 TrueBase = -1, const FString& ParentTag = FString());
 
 		/** A directive body: C++ statements ending in `return ( <markup> )` — leading
 		 *  statements splice verbatim, the returned markup lowers to Ch.Add(...). */
@@ -1406,6 +1460,28 @@ namespace
 			if (!UseAts.Contains(Node.Tag))
 			{
 				UseAts.Add(Node.Tag, AbsAt + Node.At);
+			}
+		}
+
+		// R12 — duplicate attributes: the parser keeps every occurrence and codegen used to
+		// emit one setter per occurrence (last wins SILENTLY). Always an author error.
+		{
+			TSet<FString> SeenAttrNames;
+			for (const FUetkxAttr& Attr : Node.Attrs)
+			{
+				if (Attr.Kind == EUetkxAttrKind::Comment)
+				{
+					continue;
+				}
+				bool bDup = false;
+				SeenAttrNames.Add(Attr.Name, &bDup);
+				if (bDup)
+				{
+					Fail(TEXT("UETKX0109"),
+						 FString::Printf(TEXT("duplicate attribute '%s' on <%s> — the last one wins"), *Attr.Name,
+										 *Node.Tag),
+						 AbsAt + Attr.At);
+				}
 			}
 		}
 
@@ -1780,14 +1856,65 @@ namespace
 			return Out;
 		}
 		Out += TEXT("\t\tTArray<FRuiNode> Ch;\n");
-		EmitChildren(Out, Node.Children, TEXT("\t\t"), AbsAt, TrueBase);
+		// R12: components re-slot their children wherever their own markup places them —
+		// only a HOST container's tag arms the direct-child slot/key checks.
+		EmitChildren(Out, Node.Children, TEXT("\t\t"), AbsAt, TrueBase, bComponent ? FString() : Node.Tag);
 		Out += FString::Printf(TEXT("\t\treturn %s(MoveTemp(P), MoveTemp(Ch), %s);\n\t}()"), *Factory, *Key);
 		return Out;
 	}
 
 	void FEmitter::EmitChildren(FString& Out, const TArray<TSharedPtr<FUetkxNode>>& Children, const FString& Indent,
-								int32 AbsAt, int32 TrueBase)
+								int32 AbsAt, int32 TrueBase, const FString& ParentTag)
 	{
+		// R12 pre-pass over DIRECT element children (directive bodies lower without parent
+		// context — the LSP's parent-tracked sweep covers those live):
+		//   0110 — duplicate literal sibling keys: the reconciler is silent (first claims the
+		//   fiber, the duplicate remounts as new — state loss with no diagnostic).
+		//   0111 — slot keys the parent's slot-apply never reads: dropped in total silence.
+		{
+			const TArray<FString>* Consumed =
+				ParentTag.IsEmpty() ? nullptr : SlotConsumption().Find(ParentTag);
+			TSet<FString> SeenKeys;
+			for (const TSharedPtr<FUetkxNode>& ChildPtr : Children)
+			{
+				if (!ChildPtr.IsValid() || ChildPtr->Type != EUetkxNodeType::El)
+				{
+					continue;
+				}
+				for (const FUetkxAttr& Attr : ChildPtr->Attrs)
+				{
+					if (Attr.Kind == EUetkxAttrKind::Comment)
+					{
+						continue;
+					}
+					if (Attr.Name == TEXT("key") && Attr.Kind == EUetkxAttrKind::Str)
+					{
+						bool bDup = false;
+						SeenKeys.Add(Attr.Value, &bDup);
+						if (bDup)
+						{
+							Fail(TEXT("UETKX0110"),
+								 FString::Printf(TEXT("duplicate key \"%s\" among siblings — the duplicate "
+													  "remounts every render (state loss)"),
+												 *Attr.Value),
+								 AbsAt + Attr.At);
+						}
+					}
+					else if (Consumed != nullptr && Attr.Name.StartsWith(TEXT("Slot.")) &&
+							 !Consumed->Contains(Attr.Name))
+					{
+						Fail(TEXT("UETKX0111"),
+							 Consumed->IsEmpty()
+								 ? FString::Printf(TEXT("%s is ignored — <%s> passes no slot properties to "
+														"its child"),
+												   *Attr.Name, *ParentTag)
+								 : FString::Printf(TEXT("%s is ignored by <%s> — it reads: %s"), *Attr.Name,
+												   *ParentTag, *FString::Join(*Consumed, TEXT(" | "))),
+							 AbsAt + Attr.At);
+					}
+				}
+			}
+		}
 		for (const TSharedPtr<FUetkxNode>& ChildPtr : Children)
 		{
 			if (!ChildPtr.IsValid())
@@ -2471,7 +2598,7 @@ FString FUetkxCodegen::ExportSchemaJson()
 		 {TEXT("Slot.Padding"), TEXT("Slot.HAlign"), TEXT("Slot.VAlign"), TEXT("Slot.Fill"), TEXT("Slot.ZOrder"),
 		  TEXT("Slot.Position"), TEXT("Slot.Size"), TEXT("Slot.Offset"), TEXT("Slot.Anchors"), TEXT("Slot.Alignment"),
 		  TEXT("Slot.AutoSize"), TEXT("Slot.Role"), TEXT("Slot.SizeRule"), TEXT("Slot.SizeValue"), TEXT("Slot.MinSize"),
-		  TEXT("Slot.Resizable")})
+		  TEXT("Slot.Resizable"), TEXT("Slot.Column"), TEXT("Slot.Row")})
 	{
 		SlotArray.Add(MakeShared<FJsonValueString>(Key));
 	}
@@ -2553,6 +2680,23 @@ FString FUetkxCodegen::ExportSchemaJson()
 		AttrKindsJson->SetStringField(KindKey, StyleSlotKinds()[KindKey]);
 	}
 	Root->SetObjectField(TEXT("attrKinds"), AttrKindsJson);
+
+	// R12: which Slot.* keys each container's slot-apply READS (see SlotConsumption) — the
+	// LSP's silently-ignored-slot-key check. Empty array = passes no slot props to children.
+	TSharedRef<FJsonObject> SlotConsumptionJson = MakeShared<FJsonObject>();
+	TArray<FString> ConsumerTags;
+	SlotConsumption().GetKeys(ConsumerTags);
+	ConsumerTags.Sort();
+	for (const FString& ConsumerTag : ConsumerTags)
+	{
+		TArray<TSharedPtr<FJsonValue>> Keys;
+		for (const FString& K : SlotConsumption()[ConsumerTag])
+		{
+			Keys.Add(MakeShared<FJsonValueString>(K));
+		}
+		SlotConsumptionJson->SetArrayField(ConsumerTag, Keys);
+	}
+	Root->SetObjectField(TEXT("slotConsumption"), SlotConsumptionJson);
 
 	FString Out;
 	const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);
