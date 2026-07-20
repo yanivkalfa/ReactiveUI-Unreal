@@ -570,8 +570,24 @@ function validate(doc: TextDocument): void {
           // at the attr name exactly like the compiler does so the sidecar dedupes.
           emit(baseAt + a.at, [...a.name].length, "UETKX0105", `attribute '${a.name}' on <${tag}> needs an {expr} value (no string form)`);
           break;
+        case "name": {
+          // R13 — brush names: resolved at runtime EXCLUSIVELY through FCoreStyle (the fixed
+          // engine style set, enumerated into the schema at export time) — a closed set per
+          // engine. Unknown → Slate's "missing resource" brush, silently.
+          if (!schema.brushAttrs?.includes(a.name) || !schema.brushNames?.length) break;
+          const lc = a.value.toLowerCase();
+          if (schema.brushNames.some((b) => b.toLowerCase() === lc)) break;
+          let nearest: string | null = null;
+          for (const b of schema.brushNames) {
+            // cheap did-you-mean: case-folded containment either way, shortest wins
+            const bl = b.toLowerCase();
+            if ((bl.includes(lc) || lc.includes(bl)) && (nearest === null || b.length < nearest.length)) nearest = b;
+          }
+          emit(vOff, vLen, "UETKX2311", `invalid value '${a.value}' for ${a.name} — not a brush registered in FCoreStyle${nearest ? ` (did you mean "${nearest}"?)` : ""}`);
+          break;
+        }
         default:
-          break; // text/name: any string is legal (enum-ish names are covered by attrEnums)
+          break; // text / non-brush name: any string is legal (enum-ish names are in attrEnums)
       }
     };
     type CompParam = { name: string; type: string };
@@ -1023,14 +1039,16 @@ connection.onCompletion(async (params): Promise<CompletionItem[] | CompletionLis
     return items;
   }
 
-  // R10: inside a STRING attr value (`HAlign="|"`) the closed vocabulary IS the completion
-  // set — the same attrEnums the value validator (UETKX2311) enforces. Typos here fall back
-  // silently at runtime, so authors should never have to guess these spellings.
+  // R10/R13: inside a STRING attr value (`HAlign="|"`, `BorderImage="|"`) the closed
+  // vocabulary IS the completion set — the same sets the value validator (UETKX2311)
+  // enforces: enum vocabularies, the engine's FCoreStyle brush names, and true/false for
+  // bool-kind keys. Typos here fall back silently at runtime — never make authors guess.
   {
     const tail = text.slice(Math.max(0, offEarly - 160), offEarly);
     const m = /([A-Za-z_][A-Za-z0-9_.]*)\s*=\s*"([A-Za-z0-9_]*)$/.exec(tail);
     if (m) {
-      const vocab = schemaOf(doc).attrEnums?.[m[1]];
+      const schemaVal = schemaOf(doc);
+      const vocab = schemaVal.attrEnums?.[m[1]];
       if (vocab) {
         return vocab.map((v, i) => ({
           label: v,
@@ -1038,6 +1056,26 @@ connection.onCompletion(async (params): Promise<CompletionItem[] | CompletionLis
           detail: `${m[1]} — one of ${vocab.length}`,
           sortText: "0" + String(i).padStart(2, "0"), // schema order: canonical spellings first
         }));
+      }
+      if (schemaVal.brushAttrs?.includes(m[1]) && schemaVal.brushNames?.length) {
+        return schemaVal.brushNames.map((b) => ({
+          label: b,
+          kind: CompletionItemKind.Color,
+          detail: "FCoreStyle brush",
+        }));
+      }
+      const kinds = new Set<string>();
+      const sk = schemaVal.attrKinds?.[m[1]];
+      if (sk) kinds.add(sk);
+      for (const el of Object.values(schemaVal.elements)) {
+        const k = (el.attrs as Record<string, string>)[m[1]];
+        if (k) kinds.add(k);
+      }
+      if (kinds.has("bool")) {
+        return [
+          { label: "true", kind: CompletionItemKind.EnumMember, detail: `${m[1]} — bool`, sortText: "0" },
+          { label: "false", kind: CompletionItemKind.EnumMember, detail: `${m[1]} — bool`, sortText: "1" },
+        ];
       }
     }
   }

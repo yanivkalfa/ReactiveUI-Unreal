@@ -207,6 +207,27 @@ component RowList(Names: TArray<FString>) {
 			TEXT("Ok8"));
 		TestTrue(TEXT("Slot.Column/Slot.Row are REAL GridPanel keys (schema-canon fix) and compile"), GoodSlots.bOk);
 
+		// R13 — brush names: closed per engine (FCoreStyle chain); the environment set is
+		// injected. A deterministic vocabulary here; disarmed (empty) again after — the
+		// editor module re-injects the real set per process, and markup-compiling
+		// commandlets run in their own processes.
+		FUetkxCodegen::SetEnvironmentBrushNames({TEXT("WhiteBrush"), TEXT("GenericWhiteBox")});
+		FUetkxCompileOutput BadBrush = FUetkxCodegen::CompileSource(
+			TEXT("component Bad11 { return ( <Border BorderImage=\"WhissssssteBrush\"><Spacer /></Border> ); }"),
+			TEXT("Bad11"));
+		TestTrue(TEXT("0106 unknown brush name"),
+				 !BadBrush.bOk && BadBrush.Diags.ContainsByPredicate([](const FUetkxDiag& D)
+																	 { return D.Code == TEXT("UETKX0106"); }));
+		FUetkxCompileOutput GoodBrush = FUetkxCodegen::CompileSource(
+			TEXT("component Ok9 { return ( <Border BorderImage=\"whitebrush\"><Spacer /></Border> ); }"),
+			TEXT("Ok9"));
+		TestTrue(TEXT("registered brush compiles (case-insensitive, FName semantics)"), GoodBrush.bOk);
+		FUetkxCodegen::SetEnvironmentBrushNames({});
+		FUetkxCompileOutput NoEnv = FUetkxCodegen::CompileSource(
+			TEXT("component Ok10 { return ( <Border BorderImage=\"AnythingGoes\"><Spacer /></Border> ); }"),
+			TEXT("Ok10"));
+		TestTrue(TEXT("un-injected environment disarms the brush check"), NoEnv.bOk);
+
 		FUetkxCompileOutput GoodForms = FUetkxCodegen::CompileSource(
 			TEXT("component Ok7 { return ( <VerticalBox RenderOpacity=\"0.5\" Enabled RenderTranslation=\"5,7\">")
 				TEXT("<Spacer Slot.Padding=\"1,2\" Slot.Fill=\"1\" />")

@@ -712,6 +712,28 @@ namespace
 				   : FString::Printf(TEXT("invalid value '%s' for %s — 1, 2, or 4 numbers"), *Value, *Key);
 	}
 
+	// R13 — brush-name attrs resolve at runtime EXCLUSIVELY through FCoreStyle::Get() (the
+	// fixed engine style set; nothing user-registered enters that lookup), so the valid set
+	// is closed PER ENGINE. The editor module enumerates it at startup and injects it here
+	// (see SetEnvironmentBrushNames); un-injected (bare unit contexts) the check disarms.
+	const TSet<FString>& BrushAttrs()
+	{
+		static const TSet<FString> Attrs = {TEXT("BorderImage")};
+		return Attrs;
+	}
+
+	struct FEnvironmentBrushes
+	{
+		TArray<FString> Names;	  // original casing, sorted — the schema export / completion set
+		TSet<FString> LowerNames; // case-folded — validation (FName lookups are case-insensitive)
+	};
+
+	FEnvironmentBrushes& EnvironmentBrushes()
+	{
+		static FEnvironmentBrushes Brushes;
+		return Brushes;
+	}
+
 	/** nullptr when Key has no closed vocabulary; else the vocabulary Value failed (case-
 	 *  insensitive) — the caller formats the diagnostic. */
 	const TArray<FString>* FailedAttrEnum(const FString& Key, const FString& Value)
@@ -1808,6 +1830,18 @@ namespace
 							 AbsAt + Attr.At);
 						continue;
 					}
+					// R13: brush names — closed per engine (FCoreStyle only); the injected
+					// environment set is the truth. Unknown → Slate's "missing resource" brush.
+					if (BrushAttrs().Contains(Attr.Name) && EnvironmentBrushes().LowerNames.Num() > 0 &&
+						!EnvironmentBrushes().LowerNames.Contains(Attr.Value.ToLower()))
+					{
+						Fail(TEXT("UETKX0106"),
+							 FString::Printf(
+								 TEXT("invalid value '%s' for %s — not a brush registered in FCoreStyle"),
+								 *Attr.Value, *Attr.Name),
+							 AbsAt + Attr.At);
+						continue;
+					}
 					Value = FString::Printf(TEXT("FName(TEXT(\"%s\"))"), *CppStringLiteral(Attr.Value));
 					break;
 				case EAttrType::Float:
@@ -2522,6 +2556,18 @@ FUetkxCompileOutput FUetkxCodegen::CompileSource(const FString& Source, const FS
 	return Out;
 }
 
+void FUetkxCodegen::SetEnvironmentBrushNames(TArray<FString> InNames)
+{
+	FEnvironmentBrushes& Brushes = EnvironmentBrushes();
+	Brushes.Names = MoveTemp(InNames);
+	Brushes.Names.Sort();
+	Brushes.LowerNames.Empty(Brushes.Names.Num());
+	for (const FString& Name : Brushes.Names)
+	{
+		Brushes.LowerNames.Add(Name.ToLower());
+	}
+}
+
 FString FUetkxCodegen::ExportSchemaJson()
 {
 	auto TypeName = [](EAttrType Type) -> const TCHAR*
@@ -2697,6 +2743,26 @@ FString FUetkxCodegen::ExportSchemaJson()
 		SlotConsumptionJson->SetArrayField(ConsumerTag, Keys);
 	}
 	Root->SetObjectField(TEXT("slotConsumption"), SlotConsumptionJson);
+
+	// R13: brush-name attrs + the engine's registered FCoreStyle brush set (injected by the
+	// editor module — absent in bare unit contexts, and the LSP disarms accordingly).
+	TArray<TSharedPtr<FJsonValue>> BrushAttrArray;
+	TArray<FString> SortedBrushAttrs = BrushAttrs().Array();
+	SortedBrushAttrs.Sort();
+	for (const FString& A : SortedBrushAttrs)
+	{
+		BrushAttrArray.Add(MakeShared<FJsonValueString>(A));
+	}
+	Root->SetArrayField(TEXT("brushAttrs"), BrushAttrArray);
+	if (EnvironmentBrushes().Names.Num() > 0)
+	{
+		TArray<TSharedPtr<FJsonValue>> BrushNameArray;
+		for (const FString& Name : EnvironmentBrushes().Names)
+		{
+			BrushNameArray.Add(MakeShared<FJsonValueString>(Name));
+		}
+		Root->SetArrayField(TEXT("brushNames"), BrushNameArray);
+	}
 
 	FString Out;
 	const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);

@@ -278,6 +278,38 @@ const settle = (ms = 300) => new Promise((r) => setTimeout(r, ms));
     fail("the RIGHT payload field must NOT flag: " + JSON.stringify(epDiags.map((d) => d.message)));
   console.log("event payload misuse OK (2312 void + mismatch, correct field clean)");
 
+  // R13: brush names — closed per engine (the schema carries FCoreStyle's resolvable set);
+  // the owner's exact mangle, plus a did-you-mean and the valid spelling staying clean
+  const brUri = "file:///tmp/Brush.uetkx";
+  notify("textDocument/didOpen", { textDocument: { uri: brUri, languageId: "uetkx", version: 1,
+    text: 'export FRuiNode Brush() {\n\treturn ( <VerticalBox>\n\t\t<Border BorderImage="WhissssssteBrush"><Spacer /></Border>\n\t\t<Border BorderImage="WhiteBrus"><Spacer /></Border>\n\t\t<Border BorderImage="WhiteBrush"><Spacer /></Border>\n\t</VerticalBox> );\n}\n' } });
+  await settle();
+  const brDiags = diagnostics[brUri] || [];
+  if (!brDiags.some((d) => String(d.code) === "UETKX2311" && /WhissssssteBrush.*not a brush registered in FCoreStyle/.test(d.message)))
+    fail("unknown brush must 2311: " + JSON.stringify(brDiags.map((d) => d.message)));
+  if (!brDiags.some((d) => String(d.code) === "UETKX2311" && /WhiteBrus'.*did you mean "WhiteBrush"/.test(d.message)))
+    fail("near-miss brush must suggest the real one: " + JSON.stringify(brDiags.map((d) => d.message)));
+  if (brDiags.some((d) => /'WhiteBrush'/.test(d.message)))
+    fail("the REGISTERED brush must not flag");
+  console.log("brush-name validation OK (2311 + did-you-mean, registered name clean)");
+
+  // R13: brush + bool value completion
+  const bcUri = "file:///tmp/BrushComp.uetkx";
+  const bcText = 'export FRuiNode BrushComp() {\n\treturn ( <Border BorderImage=""><TextBlock Text="t" AutoWrapText="" /></Border> );\n}\n';
+  notify("textDocument/didOpen", { textDocument: { uri: bcUri, languageId: "uetkx", version: 1, text: bcText } });
+  const bcLine = bcText.split("\n")[1];
+  const bcRes = await request("textDocument/completion", { textDocument: { uri: bcUri },
+    position: { line: 1, character: bcLine.indexOf('BorderImage=""') + 'BorderImage="'.length } });
+  const bcLabels = ((bcRes.result && (bcRes.result.items || bcRes.result)) || []).map((it) => it.label);
+  if (!bcLabels.includes("WhiteBrush"))
+    fail("brush completion must offer FCoreStyle names: " + JSON.stringify(bcLabels.slice(0, 5)));
+  const boolRes = await request("textDocument/completion", { textDocument: { uri: bcUri },
+    position: { line: 1, character: bcLine.indexOf('AutoWrapText=""') + 'AutoWrapText="'.length } });
+  const boolLabels = ((boolRes.result && (boolRes.result.items || boolRes.result)) || []).map((it) => it.label);
+  if (!boolLabels.includes("true") || !boolLabels.includes("false"))
+    fail("bool value completion must offer true/false: " + JSON.stringify(boolLabels));
+  console.log("brush + bool value completion OK");
+
   // R10: value completion — ctrl+space inside `HAlign="|"` offers the closed vocabulary
   const vcUri = "file:///tmp/ValComp.uetkx";
   const vcText = 'export FRuiNode ValComp() {\n\treturn ( <Border HAlign="" /> );\n}\n';

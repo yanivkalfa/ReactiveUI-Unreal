@@ -59,4 +59,11 @@ public:
 	/** The markup vocabulary as JSON — elements/attrs (typed), style keys, slot keys, hooks.
 	 *  RUIExportSchema writes this to Saved/ReactiveUI/schema.json for the LSP (Phase 5). */
 	static FString ExportSchemaJson();
+
+	/** R13 — engine-environment brush names (the FCoreStyle set). The toolchain deliberately
+	 *  has no Slate dependency, so the EDITOR module enumerates the style set at startup and
+	 *  injects it here; brush-name attrs (BorderImage) then validate at compile (UETKX0106)
+	 *  and the set exports to the schema as `brushNames` for the LSP. Empty (never injected —
+	 *  bare unit contexts) disarms the check and omits the export. */
+	static void SetEnvironmentBrushNames(TArray<FString> InNames);
 };

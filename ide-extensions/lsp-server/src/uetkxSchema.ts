@@ -31,6 +31,13 @@ export interface UetkxSchema {
    *  parent never reads is dropped in TOTAL silence at runtime. Root elements behave as
    *  children of the implicit SOverlay root panel. Absent in older shipped schemas. */
   slotConsumption?: Record<string, string[]>;
+  /** R13: attrs whose string value is a BRUSH NAME (BorderImage) — resolved at runtime
+   *  exclusively through FCoreStyle::Get(), the fixed engine style set. */
+  brushAttrs?: string[];
+  /** R13: the engine's registered FCoreStyle brush names, enumerated by the editor module at
+   *  schema-export time (closed per engine version). Absent when the export ran in a bare
+   *  unit context — validation and completion disarm without it. */
+  brushNames?: string[];
 }
 
 let shipped: UetkxSchema | null = null;

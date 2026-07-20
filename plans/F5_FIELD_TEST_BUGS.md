@@ -428,3 +428,45 @@ smoke pins (parent-aware lints incl. the Column/Row false-positive guard, sinceU
 real .uproject fixture, 2312 void+mismatch+correct-field-clean); index pin (parent links
 across directive descent). 90/90 node + SMOKE + Uetkx/Style/Boot/Demos suites +
 RUICompile -check clean over all 42 files (after the real demo fix).
+
+---
+
+# Round 13 (2026-07-20): brush names — the "open set" verdict was wrong; it's closed per engine
+
+Owner: `BorderImage="WhiteBrush"` still takes anything, and value completion is inconsistent
+(Justification completes, BorderImage doesn't).
+
+**Re-audit of the round-10 verdict:** BorderImage resolves at runtime EXCLUSIVELY through
+`FCoreStyle::Get().GetBrush(...)` — the fixed engine style set. Nothing user-registered
+enters that lookup, so the valid names are CLOSED per engine version. And the schema
+exporter runs inside the engine — it can enumerate the real set.
+
+**Two engine-API traps found while building it:**
+- In the editor process, `FCoreStyle::Get()` is the full Starship editor style (3170 keys of
+  editor chrome), not the slim runtime set.
+- `GetStyleKeys()` does NOT walk the parent-style chain — `WhiteBrush` lives in the true
+  core style BEHIND the editor style's parent link, so the naive enumeration missed the one
+  name our own demo uses (while `GetBrush` resolves it through the chain).
+
+**Fix (layered per D-27):** the toolchain declares WHICH attrs are brush names
+(`brushAttrs: [BorderImage]`) and takes an injected environment set
+(`FUetkxCodegen::SetEnvironmentBrushNames`); the EDITOR module (which owns Slate deps)
+enumerates at startup — candidates from every registered style set via
+`FSlateStyleRegistry::IterateAllStyles`, kept only if they RESOLVE through the exact
+adapter lookup (`GetOptionalBrush` follows the chain; 3519 names on 5.6). Un-injected
+(bare unit contexts) the check disarms. Compile: UETKX0106 (case-insensitive, FName
+semantics). Schema: `brushNames` exported (per-engine — the live export always matches the
+project's engine). LSP: 2311 with a did-you-mean, plus VALUE COMPLETION inside the quotes —
+brush names for brush attrs, true/false for bool-kind keys (the completion asymmetry the
+owner noticed: enum keys completed since R10, brush/bool keys completed nothing).
+
+**Honest caveat (ledgered, not hidden):** the enumerated set is the EDITOR environment's
+resolvable set — a superset of a shipped game's slim core style. A name valid only in the
+editor still nulls out in a packaged build (runtime logs). The check's job is killing
+typos, which this does; per-target-set precision would need runtime enumeration hooks.
+
+**Verified:** C++ pins (0106 unknown brush w/ injected vocab, case-insensitive valid,
+disarmed-when-empty); smoke pins (owner's exact `WhissssssteBrush` → 2311; `WhiteBrus` →
+did-you-mean `WhiteBrush`; registered name clean; completion offers WhiteBrush inside
+`BorderImage=""` and true/false inside `AutoWrapText=""`). 90/90 node + SMOKE + engine
+suites + -check clean.
