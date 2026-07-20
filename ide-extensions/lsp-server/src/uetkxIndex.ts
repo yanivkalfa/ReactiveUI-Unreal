@@ -216,7 +216,13 @@ export class UetkxScopedLocals {
         // never does; ternary arms are safe — the `?` reset kills type-ish first)
         const colon = p2 < n && cp[p2] === 58 && (p2 + 1 >= n || cp[p2 + 1] !== 58);
         const brace = p2 < n && cp[p2] === 123; /* { */
-        if (!member && !scoped && prevTypeish && (eq || semi || brace || colon)) {
+        // R14: ctor-style declarations — `const FLinearColor PanelBg(0.2f, …);`. Safe: the
+        // branch needs a TYPE-ISH ident directly before, and `TypeIdent Name(…)` juxtaposition
+        // IS a declaration in C++ (the most-vexing-parse rule); plain calls `Foo(x)` reach the
+        // ident with prevTypeish=false (every operator/paren/comma resets it). The DoomFace
+        // field find: these decls were invisible, so butchering them killed the 2310 lint.
+        const paren = p2 < n && cp[p2] === 40; /* ( */
+        if (!member && !scoped && prevTypeish && (eq || semi || brace || colon || paren)) {
           this.decls.push({ name: ident, scope: current, at: s });
           prevTypeish = false;
           continue;

@@ -457,6 +457,21 @@ function validate(doc: TextDocument): void {
       if (imp.isDefault && imp.defaultAlias) validTags.add(imp.defaultAlias);
     }
     const universal = new Set<string>(["key", "classes", "Ref", ...schema.styleKeys, ...schema.slotKeys]);
+    // R14 — canonical-casing gate (compiler UETKX0112 mirror): runtime names are FNames
+    // (case-insensitive) and the compiler's slot routing was IgnoreCase, so `slot.fill`
+    // silently worked while every exact-case check silently disarmed for it. Wrong-cased
+    // canon names now get a precise correction instead of a generic unknown-attr.
+    const lowerCanon = new Map<string, string>();
+    for (const c of universal) lowerCanon.set(c.toLowerCase(), c);
+    const miscasedCanonOf = (name: string, elAttrs: Record<string, string> | undefined): string | null => {
+      if (universal.has(name) || (elAttrs && name in elAttrs)) return null; // exact canon
+      if (elAttrs) {
+        const lc = name.toLowerCase();
+        for (const canon of Object.keys(elAttrs)) if (canon.toLowerCase() === lc) return canon;
+      }
+      const canon = lowerCanon.get(name.toLowerCase());
+      return canon && canon !== name ? canon : null;
+    };
     // R10 — attr VALUE validation (the `Slot.HAlign="cesssssnter"` gap): enum-string attrs are
     // parsed at RUNTIME with silent fallbacks (ParseHAlign et al), so a typo'd value compiles
     // clean and quietly becomes the fallback alignment; numeric/margin/bool strings are pasted
@@ -695,8 +710,12 @@ function validate(doc: TextDocument): void {
           const tagOff = baseAt + el.at;
           // R12 — duplicate attributes: codegen emits one setter per occurrence (last wins
           // silently); always an author error, whatever the tag is.
+          // R14 — canonical casing: wrong-cased canon names get the precise 0112 correction
+          // (and skip the downstream checks so they don't double-flag as generic unknowns).
+          const miscased = new Set<string>();
           {
             const seenNames = new Set<string>();
+            const elAttrsForCasing = schema.elements[el.tag]?.attrs;
             for (const a of el.attrs) {
               if (seenNames.has(a.name)) {
                 const off = baseAt + a.at;
@@ -707,6 +726,16 @@ function validate(doc: TextDocument): void {
                 }
               } else {
                 seenNames.add(a.name);
+              }
+              const canon = miscasedCanonOf(a.name, elAttrsForCasing);
+              if (canon) {
+                miscased.add(a.name);
+                const off = baseAt + a.at;
+                const dk = `UETKX0112@${off}:${[...a.name].length}`;
+                if (!seen.has(dk)) {
+                  seen.add(dk);
+                  push(off, [...a.name].length, 0, "UETKX0112", `attribute casing is canonical — write '${canon}', not '${a.name}' (host names are case-sensitive, 1:1 with Slate)`);
+                }
               }
             }
           }
@@ -740,6 +769,7 @@ function validate(doc: TextDocument): void {
             // emitter routes them. Unresolvable targets skip validation (never guess).
             const params = componentParamsFor(el.tag);
             for (const a of el.attrs) {
+              if (miscased.has(a.name)) continue; // 0112 already said it precisely (R14)
               if (universal.has(a.name)) {
                 // style/slot pass-through — same runtime parse, same closed vocabularies
                 checkAttrValue(el.tag, a, baseAt, undefined);
@@ -781,6 +811,7 @@ function validate(doc: TextDocument): void {
             continue;
           }
           for (const a of el.attrs) {
+            if (miscased.has(a.name)) continue; // 0112 already said it precisely (R14)
             if (a.name in schemaEl.attrs) {
               checkAttrValue(el.tag, a, baseAt, schemaEl.attrs[a.name]);
               if (schemaEl.attrs[a.name] === "event") checkEventExpr(a, bodyCp, baseAt);
@@ -874,7 +905,10 @@ function validate(doc: TextDocument): void {
         if (r.kind !== "code") continue;
         const name = r.name;
         if (name.length < 5 || known.has(name) || localNames.has(name)) continue;
-        const max = name.length >= 9 ? 2 : 1;
+        // R14: >=7 (was 9) — `PanelBg` vs the butchered `PasnelBsg` is dist 2 at 7 chars; the
+        // name is already UNRESOLVABLE before this fires, so the cost of a loose match is a
+        // wrong hint on broken code, never a false alarm on working code.
+        const max = name.length >= 7 ? 2 : 1;
         let best: string | null = null;
         for (const local of localNames) {
           if (local[0] !== name[0] || local === name) continue;
@@ -1263,18 +1297,39 @@ connection.onCompletion(async (params): Promise<CompletionItem[] | CompletionLis
     return items;
   }
   if (ctx.kind === "attr") {
+    // R14 — the `slot.Clipping` accident: items had no textEdit/filterText, so VS Code
+    // filtered and replaced only the word AFTER the dot ("slot.C" → filter word "C" →
+    // "Clipping" matched and replaced just the "C", building a name that exists nowhere).
+    // Each item now edits the WHOLE dotted token; a `Slot.` prefix narrows to slot keys.
+    const off = doc.offsetAt(params.position);
+    let tokStart = off;
+    while (tokStart > 0 && /[A-Za-z0-9_.]/.test(text[tokStart - 1])) tokStart--;
+    const editRange = { start: doc.positionAt(tokStart), end: params.position };
+    const typed = text.slice(tokStart, off);
+    const mk = (label: string, kind: CompletionItemKind, detail: string): CompletionItem => ({
+      label,
+      kind,
+      detail,
+      filterText: label,
+      textEdit: { range: editRange, newText: label },
+    });
     const items: CompletionItem[] = [];
-    const el = schema.elements[ctx.tag];
-    if (el) {
-      for (const [attr, type] of Object.entries(el.attrs)) {
-        items.push({ label: attr, kind: CompletionItemKind.Property, detail: type });
+    const slotOnly = /^slot\./i.test(typed);
+    if (!slotOnly) {
+      const el = schema.elements[ctx.tag];
+      if (el) {
+        for (const [attr, type] of Object.entries(el.attrs)) {
+          items.push(mk(attr, CompletionItemKind.Property, type));
+        }
       }
+      for (const key of schema.styleKeys) items.push(mk(key, CompletionItemKind.Color, "style"));
     }
-    for (const key of schema.styleKeys) items.push({ label: key, kind: CompletionItemKind.Color, detail: "style" });
-    for (const key of schema.slotKeys) items.push({ label: key, kind: CompletionItemKind.Unit, detail: "slot" });
-    items.push({ label: "key", kind: CompletionItemKind.Keyword, detail: "reconciler identity" });
-    items.push({ label: "classes", kind: CompletionItemKind.Keyword, detail: "style classes" });
-    items.push({ label: "Ref", kind: CompletionItemKind.Keyword, detail: "host-handle capture (expr)" });
+    for (const key of schema.slotKeys) items.push(mk(key, CompletionItemKind.Unit, "slot"));
+    if (!slotOnly) {
+      items.push(mk("key", CompletionItemKind.Keyword, "reconciler identity"));
+      items.push(mk("classes", CompletionItemKind.Keyword, "style classes"));
+      items.push(mk("Ref", CompletionItemKind.Keyword, "host-handle capture (expr)"));
+    }
     return items;
   }
   if (ctx.kind === "directive") {

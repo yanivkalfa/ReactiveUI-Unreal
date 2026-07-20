@@ -470,3 +470,47 @@ disarmed-when-empty); smoke pins (owner's exact `WhissssssteBrush` → 2311; `Wh
 did-you-mean `WhiteBrush`; registered name clean; completion offers WhiteBrush inside
 `BorderImage=""` and true/false inside `AutoWrapText=""`). 90/90 node + SMOKE + engine
 suites + -check clean.
+
+---
+
+# Round 14 (2026-07-20): ctor-style decls invisible to the tracker; casing incoherence; the completion word-boundary accident
+
+Owner field finds: (1) butchering `const FLinearColor PanelBg(0.20f, …)` decls in DoomFace →
+"no errors at all"; (2) accepting "Clipping" from the suggestion list after typing `slot.C`
+builds `slot.Clipping` — which then errors; why was it suggested?
+
+**Find 1 — ctor-style declarations (the DoomFace blind spot).** End-to-end probe first: the
+clangd layer DOES catch the butchering ("undeclared identifier 'BorderClr'; did you mean
+'BorsderCslr'", ~6s cold) — the owner's dev-host session was running a pre-rebuild bundle.
+But the INSTANT layer was genuinely blind: both scoped-locals twins (TS + C++) only
+recognized `Type Name =`/`;`/`{`/`:` declaration followers — `Type Name(args)` (ctor-style)
+was never tracked, so the 2310 did-you-mean lint had nothing to compare usages against.
+Fixed in BOTH twins with the `(` follower — safe because the branch requires a TYPE-ISH
+ident directly before, and `TypeIdent Name(…)` juxtaposition IS a declaration in C++ (the
+most-vexing-parse rule); plain calls reach the ident with typeish=false (every operator
+resets it). Threshold also loosened (dist ≤2 from 7 chars, was 9 — `PanelBg` vs `PasnelBsg`
+is dist 2 at 7 chars; the name is already unresolvable before the lint fires, so a loose
+match can only mis-hint on broken code). Measured: 2310 at t+0.6s + all three clangd
+errors at t+5.3s.
+
+**Find 2a — casing incoherence (UETKX0112, the deeper class).** Runtime names are FNames
+(case-insensitive); the compiler's slot routing was IgnoreCase (`FString::StartsWith`
+default!); element-attr lookup goes through FName (also insensitive); but EVERY vocabulary
+check (enums, kinds, consumption, styleKeys) is exact-case. Net: `slot.fill` silently
+WORKED end-to-end while silently DISARMING all validation; `halign` silently matched
+HAlign; lowercase style keys were generic unknown-attr noise. The family already had the
+answer — tags demand canonical case with a correction. Extended to attr/style/slot names:
+canonical casing required, detected case-insensitively, corrected by name (0112, compiler +
+LSP identical; slot routing now explicitly CaseSensitive; canon slot list hoisted to ONE
+`SlotKeyCanon()` feeding export + gate + routing).
+
+**Find 2b — completion had no edit ranges.** Items carried no textEdit/filterText, so VS
+Code filtered and replaced only the word AFTER the dot ("slot.C" → filter word "C" →
+"Clipping" matched, replaced the "C", built `slot.Clipping`). Items now edit the WHOLE
+dotted token with filterText = the full label ("slot.C" no longer matches "Clipping" at
+all), and a `Slot.` prefix narrows the list to slot keys.
+
+**Verified:** 2310-on-ctor-decl, 0112 (slot/style/element attr; canon clean; no
+double-flag), and whole-token/narrowed completion pinned in smoke; tracker unit pin (paren
++ braced-init decls tracked, calls not misdeclared); C++ 0112 pin (3 casings, one compile).
+91/91 node + SMOKE + engine suites + -check clean.

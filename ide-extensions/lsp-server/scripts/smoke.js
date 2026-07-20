@@ -278,6 +278,55 @@ const settle = (ms = 300) => new Promise((r) => setTimeout(r, ms));
     fail("the RIGHT payload field must NOT flag: " + JSON.stringify(epDiags.map((d) => d.message)));
   console.log("event payload misuse OK (2312 void + mismatch, correct field clean)");
 
+  // R14a: ctor-style local decls (the DoomFace field find) — `const FLinearColor PanelBg(…)`
+  // was invisible to the scoped-locals tracker, so butchering the DECL left the usages with
+  // no instant diagnostic (only clangd's ~6s-later error). Now the 2310 lint fires at once.
+  const cdUri = "file:///tmp/CtorDecl.uetkx";
+  notify("textDocument/didOpen", { textDocument: { uri: cdUri, languageId: "uetkx", version: 1,
+    text: 'export FRuiNode CtorDecl() {\n\tconst FLinearColor PasnelBsg(0.20f, 0.16f, 0.10f, 1.0f);\n\treturn ( <Border BorderBackgroundColor={ PanelBg }><Spacer /></Border> );\n}\n' } });
+  await settle();
+  const cdDiags = diagnostics[cdUri] || [];
+  if (!cdDiags.some((d) => String(d.code) === "UETKX2310" && /PanelBg.*PasnelBsg/.test(d.message)))
+    fail("usage of a butchered ctor-style local must 2310 instantly: " + JSON.stringify(cdDiags.map((d) => d.message)));
+  console.log("ctor-style decl tracking OK (2310 fires on the DoomFace shape)");
+
+  // R14b: canonical casing — `slot.fill` used to silently WORK at compile (IgnoreCase slot
+  // routing) while every exact-case check silently disarmed for it; now a precise 0112.
+  const csUri = "file:///tmp/Casing.uetkx";
+  notify("textDocument/didOpen", { textDocument: { uri: csUri, languageId: "uetkx", version: 1,
+    text: 'export FRuiNode Casing() {\n\treturn ( <VerticalBox>\n\t\t<Spacer slot.fill="1" renderopacity="0.5" />\n\t\t<Box halign="center"><Spacer /></Box>\n\t\t<Spacer Slot.Fill="1" />\n\t</VerticalBox> );\n}\n' } });
+  await settle();
+  const csDiags = diagnostics[csUri] || [];
+  if (!csDiags.some((d) => String(d.code) === "UETKX0112" && /'Slot\.Fill', not 'slot\.fill'/.test(d.message)))
+    fail("wrong-cased slot key must 0112 with the canon spelling: " + JSON.stringify(csDiags.map((d) => d.message)));
+  if (!csDiags.some((d) => String(d.code) === "UETKX0112" && /'RenderOpacity', not 'renderopacity'/.test(d.message)))
+    fail("wrong-cased style key must 0112");
+  if (!csDiags.some((d) => String(d.code) === "UETKX0112" && /'HAlign', not 'halign'/.test(d.message)))
+    fail("wrong-cased element attr must 0112 (FName lookup silently matched before)");
+  if (csDiags.some((d) => String(d.code) === "UETKX0105" && /slot\.fill|renderopacity|halign/.test(d.message)))
+    fail("miscased names must NOT double-flag as generic unknowns");
+  if (csDiags.some((d) => /'Slot\.Fill'.*not a|unknown.*Slot\.Fill/.test(d.message)))
+    fail("the CANON spelling must stay clean");
+  console.log("canonical-casing gate OK (0112 slot/style/element attr, canon clean, no double-flag)");
+
+  // R14c: attr-name completion — whole-token textEdit + Slot. prefix narrowing (the
+  // `slot.Clipping` accident: VS Code used to filter/replace only the word after the dot)
+  const acUri = "file:///tmp/AttrComp.uetkx";
+  const acText = 'export FRuiNode AttrComp() {\n\treturn ( <Border slot.C ><Spacer /></Border> );\n}\n';
+  notify("textDocument/didOpen", { textDocument: { uri: acUri, languageId: "uetkx", version: 1, text: acText } });
+  const acPos = { line: 1, character: acText.split("\n")[1].indexOf("slot.C") + "slot.C".length };
+  const acRes = await request("textDocument/completion", { textDocument: { uri: acUri }, position: acPos });
+  const acItems = (acRes.result && (acRes.result.items || acRes.result)) || [];
+  const acLabels = acItems.map((it) => it.label);
+  if (acLabels.includes("Clipping") || acLabels.includes("ColorAndOpacity"))
+    fail("a Slot. prefix must narrow to slot keys only: " + JSON.stringify(acLabels.slice(0, 8)));
+  if (!acLabels.includes("Slot.Column") || !acLabels.includes("Slot.Fill"))
+    fail("slot keys must be offered after the Slot. prefix: " + JSON.stringify(acLabels.slice(0, 8)));
+  const acCol = acItems.find((it) => it.label === "Slot.Column");
+  if (!acCol.textEdit || acCol.textEdit.range.start.character !== acText.split("\n")[1].indexOf("slot.C"))
+    fail("completion must edit the WHOLE dotted token: " + JSON.stringify(acCol.textEdit));
+  console.log("attr-name completion OK (whole-token textEdit, Slot. prefix narrows)");
+
   // R13: brush names — closed per engine (the schema carries FCoreStyle's resolvable set);
   // the owner's exact mangle, plus a did-you-mean and the valid spelling staying clean
   const brUri = "file:///tmp/Brush.uetkx";

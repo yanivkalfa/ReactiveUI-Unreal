@@ -434,6 +434,25 @@ test("R9: tags + attrs INSIDE directive bodies are swept and indexed (the @for b
   assert.equal(sweptEls.find((e) => e.tag === "VerticalBox")!.parent, undefined, "span root has no parent");
 });
 
+test("R14: ctor-style declarations are tracked locals (the DoomFace blind spot)", () => {
+  const { UetkxScopedLocals } = require("../uetkxIndex") as typeof import("../uetkxIndex");
+  const body = [
+    "",
+    "\tconst int32 Idx = FMath::Clamp(Frame, 0, 7);",
+    "\tconst FLinearColor PanelBg(0.20f, 0.16f, 0.10f, 1.0f);",
+    "\tFVector2D Pivot{0.5f, 0.5f};",
+    "\tUseLog(Compute(PanelBg));", // calls must NOT declare: Compute reached with typeish=false
+    "",
+  ].join("\n");
+  const cp = [...body].map((ch) => ch.codePointAt(0)!);
+  const tracker = new UetkxScopedLocals(cp, ["Frame"], []);
+  const names = tracker.allDeclNames();
+  assert.ok(names.includes("PanelBg"), "ctor-style paren decl tracked: " + names.join(","));
+  assert.ok(names.includes("Pivot"), "braced-init decl tracked");
+  assert.ok(names.includes("Idx"), "classic = decl still tracked");
+  assert.ok(!names.includes("Compute") && !names.includes("UseLog"), "plain calls not misdeclared");
+});
+
 test("R10: sweep captures STRING attr values; holes and flag attrs stay valueless", () => {
   const src = [
     "export FRuiNode Vals() {",

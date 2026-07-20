@@ -321,7 +321,11 @@ private:
 				// qual), and ternary arms are safe (the `?` reset kills type-ish first).
 				const bool bColon = p2 < N && Cp[p2] == ':' && (p2 + 1 >= N || Cp[p2 + 1] != ':');
 				const bool bBrace = p2 < N && Cp[p2] == '{';
-				if (!bMember && !bScope && bPrevTypeish && (bEq || bSemi || bBrace || bColon))
+				// R14 (TS-twin lockstep): ctor-style declarations — `const FLinearColor X(…);`.
+				// `TypeIdent Name(…)` juxtaposition IS a declaration in C++ (most-vexing-parse);
+				// plain calls reach the ident with bPrevTypeish=false (operators/parens reset).
+				const bool bParen = p2 < N && Cp[p2] == '(';
+				if (!bMember && !bScope && bPrevTypeish && (bEq || bSemi || bBrace || bColon || bParen))
 				{
 					Decls.Add({Ident, Current, s});
 					bPrevTypeish = false;

@@ -519,6 +519,71 @@ namespace
 		return StyleKeys().Contains(Name);
 	}
 
+	// R14: the D-33 canon slot keys — ONE list feeding the schema export, the casing gate, and
+	// the (case-SENSITIVE, canonical) slot routing. `Slot.` remains an open prefix for keys
+	// beyond this list; the CASING of the canon spellings is enforced (UETKX0112).
+	const TArray<FString>& SlotKeyCanon()
+	{
+		static const TArray<FString> Keys = {
+			TEXT("Slot.Padding"),  TEXT("Slot.HAlign"),	  TEXT("Slot.VAlign"),	 TEXT("Slot.Fill"),
+			TEXT("Slot.ZOrder"),   TEXT("Slot.Position"), TEXT("Slot.Size"),	 TEXT("Slot.Offset"),
+			TEXT("Slot.Anchors"),  TEXT("Slot.Alignment"), TEXT("Slot.AutoSize"), TEXT("Slot.Role"),
+			TEXT("Slot.SizeRule"), TEXT("Slot.SizeValue"), TEXT("Slot.MinSize"),  TEXT("Slot.Resizable"),
+			TEXT("Slot.Column"),   TEXT("Slot.Row")};
+		return Keys;
+	}
+
+	/** R14 — canonical-casing gate: attr/style/slot names are FNames at runtime (case-
+	 *  insensitive), and the slot prefix used to route IgnoreCase — so `slot.fill` silently
+	 *  WORKED while every exact-case vocabulary check silently DISARMED for it. The family
+	 *  rule is the tag rule (host tags are case-sensitive, 1:1 with Slate): canonical casing
+	 *  required, detected case-insensitively, corrected by name. Returns the canon spelling
+	 *  when Name is a WRONG-CASED canon name; empty otherwise. */
+	FString MiscasedCanonName(const FString& Name, const FTagDef* Tag)
+	{
+		if (Name.Equals(TEXT("key"), ESearchCase::CaseSensitive) ||
+			Name.Equals(TEXT("classes"), ESearchCase::CaseSensitive) ||
+			Name.Equals(TEXT("Ref"), ESearchCase::CaseSensitive))
+		{
+			return FString();
+		}
+		auto Check = [&Name](const FString& Canon) -> bool
+		{ return !Canon.Equals(Name, ESearchCase::CaseSensitive) && Canon.Equals(Name, ESearchCase::IgnoreCase); };
+		for (const TCHAR* Universal : {TEXT("key"), TEXT("classes"), TEXT("Ref")})
+		{
+			if (Check(Universal))
+			{
+				return Universal;
+			}
+		}
+		for (const FString& Canon : StyleKeys())
+		{
+			if (Check(Canon))
+			{
+				return Canon;
+			}
+		}
+		for (const FString& Canon : SlotKeyCanon())
+		{
+			if (Check(Canon))
+			{
+				return Canon;
+			}
+		}
+		if (Tag != nullptr)
+		{
+			for (const auto& Pair : Tag->Attrs)
+			{
+				const FString Canon = Pair.Key.ToString();
+				if (Check(Canon))
+				{
+					return Canon;
+				}
+			}
+		}
+		return FString();
+	}
+
 	// R10 — enum-string vocabularies, keyed by attr/style/slot name exactly as written in
 	// markup. The Slate adapters parse these Name-typed values with SILENT fallbacks
 	// (ParseHAlign et al in RuiCoreAdapters/RuiWidgetAdapters*/RuiStyle/RuiListView) — a
@@ -1487,6 +1552,9 @@ namespace
 
 		// R12 — duplicate attributes: the parser keeps every occurrence and codegen used to
 		// emit one setter per occurrence (last wins SILENTLY). Always an author error.
+		// R14 — canonical casing: runtime names are FNames (case-insensitive) and the slot
+		// prefix used to route IgnoreCase, so `slot.fill` silently worked while every
+		// exact-case check silently disarmed for it. The tag rule, extended: UETKX0112.
 		{
 			TSet<FString> SeenAttrNames;
 			for (const FUetkxAttr& Attr : Node.Attrs)
@@ -1502,6 +1570,15 @@ namespace
 					Fail(TEXT("UETKX0109"),
 						 FString::Printf(TEXT("duplicate attribute '%s' on <%s> — the last one wins"), *Attr.Name,
 										 *Node.Tag),
+						 AbsAt + Attr.At);
+				}
+				const FString Canon = MiscasedCanonName(Attr.Name, Tag);
+				if (!Canon.IsEmpty())
+				{
+					Fail(TEXT("UETKX0112"),
+						 FString::Printf(TEXT("attribute casing is canonical — write '%s', not '%s' (host names "
+											  "are case-sensitive, 1:1 with Slate)"),
+										 *Canon, *Attr.Name),
 						 AbsAt + Attr.At);
 				}
 			}
@@ -1576,10 +1653,10 @@ namespace
 							 AbsAt + Attr.At);
 					}
 				}
-				else if (IsStyleKey(Attr.Name) || Attr.Name.StartsWith(TEXT("Slot.")))
+				else if (IsStyleKey(Attr.Name) || Attr.Name.StartsWith(TEXT("Slot."), ESearchCase::CaseSensitive))
 				{
 					bStyled = true;
-					const bool bSlot = Attr.Name.StartsWith(TEXT("Slot."));
+					const bool bSlot = Attr.Name.StartsWith(TEXT("Slot."), ESearchCase::CaseSensitive);
 					// R10/R11: same value checks as the generic element path (this TextBlock
 					// fast path is a second copy of the style lowering — round-11 field find:
 					// it silently skipped them).
@@ -1727,9 +1804,9 @@ namespace
 				}
 				continue;
 			}
-			if (IsStyleKey(Attr.Name) || Attr.Name.StartsWith(TEXT("Slot.")))
+			if (IsStyleKey(Attr.Name) || Attr.Name.StartsWith(TEXT("Slot."), ESearchCase::CaseSensitive))
 			{
-				const bool bSlot = Attr.Name.StartsWith(TEXT("Slot."));
+				const bool bSlot = Attr.Name.StartsWith(TEXT("Slot."), ESearchCase::CaseSensitive);
 				if (Attr.Kind != EUetkxAttrKind::Expr && Attr.Kind != EUetkxAttrKind::Bool)
 				{
 					if (const TArray<FString>* Vocab = FailedAttrEnum(Attr.Name, Attr.Value))
@@ -2640,11 +2717,7 @@ FString FUetkxCodegen::ExportSchemaJson()
 	// Slot.* is an OPEN prefix (any name routes to the slot dict); these are the D-33 canon.
 	Root->SetStringField(TEXT("slotPrefix"), TEXT("Slot."));
 	TArray<TSharedPtr<FJsonValue>> SlotArray;
-	for (const TCHAR* Key :
-		 {TEXT("Slot.Padding"), TEXT("Slot.HAlign"), TEXT("Slot.VAlign"), TEXT("Slot.Fill"), TEXT("Slot.ZOrder"),
-		  TEXT("Slot.Position"), TEXT("Slot.Size"), TEXT("Slot.Offset"), TEXT("Slot.Anchors"), TEXT("Slot.Alignment"),
-		  TEXT("Slot.AutoSize"), TEXT("Slot.Role"), TEXT("Slot.SizeRule"), TEXT("Slot.SizeValue"), TEXT("Slot.MinSize"),
-		  TEXT("Slot.Resizable"), TEXT("Slot.Column"), TEXT("Slot.Row")})
+	for (const FString& Key : SlotKeyCanon())
 	{
 		SlotArray.Add(MakeShared<FJsonValueString>(Key));
 	}

@@ -228,6 +228,22 @@ component RowList(Names: TArray<FString>) {
 			TEXT("Ok10"));
 		TestTrue(TEXT("un-injected environment disarms the brush check"), NoEnv.bOk);
 
+		// R14 — canonical casing (UETKX0112): `slot.fill` used to route into the slot dict via
+		// the IgnoreCase prefix (silently working while every exact-case check disarmed);
+		// wrong-cased style keys were unknown-attr noise; wrong-cased ELEMENT attrs silently
+		// matched through the FName lookup. All three now correct by name.
+		FUetkxCompileOutput Miscased = FUetkxCodegen::CompileSource(
+			TEXT("component Bad12 { return ( <VerticalBox><Spacer slot.fill=\"1\" /><Box halign=\"center\">")
+				TEXT("<Spacer renderopacity=\"0.5\" /></Box></VerticalBox> ); }"),
+			TEXT("Bad12"));
+		int32 NumCasing = 0;
+		for (const FUetkxDiag& Diag : Miscased.Diags)
+		{
+			NumCasing += Diag.Code == TEXT("UETKX0112") ? 1 : 0;
+		}
+		TestTrue(TEXT("0112 on wrong-cased slot key, element attr, and style key"),
+				 !Miscased.bOk && NumCasing == 3);
+
 		FUetkxCompileOutput GoodForms = FUetkxCodegen::CompileSource(
 			TEXT("component Ok7 { return ( <VerticalBox RenderOpacity=\"0.5\" Enabled RenderTranslation=\"5,7\">")
 				TEXT("<Spacer Slot.Padding=\"1,2\" Slot.Fill=\"1\" />")
