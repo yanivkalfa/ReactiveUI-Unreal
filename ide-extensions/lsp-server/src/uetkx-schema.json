@@ -809,5 +809,138 @@
 		"OnMuteChanged": "void",
 		"OnVolumeChanged": "void",
 		"RequestToggleFullscreen": "void"
+	},
+	"attrEnums":
+	{
+		"AlphaDisplayMode": [
+			"combined",
+			"separate",
+			"ignore"
+		],
+		"Animate": [
+			"all",
+			"none",
+			"vertical",
+			"horizontal",
+			"opacity",
+			"verticalAndOpacity"
+		],
+		"BarFillType": [
+			"leftToRight",
+			"rightToLeft",
+			"fillFromCenter",
+			"fillFromCenterHorizontal",
+			"fillFromCenterVertical",
+			"topToBottom",
+			"bottomToTop"
+		],
+		"Clipping": [
+			"inherit",
+			"clipToBounds",
+			"clipToBoundsWithoutIntersecting",
+			"clipToBoundsAlways",
+			"onDemand"
+		],
+		"HAlign": [
+			"fill",
+			"left",
+			"center",
+			"right"
+		],
+		"Justification": [
+			"left",
+			"center",
+			"right"
+		],
+		"KeyboardType": [
+			"default",
+			"number",
+			"web",
+			"email",
+			"password"
+		],
+		"Orientation": [
+			"horizontal",
+			"vertical"
+		],
+		"OverflowPolicy": [
+			"clip",
+			"ellipsis"
+		],
+		"Placement": [
+			"belowAnchor",
+			"comboBox",
+			"belowRightAnchor",
+			"aboveAnchor",
+			"centeredAboveAnchor",
+			"centeredBelowAnchor",
+			"menuLeft",
+			"menuRight",
+			"center"
+		],
+		"ScrollOrientation": [
+			"horizontal",
+			"vertical"
+		],
+		"SelectionMode": [
+			"none",
+			"single",
+			"singleToggle",
+			"multi"
+		],
+		"Slot.HAlign": [
+			"fill",
+			"left",
+			"center",
+			"right"
+		],
+		"Slot.Role": [
+			"body",
+			"header",
+			"collapsed",
+			"expanded",
+			"topLeft",
+			"topRight",
+			"bottomLeft",
+			"bottomRight",
+			"menu"
+		],
+		"Slot.SizeRule": [
+			"sizeToContent",
+			"fractionOfParent"
+		],
+		"Slot.VAlign": [
+			"fill",
+			"top",
+			"center",
+			"bottom"
+		],
+		"Stretch": [
+			"none",
+			"fill",
+			"scaleToFit",
+			"scaleToFitX",
+			"scaleToFitY",
+			"scaleToFill",
+			"scaleBySafeZone"
+		],
+		"StretchDirection": [
+			"both",
+			"downOnly",
+			"upOnly"
+		],
+		"VAlign": [
+			"fill",
+			"top",
+			"center",
+			"bottom"
+		],
+		"Visibility": [
+			"visible",
+			"collapsed",
+			"hidden",
+			"hitTestInvisible",
+			"selfHitTestInvisible"
+		]
 	}
 }

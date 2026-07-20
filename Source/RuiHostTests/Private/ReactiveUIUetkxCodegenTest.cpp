@@ -138,6 +138,26 @@ component RowList(Names: TArray<FString>) {
 			bFound0105 |= Diag.Code == TEXT("UETKX0105");
 		}
 		TestTrue(TEXT("0105 code present"), bFound0105);
+
+		// R10 — UETKX0106 invalid enum value: the runtime parses these with SILENT fallbacks
+		// (ParseHAlign et al), so the compiler is the only build-time backstop. Vocabularies
+		// include fallback-only spellings ("fill") and match case-insensitively (FName).
+		FUetkxCompileOutput BadEnum = FUetkxCodegen::CompileSource(
+			TEXT("component Bad2 { return ( <Border HAlign=\"cesssssnter\"><Spacer /></Border> ); }"), TEXT("Bad2"));
+		TestTrue(TEXT("0106 invalid enum value on element attr"),
+				 !BadEnum.bOk && BadEnum.Diags.ContainsByPredicate([](const FUetkxDiag& D)
+																   { return D.Code == TEXT("UETKX0106"); }));
+		FUetkxCompileOutput BadSlotEnum = FUetkxCodegen::CompileSource(
+			TEXT("component Bad3 { return ( <VerticalBox><Spacer Slot.VAlign=\"botom\" /></VerticalBox> ); }"),
+			TEXT("Bad3"));
+		TestTrue(TEXT("0106 invalid enum value on slot key"),
+				 !BadSlotEnum.bOk && BadSlotEnum.Diags.ContainsByPredicate([](const FUetkxDiag& D)
+																		   { return D.Code == TEXT("UETKX0106"); }));
+		FUetkxCompileOutput GoodEnum = FUetkxCodegen::CompileSource(
+			TEXT("component Ok6 { return ( <Border HAlign=\"Fill\" Slot.HAlign=\"center\" Padding=\"4\">")
+				TEXT("<TextBlock Text=\"t\" Justification=\"center\" /></Border> ); }"),
+			TEXT("Ok6"));
+		TestTrue(TEXT("valid enum values (incl. fallback-only 'Fill', case-insensitive) compile"), GoodEnum.bOk);
 	}
 
 	// ── §4 markup everywhere: markup-as-value lowers in place (statement positions) ───────

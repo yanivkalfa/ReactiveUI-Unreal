@@ -425,3 +425,30 @@ test("R9: tags + attrs INSIDE directive bodies are swept and indexed (the @for b
   const swept = sweepMarkupElements(bodyCp, sp.mStart, sp.mEnd).map((e) => e.tag);
   assert.ok(swept.includes("HorizontalBox") && swept.includes("Spacer"), "sweep descends directive bodies: " + swept.join(","));
 });
+
+test("R10: sweep captures STRING attr values; holes and flag attrs stay valueless", () => {
+  const src = [
+    "export FRuiNode Vals() {",
+    "\treturn (",
+    '\t\t<Border HAlign="cesssssnter" Padding={ FMargin(2) } AutoWrapText>',
+    '\t\t\t<TextBlock Text="a \\"quoted\\" bit" />',
+    "\t\t</Border>",
+    "\t);",
+    "}",
+    "",
+  ].join("\n");
+  const { sweepMarkupElements } = require("../uetkxIndex") as typeof import("../uetkxIndex");
+  const scan = scanFile(src, "Vals", true);
+  const comp = scan.components[0];
+  const bodyCp = [...comp.body].map((ch) => ch.codePointAt(0)!);
+  const sp = comp.returns[comp.returns.length - 1];
+  const els = sweepMarkupElements(bodyCp, sp.mStart, sp.mEnd);
+  const border = els.find((e) => e.tag === "Border")!;
+  const byName = new Map(border.attrs.map((a) => [a.name, a]));
+  assert.equal(byName.get("HAlign")?.value, "cesssssnter", "string value captured");
+  assert.ok(byName.get("HAlign")!.valueAt! > byName.get("HAlign")!.at, "valueAt points into the literal");
+  assert.equal(byName.get("Padding")?.value, undefined, "expression holes carry no value");
+  assert.equal(byName.get("AutoWrapText")?.value, undefined, "flag attrs carry no value");
+  const text = els.find((e) => e.tag === "TextBlock")!.attrs.find((a) => a.name === "Text");
+  assert.equal(text?.value, 'a \\"quoted\\" bit', "escaped quotes stay inside one captured value");
+});

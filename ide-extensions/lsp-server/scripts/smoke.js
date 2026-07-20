@@ -195,6 +195,37 @@ const settle = (ms = 300) => new Promise((r) => setTimeout(r, ms));
   if (!typoDiags.some((d) => String(d.code) === "UETKX2310" && /SetOpsen/.test(d.message)))
     fail("local-typo lint missing 2310: " + JSON.stringify(typoDiags.map((d) => d.code)));
   console.log("local-typo lint OK (2310 did-you-mean, cascade-proof)");
+
+  // R10: attr VALUE validation — enum vocabularies (runtime parses fall back SILENTLY, so the
+  // LSP is the only place a typo'd value can surface), numeric/margin formats, expr-only kinds.
+  const valUri = "file:///tmp/Vals.uetkx";
+  notify("textDocument/didOpen", { textDocument: { uri: valUri, languageId: "uetkx", version: 1,
+    text: 'export FRuiNode Vals() {\n\treturn ( <Border HAlign="cesssssnter" VAlign="Top" Padding="1">\n\t\t<TextBlock Text="x" Slot.HAlign="cesssssnter" Justification="centre" />\n\t\t<Box WidthOverride="abc" />\n\t\t<Button ContentPadding="1,2,3">y</Button>\n\t\t<Spacer Size="1,2" />\n\t</Border> );\n}\n' } });
+  await settle();
+  const valDiags = diagnostics[valUri] || [];
+  const has2311 = (re) => valDiags.some((d) => String(d.code) === "UETKX2311" && re.test(d.message));
+  if (!has2311(/cesssssnter.*HAlign/)) fail("enum typo on element attr must 2311: " + JSON.stringify(valDiags.map((d) => d.message)));
+  if (!has2311(/cesssssnter.*Slot\.HAlign/)) fail("enum typo on slot key must 2311: " + JSON.stringify(valDiags.map((d) => d.message)));
+  if (!has2311(/centre.*Justification/)) fail("enum typo on style key must 2311");
+  if (!has2311(/abc.*WidthOverride/)) fail("non-numeric float string must 2311");
+  if (!has2311(/1,2,3.*margin/)) fail("3-component margin must 2311");
+  if (valDiags.some((d) => String(d.code) === "UETKX2311" && /VAlign|'1'/.test(d.message)))
+    fail("valid values must NOT flag (VAlign=Top is case-insensitively valid; Padding=1 is a uniform margin): " + JSON.stringify(valDiags.map((d) => d.message)));
+  if (!valDiags.some((d) => String(d.code) === "UETKX0105" && /Size.*needs an \{expr\} value/.test(d.message)))
+    fail("string form of a vector2 attr must surface codegen's 0105 LIVE: " + JSON.stringify(valDiags.map((d) => d.message)));
+  console.log("attr value validation OK (2311 enums + formats, live 0105 expr-only, case-insensitive)");
+
+  // R10: value completion — ctrl+space inside `HAlign="|"` offers the closed vocabulary
+  const vcUri = "file:///tmp/ValComp.uetkx";
+  const vcText = 'export FRuiNode ValComp() {\n\treturn ( <Border HAlign="" /> );\n}\n';
+  notify("textDocument/didOpen", { textDocument: { uri: vcUri, languageId: "uetkx", version: 1, text: vcText } });
+  const vcPos = { line: 1, character: vcText.split("\n")[1].indexOf('""') + 1 };
+  const vcRes = await request("textDocument/completion", { textDocument: { uri: vcUri }, position: vcPos });
+  const vcItems = (vcRes.result && (vcRes.result.items || vcRes.result)) || [];
+  const vcLabels = vcItems.map((it) => it.label);
+  if (!vcLabels.includes("fill") || !vcLabels.includes("center"))
+    fail("enum value completion must offer the vocabulary: " + JSON.stringify(vcLabels));
+  console.log("enum value completion OK (vocabulary inside the quotes)");
   fs.rmSync(cpDir, { recursive: true, force: true });
 
   // import intelligence: a real on-disk workspace (.uproject root + exporter B + importer A) —

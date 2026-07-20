@@ -519,6 +519,77 @@ namespace
 		return StyleKeys().Contains(Name);
 	}
 
+	// R10 — enum-string vocabularies, keyed by attr/style/slot name exactly as written in
+	// markup. The Slate adapters parse these Name-typed values with SILENT fallbacks
+	// (ParseHAlign et al in RuiCoreAdapters/RuiWidgetAdapters*/RuiStyle/RuiListView) — a
+	// typo'd value compiled clean and quietly rendered as the fallback. Exported to the
+	// schema as `attrEnums` (LSP live check, UETKX2311) and enforced here as UETKX0106.
+	// Each set = the adapter's accepted spellings PLUS the fallback's own name (typing the
+	// fallback works by definition; several — fill, left, inherit, visible, belowAnchor,
+	// combined, all, both, none, leftToRight, topLeft, fractionOfParent — are ONLY reachable
+	// as the fallback). FName comparison is case-insensitive, so matching here is too.
+	const TMap<FString, TArray<FString>>& AttrEnums()
+	{
+		static const TMap<FString, TArray<FString>> Enums = {
+			{TEXT("HAlign"), {TEXT("fill"), TEXT("left"), TEXT("center"), TEXT("right")}},
+			{TEXT("VAlign"), {TEXT("fill"), TEXT("top"), TEXT("center"), TEXT("bottom")}},
+			{TEXT("Slot.HAlign"), {TEXT("fill"), TEXT("left"), TEXT("center"), TEXT("right")}},
+			{TEXT("Slot.VAlign"), {TEXT("fill"), TEXT("top"), TEXT("center"), TEXT("bottom")}},
+			{TEXT("Orientation"), {TEXT("horizontal"), TEXT("vertical")}},
+			{TEXT("ScrollOrientation"), {TEXT("horizontal"), TEXT("vertical")}},
+			{TEXT("Justification"), {TEXT("left"), TEXT("center"), TEXT("right")}},
+			{TEXT("OverflowPolicy"), {TEXT("clip"), TEXT("ellipsis")}},
+			{TEXT("Clipping"),
+			 {TEXT("inherit"), TEXT("clipToBounds"), TEXT("clipToBoundsWithoutIntersecting"),
+			  TEXT("clipToBoundsAlways"), TEXT("onDemand")}},
+			{TEXT("Visibility"),
+			 {TEXT("visible"), TEXT("collapsed"), TEXT("hidden"), TEXT("hitTestInvisible"),
+			  TEXT("selfHitTestInvisible")}},
+			{TEXT("Stretch"),
+			 {TEXT("none"), TEXT("fill"), TEXT("scaleToFit"), TEXT("scaleToFitX"), TEXT("scaleToFitY"),
+			  TEXT("scaleToFill"), TEXT("scaleBySafeZone")}},
+			{TEXT("StretchDirection"), {TEXT("both"), TEXT("downOnly"), TEXT("upOnly")}},
+			{TEXT("Animate"),
+			 {TEXT("all"), TEXT("none"), TEXT("vertical"), TEXT("horizontal"), TEXT("opacity"),
+			  TEXT("verticalAndOpacity")}},
+			{TEXT("BarFillType"),
+			 {TEXT("leftToRight"), TEXT("rightToLeft"), TEXT("fillFromCenter"), TEXT("fillFromCenterHorizontal"),
+			  TEXT("fillFromCenterVertical"), TEXT("topToBottom"), TEXT("bottomToTop")}},
+			{TEXT("AlphaDisplayMode"), {TEXT("combined"), TEXT("separate"), TEXT("ignore")}},
+			{TEXT("KeyboardType"),
+			 {TEXT("default"), TEXT("number"), TEXT("web"), TEXT("email"), TEXT("password")}},
+			{TEXT("Placement"),
+			 {TEXT("belowAnchor"), TEXT("comboBox"), TEXT("belowRightAnchor"), TEXT("aboveAnchor"),
+			  TEXT("centeredAboveAnchor"), TEXT("centeredBelowAnchor"), TEXT("menuLeft"), TEXT("menuRight"),
+			  TEXT("center")}},
+			{TEXT("SelectionMode"), {TEXT("none"), TEXT("single"), TEXT("singleToggle"), TEXT("multi")}},
+			{TEXT("Slot.SizeRule"), {TEXT("sizeToContent"), TEXT("fractionOfParent")}},
+			{TEXT("Slot.Role"),
+			 {TEXT("body"), TEXT("header"), TEXT("collapsed"), TEXT("expanded"), TEXT("topLeft"), TEXT("topRight"),
+			  TEXT("bottomLeft"), TEXT("bottomRight"), TEXT("menu")}},
+		};
+		return Enums;
+	}
+
+	/** nullptr when Key has no closed vocabulary; else the vocabulary Value failed (case-
+	 *  insensitive) — the caller formats the diagnostic. */
+	const TArray<FString>* FailedAttrEnum(const FString& Key, const FString& Value)
+	{
+		const TArray<FString>* Vocab = AttrEnums().Find(Key);
+		if (Vocab == nullptr)
+		{
+			return nullptr;
+		}
+		for (const FString& V : *Vocab)
+		{
+			if (V.Equals(Value, ESearchCase::IgnoreCase))
+			{
+				return nullptr;
+			}
+		}
+		return Vocab;
+	}
+
 	FString CppStringLiteral(const FString& S)
 	{
 		FString Out = S;
@@ -1437,6 +1508,17 @@ namespace
 			if (IsStyleKey(Attr.Name) || Attr.Name.StartsWith(TEXT("Slot.")))
 			{
 				const bool bSlot = Attr.Name.StartsWith(TEXT("Slot."));
+				if (Attr.Kind != EUetkxAttrKind::Expr && Attr.Kind != EUetkxAttrKind::Bool)
+				{
+					if (const TArray<FString>* Vocab = FailedAttrEnum(Attr.Name, Attr.Value))
+					{
+						Fail(TEXT("UETKX0106"),
+							 FString::Printf(TEXT("invalid value '%s' for %s — one of: %s"), *Attr.Value,
+											 *Attr.Name, *FString::Join(*Vocab, TEXT(" | "))),
+							 AbsAt + Attr.At);
+						continue;
+					}
+				}
 				const FString Value =
 					Attr.Kind == EUetkxAttrKind::Expr
 						? FString::Printf(
@@ -1491,6 +1573,14 @@ namespace
 					Value = NsLocText(Attr.Value);
 					break;
 				case EAttrType::Name:
+					if (const TArray<FString>* Vocab = FailedAttrEnum(Attr.Name, Attr.Value))
+					{
+						Fail(TEXT("UETKX0106"),
+							 FString::Printf(TEXT("invalid value '%s' for %s — one of: %s"), *Attr.Value,
+											 *Attr.Name, *FString::Join(*Vocab, TEXT(" | "))),
+							 AbsAt + Attr.At);
+						continue;
+					}
 					Value = FString::Printf(TEXT("FName(TEXT(\"%s\"))"), *CppStringLiteral(Attr.Value));
 					break;
 				case EAttrType::Float:
@@ -2284,6 +2374,23 @@ FString FUetkxCodegen::ExportSchemaJson()
 		}
 	}
 	Root->SetObjectField(TEXT("eventPayloads"), EventPayloads);
+
+	// R10: closed enum-string vocabularies per attr/style/slot key (see AttrEnums) — the LSP's
+	// value-level type check (UETKX2311 live; UETKX0106 at compile). Sorted keys for stable output.
+	TSharedRef<FJsonObject> AttrEnumsJson = MakeShared<FJsonObject>();
+	TArray<FString> EnumKeys;
+	AttrEnums().GetKeys(EnumKeys);
+	EnumKeys.Sort();
+	for (const FString& EnumKey : EnumKeys)
+	{
+		TArray<TSharedPtr<FJsonValue>> Values;
+		for (const FString& V : AttrEnums()[EnumKey])
+		{
+			Values.Add(MakeShared<FJsonValueString>(V));
+		}
+		AttrEnumsJson->SetArrayField(EnumKey, Values);
+	}
+	Root->SetObjectField(TEXT("attrEnums"), AttrEnumsJson);
 
 	FString Out;
 	const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);

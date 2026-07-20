@@ -457,6 +457,63 @@ function validate(doc: TextDocument): void {
       if (imp.isDefault && imp.defaultAlias) validTags.add(imp.defaultAlias);
     }
     const universal = new Set<string>(["key", "classes", "Ref", ...schema.styleKeys, ...schema.slotKeys]);
+    // R10 — attr VALUE validation (the `Slot.HAlign="cesssssnter"` gap): enum-string attrs are
+    // parsed at RUNTIME with silent fallbacks (ParseHAlign et al), so a typo'd value compiles
+    // clean and quietly becomes the fallback alignment; numeric/margin/bool strings are pasted
+    // VERBATIM into the generated C++ (a malformed one is a guaranteed later compile error).
+    // schema.attrEnums is exported from the same runtime parse tables; FName comparison is
+    // case-insensitive, so the check is too. Kind-format checks mirror codegen's lowering.
+    const attrEnums = schema.attrEnums ?? {};
+    const NUM_RE = /^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?[fF]?$/;
+    type SweptAttr = { name: string; at: number; value?: string; valueAt?: number };
+    const checkAttrValue = (tag: string, a: SweptAttr, baseAt: number, kind: string | undefined): void => {
+      if (a.value === undefined || a.valueAt === undefined) return;
+      const vOff = baseAt + a.valueAt;
+      const vLen = Math.max(1, [...a.value].length);
+      const emit = (off: number, len: number, code: string, msg: string) => {
+        const key = `${code}@${off}:${len}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          push(off, len, 0, code, msg);
+        }
+      };
+      const vocab = attrEnums[a.name];
+      if (vocab) {
+        const lc = a.value.toLowerCase();
+        if (!vocab.some((v) => v.toLowerCase() === lc)) {
+          emit(vOff, vLen, "UETKX2311", `invalid value '${a.value}' for ${a.name} — one of: ${vocab.join(" | ")} (typos fall back silently at runtime)`);
+        }
+        return;
+      }
+      if (!kind) return;
+      switch (kind) {
+        case "float":
+          if (!NUM_RE.test(a.value.trim())) emit(vOff, vLen, "UETKX2311", `'${a.value}' is not a number — ${a.name} is a float attribute`);
+          break;
+        case "int":
+          if (!/^[+-]?\d+$/.test(a.value.trim())) emit(vOff, vLen, "UETKX2311", `'${a.value}' is not an integer — ${a.name} is an int attribute`);
+          break;
+        case "bool":
+          if (!/^(true|false)$/.test(a.value.trim())) emit(vOff, vLen, "UETKX2311", `'${a.value}' is not a bool — write true or false`);
+          break;
+        case "margin": {
+          const parts = a.value.split(",");
+          const ok = (parts.length === 1 || parts.length === 2 || parts.length === 4) && parts.every((p) => NUM_RE.test(p.trim()));
+          if (!ok) emit(vOff, vLen, "UETKX2311", `'${a.value}' is not a margin — 1, 2, or 4 numbers (uniform | horizontal,vertical | left,top,right,bottom)`);
+          break;
+        }
+        case "vector2":
+        case "color":
+        case "event":
+        case "expr":
+          // codegen refuses the string form outright (UETKX0105) — surface it LIVE, anchored
+          // at the attr name exactly like the compiler does so the sidecar dedupes.
+          emit(baseAt + a.at, [...a.name].length, "UETKX0105", `attribute '${a.name}' on <${tag}> needs an {expr} value (no string form)`);
+          break;
+        default:
+          break; // text/name: any string is legal (enum-ish names are covered by attrEnums)
+      }
+    };
     const compParamsCache = new Map<string, string[] | null>();
     const componentParamsFor = (tag: string): string[] | null => {
       if (compParamsCache.has(tag)) return compParamsCache.get(tag)!;
@@ -505,21 +562,32 @@ function validate(doc: TextDocument): void {
             // resolved through the import); style/slot/key/classes/Ref pass through like the
             // emitter routes them. Unresolvable targets skip validation (never guess).
             const params = componentParamsFor(el.tag);
-            if (params) {
-              for (const a of el.attrs) {
-                if (params.includes(a.name) || universal.has(a.name)) continue;
-                const attrOff = baseAt + a.at;
-                const key = `UETKX0105@${attrOff}:${a.name.length}`;
-                if (!seen.has(key)) {
-                  seen.add(key);
-                  push(attrOff, a.name.length, 0, "UETKX0105", `unknown prop '${a.name}' on <${el.tag}> — not a param of the component`);
-                }
+            for (const a of el.attrs) {
+              if (universal.has(a.name)) {
+                // style/slot pass-through — same runtime parse, same closed vocabularies
+                checkAttrValue(el.tag, a, baseAt, undefined);
+                continue;
+              }
+              if (!params) continue; // unresolvable target — never guess at prop names
+              if (params.includes(a.name)) continue;
+              const attrOff = baseAt + a.at;
+              const key = `UETKX0105@${attrOff}:${a.name.length}`;
+              if (!seen.has(key)) {
+                seen.add(key);
+                push(attrOff, a.name.length, 0, "UETKX0105", `unknown prop '${a.name}' on <${el.tag}> — not a param of the component`);
               }
             }
             continue;
           }
           for (const a of el.attrs) {
-            if (a.name in schemaEl.attrs || universal.has(a.name)) continue;
+            if (a.name in schemaEl.attrs) {
+              checkAttrValue(el.tag, a, baseAt, schemaEl.attrs[a.name]);
+              continue;
+            }
+            if (universal.has(a.name)) {
+              checkAttrValue(el.tag, a, baseAt, undefined);
+              continue;
+            }
             const attrOff = baseAt + a.at;
             const key = `UETKX0105@${attrOff}:${a.name.length}`;
             if (!seen.has(key)) {
@@ -766,6 +834,25 @@ connection.onCompletion(async (params): Promise<CompletionItem[] | CompletionLis
       items.push({ label: f.field, kind: CompletionItemKind.Field, detail: f.type, sortText: "1" + f.field });
     }
     return items;
+  }
+
+  // R10: inside a STRING attr value (`HAlign="|"`) the closed vocabulary IS the completion
+  // set — the same attrEnums the value validator (UETKX2311) enforces. Typos here fall back
+  // silently at runtime, so authors should never have to guess these spellings.
+  {
+    const tail = text.slice(Math.max(0, offEarly - 160), offEarly);
+    const m = /([A-Za-z_][A-Za-z0-9_.]*)\s*=\s*"([A-Za-z0-9_]*)$/.exec(tail);
+    if (m) {
+      const vocab = schemaOf(doc).attrEnums?.[m[1]];
+      if (vocab) {
+        return vocab.map((v, i) => ({
+          label: v,
+          kind: CompletionItemKind.EnumMember,
+          detail: `${m[1]} — one of ${vocab.length}`,
+          sortText: "0" + String(i).padStart(2, "0"), // schema order: canonical spellings first
+        }));
+      }
+    }
   }
 
   // R5-3: inside an ATTR-EXPR HOLE (`Size={ | }`) the attr's SCHEMA TYPE leads the list —

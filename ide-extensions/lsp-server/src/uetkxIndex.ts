@@ -13,7 +13,7 @@
 // LOUDLY at compile); under-detection is the silent failure mode — patterns err toward
 // precision, with every recognized shape test-pinned.
 
-import { findMatching, keywordAt, skipNoncode, skipNoncodeMarkup } from "./cppScanner";
+import { findMatching, keywordAt, skipNoncode, skipNoncodeMarkup, skipString } from "./cppScanner";
 import { fromCodePoints, toCodePoints } from "./codePoints";
 import { findMarkupRanges } from "./jsxScan";
 import { parseMarkup, UetkxNode } from "./uetkxMarkup";
@@ -716,7 +716,9 @@ export function collectFileReferences(scan: UetkxFileScanResult, srcText: string
 export interface UetkxSweptElement {
   tag: string;
   at: number; // code points, span-buffer-relative
-  attrs: Array<{ name: string; at: number }>;
+  /** `value`/`valueAt` are present only for STRING-literal values (`Name="…"`) — the R10
+   *  value-validation surface. Expression holes and flag attrs carry no value fields. */
+  attrs: Array<{ name: string; at: number; value?: string; valueAt?: number }>;
 }
 
 /** Sweep ONE markup span for OPEN tags and their attribute-name tokens — markup-lexis- and
@@ -789,7 +791,24 @@ export function sweepMarkupElements(bodyCp: readonly number[], spanStart: number
       if (isIdentStartCp(ck)) {
         const as = k;
         while (k < spanEnd && isAttrChar(bodyCp[k])) k++;
-        el.attrs.push({ name: fromCodePoints(bodyCp, as, k - as), at: as });
+        const attr: UetkxSweptElement["attrs"][number] = { name: fromCodePoints(bodyCp, as, k - as), at: as };
+        // R10: capture STRING-literal values so the schema sweep can type-check them (enum
+        // vocabularies + numeric/margin formats). `= "…"` only — holes stay opaque here.
+        let p = k;
+        while (p < spanEnd && (bodyCp[p] === 32 || bodyCp[p] === 9 || bodyCp[p] === 10 || bodyCp[p] === 13)) p++;
+        if (p < spanEnd && bodyCp[p] === 61 /* = */) {
+          p++;
+          while (p < spanEnd && (bodyCp[p] === 32 || bodyCp[p] === 9 || bodyCp[p] === 10 || bodyCp[p] === 13)) p++;
+          if (p < spanEnd && (bodyCp[p] === 34 /* " */ || bodyCp[p] === 39 /* ' */)) {
+            const vEnd = skipString(bodyCp, p);
+            if (vEnd <= spanEnd && vEnd > p + 1 && bodyCp[vEnd - 1] === bodyCp[p]) {
+              attr.value = fromCodePoints(bodyCp, p + 1, vEnd - p - 2);
+              attr.valueAt = p + 1;
+              k = vEnd;
+            }
+          }
+        }
+        el.attrs.push(attr);
         continue;
       }
       k++;

@@ -281,3 +281,46 @@ recursively (nested directives included); the no-return `@if { <T/> }` shape swe
 **Verified:** the DoomHUD @for-body mangles now flag (`Bssox`, `TextsBlocsk` → 2307);
 pinned in index tests (open+close tags, component tags, and NESTED @if-in-@for markup all
 indexed + swept). 89/89 + SMOKE.
+
+---
+
+# Round 10 (2026-07-20): string attr VALUES had no type checking anywhere
+
+Owner field find (mangled `Slot.HAlign="cesssssnter"`, `Justification="center"`,
+`BorderImage="WhissssssteBrush"`, `Padding="1"`): "I assume those are properties like styles
+and the likes, why are they not type checked?"
+
+**Root cause — worse than unchecked:** enum-ish string values (`HAlign`, `Visibility`,
+`Stretch`, `Placement`, … 20 closed vocabularies total) are parsed at RUNTIME by the Slate
+adapters with SILENT fallbacks (`ParseHAlign`: left/center/right, anything else →
+`HAlign_Fill`). A typo'd value compiled clean and quietly rendered as the fallback — no
+diagnostic at edit, compile, or run time. Numeric/margin/bool strings are pasted VERBATIM
+into generated C++ (a malformed one = a cryptic downstream compile error); expr-only kinds
+(vector2/color) were refused by codegen (0105) but only via the hash-gated sidecar, never
+live.
+
+**Fix (compiler = source of truth, schema = transport, LSP = live surface):**
+- `AttrEnums()` in the toolchain: all 20 vocabularies, attributed from the actual adapter
+  parse sites (subagent-audited, every FName comparison traced). Sets include the
+  fallback-only spellings (`fill`, `left` for Justification, `inherit`, `visible`,
+  `belowAnchor`, `all`, `both`, `none`, `combined`, `leftToRight`, `topLeft`,
+  `fractionOfParent`) — typing the fallback works by definition; omitting them would have
+  manufactured false positives. FName comparison is case-insensitive; all checks match.
+- **UETKX0106** (new compile error): codegen now rejects invalid enum values at both
+  string-lowering sites (element Name attrs + style/slot strings). Tree-wide `-check`: 42
+  files, 0 errors.
+- Schema export gains `attrEnums` (RUIExportSchema regenerated; shipped copy synced).
+- **UETKX2311** (new live diagnostic): the sweep now CAPTURES string attr values and
+  validates — enum vocabularies (element attrs, style keys, slot keys, and Slot.* on
+  component tags), float/int/bool formats, margin arity (1|2|4 numbers). Expr-only kinds
+  surface codegen's exact 0105 message live.
+- Value completion: ctrl+space inside `HAlign="|"` offers the vocabulary (schema order).
+- `BorderImage` is NOT closed-world: brush names resolve through the engine's open
+  `FCoreStyle` set (unknown → Slate's "missing resource" brush + Slate log), so brush
+  values stay free-form by design.
+
+**Verified:** owner's exact mangles pinned in smoke (`cesssssnter` on attr AND slot key,
+`centre` on Justification, `abc` float, `1,2,3` margin, vector2 string form; `VAlign="Top"`
+case-insensitive PASS, `Padding="1"` uniform-margin PASS). C++ pins: 0106 on element attr +
+slot key, fallback-only `"Fill"` + case-insensitive valid values compile. 90/90 node +
+SMOKE + ReactiveUI.Uetkx+Boot 13/13 + RUICompile -check clean + corpus hash frozen.

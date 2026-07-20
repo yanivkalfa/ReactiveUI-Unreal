@@ -16,6 +16,11 @@ export interface UetkxSchema {
   /** TD-016: event attr name -> payload kind (text|bool|float|int|name|color|vector2|void) — the
    *  FRuiValue field an event handler's `Value` carries. Absent in older shipped schemas. */
   eventPayloads?: Record<string, string>;
+  /** R10: attr/style/slot key -> the CLOSED set of accepted string values, exported from the
+   *  runtime's own parse tables (ParseHAlign et al) — those parses fall back SILENTLY, so a
+   *  typo'd value is invisible at compile AND run time without this. FName comparison is
+   *  case-insensitive; validate accordingly. Absent in older shipped schemas. */
+  attrEnums?: Record<string, string[]>;
 }
 
 let shipped: UetkxSchema | null = null;

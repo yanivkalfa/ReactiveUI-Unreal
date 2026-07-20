@@ -31,3 +31,6 @@ around.
      TD-024 sidecar gate, Value.-payload ordering — vscode+vs2022 0.6.0), Lane C
      (DISCORD_CHANGELOG [0.12.0], 1895 chars). -->
 (empty — drained 2026-07-18)
+
+- [lane A] [plugin] UETKX0106: the compiler now rejects invalid enum-string attr values (HAlign="cesnter" etc.) — 20 closed vocabularies exported from the runtime's own parse tables; previously typos compiled clean and silently rendered as the fallback (fix/lsp-field-test-false-positives, round 10)
+- [lane B] [both extensions] UETKX2311 live attr-VALUE validation (enum vocabularies incl. style/slot keys, float/int/bool formats, margin arity) + enum value completion inside the quotes + expr-only string forms surfaced live (round 10)
