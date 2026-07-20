@@ -388,3 +388,40 @@ test("audit: a plain-binding rename validates only the IMPORTER it edits (no glo
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("R9: tags + attrs INSIDE directive bodies are swept and indexed (the @for blind spot)", () => {
+  const src = [
+    'import { Chip } from "./Chip"',
+    "export FRuiNode Hud() {",
+    "\treturn (",
+    "\t\t<VerticalBox>",
+    "\t\t\t@for (int32 i = 0; i < 4; ++i) {",
+    "\t\t\t\tconst bool bOn = i > 1;",
+    "\t\t\t\treturn (",
+    "\t\t\t\t\t<HorizontalBox key={ i }>",
+    "\t\t\t\t\t\t<Chip />",
+    "\t\t\t\t\t\t@if (bOn) {",
+    "\t\t\t\t\t\t\treturn ( <Spacer /> )",
+    "\t\t\t\t\t\t}",
+    "\t\t\t\t\t</HorizontalBox>",
+    "\t\t\t\t);",
+    "\t\t\t}",
+    "\t\t</VerticalBox>",
+    "\t);",
+    "}",
+    "",
+  ].join("\n");
+  const refs = refsOf(src, "Hud");
+  const tags = refs.filter((r) => r.kind === "tag").map((r) => `${r.name}${r.closeTag ? "/c" : ""}`).sort();
+  assert.ok(tags.includes("HorizontalBox") && tags.includes("HorizontalBox/c"), "directive-body open+close tags indexed");
+  assert.ok(tags.includes("Chip"), "component tag inside the @for body indexed (rename completeness)");
+  assert.ok(tags.includes("Spacer"), "NESTED directive body (@if inside @for) tags indexed");
+  // and the live-sweep primitive sees them too
+  const { sweepMarkupElements } = require("../uetkxIndex") as typeof import("../uetkxIndex");
+  const scan = scanFile(src, "Hud", true);
+  const comp = scan.components[0];
+  const bodyCp = [...comp.body].map((ch) => ch.codePointAt(0)!);
+  const sp = comp.returns[comp.returns.length - 1];
+  const swept = sweepMarkupElements(bodyCp, sp.mStart, sp.mEnd).map((e) => e.tag);
+  assert.ok(swept.includes("HorizontalBox") && swept.includes("Spacer"), "sweep descends directive bodies: " + swept.join(","));
+});

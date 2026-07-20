@@ -400,6 +400,58 @@ export function collectCodeRefs(
  *  skipNoncodeMarkup) and hole-aware: a braced expression `{ … }` and a parenthesized directive
  *  header `( … )` are CODE islands — skipped whole via findMatching so a `<` comparison inside
  *  them can never read as a tag (the `@if (a <b)` shape). */
+
+/** Does the `{` at `bracePos` open a DIRECTIVE BODY (`@for (…) {`, `@if (…) {`, `@else {`,
+ *  a `case v:` / `default:` body) rather than an expression hole? Expression holes hang off
+ *  `=` / expr-child positions; directive bodies follow a `)` whose opener is preceded by an
+ *  `@ident` header, the `else` keyword, or a case/default `:`. (R9 field find: treating
+ *  directive bodies as holes hid EVERY tag/attr inside them from the live sweep AND the tag
+ *  index — "markup inside return directives gets no diagnostics".) */
+function isDirectiveBodyBrace(bodyCp: readonly number[], bracePos: number, spanStart: number): boolean {
+  let k = bracePos - 1;
+  while (k >= spanStart && (bodyCp[k] === 32 || bodyCp[k] === 9 || bodyCp[k] === 10 || bodyCp[k] === 13)) k--;
+  if (k < spanStart) return false;
+  const c = bodyCp[k];
+  if (c === 58 /* : */) return true; // case v: { … } / default: { … }
+  if (c === 101 /* e */) {
+    // the else keyword (} @else { / } else {)
+    let s = k;
+    while (s > spanStart && isIdentCp(bodyCp[s - 1])) s--;
+    return fromCodePoints(bodyCp, s, k - s + 1) === "else";
+  }
+  if (c !== 41 /* ) */) return false;
+  // walk back to the matching open paren of this header
+  let depth = 0;
+  let p = k;
+  for (; p >= spanStart; p--) {
+    if (bodyCp[p] === 41) depth++;
+    else if (bodyCp[p] === 40) {
+      depth--;
+      if (depth === 0) break;
+    }
+  }
+  if (p < spanStart || depth !== 0) return false;
+  let q = p - 1;
+  while (q >= spanStart && (bodyCp[q] === 32 || bodyCp[q] === 9)) q--;
+  // the header ident (for/if/while/match) with its @ sigil
+  let s2 = q;
+  while (s2 > spanStart && isIdentCp(bodyCp[s2])) s2--;
+  return bodyCp[s2] === 64 /* @ */;
+}
+
+/** Descend into a directive body's MARKUP: its lead statements are C++ (never tag-swept), the
+ *  markup lives in the `return ( … )` window (or, with no return, the body IS markup — the
+ *  `@if { <T/> }` shape). Returns the sub-ranges (body-relative) a span walker should treat
+ *  as markup. */
+function directiveMarkupRanges(bodyCp: readonly number[], braceOpen: number, braceClose: number): Array<[number, number]> {
+  const inner = bodyCp.slice(braceOpen + 1, braceClose);
+  const split = splitMarkupReturn(inner, false);
+  if (split.ok && split.mStart >= 0 && split.mEnd >= 0) {
+    return [[braceOpen + 1 + split.mStart, braceOpen + 1 + split.mEnd]];
+  }
+  return [[braceOpen + 1, braceClose]]; // direct-markup body
+}
+
 function collectTagRefs(bodyCp: readonly number[], spanStart: number, spanEnd: number, baseAt: number, out: UetkxFileRef[]): void {
   let i = spanStart;
   while (i < spanEnd) {
@@ -414,6 +466,11 @@ function collectTagRefs(bodyCp: readonly number[], spanStart: number, spanEnd: n
       if (close === -1 || close >= spanEnd) {
         i++;
         continue;
+      }
+      if (c === 123 && isDirectiveBodyBrace(bodyCp, i, spanStart)) {
+        for (const [rs, re] of directiveMarkupRanges(bodyCp, i, close)) {
+          collectTagRefs(bodyCp, rs, re, baseAt, out);
+        }
       }
       i = close + 1;
       continue;
@@ -683,6 +740,11 @@ export function sweepMarkupElements(bodyCp: readonly number[], spanStart: number
       if (close === -1 || close >= spanEnd) {
         i++;
         continue;
+      }
+      if (c === 123 && isDirectiveBodyBrace(bodyCp, i, spanStart)) {
+        for (const [rs, re] of directiveMarkupRanges(bodyCp, i, close)) {
+          out.push(...sweepMarkupElements(bodyCp, rs, re));
+        }
       }
       i = close + 1;
       continue;

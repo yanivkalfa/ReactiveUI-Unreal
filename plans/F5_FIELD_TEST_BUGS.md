@@ -258,3 +258,26 @@ session, paid at first interaction. The user does not have to be the one paying 
 **Measured:** open A (seeds warm), wait, open B → B's diagnostics in **0.11s** vs ~10s
 cold — a ~90× faster first open for every file the warm has reached. Files opened before
 their turn still pay the classic cost once; the queue drains the rest while you work.
+
+---
+
+# Round 9 (2026-07-20): markup inside DIRECTIVE BODIES was invisible to the live sweep
+
+Owner field find (torture-tested DoomHUD): mangle every tag/attr inside `@for (…) { … }`
+bodies → zero diagnostics; top-level markup validates fine. Correct diagnosis by the owner:
+"only markup inside return directives."
+
+**Root cause:** the span walkers (the live schema sweep AND the tag-reference collector)
+skip `{…}` blocks as expression holes — by design, so a C++ `a < b` can never fake a tag.
+But a DIRECTIVE body's brace was skipped by the same rule, hiding its entire return window:
+no 2307/0105 there, and tag references inside directives were also missing from the index
+(a component renamed while used only inside an `@if` body would have missed an occurrence).
+
+**Fix:** a brace discriminator — a `{` following `@ident (…)`, `@else`, or a `case:`/
+`default:` marker is a DIRECTIVE BODY, not a hole. Both walkers now descend: lead C++
+statements stay unswept (never tag material), the `return ( … )` window is walked
+recursively (nested directives included); the no-return `@if { <T/> }` shape sweeps whole.
+
+**Verified:** the DoomHUD @for-body mangles now flag (`Bssox`, `TextsBlocsk` → 2307);
+pinned in index tests (open+close tags, component tags, and NESTED @if-in-@for markup all
+indexed + swept). 89/89 + SMOKE.
