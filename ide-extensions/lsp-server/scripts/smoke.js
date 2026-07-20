@@ -327,6 +327,48 @@ const settle = (ms = 300) => new Promise((r) => setTimeout(r, ms));
     fail("completion must edit the WHOLE dotted token: " + JSON.stringify(acCol.textEdit));
   console.log("attr-name completion OK (whole-token textEdit, Slot. prefix narrows)");
 
+  // R15: completion/diagnostic PARITY — never offer what the checkers flag on accept.
+  // The owner's screenshot: `Slot.` on a VerticalBox child offered Slot.Position, and
+  // accepting it tripped the 0111 the validator just learned. Also: attrs already present
+  // (0109 on accept) and sinceUE-gated tags (2313 on accept) must not be offered.
+  const pyUri = "file:///tmp/Parity.uetkx";
+  const pyText = 'export FRuiNode Parity() {\n\treturn ( <VerticalBox>\n\t\t<TextBlock Text="x" Slot.HAlign="center" Slot. />\n\t\t<Border><Spacer S /></Border>\n\t</VerticalBox> );\n}\n';
+  notify("textDocument/didOpen", { textDocument: { uri: pyUri, languageId: "uetkx", version: 1, text: pyText } });
+  const pyLine2 = pyText.split("\n")[2];
+  const pyRes = await request("textDocument/completion", { textDocument: { uri: pyUri },
+    position: { line: 2, character: pyLine2.indexOf('Slot.HAlign="center" Slot.') + 'Slot.HAlign="center" Slot.'.length } });
+  const pyLabels = ((pyRes.result && (pyRes.result.items || pyRes.result)) || []).map((it) => it.label);
+  if (pyLabels.includes("Slot.Position") || pyLabels.includes("Slot.ZOrder"))
+    fail("slot keys the parent ignores must NOT be offered (VerticalBox child): " + JSON.stringify(pyLabels));
+  if (!pyLabels.includes("Slot.Fill") || !pyLabels.includes("Slot.Padding"))
+    fail("slot keys the parent READS must be offered: " + JSON.stringify(pyLabels));
+  if (pyLabels.includes("Slot.HAlign"))
+    fail("an attr already on the tag must NOT be re-offered (0109 on accept): " + JSON.stringify(pyLabels));
+  const pyLine3 = pyText.split("\n")[3];
+  const py2Res = await request("textDocument/completion", { textDocument: { uri: pyUri },
+    position: { line: 3, character: pyLine3.indexOf("<Spacer S") + "<Spacer S".length } });
+  const py2Labels = ((py2Res.result && (py2Res.result.items || py2Res.result)) || []).map((it) => it.label);
+  if (py2Labels.some((l) => l.startsWith("Slot.")))
+    fail("NO slot keys under a SingleContent parent (Border passes none): " + JSON.stringify(py2Labels.filter((l) => l.startsWith("Slot."))));
+  console.log("completion/diagnostic parity OK (parent-consumed slot keys only, no dupes, none under Border)");
+
+  // R15: sinceUE parity in TAG completion (5.6 fixture workspace)
+  const tgDir = fs.mkdtempSync(path.join(os.tmpdir(), "uetkx-tagver-"));
+  fs.writeFileSync(path.join(tgDir, "Demo.uproject"), '{"EngineAssociation": "5.6"}');
+  const tgPath = path.join(tgDir, "Tags.uetkx").replace(/\\/g, "/");
+  const tgUri = "file:///" + tgPath;
+  const tgText = "export FRuiNode Tags() {\n\treturn ( <S );\n}\n";
+  notify("textDocument/didOpen", { textDocument: { uri: tgUri, languageId: "uetkx", version: 1, text: tgText } });
+  const tgRes = await request("textDocument/completion", { textDocument: { uri: tgUri },
+    position: { line: 1, character: tgText.split("\n")[1].indexOf("<S") + 2 } });
+  const tgLabels = ((tgRes.result && (tgRes.result.items || tgRes.result)) || []).map((it) => it.label);
+  if (tgLabels.includes("SearchableComboBox"))
+    fail("a 5.7-only tag must NOT be offered in a 5.6 project (2313 on accept)");
+  if (!tgLabels.includes("Spacer"))
+    fail("ordinary tags must still be offered: " + JSON.stringify(tgLabels.slice(0, 6)));
+  fs.rmSync(tgDir, { recursive: true, force: true });
+  console.log("sinceUE tag-completion parity OK (gated tag hidden on 5.6)");
+
   // R13: brush names — closed per engine (the schema carries FCoreStyle's resolvable set);
   // the owner's exact mangle, plus a did-you-mean and the valid spelling staying clean
   const brUri = "file:///tmp/Brush.uetkx";

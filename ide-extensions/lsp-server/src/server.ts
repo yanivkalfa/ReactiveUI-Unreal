@@ -1254,11 +1254,21 @@ connection.onCompletion(async (params): Promise<CompletionItem[] | CompletionLis
   const cp = utf16ToCodePoint(text, doc.offsetAt(params.position));
   const ctx = classifyCursor(text, cp);
   if (ctx.kind === "tag") {
-    const items: CompletionItem[] = Object.keys(schema.elements).map((tag) => ({
-      label: tag,
-      kind: CompletionItemKind.Class,
-      detail: schema.elements[tag].factory,
-    }));
+    // R15 parity: a sinceUE-gated element on an older EngineAssociation renders a null slot
+    // (2313 on accept) — don't offer it.
+    const tagEngineVer = engineVersionForFile(path.dirname(fsPathOf(doc)));
+    const items: CompletionItem[] = Object.keys(schema.elements)
+      .filter((tag) => {
+        const since = schema.elements[tag].sinceUE;
+        if (!since || !tagEngineVer) return true;
+        const need = /^(\d+)\.(\d+)/.exec(since);
+        return !need || tagEngineVer[0] > Number(need[1]) || (tagEngineVer[0] === Number(need[1]) && tagEngineVer[1] >= Number(need[2]));
+      })
+      .map((tag) => ({
+        label: tag,
+        kind: CompletionItemKind.Class,
+        detail: schema.elements[tag].factory,
+      }));
     // Import intelligence: a component declared in THIS file or imported here is renderable as a
     // `<Tag>` too — fold those in after the host elements (host names win a collision).
     const fsPath = fsPathOf(doc);
@@ -1313,22 +1323,46 @@ connection.onCompletion(async (params): Promise<CompletionItem[] | CompletionLis
       filterText: label,
       textEdit: { range: editRange, newText: label },
     });
+    // R15 — completion/diagnostic PARITY: never offer what the checkers flag on accept.
+    // The parent-tracked sweep (parse-error resilient — the buffer is mid-edit) locates
+    // the element being completed: its existing attrs are out (0109 duplicate), and slot
+    // keys its PARENT never reads are out (0111 — `Slot.Position` under a VerticalBox).
+    const fileCp = toCodePoints(text);
+    const sweptAll: ReturnType<typeof sweepMarkupElements> = [];
+    for (const r of findMarkupRanges(fileCp, 0, fileCp.length)) {
+      sweepMarkupElements(fileCp, r.start, r.end === -1 ? fileCp.length : r.end, sweptAll);
+    }
+    let cur: (typeof sweptAll)[number] | undefined;
+    for (const e of sweptAll) {
+      if (e.at > cp) break;
+      if (e.tag === ctx.tag) cur = e;
+    }
+    const present = new Set((cur?.attrs ?? []).map((a) => a.name));
+    present.delete(typed); // the token being typed is not "already present"
+    const parentTag = cur?.parent !== undefined ? sweptAll[cur.parent].tag : undefined;
+    const consumed = parentTag ? schema.slotConsumption?.[parentTag] : undefined;
     const items: CompletionItem[] = [];
+    const add = (label: string, kind: CompletionItemKind, detail: string): void => {
+      if (!present.has(label)) items.push(mk(label, kind, detail));
+    };
     const slotOnly = /^slot\./i.test(typed);
     if (!slotOnly) {
       const el = schema.elements[ctx.tag];
       if (el) {
         for (const [attr, type] of Object.entries(el.attrs)) {
-          items.push(mk(attr, CompletionItemKind.Property, type));
+          add(attr, CompletionItemKind.Property, type);
         }
       }
-      for (const key of schema.styleKeys) items.push(mk(key, CompletionItemKind.Color, "style"));
+      for (const key of schema.styleKeys) add(key, CompletionItemKind.Color, "style");
     }
-    for (const key of schema.slotKeys) items.push(mk(key, CompletionItemKind.Unit, "slot"));
+    for (const key of schema.slotKeys) {
+      if (consumed && !consumed.includes(key)) continue; // the parent would ignore it (0111)
+      add(key, CompletionItemKind.Unit, parentTag ? `slot — read by <${parentTag}>` : "slot");
+    }
     if (!slotOnly) {
-      items.push(mk("key", CompletionItemKind.Keyword, "reconciler identity"));
-      items.push(mk("classes", CompletionItemKind.Keyword, "style classes"));
-      items.push(mk("Ref", CompletionItemKind.Keyword, "host-handle capture (expr)"));
+      add("key", CompletionItemKind.Keyword, "reconciler identity");
+      add("classes", CompletionItemKind.Keyword, "style classes");
+      add("Ref", CompletionItemKind.Keyword, "host-handle capture (expr)");
     }
     return items;
   }

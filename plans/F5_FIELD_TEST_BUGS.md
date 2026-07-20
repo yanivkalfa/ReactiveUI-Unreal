@@ -514,3 +514,27 @@ all), and a `Slot.` prefix narrows the list to slot keys.
 double-flag), and whole-token/narrowed completion pinned in smoke; tracker unit pin (paren
 + braced-init decls tracked, calls not misdeclared); C++ 0112 pin (3 casings, one compile).
 91/91 node + SMOKE + engine suites + -check clean.
+
+---
+
+# Round 15 (2026-07-21): completion/diagnostic PARITY — never offer what the checkers flag
+
+Owner field find (post-R14): `Slot.` on a VerticalBox child correctly narrowed to slot keys
+— but offered ALL 18, including `Slot.Position`, and accepting it immediately tripped the
+0111 the validator had just learned. Completion and diagnostics were reading different
+truths.
+
+**Rule installed: the completion list consults the SAME maps the checkers enforce.**
+- Slot keys filter by the PARENT's slotConsumption (the parent-tracked sweep locates the
+  element being completed — parse-error resilient, the buffer is mid-edit): a VerticalBox
+  child offers Fill/Padding/HAlign/VAlign only, each labeled "slot — read by <parent>"; a
+  Border child offers NO slot keys at all. Unknown/component parents keep the full list
+  (can't know their re-slotting).
+- Attrs already present on the tag are not re-offered (0109 duplicate on accept).
+- sinceUE-gated tags are hidden when the .uproject's EngineAssociation is older (2313 on
+  accept) — SearchableComboBox no longer offered on 5.6.
+
+**Verified:** smoke pins mirror the owner's screenshot exactly (VerticalBox child: Position/
+ZOrder absent, Fill/Padding present, already-present HAlign absent; Border child: zero
+Slot.*; 5.6 fixture: SearchableComboBox hidden, ordinary tags intact). 91/91 node + SMOKE.
+LSP-only round (no C++ changes).
