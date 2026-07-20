@@ -239,3 +239,22 @@ from the scan, clang deduces the binding, the hint reports it.
 **Verified both ways:** clean file → `SetPrimary` colors as function (compiler-derived);
 hook name broken → the binding doesn't type → honest variable/blue (and the 2310 typo lint
 covers the diagnostics side). No pattern-matching anywhere in the chain.
+
+---
+
+# Round 8 (2026-07-20): "no way to speed it up?" — background TU pre-warm
+
+The ~10s first-open cost is clangd building a file's ENGINE PREAMBLE — per file, per
+session, paid at first interaction. The user does not have to be the one paying it:
+
+- Once clangd is live (first real doc), the server warms the workspace's .uetkx virtual TUs
+  in the BACKGROUND — strictly one at a time (nothing like the core-pegging background
+  indexer), newest-modified first, capped at 48, stopping instantly if clangd dies.
+- A warmed file's later real open hash-dedupes into the already-built TU. The dedupe used to
+  swallow diagnostics entirely (measured: silence — clangd never re-publishes for a no-op
+  didOpen and the warm-time publishes were dropped while the doc was closed); the proxy now
+  stores each TU's last publish and REPLAYS it on a deduped open.
+
+**Measured:** open A (seeds warm), wait, open B → B's diagnostics in **0.11s** vs ~10s
+cold — a ~90× faster first open for every file the warm has reached. Files opened before
+their turn still pay the classic cost once; the queue drains the rest while you work.

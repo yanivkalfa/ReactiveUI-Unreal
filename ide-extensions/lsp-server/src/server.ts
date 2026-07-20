@@ -349,6 +349,7 @@ function publishMerged(uri: string): void {
 function publishEmbeddedDiagnostics(params: ClangdPublishedDiagnostics): void {
   const realUri = realUriOfVirtual(params.uri);
   if (!realUri) return;
+  warmWaiters.get(params.uri)?.();
   // clangd RE-SERIALIZES URIs (drive-letter case, `%3A` vs `:`), so a raw string lookup misses
   // VS Code's own spelling and every diagnostic silently vanishes (the "I mangled the whole
   // body and nothing squiggled" bug, round 2 — bughunt LSP-5's lesson applied here too).
@@ -408,7 +409,14 @@ async function syncEmbeddedDoc(doc: TextDocument): Promise<void> {
   const view = buildEmbeddedView(text, fsPathOf(doc));
   if (view.regionCount === 0) return;
   const proxy = await embeddedProxy(doc);
-  if (proxy) proxy.didOpen(virtualUriOf(doc.uri), view.virtualText);
+  if (proxy) {
+    const vuri = virtualUriOf(doc.uri);
+    if (proxy.didOpen(vuri, view.virtualText) === "deduped") {
+      // a pre-warmed TU — its diagnostics were published while the doc was closed; replay
+      proxy.replayDiagnostics(vuri);
+    }
+    startBackgroundWarm(fsPathOf(doc)); // R8 — first live doc seeds the workspace warm
+  }
 }
 
 function validate(doc: TextDocument): void {
@@ -636,6 +644,65 @@ function validate(doc: TextDocument): void {
   // seconds behind the buffer. Position requests are unaffected — embeddedPositionRequest
   // syncs the CURRENT text itself before every query (hash-deduped).
   scheduleEmbeddedSync(doc);
+}
+
+// ── R8: background TU pre-warm ─────────────────────────────────────────────────────────────
+// The ~10s first-open cost is clangd building a file's engine preamble — per file, per
+// session, paid at first interaction. Nothing says the USER has to pay it: once clangd is
+// up, warm the workspace's .uetkx virtual TUs one at a time (strictly serial — one preamble
+// build in flight, unlike the background indexer that pegged every core), newest-modified
+// first. A warmed file's later real didOpen hash-dedupes into the already-built TU, so its
+// diagnostics arrive in ~300ms like an ordinary edit. Publishes for not-open files are
+// already dropped by the doc-lookup guard, so warming is invisible until it pays off.
+const warmWaiters = new Map<string, () => void>();
+let warmStarted = false;
+function startBackgroundWarm(seedFsPath: string): void {
+  if (warmStarted) return;
+  warmStarted = true;
+  setTimeout(async () => {
+    try {
+      const files = sweptUetkxFiles(seedFsPath)
+        .map((p) => {
+          try {
+            return { p, m: fs.statSync(p).mtimeMs };
+          } catch {
+            return null;
+          }
+        })
+        .filter((x): x is { p: string; m: number } => x !== null)
+        .sort((a, b) => b.m - a.m)
+        .slice(0, 48)
+        .map((x) => x.p);
+      for (const file of files) {
+        if (!clangd?.isAvailable()) return; // clangd died — the lazy respawn owns recovery
+        const already = documents.all().some((d) => path.resolve(fsPathOf(d)) === path.resolve(file));
+        if (already) continue; // open docs sync themselves
+        let source: string;
+        try {
+          source = fs.readFileSync(file, "utf8");
+        } catch {
+          continue;
+        }
+        const view = buildEmbeddedView(source, file);
+        if (view.regionCount === 0) continue;
+        const vuri = virtualUriOf(URI.fromFsPath(file));
+        await new Promise<void>((resolve) => {
+          const timer = setTimeout(() => {
+            warmWaiters.delete(vuri);
+            resolve(); // a stuck TU must not stall the queue
+          }, 60000);
+          warmWaiters.set(vuri, () => {
+            clearTimeout(timer);
+            warmWaiters.delete(vuri);
+            resolve();
+          });
+          clangd!.didOpen(vuri, view.virtualText);
+        });
+      }
+    } catch (e) {
+      logServerError("background warm", e);
+    }
+  }, 3000);
 }
 
 const embedSyncTimers = new Map<string, ReturnType<typeof setTimeout>>();

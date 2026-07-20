@@ -335,6 +335,11 @@ export class ClangdProxy {
    *  the rename path syncs the doc before its guard; without dedup every rename would bump
    *  the version and force a full clangd re-parse of unchanged text). */
   private readonly openTextHashes = new Map<string, number>();
+  /** Last publishDiagnostics per virtual uri — REPLAYED when a didOpen hash-dedupes (R8:
+   *  a pre-warmed TU already published while the doc was closed; without replay the real
+   *  open would show nothing). */
+  private readonly lastPublish = new Map<string, ClangdPublishedDiagnostics>();
+
   /** The last ~2KB of clangd's stderr — drained continuously (B5) and surfaced on exit. */
   private stderrTail = "";
   /** clangd's semantic-token legend (from its initialize result) — needed to decode
@@ -472,14 +477,14 @@ export class ClangdProxy {
   /** Sync the virtual C++ doc: didOpen on first sight, versioned didChange after (clangd
    *  re-diagnoses per version — the TB-10 diagnostics loop rides this). An UNCHANGED text is
    *  a no-op (see openTextHashes). */
-  didOpen(uri: string, text: string): void {
+  didOpen(uri: string, text: string): "sent" | "deduped" | "unavailable" {
     if (!this.available) {
-      return;
+      return "unavailable";
     }
     const hash = ClangdProxy.textHash(text);
     const prev = this.openVersions.get(uri);
     if (prev !== undefined && this.openTextHashes.get(uri) === hash) {
-      return; // same text clangd already holds — don't force a re-parse
+      return "deduped"; // same text clangd already holds — don't force a re-parse
     }
     this.openTextHashes.set(uri, hash);
     if (prev === undefined) {
@@ -487,7 +492,7 @@ export class ClangdProxy {
       this.notify("textDocument/didOpen", {
         textDocument: { uri, languageId: "cpp", version: 1, text },
       });
-      return;
+      return "sent";
     }
     const version = prev + 1;
     this.openVersions.set(uri, version);
@@ -495,6 +500,15 @@ export class ClangdProxy {
       textDocument: { uri, version },
       contentChanges: [{ text }], // full-sync — the virtual doc is rebuilt per edit anyway
     });
+    return "sent";
+  }
+
+  /** Re-fire the stored diagnostics for a uri (a deduped didOpen publishes nothing new). */
+  replayDiagnostics(uri: string): void {
+    const stored = this.lastPublish.get(uri);
+    if (stored && this.onPublishDiagnostics) {
+      this.onPublishDiagnostics(stored);
+    }
   }
 
   /** The version clangd currently holds for a virtual doc (0 = never opened) — the N6 rename
@@ -599,6 +613,7 @@ export class ClangdProxy {
           continue;
         }
         if (m.method === "textDocument/publishDiagnostics" && this.onPublishDiagnostics && m.params) {
+          this.lastPublish.set((m.params as ClangdPublishedDiagnostics).uri, m.params as ClangdPublishedDiagnostics);
           this.onPublishDiagnostics(m.params as ClangdPublishedDiagnostics);
         }
       } catch (e) {
