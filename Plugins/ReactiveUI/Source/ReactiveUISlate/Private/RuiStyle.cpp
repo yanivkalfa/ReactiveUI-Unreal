@@ -4,6 +4,7 @@
 
 #include "RuiElementAdapter.h"
 #include "RuiSlateLog.h"
+#include "RuiSlotValue.h"
 
 namespace
 {
@@ -22,7 +23,9 @@ namespace
 
 	float AsFloat(const FRuiValue& V)
 	{
-		return V.Kind == FRuiValue::EKind::Int ? static_cast<float>(V.IntValue) : static_cast<float>(V.FloatValue);
+		// R11: route through the SLOT-1 hardened reader — the toolchain emits literal style
+		// values as Strings (`RenderOpacity="0.5"`), and the union-field read silently gave 0.
+		return RUI::Slate::SlotValue::AsFloat(V);
 	}
 
 	EVisibility VisibilityOf(const FRuiValue& V)
@@ -59,7 +62,7 @@ namespace
 		{
 			if (const FRuiValue* T = Dict->Find(FName(TEXT("RenderTranslation"))))
 			{
-				Translation = T->Vector2Value;
+				Translation = RUI::Slate::SlotValue::AsVector2(*T); // parses the `"x,y"` literal form (R11)
 				bAny = true;
 			}
 			if (const FRuiValue* S = Dict->Find(FName(TEXT("RenderScale"))))
@@ -105,12 +108,13 @@ namespace
 		}
 		if (Key == FName(TEXT("enabled")))
 		{
-			W.SetEnabled(Value == nullptr || Value->BoolValue);
+			W.SetEnabled(Value == nullptr || RUI::Slate::SlotValue::AsBool(*Value, true));
 			return true;
 		}
 		if (Key == FName(TEXT("RenderTransformPivot")))
 		{
-			W.SetRenderTransformPivot(Value != nullptr ? Value->Vector2Value : FVector2D::ZeroVector);
+			W.SetRenderTransformPivot(Value != nullptr ? RUI::Slate::SlotValue::AsVector2(*Value)
+													   : FVector2D::ZeroVector);
 			return true;
 		}
 		if (Key == FName(TEXT("ToolTipText")))

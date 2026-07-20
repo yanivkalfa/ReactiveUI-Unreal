@@ -50,6 +50,37 @@ namespace RUI::Slate::SlotValue
 		}
 	}
 
+	/** Read a slot value as a bool, parsing the String/Name literal forms ("true"/"false",
+	 *  case-insensitive — FName semantics, like every enum-string parse). R11: the last two
+	 *  union-field bool reads (Slot.AutoSize, Slot.Resizable) and the style-side bools
+	 *  (Enabled, AutoWrapText) silently read FALSE for the literal form — SLOT-1's class. */
+	inline bool AsBool(const FRuiValue& V, bool Def = false)
+	{
+		switch (V.Kind)
+		{
+		case FRuiValue::EKind::Bool:
+			return V.BoolValue;
+		case FRuiValue::EKind::Int:
+			return V.IntValue != 0;
+		case FRuiValue::EKind::String:
+		case FRuiValue::EKind::Name:
+		{
+			const FString S = V.Kind == FRuiValue::EKind::Name ? V.NameValue.ToString() : V.StringValue;
+			if (S.Equals(TEXT("true"), ESearchCase::IgnoreCase))
+			{
+				return true;
+			}
+			if (S.Equals(TEXT("false"), ESearchCase::IgnoreCase))
+			{
+				return false;
+			}
+			return Def;
+		}
+		default:
+			return Def;
+		}
+	}
+
 	/** Read a slot value as an FVector2D: Vector2 kind, uniform Int/Float, or the String/Name
 	 *  `"x,y"` / `"u"` comma forms (same literal rules as every other slot reader — SLOT-1). */
 	inline FVector2D AsVector2(const FRuiValue& V, FVector2D Def = FVector2D::ZeroVector)

@@ -158,6 +158,39 @@ component RowList(Names: TArray<FString>) {
 				TEXT("<TextBlock Text=\"t\" Justification=\"center\" /></Border> ); }"),
 			TEXT("Ok6"));
 		TestTrue(TEXT("valid enum values (incl. fallback-only 'Fill', case-insensitive) compile"), GoodEnum.bOk);
+
+		// R11 — typed style/slot strings: malformed literals used to Atof to 0/false silently.
+		FUetkxCompileOutput BadFormat = FUetkxCodegen::CompileSource(
+			TEXT("component Bad4 { return ( <Spacer RenderOpacity=\"abc\" /> ); }"), TEXT("Bad4"));
+		TestTrue(TEXT("0106 malformed float style string"),
+				 !BadFormat.bOk && BadFormat.Diags.ContainsByPredicate([](const FUetkxDiag& D)
+																	  { return D.Code == TEXT("UETKX0106"); }));
+		FUetkxCompileOutput BadColor = FUetkxCodegen::CompileSource(
+			TEXT("component Bad5 { return ( <TextBlock Text=\"t\" ColorAndOpacity=\"red\" /> ); }"), TEXT("Bad5"));
+		TestTrue(TEXT("0106 color has no string form (TextBlock fast path)"),
+				 !BadColor.bOk && BadColor.Diags.ContainsByPredicate([](const FUetkxDiag& D)
+																	 { return D.Code == TEXT("UETKX0106"); }));
+		// the TextBlock fast path duplicates the style lowering — pin its enum check too
+		FUetkxCompileOutput BadTbEnum = FUetkxCodegen::CompileSource(
+			TEXT("component Bad7 { return ( <TextBlock Text=\"t\" Justification=\"centre\" /> ); }"), TEXT("Bad7"));
+		TestTrue(TEXT("0106 invalid enum value on the TextBlock fast path"),
+				 !BadTbEnum.bOk && BadTbEnum.Diags.ContainsByPredicate([](const FUetkxDiag& D)
+																	   { return D.Code == TEXT("UETKX0106"); }));
+		FUetkxCompileOutput BadFlag = FUetkxCodegen::CompileSource(
+			TEXT("component Bad6 { return ( <Spacer RenderOpacity /> ); }"), TEXT("Bad6"));
+		TestTrue(TEXT("0106 flag form on a float style key"),
+				 !BadFlag.bOk && BadFlag.Diags.ContainsByPredicate([](const FUetkxDiag& D)
+																   { return D.Code == TEXT("UETKX0106"); }));
+		FUetkxCompileOutput GoodForms = FUetkxCodegen::CompileSource(
+			TEXT("component Ok7 { return ( <VerticalBox RenderOpacity=\"0.5\" Enabled RenderTranslation=\"5,7\">")
+				TEXT("<Spacer Slot.Padding=\"1,2\" Slot.AutoSize=\"true\" /></VerticalBox> ); }"),
+			TEXT("Ok7"));
+		TestTrue(TEXT("well-formed style/slot strings + bool flag compile"), GoodForms.bOk);
+		if (GoodForms.bOk)
+		{
+			TestTrue(TEXT("flag form lowers as FRuiValue(true), not an empty string"),
+					 GoodForms.Inl.Contains(TEXT("FRuiValue(true)")));
+		}
 	}
 
 	// ── §4 markup everywhere: markup-as-value lowers in place (statement positions) ───────

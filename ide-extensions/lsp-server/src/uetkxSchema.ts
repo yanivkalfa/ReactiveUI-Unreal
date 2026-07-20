@@ -21,6 +21,11 @@ export interface UetkxSchema {
    *  typo'd value is invisible at compile AND run time without this. FName comparison is
    *  case-insensitive; validate accordingly. Absent in older shipped schemas. */
   attrEnums?: Record<string, string[]>;
+  /** R11: typed style/slot key -> value kind (float|int|bool|vector2|margin|color). The runtime
+   *  parses well-formed string literals through the SLOT-1 hardened readers; malformed ones
+   *  still Atof to 0/false silently — this drives the LSP string-format check. color has no
+   *  string form at all. Absent in older shipped schemas. */
+  attrKinds?: Record<string, string>;
 }
 
 let shipped: UetkxSchema | null = null;

@@ -447,8 +447,11 @@ test("R10: sweep captures STRING attr values; holes and flag attrs stay valueles
   const byName = new Map(border.attrs.map((a) => [a.name, a]));
   assert.equal(byName.get("HAlign")?.value, "cesssssnter", "string value captured");
   assert.ok(byName.get("HAlign")!.valueAt! > byName.get("HAlign")!.at, "valueAt points into the literal");
+  assert.equal(byName.get("HAlign")?.form, "str", "string form recorded (R11)");
   assert.equal(byName.get("Padding")?.value, undefined, "expression holes carry no value");
+  assert.equal(byName.get("Padding")?.form, "expr", "expr form recorded (R11)");
   assert.equal(byName.get("AutoWrapText")?.value, undefined, "flag attrs carry no value");
+  assert.equal(byName.get("AutoWrapText")?.form, "flag", "flag form recorded (R11)");
   const text = els.find((e) => e.tag === "TextBlock")!.attrs.find((a) => a.name === "Text");
   assert.equal(text?.value, 'a \\"quoted\\" bit', "escaped quotes stay inside one captured value");
 });

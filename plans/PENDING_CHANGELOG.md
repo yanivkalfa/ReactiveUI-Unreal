@@ -34,3 +34,5 @@ around.
 
 - [lane A] [plugin] UETKX0106: the compiler now rejects invalid enum-string attr values (HAlign="cesnter" etc.) — 20 closed vocabularies exported from the runtime's own parse tables; previously typos compiled clean and silently rendered as the fallback (fix/lsp-field-test-false-positives, round 10)
 - [lane B] [both extensions] UETKX2311 live attr-VALUE validation (enum vocabularies incl. style/slot keys, float/int/bool formats, margin arity) + enum value completion inside the quotes + expr-only string forms surfaced live (round 10)
+- [lane A] [plugin] style-key string literals now PARSE like slot keys (SLOT-1 hardening, style side): RenderOpacity="0.5" no longer renders invisible, Enabled="true" no longer disables, Font.Size/translation/scale/pivot/bool keys all honor the literal form; flag form lowers as true; UETKX0106 rejects malformed typed strings + color string forms at compile (round 11)
+- [lane B] [both extensions] live 2311/0105 for malformed style/slot value strings, flag-form misuse, string/flag props on typed component params, and Ref without {expr}; schema now carries attrKinds (round 11)

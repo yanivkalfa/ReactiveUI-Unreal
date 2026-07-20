@@ -183,10 +183,9 @@ public:
 		}
 		if (Key == FName(TEXT("Font.Size")))
 		{
-			const int32 Size = Value != nullptr
-								   ? (Value->Kind == FRuiValue::EKind::Int ? static_cast<int32>(Value->IntValue)
-																		   : static_cast<int32>(Value->FloatValue))
-								   : 9; // reset: the default core-style size
+			// R11: SlotValue reader — the literal form (`Font.Size="12"`) is a String and the
+			// union-field read silently gave size 0 (SLOT-1's class, style side).
+			const int32 Size = Value != nullptr ? RUI::Slate::SlotValue::AsInt(*Value, 9) : 9;
 			W.SetFont(FCoreStyle::GetDefaultFontStyle("Regular", Size));
 			return true;
 		}
@@ -206,16 +205,13 @@ public:
 		}
 		if (Key == FName(TEXT("AutoWrapText")))
 		{
-			W.SetAutoWrapText(Value != nullptr && Value->BoolValue);
+			W.SetAutoWrapText(Value != nullptr && RUI::Slate::SlotValue::AsBool(*Value)); // R11: parses "true"
 			return true;
 		}
 		// TD-012 sweep (WIDGET_COMPLETION_PLAN wave 2): the remaining text-shaping setters.
 		if (Key == FName(TEXT("LineHeightPercentage")))
 		{
-			W.SetLineHeightPercentage(Value != nullptr ? (Value->Kind == FRuiValue::EKind::Int
-															  ? static_cast<float>(Value->IntValue)
-															  : static_cast<float>(Value->FloatValue))
-													   : 1.0f);
+			W.SetLineHeightPercentage(Value != nullptr ? RUI::Slate::SlotValue::AsFloat(*Value, 1.0f) : 1.0f);
 			return true;
 		}
 		if (Key == FName(TEXT("OverflowPolicy")))

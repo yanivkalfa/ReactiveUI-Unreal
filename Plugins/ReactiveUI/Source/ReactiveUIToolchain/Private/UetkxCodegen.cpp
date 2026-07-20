@@ -571,6 +571,95 @@ namespace
 		return Enums;
 	}
 
+	// R11 — value KINDS for the style/slot keys whose string form carries typed data. The
+	// runtime reads these through the SLOT-1 hardened SlotValue:: readers (String forms parse),
+	// so a well-formed string is fully supported — but a MALFORMED one still parses to 0/false
+	// silently (Atof semantics). color has NO string form (hex parsing is post-v1, D-comment):
+	// its string form is rejected outright like the expr-only element kinds. Enum-vocabulary
+	// keys (Visibility, Justification, …) live in AttrEnums, not here. Exported as `attrKinds`.
+	const TMap<FString, FString>& StyleSlotKinds()
+	{
+		static const TMap<FString, FString> Kinds = {
+			{TEXT("RenderOpacity"), TEXT("float")},
+			{TEXT("RenderScale"), TEXT("float")},
+			{TEXT("RenderTransformAngle"), TEXT("float")},
+			{TEXT("LineHeightPercentage"), TEXT("float")},
+			{TEXT("Font.Size"), TEXT("int")},
+			{TEXT("Enabled"), TEXT("bool")},
+			{TEXT("AutoWrapText"), TEXT("bool")},
+			{TEXT("RenderTranslation"), TEXT("vector2")},
+			{TEXT("RenderTransformPivot"), TEXT("vector2")},
+			{TEXT("ColorAndOpacity"), TEXT("color")},
+			{TEXT("FillColorAndOpacity"), TEXT("color")},
+			{TEXT("Slot.Padding"), TEXT("margin")},
+			{TEXT("Slot.Offset"), TEXT("margin")},
+			{TEXT("Slot.Anchors"), TEXT("margin")},
+			{TEXT("Slot.Position"), TEXT("vector2")},
+			{TEXT("Slot.Size"), TEXT("vector2")},
+			{TEXT("Slot.Alignment"), TEXT("vector2")},
+			{TEXT("Slot.Fill"), TEXT("float")},
+			{TEXT("Slot.ZOrder"), TEXT("float")},
+			{TEXT("Slot.SizeValue"), TEXT("float")},
+			{TEXT("Slot.MinSize"), TEXT("float")},
+			{TEXT("Slot.AutoSize"), TEXT("bool")},
+			{TEXT("Slot.Resizable"), TEXT("bool")},
+		};
+		return Kinds;
+	}
+
+	bool IsNumericLiteral(const FString& S)
+	{
+		const FString T = S.TrimStartAndEnd();
+		return !T.IsEmpty() && T.IsNumeric();
+	}
+
+	/** Empty when the string form of Key/Value is well-formed (or Key carries no kind); else
+	 *  the failure message. Mirrors the SlotValue:: readers' accepted literal grammars. */
+	FString FailedStyleSlotFormat(const FString& Key, const FString& Value)
+	{
+		const FString* Kind = StyleSlotKinds().Find(Key);
+		if (Kind == nullptr)
+		{
+			return FString();
+		}
+		if (*Kind == TEXT("color"))
+		{
+			return FString::Printf(TEXT("%s needs an {expr} value (no string form)"), *Key);
+		}
+		if (*Kind == TEXT("bool"))
+		{
+			return Value.Equals(TEXT("true"), ESearchCase::IgnoreCase) ||
+						   Value.Equals(TEXT("false"), ESearchCase::IgnoreCase)
+					   ? FString()
+					   : FString::Printf(TEXT("invalid value '%s' for %s — write true or false"), *Value, *Key);
+		}
+		TArray<FString> Parts;
+		Value.ParseIntoArray(Parts, TEXT(","), true);
+		const int32 N = Parts.Num();
+		bool bParts = N > 0;
+		for (const FString& P : Parts)
+		{
+			bParts &= IsNumericLiteral(P);
+		}
+		if (*Kind == TEXT("float") || *Kind == TEXT("int"))
+		{
+			return N == 1 && bParts
+					   ? FString()
+					   : FString::Printf(TEXT("invalid value '%s' for %s — expects a number"), *Value, *Key);
+		}
+		if (*Kind == TEXT("vector2"))
+		{
+			return (N == 1 || N == 2) && bParts ? FString()
+												: FString::Printf(TEXT("invalid value '%s' for %s — \"x,y\" (or a "
+																	   "uniform number)"),
+																  *Value, *Key);
+		}
+		// margin: uniform | horizontal,vertical | left,top,right,bottom
+		return (N == 1 || N == 2 || N == 4) && bParts
+				   ? FString()
+				   : FString::Printf(TEXT("invalid value '%s' for %s — 1, 2, or 4 numbers"), *Value, *Key);
+	}
+
 	/** nullptr when Key has no closed vocabulary; else the vocabulary Value failed (case-
 	 *  insensitive) — the caller formats the diagnostic. */
 	const TArray<FString>* FailedAttrEnum(const FString& Key, const FString& Value)
@@ -1393,11 +1482,46 @@ namespace
 				{
 					bStyled = true;
 					const bool bSlot = Attr.Name.StartsWith(TEXT("Slot."));
+					// R10/R11: same value checks as the generic element path (this TextBlock
+					// fast path is a second copy of the style lowering — round-11 field find:
+					// it silently skipped them).
+					if (Attr.Kind != EUetkxAttrKind::Expr && Attr.Kind != EUetkxAttrKind::Bool)
+					{
+						if (const TArray<FString>* Vocab = FailedAttrEnum(Attr.Name, Attr.Value))
+						{
+							Fail(TEXT("UETKX0106"),
+								 FString::Printf(TEXT("invalid value '%s' for %s — one of: %s"), *Attr.Value,
+												 *Attr.Name, *FString::Join(*Vocab, TEXT(" | "))),
+								 AbsAt + Attr.At);
+							continue;
+						}
+						const FString FormatErr = FailedStyleSlotFormat(Attr.Name, Attr.Value);
+						if (!FormatErr.IsEmpty())
+						{
+							Fail(TEXT("UETKX0106"), FormatErr, AbsAt + Attr.At);
+							continue;
+						}
+					}
+					else if (Attr.Kind == EUetkxAttrKind::Bool)
+					{
+						const FString* FlagKind = StyleSlotKinds().Find(Attr.Name);
+						if (AttrEnums().Contains(Attr.Name) ||
+							(FlagKind != nullptr && *FlagKind != TEXT("bool")))
+						{
+							Fail(TEXT("UETKX0106"),
+								 FString::Printf(TEXT("flag form assigns true — %s takes a %s value"), *Attr.Name,
+												 FlagKind != nullptr ? **FlagKind : TEXT("vocabulary")),
+								 AbsAt + Attr.At);
+							continue;
+						}
+					}
 					const FString Value =
 						Attr.Kind == EUetkxAttrKind::Expr
 							? FString::Printf(TEXT("FRuiValue(%s)"),
 											  *EmitExpr(Attr.Value, AbsAt,
 														TrueBase >= 0 && Attr.Vat >= 0 ? TrueBase + Attr.Vat : -1))
+						: Attr.Kind == EUetkxAttrKind::Bool
+							? FString(TEXT("FRuiValue(true)"))
 							: FString::Printf(TEXT("FRuiValue(TEXT(\"%s\"))"), *CppStringLiteral(Attr.Value));
 					StyleStmts += FString::Printf(TEXT("\t\t__%s->Add(FName(TEXT(\"%s\")), %s);\n"),
 												  bSlot ? TEXT("Slot") : TEXT("Style"), *Attr.Name, *Value);
@@ -1518,12 +1642,39 @@ namespace
 							 AbsAt + Attr.At);
 						continue;
 					}
+					// R11: typed style/slot strings — the runtime parses well-formed literals
+					// (SlotValue readers), but a malformed one still Atof's to 0/false silently.
+					const FString FormatErr = FailedStyleSlotFormat(Attr.Name, Attr.Value);
+					if (!FormatErr.IsEmpty())
+					{
+						Fail(TEXT("UETKX0106"), FormatErr, AbsAt + Attr.At);
+						continue;
+					}
+				}
+				else if (Attr.Kind == EUetkxAttrKind::Bool)
+				{
+					// R11: the flag form (= true) only fits bool-kind keys; on an enum or typed
+					// key the runtime would read that true back as a 0/default silently.
+					const FString* FlagKind = StyleSlotKinds().Find(Attr.Name);
+					if (AttrEnums().Contains(Attr.Name) ||
+						(FlagKind != nullptr && *FlagKind != TEXT("bool")))
+					{
+						Fail(TEXT("UETKX0106"),
+							 FString::Printf(TEXT("flag form assigns true — %s takes a %s value"), *Attr.Name,
+											 FlagKind != nullptr ? **FlagKind : TEXT("vocabulary")),
+							 AbsAt + Attr.At);
+						continue;
+					}
 				}
 				const FString Value =
 					Attr.Kind == EUetkxAttrKind::Expr
 						? FString::Printf(
 							  TEXT("FRuiValue(%s)"),
 							  *EmitExpr(Attr.Value, AbsAt, TrueBase >= 0 && Attr.Vat >= 0 ? TrueBase + Attr.Vat : -1))
+					: Attr.Kind == EUetkxAttrKind::Bool
+						// R11: the flag form means TRUE (like element bool attrs) — it used to
+						// lower as FRuiValue(TEXT("")), which the runtime read as false.
+						? FString(TEXT("FRuiValue(true)"))
 						: FString::Printf(TEXT("FRuiValue(TEXT(\"%s\"))"), *CppStringLiteral(Attr.Value));
 				StyleStmts += FString::Printf(TEXT("\t\t__%s->Add(FName(TEXT(\"%s\")), %s);\n"),
 											  bSlot ? TEXT("Slot") : TEXT("Style"), *Attr.Name, *Value);
@@ -2391,6 +2542,17 @@ FString FUetkxCodegen::ExportSchemaJson()
 		AttrEnumsJson->SetArrayField(EnumKey, Values);
 	}
 	Root->SetObjectField(TEXT("attrEnums"), AttrEnumsJson);
+
+	// R11: typed style/slot-key kinds (see StyleSlotKinds) — the LSP's string-format check.
+	TSharedRef<FJsonObject> AttrKindsJson = MakeShared<FJsonObject>();
+	TArray<FString> KindKeys;
+	StyleSlotKinds().GetKeys(KindKeys);
+	KindKeys.Sort();
+	for (const FString& KindKey : KindKeys)
+	{
+		AttrKindsJson->SetStringField(KindKey, StyleSlotKinds()[KindKey]);
+	}
+	Root->SetObjectField(TEXT("attrKinds"), AttrKindsJson);
 
 	FString Out;
 	const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);

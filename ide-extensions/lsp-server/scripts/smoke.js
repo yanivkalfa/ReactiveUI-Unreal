@@ -174,16 +174,22 @@ const settle = (ms = 300) => new Promise((r) => setTimeout(r, ms));
   // R5-4: component-prop validation — an unknown prop on a USER component 0105s
   const cpDir = fs.mkdtempSync(path.join(os.tmpdir(), "uetkx-props-"));
   fs.writeFileSync(path.join(cpDir, "Demo.uproject"), "{}");
-  fs.writeFileSync(path.join(cpDir, "Card.uetkx"), 'export FRuiNode Card(FString Label = FString()) {\n\treturn ( <Spacer /> );\n}\n');
+  fs.writeFileSync(path.join(cpDir, "Card.uetkx"), 'export FRuiNode Card(FString Label = FString(), int32 Count = 0) {\n\treturn ( <Spacer /> );\n}\n');
   const userPath = path.join(cpDir, "User.uetkx").replace(/\\/g, "/");
   const userUri = "file:///" + userPath;
   notify("textDocument/didOpen", { textDocument: { uri: userUri, languageId: "uetkx", version: 1,
-    text: 'import { Card } from "./Card"\nexport FRuiNode User() {\n\treturn ( <Card Labsssel="x" /> );\n}\n' } });
+    text: 'import { Card } from "./Card"\nexport FRuiNode User() {\n\treturn ( <Card Labsssel="x" Label="ok" Count="5" /> );\n}\n' } });
   await settle();
   const propDiags = diagnostics[userUri] || [];
   if (!propDiags.some((d) => String(d.code) === "UETKX0105" && /Labsssel/.test(d.message)))
     fail("unknown component prop must 0105: " + JSON.stringify(propDiags.map((d) => d.code)));
-  console.log("component-prop validation OK (0105 on an unknown prop)");
+  // R11: prop FORM vs param TYPE — a string on an int32 param is a guaranteed downstream
+  // C++ error (codegen lowers it as P.Count = TEXT("5")); FString params take strings fine
+  if (!propDiags.some((d) => String(d.code) === "UETKX2311" && /Count.*int32/.test(d.message)))
+    fail("string prop on int32 param must 2311: " + JSON.stringify(propDiags.map((d) => d.message)));
+  if (propDiags.some((d) => String(d.code) === "UETKX2311" && /Label'/.test(d.message)))
+    fail("string prop on FString param must NOT flag");
+  console.log("component-prop validation OK (0105 unknown prop, 2311 form-vs-type)");
 
   // R6: local-typo lint — a near-miss of an in-scope LOCAL flags 2310 even when the
   // binding initializer is broken (clang suppresses the callee error in that cascade)
@@ -200,7 +206,7 @@ const settle = (ms = 300) => new Promise((r) => setTimeout(r, ms));
   // LSP is the only place a typo'd value can surface), numeric/margin formats, expr-only kinds.
   const valUri = "file:///tmp/Vals.uetkx";
   notify("textDocument/didOpen", { textDocument: { uri: valUri, languageId: "uetkx", version: 1,
-    text: 'export FRuiNode Vals() {\n\treturn ( <Border HAlign="cesssssnter" VAlign="Top" Padding="1">\n\t\t<TextBlock Text="x" Slot.HAlign="cesssssnter" Justification="centre" />\n\t\t<Box WidthOverride="abc" />\n\t\t<Button ContentPadding="1,2,3">y</Button>\n\t\t<Spacer Size="1,2" />\n\t</Border> );\n}\n' } });
+    text: 'export FRuiNode Vals() {\n\treturn ( <Border HAlign="cesssssnter" VAlign="Top" Padding="1">\n\t\t<TextBlock Text="x" Slot.HAlign="cesssssnter" Justification="centre" />\n\t\t<Box WidthOverride="abc" HAlign Ref="nope" />\n\t\t<Button ContentPadding="1,2,3">y</Button>\n\t\t<Spacer Size="1,2" />\n\t\t<Spacer RenderOpacity="abc" RenderScale Slot.Padding="1,2,3" ColorAndOpacity="red" />\n\t\t<Spacer RenderOpacity="0.5" Enabled />\n\t</Border> );\n}\n' } });
   await settle();
   const valDiags = diagnostics[valUri] || [];
   const has2311 = (re) => valDiags.some((d) => String(d.code) === "UETKX2311" && re.test(d.message));
@@ -213,7 +219,15 @@ const settle = (ms = 300) => new Promise((r) => setTimeout(r, ms));
     fail("valid values must NOT flag (VAlign=Top is case-insensitively valid; Padding=1 is a uniform margin): " + JSON.stringify(valDiags.map((d) => d.message)));
   if (!valDiags.some((d) => String(d.code) === "UETKX0105" && /Size.*needs an \{expr\} value/.test(d.message)))
     fail("string form of a vector2 attr must surface codegen's 0105 LIVE: " + JSON.stringify(valDiags.map((d) => d.message)));
-  console.log("attr value validation OK (2311 enums + formats, live 0105 expr-only, case-insensitive)");
+  // R11: typed style/slot strings (runtime parses well-formed literals; malformed → 0/false silently)
+  if (!has2311(/abc.*RenderOpacity/)) fail("malformed float STYLE string must 2311: " + JSON.stringify(valDiags.map((d) => d.message)));
+  if (!has2311(/RenderScale takes a float/)) fail("flag form on a float style key must 2311");
+  if (!has2311(/1,2,3.*Slot\.Padding/)) fail("3-component slot margin must 2311");
+  if (!valDiags.some((d) => String(d.code) === "UETKX0105" && /ColorAndOpacity.*needs an \{expr\}/.test(d.message)))
+    fail("color string form must surface 0105 LIVE (no string form)");
+  if (valDiags.some((d) => /'0\.5'|Enabled/.test(d.message)))
+    fail("valid style strings and bool flags must NOT flag: " + JSON.stringify(valDiags.map((d) => d.message)));
+  console.log("attr value validation OK (2311 enums + formats + style/slot strings, live 0105 expr-only)");
 
   // R10: value completion — ctrl+space inside `HAlign="|"` offers the closed vocabulary
   const vcUri = "file:///tmp/ValComp.uetkx";

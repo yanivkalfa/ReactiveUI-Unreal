@@ -324,3 +324,49 @@ live.
 case-insensitive PASS, `Padding="1"` uniform-margin PASS). C++ pins: 0106 on element attr +
 slot key, fallback-only `"Fill"` + case-insensitive valid values compile. 90/90 node +
 SMOKE + ReactiveUI.Uetkx+Boot 13/13 + RUICompile -check clean + corpus hash frozen.
+
+---
+
+# Round 11 (2026-07-20): the systematic sweep — typed STYLE values were silently wrong at runtime
+
+Owner follow-up to round 10: "check over the system... anything that can be typed but isn't."
+A full runtime-coercion audit (every style key, every slot key, subagent-traced to the reader
+code) found the deeper asymmetry: **slot keys were hardened long ago (SLOT-1/2) to parse
+string literals — style keys never got that pass.** The toolchain emits every literal markup
+value as a String, and the style readers consumed union fields raw:
+
+- `RenderOpacity="0.5"` → read FloatValue(=0) → **widget invisible**
+- `Enabled="true"` → read BoolValue(=false) → **widget disabled**
+- `RenderScale="1.5"` / `RenderTransformAngle="45"` / `LineHeightPercentage` → 0
+- `RenderTranslation="5,7"` / `RenderTransformPivot="0.5,0.5"` → ZeroVector
+- `Font.Size="12"` → size 0; `AutoWrapText="true"` → false
+- Slot side's last two union reads: `Slot.AutoSize="true"` → false, `Slot.Resizable="true"`
+  → **false (flips the default!)**
+- The FLAG form on style/slot keys (`<X Enabled/>`) lowered as `FRuiValue(TEXT(""))` → false.
+- `ColorAndOpacity`/`FillColorAndOpacity` strings → **white** (no string form exists at all).
+
+**Fixes (all four layers):**
+- **Runtime**: `SlotValue::AsBool` added; every silent reader rerouted through the SLOT-1
+  hardened `SlotValue::` parsers (RuiStyle.cpp + RuiCoreAdapters + B4). Well-formed string
+  literals now just work, matching slot semantics.
+- **Codegen**: flag form on style/slot keys lowers as `FRuiValue(true)`; `StyleSlotKinds`
+  table (23 typed keys) → UETKX0106 on malformed strings (floats/vector2/margin/bool),
+  0106 on flag-vs-nonbool and color-string forms. Exported to the schema as `attrKinds`.
+- **LSP live**: 2311 on malformed style/slot strings + flag-form misuse; 0105 live for
+  color strings; rules mirror the compiler exactly (strict numerics — runtime literals are
+  not C++ paste, so no f-suffix).
+- **Component props** (also this round): the sweep captures attr FORM (str|expr|flag);
+  `componentParamsFor` now returns typed params — a string prop on a non-FString/FName
+  param and a flag prop on a non-bool param flag 2311 live (codegen lowers them as raw
+  `P.X = TEXT("…")`/`= true`, a guaranteed cryptic C++ error). `Ref="…"`/`<X Ref/>`
+  surfaces codegen's exact 0105 live.
+
+**Deliberately NOT validated:** `classes` names (runtime stylesheet registry, open set —
+runtime already warns once per unknown class), `key` (free-form identity), brush names
+(open FCoreStyle set, round 10).
+
+**Verified:** ReactiveUI.Style.StringLiteralForms pins the runtime parses distinguishably
+(0.5 vs old silent 0, true vs old false, (5,7) vs ZeroVector); codegen pins 0106 malformed
+float/color-string/flag-on-float + well-formed forms compile + `FRuiValue(true)` lowering;
+smoke pins the live 2311/0105 set incl. valid-value false-positive guards. 90/90 node +
+SMOKE + Uetkx/Style/Boot suites + RUICompile -check clean.

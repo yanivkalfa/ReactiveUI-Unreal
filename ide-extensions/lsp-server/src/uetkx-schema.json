@@ -942,5 +942,31 @@
 			"hitTestInvisible",
 			"selfHitTestInvisible"
 		]
+	},
+	"attrKinds":
+	{
+		"AutoWrapText": "bool",
+		"ColorAndOpacity": "color",
+		"Enabled": "bool",
+		"FillColorAndOpacity": "color",
+		"Font.Size": "int",
+		"LineHeightPercentage": "float",
+		"RenderOpacity": "float",
+		"RenderScale": "float",
+		"RenderTransformAngle": "float",
+		"RenderTransformPivot": "vector2",
+		"RenderTranslation": "vector2",
+		"Slot.Alignment": "vector2",
+		"Slot.Anchors": "margin",
+		"Slot.AutoSize": "bool",
+		"Slot.Fill": "float",
+		"Slot.MinSize": "float",
+		"Slot.Offset": "margin",
+		"Slot.Padding": "margin",
+		"Slot.Position": "vector2",
+		"Slot.Resizable": "bool",
+		"Slot.Size": "vector2",
+		"Slot.SizeValue": "float",
+		"Slot.ZOrder": "float"
 	}
 }

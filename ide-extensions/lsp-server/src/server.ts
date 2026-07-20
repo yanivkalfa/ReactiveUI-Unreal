@@ -464,12 +464,33 @@ function validate(doc: TextDocument): void {
     // schema.attrEnums is exported from the same runtime parse tables; FName comparison is
     // case-insensitive, so the check is too. Kind-format checks mirror codegen's lowering.
     const attrEnums = schema.attrEnums ?? {};
+    // R11 — typed style/slot keys: the runtime parses well-formed string literals (SlotValue
+    // readers), malformed ones Atof to 0/false SILENTLY (`RenderOpacity="abc"` → invisible).
+    // Rules mirror the COMPILER's (strict numerics, no f-suffix — these are runtime literals,
+    // not C++ paste); bool is case-insensitive like the runtime's FName-style parse.
+    const attrKinds = schema.attrKinds ?? {};
     const NUM_RE = /^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?[fF]?$/;
-    type SweptAttr = { name: string; at: number; value?: string; valueAt?: number };
+    const STRICT_NUM_RE = /^[+-]?(\d+\.?\d*|\.\d+)$/;
+    const styleSlotFormatError = (name: string, value: string): string | null => {
+      const kind = attrKinds[name];
+      if (!kind) return null;
+      if (kind === "color") return `${name} needs an {expr} value (no string form)`;
+      if (kind === "bool") {
+        return /^(true|false)$/i.test(value.trim()) ? null : `invalid value '${value}' for ${name} — write true or false`;
+      }
+      const parts = value.split(",").map((p) => p.trim());
+      const numeric = parts.length > 0 && parts.every((p) => STRICT_NUM_RE.test(p));
+      if (kind === "float" || kind === "int") {
+        return parts.length === 1 && numeric ? null : `invalid value '${value}' for ${name} — expects a number`;
+      }
+      if (kind === "vector2") {
+        return (parts.length === 1 || parts.length === 2) && numeric ? null : `invalid value '${value}' for ${name} — "x,y" (or a uniform number)`;
+      }
+      // margin
+      return (parts.length === 1 || parts.length === 2 || parts.length === 4) && numeric ? null : `invalid value '${value}' for ${name} — 1, 2, or 4 numbers`;
+    };
+    type SweptAttr = { name: string; at: number; value?: string; valueAt?: number; form?: "str" | "expr" | "flag" };
     const checkAttrValue = (tag: string, a: SweptAttr, baseAt: number, kind: string | undefined): void => {
-      if (a.value === undefined || a.valueAt === undefined) return;
-      const vOff = baseAt + a.valueAt;
-      const vLen = Math.max(1, [...a.value].length);
       const emit = (off: number, len: number, code: string, msg: string) => {
         const key = `${code}@${off}:${len}`;
         if (!seen.has(key)) {
@@ -477,6 +498,33 @@ function validate(doc: TextDocument): void {
           push(off, len, 0, code, msg);
         }
       };
+      // R11: Ref is a props-level callable — codegen refuses every non-expr form (its exact
+      // 0105 message, surfaced live); the sidecar-only path hid this like the vector2 case.
+      if (a.name === "Ref" && a.form !== "expr") {
+        emit(baseAt + a.at, [...a.name].length, "UETKX0105", `attribute 'Ref' on <${tag}> needs an {expr} value (a ref callable)`);
+        return;
+      }
+      // R11: flag form assigns literal `true` — on a non-bool schema attr that's a guaranteed
+      // downstream C++ error (expr-only kinds get codegen's 0105 wording, the rest 2311); on a
+      // non-bool STYLE/SLOT key the runtime reads the true back as 0/default silently.
+      if (a.form === "flag") {
+        if (kind && kind !== "bool") {
+          if (kind === "vector2" || kind === "color" || kind === "event" || kind === "expr") {
+            emit(baseAt + a.at, [...a.name].length, "UETKX0105", `attribute '${a.name}' on <${tag}> needs an {expr} value (no string form)`);
+          } else {
+            emit(baseAt + a.at, [...a.name].length, "UETKX2311", `flag form assigns true — ${a.name} is a ${kind} attribute`);
+          }
+          return;
+        }
+        const sk = attrKinds[a.name];
+        if (attrEnums[a.name] || (sk && sk !== "bool")) {
+          emit(baseAt + a.at, [...a.name].length, "UETKX2311", `flag form assigns true — ${a.name} takes a ${attrEnums[a.name] ? "value from its vocabulary" : `${sk} value`}`);
+          return;
+        }
+      }
+      if (a.value === undefined || a.valueAt === undefined) return;
+      const vOff = baseAt + a.valueAt;
+      const vLen = Math.max(1, [...a.value].length);
       const vocab = attrEnums[a.name];
       if (vocab) {
         const lc = a.value.toLowerCase();
@@ -485,7 +533,18 @@ function validate(doc: TextDocument): void {
         }
         return;
       }
-      if (!kind) return;
+      if (!kind) {
+        // universal style/slot key — the typed-string format rules (R11)
+        const formatErr = styleSlotFormatError(a.name, a.value);
+        if (formatErr) {
+          if (attrKinds[a.name] === "color") {
+            emit(baseAt + a.at, [...a.name].length, "UETKX0105", `attribute '${a.name}' on <${tag}> needs an {expr} value (no string form)`);
+          } else {
+            emit(vOff, vLen, "UETKX2311", `${formatErr} (malformed values parse as 0/false silently at runtime)`);
+          }
+        }
+        return;
+      }
       switch (kind) {
         case "float":
           if (!NUM_RE.test(a.value.trim())) emit(vOff, vLen, "UETKX2311", `'${a.value}' is not a number — ${a.name} is a float attribute`);
@@ -514,13 +573,14 @@ function validate(doc: TextDocument): void {
           break; // text/name: any string is legal (enum-ish names are covered by attrEnums)
       }
     };
-    const compParamsCache = new Map<string, string[] | null>();
-    const componentParamsFor = (tag: string): string[] | null => {
+    type CompParam = { name: string; type: string };
+    const compParamsCache = new Map<string, CompParam[] | null>();
+    const componentParamsFor = (tag: string): CompParam[] | null => {
       if (compParamsCache.has(tag)) return compParamsCache.get(tag)!;
-      let names: string[] | null = null;
+      let found: CompParam[] | null = null;
       const own = scan.components.find((c) => c.name === tag);
       if (own) {
-        names = own.params.map((p) => p.name);
+        found = own.params;
       } else {
         for (const imp of scan.imports) {
           if (imp.hostInclude) continue;
@@ -535,12 +595,12 @@ function validate(doc: TextDocument): void {
           if (!idx) break;
           const real = targetName === "__default__" ? idx.scan.defaultExportName : targetName;
           const comp = idx.scan.components.find((c) => c.name === real);
-          if (comp) names = comp.params.map((p) => p.name);
+          if (comp) found = comp.params;
           break;
         }
       }
-      compParamsCache.set(tag, names);
-      return names;
+      compParamsCache.set(tag, found);
+      return found;
     };
     const sweepSpans = (bodyCp: readonly number[], baseAt: number, merged: Array<[number, number]>) => {
       for (const [s, e] of merged) {
@@ -569,7 +629,30 @@ function validate(doc: TextDocument): void {
                 continue;
               }
               if (!params) continue; // unresolvable target — never guess at prop names
-              if (params.includes(a.name)) continue;
+              const param = params.find((p) => p.name === a.name);
+              if (param) {
+                // R11 — prop FORM vs the param's C++ TYPE: codegen lowers a string prop as a
+                // raw `P.X = TEXT("…")` and a flag prop as `P.X = true`, so any mismatch is a
+                // guaranteed (and cryptic) downstream C++ error. FString/FName take strings;
+                // bool takes the flag form; everything else needs an {expr}.
+                const ty = param.type.replace(/\bconst\b|&/g, "").trim();
+                if (a.form === "str" && !/^(FString|FName)$/.test(ty)) {
+                  const off = baseAt + a.at;
+                  const key = `UETKX2311@${off}:${[...a.name].length}`;
+                  if (!seen.has(key)) {
+                    seen.add(key);
+                    push(off, [...a.name].length, 0, "UETKX2311", `prop '${a.name}' of <${el.tag}> is ${param.type} — a string value won't compile; use an {expr} value`);
+                  }
+                } else if (a.form === "flag" && !/^bool$/.test(ty)) {
+                  const off = baseAt + a.at;
+                  const key = `UETKX2311@${off}:${[...a.name].length}`;
+                  if (!seen.has(key)) {
+                    seen.add(key);
+                    push(off, [...a.name].length, 0, "UETKX2311", `flag form assigns true — prop '${a.name}' of <${el.tag}> is ${param.type}`);
+                  }
+                }
+                continue;
+              }
               const attrOff = baseAt + a.at;
               const key = `UETKX0105@${attrOff}:${a.name.length}`;
               if (!seen.has(key)) {

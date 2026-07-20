@@ -109,7 +109,7 @@ namespace
 		Slot.SetOffset(Offset != nullptr ? MarginOf(*Offset) : FMargin(0.f, 0.f, 1.f, 1.f));
 		Slot.SetAnchors(Anchors != nullptr ? AnchorsOf(*Anchors) : FAnchors(0.f));
 		Slot.SetAlignment(Alignment != nullptr ? RUI::Slate::SlotValue::AsVector2(*Alignment) : FVector2D(0.5, 0.5));
-		Slot.SetAutoSize(AutoSize != nullptr && AutoSize->BoolValue);
+		Slot.SetAutoSize(AutoSize != nullptr && RUI::Slate::SlotValue::AsBool(*AutoSize)); // R11: parses "true"
 		Slot.SetZOrder(ZOrder != nullptr ? RUI::Slate::SlotValue::AsFloat(*ZOrder) : 0.f);
 	}
 } // namespace
@@ -212,7 +212,7 @@ namespace
 		Slot.SetSizingRule(bSizeToContent ? SSplitter::SizeToContent : SSplitter::FractionOfParent);
 		Slot.SetSizeValue(Value != nullptr ? RUI::Slate::SlotValue::AsFloat(*Value) : 1.0f);
 		Slot.SetMinSize(MinSize != nullptr ? RUI::Slate::SlotValue::AsFloat(*MinSize) : 20.0f);
-		Slot.SetResizable(Resizable == nullptr || Resizable->BoolValue);
+		Slot.SetResizable(Resizable == nullptr || RUI::Slate::SlotValue::AsBool(*Resizable, true)); // R11: parses "false"
 	}
 } // namespace
 

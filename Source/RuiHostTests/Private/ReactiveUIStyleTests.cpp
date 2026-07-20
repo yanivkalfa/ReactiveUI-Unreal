@@ -117,6 +117,40 @@ bool FRuiStyleApplyTest::RunTest(const FString&)
 	return true;
 }
 
+// ── R11: STRING-literal style values parse like slot values (SLOT-1's class, style side) ──
+// The toolchain emits every literal markup style value as a String (`RenderOpacity="0.5"`);
+// the union-field reads silently gave 0/false/ZeroVector — invisible widgets, disabled
+// buttons — with no diagnostic anywhere. Pinned distinguishably: each expected value differs
+// from the old silent default.
+
+static FRuiNodeArray StyleStringFormsComp(FRuiContext& Ctx, const FRuiEmptyProps&, const TArray<FRuiNode>&)
+{
+	TSharedPtr<FRuiStyleDict> Style = MakeShared<FRuiStyleDict>();
+	Style->Add(FName(TEXT("RenderOpacity")), FRuiValue(FString(TEXT("0.5"))));
+	Style->Add(FName(TEXT("enabled")), FRuiValue(FString(TEXT("true"))));
+	Style->Add(FName(TEXT("RenderTranslation")), FRuiValue(FString(TEXT("5,7"))));
+	return {RUI::Slate::VerticalBox(FRuiVerticalBoxProps(), {StyleTest::StyledText(TEXT("lit"), MoveTemp(Style))})};
+}
+RUI_COMPONENT(StyleStringFormsComp)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRuiStyleStringFormsTest, "ReactiveUI.Style.StringLiteralForms", RUI_STYLE_TEST_FLAGS)
+bool FRuiStyleStringFormsTest::RunTest(const FString&)
+{
+	TSharedRef<FRuiRoot> Root = FRuiRoot::Create(RUI::FC(&StyleStringFormsComp));
+	TSharedPtr<SWidget> Panel = StyleTest::RootChild(*Root);
+	if (!TestTrue(TEXT("panel mounted"), Panel.IsValid()))
+	{
+		return false;
+	}
+	TSharedRef<SWidget> Text = Panel->GetChildren()->GetChildAt(0);
+	TestEqual(TEXT("RenderOpacity=\"0.5\" parses (was silent 0)"), Text->GetRenderOpacity(), 0.5f);
+	TestTrue(TEXT("enabled=\"true\" parses (was silent false)"), Text->IsEnabled());
+	TestTrue(TEXT("RenderTranslation=\"5,7\" parses (was silent ZeroVector)"),
+			 Text->GetRenderTransform().IsSet() &&
+				 FVector2D(Text->GetRenderTransform().GetValue().GetTranslation()).Equals(FVector2D(5.0f, 7.0f)));
+	return true;
+}
+
 // ── classes merge: class applies, inline wins ─────────────────────────────────────────────
 
 static FRuiNodeArray StyleClassesComp(FRuiContext& Ctx, const FRuiEmptyProps&, const TArray<FRuiNode>&)
